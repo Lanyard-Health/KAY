@@ -20,6 +20,9 @@ import { caqhRoutes } from './routes/caqh.routes.js';
 import { payerRoutes } from './routes/payer.routes.js';
 import { expirationRoutes } from './routes/expiration.routes.js';
 import { auditRoutes } from './routes/audit.routes.js';
+import practiceLocationRoutes from './routes/practiceLocation.routes.js';
+import checklistRoutes from './routes/checklist.routes.js';
+import enrollmentRoutes from './routes/enrollment.routes.js';
 
 const app = express();
 const PORT = process.env['PORT'] || 3001;
@@ -69,6 +72,9 @@ app.use('/api/v1/caqh', caqhRoutes);
 app.use('/api/v1/payers', payerRoutes);
 app.use('/api/v1/expirations', expirationRoutes);
 app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/practice-locations', practiceLocationRoutes);
+app.use('/api/v1/checklist', checklistRoutes);
+app.use('/api/v1/enrollments', enrollmentRoutes);
 
 // Error handling
 app.use(errorHandler);

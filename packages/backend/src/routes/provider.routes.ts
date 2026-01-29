@@ -80,6 +80,9 @@ providerRoutes.get(
         where: { id: req.params['providerId'] },
         include: {
           addresses: true,
+          practiceLocations: {
+            orderBy: [{ isPrimary: 'desc' }, { locationName: 'asc' }],
+          },
           licenses: true,
           boardCertifications: true,
           malpracticeInsurances: true,

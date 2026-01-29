@@ -125,6 +125,7 @@ model Provider {
   // Relations
   user                   User?
   addresses              ProviderAddress[]
+  practiceLocations      PracticeLocation[]
   licenses               License[]
   boardCertifications    BoardCertification[]
   malpracticeInsurances  MalpracticeInsurance[]
@@ -136,6 +137,7 @@ model Provider {
   continuingEducations   ContinuingEducation[]
   documents              Document[]
   payerEnrollments       PayerEnrollment[]
+  checklist              ProviderChecklist?
 
   @@map("providers")
 }
@@ -168,6 +170,64 @@ enum AddressType {
   practice
   mailing
   billing
+}
+
+// ==========================================
+// PRACTICE LOCATIONS
+// ==========================================
+
+model PracticeLocation {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  // Location Details
+  locationName  String  @map("location_name")
+  locationType  String  @map("location_type") // e.g., "office", "telehealth", "hospital"
+  isPrimary     Boolean @default(false) @map("is_primary")
+  isActive      Boolean @default(true) @map("is_active")
+
+  // Address
+  addressLine1  String  @map("address_line_1")
+  addressLine2  String? @map("address_line_2")
+  city          String
+  state         String
+  zipCode       String  @map("zip_code")
+  county        String?
+  country       String  @default("US")
+
+  // Contact
+  phone         String
+  fax           String?
+  email         String?
+
+  // Business Info
+  taxId         String? @map("tax_id")
+  npi           String? // Location-specific NPI if different from provider
+
+  // Hours (JSON object with day: {open, close} format)
+  officeHours   Json?   @map("office_hours")
+
+  // Accessibility
+  wheelchairAccessible Boolean @default(false) @map("wheelchair_accessible")
+  publicTransitAccess  Boolean @default(false) @map("public_transit_access")
+  parkingAvailable     Boolean @default(true) @map("parking_available")
+
+  // Additional Info
+  acceptingNewPatients Boolean @default(true) @map("accepting_new_patients")
+  languagesSpoken      String[] @default([])   @map("languages_spoken")
+  specialServices      String[] @default([])   @map("special_services")
+  notes                String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("practice_locations")
 }
 
 // ==========================================
@@ -515,6 +575,9 @@ enum DocumentType {
   cme_certificate
   hospital_letter
   reference_letter
+  w9
+  coi
+  cp575
   other
 }
 
@@ -579,6 +642,60 @@ model Document {
   reviewedBy             User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
 
   @@map("documents")
+}
+
+// ==========================================
+// PROVIDER CHECKLIST
+// ==========================================
+
+enum ChecklistItemStatus {
+  not_started
+  pending_upload
+  pending_review
+  approved
+  rejected
+}
+
+model ProviderChecklist {
+  id         String @id @default(uuid())
+  providerId String @unique @map("provider_id")
+
+  // Required Documents Status
+  w9Status          ChecklistItemStatus @default(not_started) @map("w9_status")
+  w9DocumentId      String?             @map("w9_document_id")
+  w9ReviewedAt      DateTime?           @map("w9_reviewed_at")
+  w9ReviewedBy      String?             @map("w9_reviewed_by")
+  w9Notes           String?             @map("w9_notes")
+
+  coiStatus         ChecklistItemStatus @default(not_started) @map("coi_status")
+  coiDocumentId     String?             @map("coi_document_id")
+  coiReviewedAt     DateTime?           @map("coi_reviewed_at")
+  coiReviewedBy     String?             @map("coi_reviewed_by")
+  coiNotes          String?             @map("coi_notes")
+
+  cp575Status       ChecklistItemStatus @default(not_started) @map("cp575_status")
+  cp575DocumentId   String?             @map("cp575_document_id")
+  cp575ReviewedAt   DateTime?           @map("cp575_reviewed_at")
+  cp575ReviewedBy   String?             @map("cp575_reviewed_by")
+  cp575Notes        String?             @map("cp575_notes")
+
+  // Additional checklist items can be added here
+  licenseVerified        Boolean @default(false) @map("license_verified")
+  credentialsComplete    Boolean @default(false) @map("credentials_complete")
+  backgroundCheckComplete Boolean @default(false) @map("background_check_complete")
+
+  // Overall Status
+  overallComplete   Boolean @default(false) @map("overall_complete")
+  completedAt       DateTime? @map("completed_at")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("provider_checklists")
 }
 
 // ==========================================

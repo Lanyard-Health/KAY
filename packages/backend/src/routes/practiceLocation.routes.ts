@@ -1,0 +1,207 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { prisma } from '../utils/prisma.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+
+const router = Router();
+
+// Validation schemas
+const createPracticeLocationSchema = z.object({
+  locationName: z.string().min(1).max(200),
+  locationType: z.string().min(1).max(50),
+  isPrimary: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true),
+  addressLine1: z.string().min(1).max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(1).max(100),
+  state: z.string().min(2).max(2),
+  zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code'),
+  county: z.string().max(100).optional(),
+  country: z.string().max(2).optional().default('US'),
+  phone: z.string().min(1).max(20),
+  fax: z.string().max(20).optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  taxId: z.string().max(20).optional(),
+  npi: z.string().regex(/^\d{10}$/).optional().or(z.literal('')),
+  officeHours: z.record(z.object({
+    open: z.string(),
+    close: z.string(),
+    closed: z.boolean().optional(),
+  })).optional(),
+  wheelchairAccessible: z.boolean().optional().default(false),
+  publicTransitAccess: z.boolean().optional().default(false),
+  parkingAvailable: z.boolean().optional().default(true),
+  acceptingNewPatients: z.boolean().optional().default(true),
+  languagesSpoken: z.array(z.string()).optional().default([]),
+  specialServices: z.array(z.string()).optional().default([]),
+  notes: z.string().optional(),
+});
+
+const updatePracticeLocationSchema = createPracticeLocationSchema.partial();
+
+// Get all practice locations for a provider
+router.get(
+  '/provider/:providerId',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params;
+
+      const locations = await prisma.practiceLocation.findMany({
+        where: { providerId },
+        orderBy: [{ isPrimary: 'desc' }, { locationName: 'asc' }],
+      });
+
+      res.json({ success: true, data: locations });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get a single practice location
+router.get(
+  '/:id',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      const location = await prisma.practiceLocation.findUnique({
+        where: { id },
+      });
+
+      if (!location) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Practice location not found' },
+        });
+      }
+
+      res.json({ success: true, data: location });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Create a new practice location
+router.post(
+  '/provider/:providerId',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params;
+      const validated = createPracticeLocationSchema.parse(req.body);
+
+      // If this is set as primary, unset other primary locations
+      if (validated.isPrimary) {
+        await prisma.practiceLocation.updateMany({
+          where: { providerId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+
+      const location = await prisma.practiceLocation.create({
+        data: {
+          ...validated,
+          providerId,
+          email: validated.email || null,
+          npi: validated.npi || null,
+          createdById: req.user?.id,
+        },
+      });
+
+      res.status(201).json({ success: true, data: location });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Validation failed', details: error.errors },
+        });
+      }
+      next(error);
+    }
+  }
+);
+
+// Update a practice location
+router.put(
+  '/:id',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = updatePracticeLocationSchema.parse(req.body);
+
+      const existing = await prisma.practiceLocation.findUnique({
+        where: { id },
+      });
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Practice location not found' },
+        });
+      }
+
+      // If this is being set as primary, unset other primary locations
+      if (validated.isPrimary && !existing.isPrimary) {
+        await prisma.practiceLocation.updateMany({
+          where: { providerId: existing.providerId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+
+      const location = await prisma.practiceLocation.update({
+        where: { id },
+        data: {
+          ...validated,
+          email: validated.email || null,
+          npi: validated.npi || null,
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: location });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Validation failed', details: error.errors },
+        });
+      }
+      next(error);
+    }
+  }
+);
+
+// Delete a practice location
+router.delete(
+  '/:id',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      const existing = await prisma.practiceLocation.findUnique({
+        where: { id },
+      });
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Practice location not found' },
+        });
+      }
+
+      await prisma.practiceLocation.delete({ where: { id } });
+
+      res.json({ success: true, data: { message: 'Practice location deleted' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export default router;

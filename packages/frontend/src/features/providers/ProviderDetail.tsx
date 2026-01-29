@@ -1,17 +1,34 @@
 import { useState, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Menu, Transition } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Menu, Transition, Tab } from '@headlessui/react';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { api } from '../../services/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import PracticeLocationModal from './PracticeLocationModal';
+import ProviderChecklist from './ProviderChecklist';
+import ProviderEnrollments from './ProviderEnrollments';
+
+const TABS = [
+  { name: 'Overview', icon: BuildingOfficeIcon },
+  { name: 'Checklist', icon: ClipboardDocumentCheckIcon },
+  { name: 'Enrollments', icon: BuildingOfficeIcon },
+];
 
 export default function ProviderDetail() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleUploadDocument = (documentType: string) => {
+    toast.success(`Upload ${documentType.toUpperCase()} document - Coming soon!`);
+  };
 
   const { data: provider, isLoading } = useQuery({
     queryKey: ['provider', id],
@@ -20,6 +37,35 @@ export default function ProviderDetail() {
       return response.data.data;
     },
   });
+
+  const deleteLocationMutation = useMutation({
+    mutationFn: async (locationId: string) => {
+      return api.delete(`/practice-locations/${locationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['provider', id] });
+      toast.success('Location deleted');
+    },
+    onError: () => {
+      toast.error('Failed to delete location');
+    },
+  });
+
+  const handleAddLocation = () => {
+    setEditingLocation(null);
+    setLocationModalOpen(true);
+  };
+
+  const handleEditLocation = (location: any) => {
+    setEditingLocation(location);
+    setLocationModalOpen(true);
+  };
+
+  const handleDeleteLocation = (locationId: string) => {
+    if (window.confirm('Are you sure you want to delete this location?')) {
+      deleteLocationMutation.mutate(locationId);
+    }
+  };
 
   const exportToCSV = () => {
     if (!provider) return;
@@ -327,10 +373,34 @@ export default function ProviderDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Personal Information */}
+      {/* Tabs */}
+      <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
+        <Tab.List className="flex space-x-4 border-b border-gray-200 mb-6">
+          {TABS.map((tab) => (
+            <Tab
+              key={tab.name}
+              className={({ selected }) =>
+                clsx(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px focus:outline-none',
+                  selected
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                )
+              }
+            >
+              <tab.icon className="h-5 w-5" />
+              {tab.name}
+            </Tab>
+          ))}
+        </Tab.List>
+
+        <Tab.Panels>
+          {/* Overview Tab */}
+          <Tab.Panel>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Info */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Personal Information */}
           <div className="card">
             <div className="card-header">
               <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>
@@ -439,6 +509,87 @@ export default function ProviderDetail() {
               )}
             </div>
           </div>
+
+          {/* Practice Locations */}
+          <div className="card">
+            <div className="card-header flex items-center justify-between">
+              <h2 className="text-lg font-medium text-gray-900">Practice Locations</h2>
+              <button
+                onClick={handleAddLocation}
+                className="text-sm text-primary-600 hover:text-primary-500 flex items-center"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Add Location
+              </button>
+            </div>
+            <div className="card-body">
+              {!provider.practiceLocations || provider.practiceLocations.length === 0 ? (
+                <div className="text-center py-6">
+                  <MapPinIcon className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No practice locations added yet.</p>
+                  <button
+                    onClick={handleAddLocation}
+                    className="mt-2 text-sm text-primary-600 hover:text-primary-500"
+                  >
+                    Add your first location
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {provider.practiceLocations.map((location: any) => (
+                    <div
+                      key={location.id}
+                      className="p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">{location.locationName}</p>
+                            {location.isPrimary && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
+                                Primary
+                              </span>
+                            )}
+                            {!location.isActive && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500 capitalize">{location.locationType}</p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {location.addressLine1}
+                            {location.addressLine2 && `, ${location.addressLine2}`}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {location.city}, {location.state} {location.zipCode}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">{location.phone}</p>
+                          {location.acceptingNewPatients && (
+                            <p className="text-xs text-green-600 mt-1">Accepting new patients</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleEditLocation(location)}
+                            className="text-primary-600 hover:text-primary-900"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteLocation(location.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -498,7 +649,34 @@ export default function ProviderDetail() {
             </button>
           </div>
         </div>
-      </div>
+            </div>
+          </Tab.Panel>
+
+          {/* Checklist Tab */}
+          <Tab.Panel>
+            <ProviderChecklist
+              providerId={id!}
+              onUploadDocument={handleUploadDocument}
+            />
+          </Tab.Panel>
+
+          {/* Enrollments Tab */}
+          <Tab.Panel>
+            <ProviderEnrollments providerId={id!} />
+          </Tab.Panel>
+        </Tab.Panels>
+      </Tab.Group>
+
+      {/* Practice Location Modal */}
+      <PracticeLocationModal
+        isOpen={locationModalOpen}
+        onClose={() => {
+          setLocationModalOpen(false);
+          setEditingLocation(null);
+        }}
+        providerId={id!}
+        location={editingLocation}
+      />
     </div>
   );
 }

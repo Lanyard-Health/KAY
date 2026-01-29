@@ -3,12 +3,10 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Dialog, Menu, Transition } from '@headlessui/react';
 import {
   Bars3Icon,
-  XMarkIcon,
   HomeIcon,
   UsersIcon,
   DocumentDuplicateIcon,
   ClockIcon,
-  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
