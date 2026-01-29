@@ -1,137 +1,282 @@
 # Healthcare Credentialing Management System
 
-A web-based application for managing healthcare provider credentials, specifically designed for behavioral health and mental health providers.
+**Property of Lanyard Health**
 
-## Features
+A web-based credentialing repository for behavioral health and mental health providers. This platform stores provider information and enables easy form completion for CAQH ProView and insurance payer applications.
 
-- **Provider Management**: Store and manage provider information including NPI, licenses, certifications, education, and work history
-- **Document Management**: Upload, store, and track documents with automatic OCR extraction using AWS Textract
-- **Expiration Tracking**: Automated monitoring and email notifications for expiring credentials
-- **CAQH ProView Integration**: API integration for roster management and data synchronization
-- **Copy-Paste Data Views**: Formatted data export for easy form completion
-- **SOC 2 Compliance**: Full audit logging, encryption, and access controls
+---
 
-## Tech Stack
+## Quick Start (Development)
 
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS
-- **Backend**: Node.js + Express + TypeScript + Prisma
-- **Database**: PostgreSQL (AWS RDS)
-- **Auth**: AWS Cognito with MFA
-- **Storage**: AWS S3 with KMS encryption
-- **OCR**: AWS Textract
-- **Infrastructure**: Terraform
+### Prerequisites
 
-## Prerequisites
+Before you begin, make sure you have installed:
 
-- Node.js 20+
-- Docker and Docker Compose
-- AWS CLI (for deployment)
-- Terraform 1.5+ (for infrastructure)
+1. **Node.js 20+** - Download from https://nodejs.org/
+2. **Docker Desktop** - Download from https://www.docker.com/products/docker-desktop/
+3. **Git** - Download from https://git-scm.com/
 
-## Getting Started
-
-### 1. Clone and Install
+### Step 1: Clone the Repository
 
 ```bash
-cd C:\projects\KAY
+git clone https://github.com/Revella-Health/KAY.git
+cd KAY
+```
+
+### Step 2: Install Dependencies
+
+```bash
 npm install
 ```
 
-### 2. Start Local Services
+### Step 3: Start the Database
 
 ```bash
 docker-compose up -d
 ```
 
-This starts:
-- PostgreSQL on port 5432
-- LocalStack (S3, SES) on port 4566
-- Redis on port 6379
+This starts PostgreSQL on port 5433 (mapped from container's 5432).
 
-### 3. Set Up Environment
+### Step 4: Configure Environment
 
-```bash
-cp .env.example .env
-# Edit .env with your configuration
+Create environment files:
+
+**Backend** (`packages/backend/.env`):
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/credentials?schema=public"
+PORT=3002
+NODE_ENV=development
+DEV_AUTH_BYPASS=true
+JWT_SECRET=your-secret-key-change-in-production
 ```
 
-### 4. Initialize Database
+**Frontend** (`packages/frontend/.env`):
+```env
+VITE_DEV_AUTH_BYPASS=true
+VITE_API_URL=http://localhost:3002
+```
+
+### Step 5: Initialize the Database
 
 ```bash
 cd packages/backend
 npx prisma migrate dev
 npx prisma generate
+cd ../..
 ```
 
-### 5. Start Development Servers
+### Step 6: Start the Application
 
+Open two terminal windows:
+
+**Terminal 1 - Backend:**
 ```bash
-# From root directory
+cd packages/backend
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
-- API Health: http://localhost:3001/health
+**Terminal 2 - Frontend:**
+```bash
+cd packages/frontend
+npm run dev
+```
+
+### Step 7: Access the Application
+
+- **Frontend**: http://localhost:5190 (or next available port)
+- **Backend API**: http://localhost:3002
+- **Health Check**: http://localhost:3002/health
+
+In development mode with `DEV_AUTH_BYPASS=true`, you can log in with any credentials.
+
+---
+
+## Features
+
+### Provider Management
+- Store provider profiles with NPI, licenses, certifications, education, and work history
+- Support for multiple provider types (Psychiatrist, Psychologist, LCSW, LPC, LMFT, PMHNP)
+
+### Practice Locations
+- Manage multiple practice locations per provider
+- Track address, contact info, office hours, and accessibility options
+
+### Credentialing Checklist
+- Interactive checklist for required documents (W9, COI, CP575)
+- Status tracking: Not Started → Pending Upload → Pending Review → Approved/Rejected
+- Approval workflow for credentialing staff
+
+### Insurance Payer Enrollments
+- Track enrollment status with insurance payers
+- Status workflow from application to approval
+- Notes and provider numbers tracking
+
+### Document Management
+- Upload and store credential documents
+- Document type classification
+- Expiration date tracking
+- AWS Textract OCR integration (when configured)
+
+### Data Export
+- CSV export for provider data
+- PDF credential reports with formatted tables
+
+### Security & Compliance
+- Role-based access control (Admin, Credentialing Staff, Provider)
+- Audit logging for SOC 2 compliance
+- Encryption at rest and in transit (when deployed to AWS)
+
+---
+
+## User Roles
+
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full access including user management and audit logs |
+| **Credentialing Staff** | Manage all providers, documents, and enrollments |
+| **Provider** | View/edit own profile and upload documents |
+
+---
 
 ## Project Structure
 
 ```
 KAY/
 ├── packages/
-│   ├── frontend/        # React application
-│   ├── backend/         # Node.js API server
-│   └── shared/          # Shared types and validation
+│   ├── frontend/        # React application (Vite + TypeScript + Tailwind)
+│   ├── backend/         # Node.js API server (Express + Prisma)
+│   └── shared/          # Shared types and validation schemas
 ├── infrastructure/
 │   └── terraform/       # AWS infrastructure as code
-├── docker-compose.yml   # Local development services
-└── turbo.json          # Monorepo configuration
+├── docker-compose.yml   # Local development services (PostgreSQL)
+├── RELEASE_NOTES.md     # Version history and features
+└── README.md            # This file
 ```
 
-## User Roles
+---
 
-| Role | Permissions |
-|------|-------------|
-| Admin | Full access including user management and audit logs |
-| Credentialing Staff | Manage all providers and documents |
-| Provider | View/edit own profile and documents |
+## Tech Stack
 
-## API Endpoints
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
+| UI Components | Headless UI + Heroicons |
+| State Management | TanStack Query + Zustand |
+| Backend | Node.js + Express + TypeScript |
+| ORM | Prisma |
+| Database | PostgreSQL |
+| Authentication | AWS Cognito (production) / Dev bypass (development) |
+| File Storage | AWS S3 (production) |
+| OCR | AWS Textract (production) |
 
-- `POST /api/v1/auth/login` - Authentication
-- `GET /api/v1/providers` - List providers
-- `POST /api/v1/providers` - Create provider
-- `GET /api/v1/providers/:id` - Get provider details
-- `GET /api/v1/documents/upload-url` - Get pre-signed upload URL
-- `GET /api/v1/expirations` - Get upcoming expirations
-- `POST /api/v1/caqh/pull/:providerId` - Pull CAQH data
+---
 
-## Deployment
+## Production Deployment (AWS)
 
-### Infrastructure Setup
+### Required AWS Services
+
+1. **RDS PostgreSQL** - Database
+2. **Cognito** - Authentication with MFA
+3. **S3** - Document storage with KMS encryption
+4. **ECS Fargate** - Container hosting
+5. **CloudFront** - CDN for frontend
+6. **Textract** - OCR for documents
+7. **SES** - Email notifications
+
+### Environment Variables (Production)
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `COGNITO_USER_POOL_ID` | AWS Cognito User Pool ID |
+| `COGNITO_CLIENT_ID` | AWS Cognito Client ID |
+| `S3_BUCKET_NAME` | S3 bucket for documents |
+| `AWS_REGION` | AWS region (e.g., us-east-1) |
+| `JWT_SECRET` | Secret for JWT signing |
+| `CAQH_ORG_ID` | CAQH Organization ID (optional) |
+| `CAQH_API_KEY` | CAQH API Key (optional) |
+
+### Terraform Deployment
 
 ```bash
-cd infrastructure/terraform/environments/dev
+cd infrastructure/terraform/environments/prod
 terraform init
 terraform plan
 terraform apply
 ```
 
-### Application Deployment
+---
 
-The application is designed to run on AWS ECS Fargate. CI/CD can be configured using GitHub Actions.
+## API Endpoints
 
-## Environment Variables
+### Authentication
+- `POST /api/v1/auth/login` - User login
+- `GET /api/v1/users/me` - Get current user
 
-| Variable | Description |
-|----------|-------------|
-| DATABASE_URL | PostgreSQL connection string |
-| COGNITO_USER_POOL_ID | AWS Cognito User Pool ID |
-| COGNITO_CLIENT_ID | AWS Cognito Client ID |
-| S3_BUCKET_NAME | S3 bucket for documents |
-| CAQH_ORG_ID | CAQH Organization ID |
-| CAQH_API_KEY | CAQH API Key |
+### Providers
+- `GET /api/v1/providers` - List all providers
+- `POST /api/v1/providers` - Create provider
+- `GET /api/v1/providers/:id` - Get provider details
+- `PUT /api/v1/providers/:id` - Update provider
+
+### Practice Locations
+- `GET /api/v1/practice-locations/provider/:providerId` - Get locations
+- `POST /api/v1/practice-locations/provider/:providerId` - Add location
+- `PUT /api/v1/practice-locations/:id` - Update location
+- `DELETE /api/v1/practice-locations/:id` - Delete location
+
+### Checklist
+- `GET /api/v1/checklist/provider/:providerId` - Get checklist status
+- `PUT /api/v1/checklist/provider/:providerId` - Update checklist
+
+### Enrollments
+- `GET /api/v1/enrollments/provider/:providerId` - Get enrollments
+- `POST /api/v1/enrollments/provider/:providerId` - Add enrollment
+- `PUT /api/v1/enrollments/:id` - Update enrollment
+- `DELETE /api/v1/enrollments/:id` - Delete enrollment
+
+### Documents
+- `GET /api/v1/documents/provider/:providerId` - Get documents
+- `GET /api/v1/documents/upload-url` - Get pre-signed upload URL
+
+---
+
+## Troubleshooting
+
+### Database Connection Issues
+```bash
+# Check if Docker is running
+docker ps
+
+# Restart the database
+docker-compose down
+docker-compose up -d
+
+# Check database logs
+docker-compose logs postgres
+```
+
+### Port Already in Use
+The application will automatically try the next available port. Check the terminal output for the actual port number.
+
+### Reset Database
+```bash
+cd packages/backend
+npx prisma migrate reset
+```
+
+---
+
+## Support
+
+For technical support or questions about this platform, contact your development team.
+
+---
 
 ## License
 
-Proprietary - All rights reserved
+**Proprietary Software** - All Rights Reserved
+
+Copyright 2026 Lanyard Health
+
+This software is the exclusive property of Lanyard Health. Unauthorized copying, modification, distribution, or use of this software is strictly prohibited.
