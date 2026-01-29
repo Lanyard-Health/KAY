@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: credentials-db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: credentials
+      POSTGRES_PASSWORD: credentials_dev_password
+      POSTGRES_DB: credentials
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U credentials"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LocalStack for AWS services (S3, SES, etc.)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: credentials-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,ses,secretsmanager
+      - DEBUG=1
+      - DATA_DIR=/var/lib/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infrastructure/localstack-init:/etc/localstack/init/ready.d
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: credentials-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  localstack_data:
+  redis_data:

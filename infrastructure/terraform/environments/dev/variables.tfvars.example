@@ -1,0 +1,5 @@
+# AWS Region
+aws_region = "us-east-1"
+
+# Note: Do not commit actual .tfvars files with secrets
+# Use environment variables or AWS Secrets Manager for sensitive values

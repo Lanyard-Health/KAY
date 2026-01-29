@@ -1,0 +1,197 @@
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { prisma } from '../utils/prisma.js';
+import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { NotFoundError } from '../middleware/error.middleware.js';
+import { DocumentService } from '../services/document.service.js';
+import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
+
+export const documentRoutes = Router();
+
+documentRoutes.use(authenticate);
+
+const documentService = new DocumentService();
+
+// POST /api/v1/documents/upload-url - Get pre-signed upload URL
+documentRoutes.post(
+  '/upload-url',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = uploadUrlRequestSchema.parse(req.body);
+
+      // Verify provider access
+      const provider = await prisma.provider.findUnique({
+        where: { id: data.providerId },
+      });
+
+      if (!provider) {
+        throw new NotFoundError('Provider');
+      }
+
+      const result = await documentService.getUploadUrl(data, req.user!.id);
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/documents/confirm-upload - Confirm upload and trigger OCR
+documentRoutes.post(
+  '/confirm-upload',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { documentId } = req.body;
+
+      const document = await documentService.confirmUpload(documentId);
+
+      res.json({ success: true, data: document });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/:id - Get document metadata
+documentRoutes.get(
+  '/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+        include: {
+          provider: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      res.json({ success: true, data: document });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/:id/download-url - Get pre-signed download URL
+documentRoutes.get(
+  '/:id/download-url',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      const downloadUrl = await documentService.getDownloadUrl(document.s3Key);
+
+      res.json({ success: true, data: { downloadUrl, expiresIn: 3600 } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/:id/ocr-results - Get OCR extraction results
+documentRoutes.get(
+  '/:id/ocr-results',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+        select: {
+          id: true,
+          ocrStatus: true,
+          ocrData: true,
+          ocrConfidence: true,
+          ocrReviewedAt: true,
+        },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      res.json({ success: true, data: document });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/v1/documents/:id/ocr-results - Update OCR results after review
+documentRoutes.put(
+  '/:id/ocr-results',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { extractedFields } = req.body;
+
+      const document = await prisma.document.update({
+        where: { id: req.params['id'] },
+        data: {
+          ocrData: extractedFields,
+          ocrReviewedAt: new Date(),
+          ocrReviewedBy: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: document });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/documents/:id - Delete document
+documentRoutes.delete(
+  '/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      // Delete from S3
+      await documentService.deleteDocument(document.s3Key);
+
+      // Delete from database
+      await prisma.document.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Document deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/provider/:providerId - List documents for a provider
+documentRoutes.get(
+  '/provider/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const documents = await prisma.document.findMany({
+        where: { providerId: req.params['providerId'] },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ success: true, data: documents });
+    } catch (error) {
+      next(error);
+    }
+  }
+);

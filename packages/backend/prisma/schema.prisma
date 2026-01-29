@@ -1,0 +1,750 @@
+// Healthcare Credentialing Database Schema
+// PostgreSQL database with full audit trail for SOC 2 compliance
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+
+enum UserRole {
+  admin
+  credentialing_staff
+  provider
+}
+
+model User {
+  id          String    @id @default(uuid())
+  cognitoId   String    @unique @map("cognito_id")
+  email       String    @unique
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  role        UserRole
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+
+  // Link to provider if role is 'provider'
+  providerId String?   @unique @map("provider_id")
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  auditLogs        AuditLog[]
+  documentsCreated Document[]           @relation("DocumentCreatedBy")
+  documentsReviewed Document[]          @relation("DocumentReviewedBy")
+
+  @@map("users")
+}
+
+// ==========================================
+// PROVIDER
+// ==========================================
+
+enum ProviderStatus {
+  active
+  inactive
+  pending
+}
+
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum ProviderType {
+  psychiatrist
+  psychologist
+  lcsw
+  lpc
+  lmft
+  pmhnp
+  other
+}
+
+enum CaqhStatus {
+  active
+  inactive
+  pending
+  expired
+}
+
+model Provider {
+  id String @id @default(uuid())
+
+  // Basic Info
+  npi        String  @unique
+  firstName  String  @map("first_name")
+  lastName   String  @map("last_name")
+  middleName String? @map("middle_name")
+  suffix     String?
+  maidenName String? @map("maiden_name")
+
+  // Personal Info
+  dateOfBirth DateTime @map("date_of_birth")
+  gender      Gender
+  ssnEncrypted String? @map("ssn_encrypted") // Encrypted SSN
+
+  // Contact
+  email       String
+  phone       String
+  mobilePhone String? @map("mobile_phone")
+  fax         String?
+
+  // Professional
+  providerType ProviderType @map("provider_type")
+  taxonomy     String?
+  specialties  String[]     @default([])
+  languages    String[]     @default([])
+
+  // CAQH Integration
+  caqhProviderId String?    @map("caqh_provider_id")
+  caqhStatus     CaqhStatus? @map("caqh_status")
+  caqhLastSync   DateTime?  @map("caqh_last_sync")
+
+  // Status
+  status ProviderStatus @default(pending)
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  user                   User?
+  addresses              ProviderAddress[]
+  licenses               License[]
+  boardCertifications    BoardCertification[]
+  malpracticeInsurances  MalpracticeInsurance[]
+  educations             Education[]
+  workHistories          WorkHistory[]
+  hospitalAffiliations   HospitalAffiliation[]
+  professionalReferences ProfessionalReference[]
+  disciplinaryActions    DisciplinaryAction[]
+  continuingEducations   ContinuingEducation[]
+  documents              Document[]
+  payerEnrollments       PayerEnrollment[]
+
+  @@map("providers")
+}
+
+model ProviderAddress {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  type         AddressType
+  addressLine1 String      @map("address_line_1")
+  addressLine2 String?     @map("address_line_2")
+  city         String
+  state        String
+  zipCode      String      @map("zip_code")
+  country      String      @default("US")
+  isPrimary    Boolean     @default(false) @map("is_primary")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("provider_addresses")
+}
+
+enum AddressType {
+  home
+  practice
+  mailing
+  billing
+}
+
+// ==========================================
+// CREDENTIALS
+// ==========================================
+
+enum CredentialStatus {
+  active
+  expired
+  pending
+  revoked
+}
+
+enum LicenseType {
+  state_medical
+  state_psychology
+  state_social_work
+  state_counseling
+  state_marriage_family
+  dea
+  controlled_substance
+  npi
+}
+
+model License {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  licenseType        LicenseType      @map("license_type")
+  licenseNumber      String           @map("license_number")
+  state              String?
+  issueDate          DateTime         @map("issue_date")
+  expirationDate     DateTime         @map("expiration_date")
+  status             CredentialStatus @default(active)
+  verificationDate   DateTime?        @map("verification_date")
+  verificationSource String?          @map("verification_source")
+  notes              String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@map("licenses")
+}
+
+enum BoardType {
+  abpn_psychiatry
+  abpn_child_adolescent
+  abpn_addiction
+  abpp_clinical
+  abpp_counseling
+  abecsw
+  nbcc
+  aamft
+  ancc_pmhnp
+  other
+}
+
+model BoardCertification {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  boardType                BoardType        @map("board_type")
+  boardName                String           @map("board_name")
+  certificationNumber      String?          @map("certification_number")
+  specialty                String
+  initialCertificationDate DateTime         @map("initial_certification_date")
+  expirationDate           DateTime?        @map("expiration_date")
+  status                   CredentialStatus @default(active)
+  isBoardEligible          Boolean          @default(false) @map("is_board_eligible")
+  notes                    String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@map("board_certifications")
+}
+
+enum CoverageType {
+  occurrence
+  claims_made
+}
+
+model MalpracticeInsurance {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  carrierName     String           @map("carrier_name")
+  policyNumber    String           @map("policy_number")
+  coverageType    CoverageType     @map("coverage_type")
+  perClaimAmount  Decimal          @map("per_claim_amount") @db.Decimal(15, 2)
+  aggregateAmount Decimal          @map("aggregate_amount") @db.Decimal(15, 2)
+  effectiveDate   DateTime         @map("effective_date")
+  expirationDate  DateTime         @map("expiration_date")
+  hasTailCoverage Boolean          @default(false) @map("has_tail_coverage")
+  status          CredentialStatus @default(active)
+  notes           String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@map("malpractice_insurances")
+}
+
+enum DegreeType {
+  md
+  do
+  phd
+  psyd
+  msw
+  ma
+  ms
+  med
+  dnp
+  msn
+  bs
+  ba
+  other
+}
+
+model Education {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  institutionName String     @map("institution_name")
+  degree          DegreeType
+  fieldOfStudy    String     @map("field_of_study")
+  city            String?
+  state           String?
+  country         String     @default("US")
+  startDate       DateTime   @map("start_date")
+  endDate         DateTime?  @map("end_date")
+  graduationDate  DateTime?  @map("graduation_date")
+  isCompleted     Boolean    @default(true) @map("is_completed")
+  notes           String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@map("educations")
+}
+
+model WorkHistory {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  organizationName String    @map("organization_name")
+  organizationType String    @map("organization_type")
+  position         String
+  department       String?
+  addressLine1     String?   @map("address_line_1")
+  city             String?
+  state            String?
+  zipCode          String?   @map("zip_code")
+  phone            String?
+  startDate        DateTime  @map("start_date")
+  endDate          DateTime? @map("end_date")
+  isCurrent        Boolean   @default(false) @map("is_current")
+  reasonForLeaving String?   @map("reason_for_leaving")
+  supervisorName   String?   @map("supervisor_name")
+  supervisorPhone  String?   @map("supervisor_phone")
+  notes            String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("work_histories")
+}
+
+enum PrivilegeType {
+  admitting
+  courtesy
+  consulting
+  temporary
+  locum_tenens
+}
+
+enum AffiliationStatus {
+  active
+  pending
+  inactive
+  denied
+  resigned
+}
+
+model HospitalAffiliation {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  facilityName      String            @map("facility_name")
+  facilityType      String            @map("facility_type")
+  privilegeType     PrivilegeType     @map("privilege_type")
+  status            AffiliationStatus
+  appointmentDate   DateTime?         @map("appointment_date")
+  reappointmentDate DateTime?         @map("reappointment_date")
+  city              String?
+  state             String?
+  notes             String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("hospital_affiliations")
+}
+
+model ProfessionalReference {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  name         String
+  title        String
+  organization String
+  relationship String
+  email        String
+  phone        String
+  yearsKnown   Int     @map("years_known")
+  canContact   Boolean @default(true) @map("can_contact")
+  notes        String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("professional_references")
+}
+
+enum DisciplinaryActionType {
+  license_action
+  hospital_action
+  malpractice_claim
+  legal_action
+  other
+}
+
+model DisciplinaryAction {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  actionType     DisciplinaryActionType @map("action_type")
+  description    String
+  dateOfAction   DateTime               @map("date_of_action")
+  state          String?
+  agency         String?
+  outcome        String?
+  isResolved     Boolean                @default(false) @map("is_resolved")
+  resolutionDate DateTime?              @map("resolution_date")
+  notes          String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("disciplinary_actions")
+}
+
+model ContinuingEducation {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  courseName        String   @map("course_name")
+  courseProvider    String   @map("course_provider")
+  credits           Decimal  @db.Decimal(5, 2)
+  creditType        String   @map("credit_type")
+  completionDate    DateTime @map("completion_date")
+  certificateNumber String?  @map("certificate_number")
+  notes             String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@map("continuing_educations")
+}
+
+// ==========================================
+// DOCUMENTS
+// ==========================================
+
+enum DocumentType {
+  license
+  board_certification
+  malpractice_certificate
+  diploma
+  transcript
+  cv_resume
+  photo
+  government_id
+  dea_certificate
+  cds_certificate
+  cme_certificate
+  hospital_letter
+  reference_letter
+  other
+}
+
+enum OcrStatus {
+  pending
+  processing
+  completed
+  failed
+  not_applicable
+}
+
+model Document {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  // File info
+  fileName         String @map("file_name")
+  originalFileName String @map("original_file_name")
+  fileSize         Int    @map("file_size")
+  mimeType         String @map("mime_type")
+  s3Key            String @map("s3_key")
+
+  // Classification
+  documentType DocumentType @map("document_type")
+  description  String?
+
+  // Linked credential
+  linkedLicenseId              String?             @map("linked_license_id")
+  linkedBoardCertificationId   String?             @map("linked_board_certification_id")
+  linkedMalpracticeInsuranceId String?             @map("linked_malpractice_insurance_id")
+  linkedEducationId            String?             @map("linked_education_id")
+  linkedContinuingEducationId  String?             @map("linked_continuing_education_id")
+
+  // Expiration
+  expirationDate DateTime? @map("expiration_date")
+
+  // OCR
+  ocrStatus     OcrStatus @default(not_applicable) @map("ocr_status")
+  ocrData       Json?     @map("ocr_data")
+  ocrConfidence Float?    @map("ocr_confidence")
+  ocrReviewedAt DateTime? @map("ocr_reviewed_at")
+  ocrReviewedBy String?   @map("ocr_reviewed_by")
+
+  // Verification
+  isVerified Boolean   @default(false) @map("is_verified")
+  verifiedAt DateTime? @map("verified_at")
+  verifiedBy String?   @map("verified_by")
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+
+  // Relations
+  provider               Provider               @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  license                License?               @relation(fields: [linkedLicenseId], references: [id])
+  boardCertification     BoardCertification?    @relation(fields: [linkedBoardCertificationId], references: [id])
+  malpracticeInsurance   MalpracticeInsurance?  @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
+  education              Education?             @relation(fields: [linkedEducationId], references: [id])
+  continuingEducation    ContinuingEducation?   @relation(fields: [linkedContinuingEducationId], references: [id])
+  createdBy              User?                  @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  reviewedBy             User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
+
+  @@map("documents")
+}
+
+// ==========================================
+// PAYER ENROLLMENTS
+// ==========================================
+
+model Payer {
+  id String @id @default(uuid())
+
+  name        String
+  payerId     String  @unique @map("payer_id")
+  payerType   String  @map("payer_type")
+  addressLine1 String? @map("address_line_1")
+  city        String?
+  state       String?
+  zipCode     String? @map("zip_code")
+  phone       String?
+  website     String?
+  notes       String?
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  enrollments PayerEnrollment[]
+
+  @@map("payers")
+}
+
+enum EnrollmentStatus {
+  not_started
+  in_progress
+  submitted
+  pending_review
+  approved
+  denied
+  terminated
+}
+
+model PayerEnrollment {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+  payerId    String @map("payer_id")
+
+  status            EnrollmentStatus @default(not_started)
+  applicationDate   DateTime?        @map("application_date")
+  effectiveDate     DateTime?        @map("effective_date")
+  terminationDate   DateTime?        @map("termination_date")
+  providerNumber    String?          @map("provider_number")
+  groupNumber       String?          @map("group_number")
+  notes             String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+
+  // Relations
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer    Payer    @relation(fields: [payerId], references: [id])
+
+  @@unique([providerId, payerId])
+  @@map("payer_enrollments")
+}
+
+// ==========================================
+// AUDIT LOGGING (SOC 2)
+// ==========================================
+
+enum AuditAction {
+  create
+  read
+  update
+  delete
+  login
+  logout
+  export
+  import
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId       String?     @map("user_id")
+  action       AuditAction
+  resourceType String      @map("resource_type")
+  resourceId   String?     @map("resource_id")
+  changes      Json?
+  ipAddress    String?     @map("ip_address")
+  userAgent    String?     @map("user_agent")
+  timestamp    DateTime    @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceType])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// CAQH SYNC HISTORY
+// ==========================================
+
+enum CaqhSyncStatus {
+  pending
+  in_progress
+  completed
+  failed
+}
+
+enum CaqhSyncDirection {
+  pull
+  push
+}
+
+model CaqhSyncLog {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  direction    CaqhSyncDirection
+  status       CaqhSyncStatus
+  startedAt    DateTime          @default(now()) @map("started_at")
+  completedAt  DateTime?         @map("completed_at")
+  errorMessage String?           @map("error_message")
+  changesApplied Json?           @map("changes_applied")
+
+  @@index([providerId])
+  @@map("caqh_sync_logs")
+}
+
+// ==========================================
+// NOTIFICATION TRACKING
+// ==========================================
+
+enum NotificationType {
+  expiration_reminder
+  enrollment_status
+  document_uploaded
+  verification_complete
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  recipientEmail String           @map("recipient_email")
+  type           NotificationType
+  subject        String
+  body           String
+  status         NotificationStatus @default(pending)
+  sentAt         DateTime?          @map("sent_at")
+  errorMessage   String?            @map("error_message")
+  metadata       Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([type])
+  @@map("notifications")
+}
