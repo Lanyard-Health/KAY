@@ -188,11 +188,18 @@ export default function Layout() {
         </div>
 
         {/* Page content */}
-        <main className="py-10">
+        <main className="py-10 min-h-[calc(100vh-4rem-4rem)]">
           <div className="px-4 sm:px-6 lg:px-8">
             <Outlet />
           </div>
         </main>
+
+        {/* Footer */}
+        <footer className="border-t border-gray-200 bg-white py-4">
+          <div className="px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+            Copyright 2026 Lanyard Health
+          </div>
+        </footer>
       </div>
     </div>
   );
