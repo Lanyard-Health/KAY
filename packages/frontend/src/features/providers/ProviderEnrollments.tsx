@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import {
@@ -6,6 +6,7 @@ import {
   PencilIcon,
   TrashIcon,
   ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 interface Payer {
@@ -99,6 +100,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [payerSearch, setPayerSearch] = useState('');
+  const [showPayerDropdown, setShowPayerDropdown] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollments', providerId],
@@ -107,6 +110,26 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       return response.data;
     },
   });
+
+  // Fetch all payers for dropdown
+  const { data: payersData } = useQuery({
+    queryKey: ['payers'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Payer[] }>('/enrollments/payers');
+      return response.data;
+    },
+  });
+
+  const payers = (payersData?.data as Payer[] | undefined) || [];
+
+  // Filter payers based on search
+  const filteredPayers = useMemo(() => {
+    if (!payerSearch.trim()) return payers.slice(0, 50); // Show first 50 if no search
+    const search = payerSearch.toLowerCase();
+    return payers
+      .filter((p) => p.name.toLowerCase().includes(search))
+      .slice(0, 50); // Limit to 50 results
+  }, [payers, payerSearch]);
 
   const createMutation = useMutation({
     mutationFn: (data: EnrollmentFormData) =>
@@ -137,6 +160,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const openCreateModal = () => {
     setEditingEnrollment(null);
     setFormData(initialFormData);
+    setPayerSearch('');
+    setShowPayerDropdown(false);
     setIsModalOpen(true);
   };
 
@@ -163,6 +188,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setIsModalOpen(false);
     setEditingEnrollment(null);
     setFormData(initialFormData);
+    setPayerSearch('');
+    setShowPayerDropdown(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -406,17 +433,74 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Payer Name *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.payerName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, payerName: e.target.value })
-                    }
-                    placeholder="e.g., Blue Cross Blue Shield, Aetna, UnitedHealthcare"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                    disabled={!!editingEnrollment}
-                  />
+                  {editingEnrollment ? (
+                    <input
+                      type="text"
+                      value={formData.payerName}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600"
+                      disabled
+                    />
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <input
+                          type="text"
+                          value={payerSearch}
+                          onChange={(e) => {
+                            setPayerSearch(e.target.value);
+                            setShowPayerDropdown(true);
+                          }}
+                          onFocus={() => setShowPayerDropdown(true)}
+                          placeholder="Search payers..."
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      {formData.payerName && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-sm text-gray-600">Selected:</span>
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                            {formData.payerName}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, payerName: '' });
+                                setPayerSearch('');
+                              }}
+                              className="ml-2 text-blue-600 hover:text-blue-800"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        </div>
+                      )}
+                      {showPayerDropdown && !formData.payerName && (
+                        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {filteredPayers.length > 0 ? (
+                            filteredPayers.map((payer) => (
+                              <button
+                                key={payer.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, payerName: payer.name });
+                                  setPayerSearch('');
+                                  setShowPayerDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">{payer.name}</div>
+                                <div className="text-xs text-gray-500">{payer.payerType}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              No payers found. Type to search from 3,000+ payers.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
