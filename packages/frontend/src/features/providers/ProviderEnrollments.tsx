@@ -20,9 +20,14 @@ interface Enrollment {
   providerId: string;
   payerId: string;
   status: string;
+  productTypes: string[];
   applicationDate: string | null;
   effectiveDate: string | null;
   terminationDate: string | null;
+  dateContractReceived: string | null;
+  dateContractSigned: string | null;
+  lastFollowUpDate: string | null;
+  recredentialingDate: string | null;
   providerNumber: string | null;
   groupNumber: string | null;
   notes: string | null;
@@ -47,11 +52,27 @@ const getStatusConfig = (status: string) => {
   return STATUS_OPTIONS.find((s) => s.value === status) || STATUS_OPTIONS[0];
 };
 
+const PRODUCT_TYPE_OPTIONS = [
+  'Commercial',
+  'Medicare',
+  'Medicaid',
+  'Medicare Advantage',
+  'Managed Medicaid',
+  'EAP',
+  'Tricare',
+  'Workers Comp',
+];
+
 interface EnrollmentFormData {
   payerName: string;
   status: string;
+  productTypes: string[];
   applicationDate: string;
   effectiveDate: string;
+  dateContractReceived: string;
+  dateContractSigned: string;
+  lastFollowUpDate: string;
+  recredentialingDate: string;
   providerNumber: string;
   groupNumber: string;
   notes: string;
@@ -60,8 +81,13 @@ interface EnrollmentFormData {
 const initialFormData: EnrollmentFormData = {
   payerName: '',
   status: 'not_started',
+  productTypes: [],
   applicationDate: '',
   effectiveDate: '',
+  dateContractReceived: '',
+  dateContractSigned: '',
+  lastFollowUpDate: '',
+  recredentialingDate: '',
   providerNumber: '',
   groupNumber: '',
   notes: '',
@@ -119,8 +145,13 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setFormData({
       payerName: enrollment.payer.name,
       status: enrollment.status,
+      productTypes: enrollment.productTypes || [],
       applicationDate: enrollment.applicationDate?.split('T')[0] || '',
       effectiveDate: enrollment.effectiveDate?.split('T')[0] || '',
+      dateContractReceived: enrollment.dateContractReceived?.split('T')[0] || '',
+      dateContractSigned: enrollment.dateContractSigned?.split('T')[0] || '',
+      lastFollowUpDate: enrollment.lastFollowUpDate?.split('T')[0] || '',
+      recredentialingDate: enrollment.recredentialingDate?.split('T')[0] || '',
       providerNumber: enrollment.providerNumber || '',
       groupNumber: enrollment.groupNumber || '',
       notes: enrollment.notes || '',
@@ -229,12 +260,15 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Payer
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product Types
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -244,6 +278,12 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Effective Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Follow Up
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Recredentialing
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -265,6 +305,22 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         </div>
                       )}
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {enrollment.productTypes && enrollment.productTypes.length > 0 ? (
+                          enrollment.productTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {type}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
@@ -278,6 +334,16 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                       {enrollment.effectiveDate
                         ? new Date(enrollment.effectiveDate).toLocaleDateString()
+                        : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                      {enrollment.lastFollowUpDate
+                        ? new Date(enrollment.lastFollowUpDate).toLocaleDateString()
+                        : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                      {enrollment.recredentialingDate
+                        ? new Date(enrollment.recredentialingDate).toLocaleDateString()
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -335,7 +401,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 {editingEnrollment ? 'Edit Enrollment' : 'Add New Enrollment'}
               </h3>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Payer Name *
@@ -355,6 +421,44 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {PRODUCT_TYPE_OPTIONS.map((type) => (
+                      <label
+                        key={type}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer border ${
+                          formData.productTypes.includes(type)
+                            ? 'bg-blue-100 border-blue-500 text-blue-800'
+                            : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.productTypes.includes(type)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                productTypes: [...formData.productTypes, type],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                productTypes: formData.productTypes.filter((t) => t !== type),
+                              });
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
                   <select
@@ -370,35 +474,6 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Application Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.applicationDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, applicationDate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Effective Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.effectiveDate}
-                      onChange={(e) =>
-                        setFormData({ ...formData, effectiveDate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -429,6 +504,90 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       placeholder="Group #"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+                </div>
+
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Key Dates</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Submission Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.applicationDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, applicationDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Effective Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.effectiveDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, effectiveDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contract Received
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dateContractReceived}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateContractReceived: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contract Signed
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dateContractSigned}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateContractSigned: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Last Follow Up
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.lastFollowUpDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, lastFollowUpDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Recredentialing Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.recredentialingDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, recredentialingDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                   </div>
                 </div>
 

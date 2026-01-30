@@ -741,13 +741,18 @@ model PayerEnrollment {
   providerId String @map("provider_id")
   payerId    String @map("payer_id")
 
-  status            EnrollmentStatus @default(not_started)
-  applicationDate   DateTime?        @map("application_date")
-  effectiveDate     DateTime?        @map("effective_date")
-  terminationDate   DateTime?        @map("termination_date")
-  providerNumber    String?          @map("provider_number")
-  groupNumber       String?          @map("group_number")
-  notes             String?
+  status                 EnrollmentStatus @default(not_started)
+  productTypes           String[]         @default([]) @map("product_types")
+  applicationDate        DateTime?        @map("application_date")
+  effectiveDate          DateTime?        @map("effective_date")
+  terminationDate        DateTime?        @map("termination_date")
+  dateContractReceived   DateTime?        @map("date_contract_received")
+  dateContractSigned     DateTime?        @map("date_contract_signed")
+  lastFollowUpDate       DateTime?        @map("last_follow_up_date")
+  recredentialingDate    DateTime?        @map("recredentialing_date")
+  providerNumber         String?          @map("provider_number")
+  groupNumber            String?          @map("group_number")
+  notes                  String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
