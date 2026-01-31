@@ -90,6 +90,34 @@ router.post(
 // ENROLLMENT ROUTES
 // ==========================================
 
+// Get all enrollments across all providers
+router.get(
+  '/',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const enrollments = await prisma.payerEnrollment.findMany({
+        include: {
+          payer: true,
+          provider: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              npi: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ success: true, data: enrollments });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get all enrollments for a provider
 router.get(
   '/provider/:providerId',

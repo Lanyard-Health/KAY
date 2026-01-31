@@ -14,6 +14,9 @@ export const documentTypeSchema = z.enum([
   'cme_certificate',
   'hospital_letter',
   'reference_letter',
+  'w9',
+  'coi',
+  'cp575',
   'other',
 ]);
 

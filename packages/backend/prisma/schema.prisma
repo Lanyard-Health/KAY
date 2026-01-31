@@ -754,6 +754,13 @@ model PayerEnrollment {
   groupNumber            String?          @map("group_number")
   notes                  String?
 
+  // Automated Follow-up Settings
+  followUpEnabled        Boolean   @default(false) @map("follow_up_enabled")
+  followUpEmail          String?   @map("follow_up_email")
+  followUpFrequencyDays  Int       @default(14) @map("follow_up_frequency_days")
+  lastFollowUpSentAt     DateTime? @map("last_follow_up_sent_at")
+  nextFollowUpDate       DateTime? @map("next_follow_up_date")
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -842,6 +849,7 @@ model CaqhSyncLog {
 enum NotificationType {
   expiration_reminder
   enrollment_status
+  enrollment_follow_up
   document_uploaded
   verification_complete
 }

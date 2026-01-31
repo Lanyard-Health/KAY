@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import PracticeLocationModal from './PracticeLocationModal';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
+import DocumentUploadModal from '../../components/DocumentUploadModal';
 
 const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
@@ -25,9 +26,17 @@ export default function ProviderDetail() {
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<any>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadDocumentType, setUploadDocumentType] = useState<string>('');
 
   const handleUploadDocument = (documentType: string) => {
-    toast.success(`Upload ${documentType.toUpperCase()} document - Coming soon!`);
+    setUploadDocumentType(documentType);
+    setUploadModalOpen(true);
+  };
+
+  const handleUploadComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['provider', id] });
+    queryClient.invalidateQueries({ queryKey: ['checklist', id] });
   };
 
   const { data: provider, isLoading } = useQuery({
@@ -644,9 +653,20 @@ export default function ProviderDetail() {
               {provider.documents?.length || 0}
             </p>
             <p className="text-sm text-gray-500">documents uploaded</p>
-            <button className="mt-2 text-sm text-primary-600 hover:text-primary-500">
-              View All Documents
-            </button>
+            <div className="mt-2 flex gap-3">
+              <Link to="/documents" className="text-sm text-primary-600 hover:text-primary-500">
+                View All
+              </Link>
+              <button
+                onClick={() => {
+                  setUploadDocumentType('');
+                  setUploadModalOpen(true);
+                }}
+                className="text-sm text-primary-600 hover:text-primary-500"
+              >
+                Upload
+              </button>
+            </div>
           </div>
         </div>
             </div>
@@ -676,6 +696,19 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         location={editingLocation}
+      />
+
+      {/* Document Upload Modal */}
+      <DocumentUploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => {
+          setUploadModalOpen(false);
+          setUploadDocumentType('');
+        }}
+        providerId={id!}
+        providerName={provider ? `${provider.firstName} ${provider.lastName}` : undefined}
+        defaultDocumentType={uploadDocumentType}
+        onUploadComplete={handleUploadComplete}
       />
     </div>
   );

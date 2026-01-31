@@ -23,6 +23,8 @@ import { auditRoutes } from './routes/audit.routes.js';
 import practiceLocationRoutes from './routes/practiceLocation.routes.js';
 import checklistRoutes from './routes/checklist.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
+import followUpRoutes from './routes/followup.routes.js';
+import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
 const PORT = process.env['PORT'] || 3001;
@@ -75,6 +77,7 @@ app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/practice-locations', practiceLocationRoutes);
 app.use('/api/v1/checklist', checklistRoutes);
 app.use('/api/v1/enrollments', enrollmentRoutes);
+app.use('/api/v1/follow-up', followUpRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -86,6 +89,9 @@ app.use((_req, res) => {
 
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
+
+  // Initialize scheduled jobs
+  schedulerService.initialize();
 });
 
 export default app;

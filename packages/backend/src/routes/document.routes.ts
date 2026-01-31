@@ -150,6 +150,38 @@ documentRoutes.put(
   }
 );
 
+// PUT /api/v1/documents/:id - Update document metadata
+documentRoutes.put(
+  '/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { documentType, description, expirationDate } = req.body;
+
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      const updatedDocument = await prisma.document.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...(documentType && { documentType }),
+          description: description !== undefined ? description : document.description,
+          expirationDate: expirationDate ? new Date(expirationDate) : null,
+          updatedAt: new Date(),
+        },
+      });
+
+      res.json({ success: true, data: updatedDocument });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // DELETE /api/v1/documents/:id - Delete document
 documentRoutes.delete(
   '/:id',

@@ -8,6 +8,7 @@ import ProviderDetail from './features/providers/ProviderDetail';
 import ProviderForm from './features/providers/ProviderForm';
 import DocumentList from './features/documents/DocumentList';
 import ExpirationDashboard from './features/dashboard/ExpirationDashboard';
+import EnrollmentsList from './features/enrollments/EnrollmentsList';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="providers/:id" element={<ProviderDetail />} />
         <Route path="providers/:id/edit" element={<ProviderForm />} />
         <Route path="documents" element={<DocumentList />} />
+        <Route path="enrollments" element={<EnrollmentsList />} />
         <Route path="expirations" element={<ExpirationDashboard />} />
       </Route>
 

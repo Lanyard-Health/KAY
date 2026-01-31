@@ -22,11 +22,29 @@ export class DocumentService {
   private documentsPrefix: string;
 
   constructor() {
+    const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';
+    const s3Endpoint = process.env['S3_ENDPOINT'];
+
     this.s3 = new S3Client({
       region: process.env['AWS_REGION'] || 'us-east-1',
+      ...(isLocalStack && s3Endpoint && {
+        endpoint: s3Endpoint,
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env['AWS_ACCESS_KEY_ID'] || 'test',
+          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || 'test',
+        },
+      }),
     });
     this.textract = new TextractClient({
       region: process.env['AWS_REGION'] || 'us-east-1',
+      ...(isLocalStack && s3Endpoint && {
+        endpoint: s3Endpoint,
+        credentials: {
+          accessKeyId: process.env['AWS_ACCESS_KEY_ID'] || 'test',
+          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || 'test',
+        },
+      }),
     });
     this.bucket = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
     this.documentsPrefix = process.env['S3_DOCUMENTS_PREFIX'] || 'documents/';
@@ -109,8 +127,15 @@ export class DocumentService {
         data: { fileSize },
       });
 
-      // Trigger OCR if applicable
-      if (this.shouldRunOcr(document.mimeType)) {
+      // Trigger OCR if applicable (skip in LocalStack/development mode)
+      const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';
+      if (isLocalStack) {
+        // LocalStack doesn't support Textract, mark as not applicable
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { ocrStatus: 'not_applicable' },
+        });
+      } else if (this.shouldRunOcr(document.mimeType)) {
         await this.startOcrProcessing(documentId, document.s3Key);
       } else {
         await prisma.document.update({

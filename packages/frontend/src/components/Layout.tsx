@@ -7,6 +7,7 @@ import {
   UsersIcon,
   DocumentDuplicateIcon,
   ClockIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -15,6 +16,7 @@ import { useAuthStore } from '../stores/auth.store';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Providers', href: '/providers', icon: UsersIcon },
+  { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
   { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
   { name: 'Expirations', href: '/expirations', icon: ClockIcon },
 ];

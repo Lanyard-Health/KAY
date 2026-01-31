@@ -1,0 +1,1205 @@
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { api } from '../../services/api';
+import {
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  ArrowPathIcon,
+  PlusIcon,
+  XMarkIcon,
+  UserIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+  ClockIcon,
+  ArrowRightIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  CalendarDaysIcon,
+} from '@heroicons/react/24/outline';
+
+interface Payer {
+  id: string;
+  name: string;
+  payerId: string;
+  payerType: string;
+}
+
+interface Provider {
+  id: string;
+  firstName: string;
+  lastName: string;
+  npi: string;
+  providerType?: string;
+  status?: string;
+}
+
+interface Enrollment {
+  id: string;
+  providerId: string;
+  payerId: string;
+  status: string;
+  productTypes: string[];
+  applicationDate: string | null;
+  effectiveDate: string | null;
+  lastFollowUpDate: string | null;
+  recredentialingDate: string | null;
+  providerNumber: string | null;
+  notes: string | null;
+  payer: Payer;
+  provider: Provider;
+}
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'not_started', label: 'Not Started', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300', headerBg: 'bg-gray-50', icon: ClockIcon },
+  { value: 'in_progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-300', headerBg: 'bg-yellow-50', icon: ArrowRightIcon },
+  { value: 'submitted', label: 'Submitted', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-300', headerBg: 'bg-blue-50', icon: ArrowRightIcon },
+  { value: 'pending_review', label: 'Pending Review', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-300', headerBg: 'bg-purple-50', icon: ClockIcon },
+  { value: 'approved', label: 'Approved', color: 'bg-green-100 text-green-800', borderColor: 'border-green-300', headerBg: 'bg-green-50', icon: CheckCircleIcon },
+  { value: 'denied', label: 'Denied', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300', headerBg: 'bg-red-50', icon: XCircleIcon },
+  { value: 'terminated', label: 'Terminated', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300', headerBg: 'bg-gray-100', icon: XCircleIcon },
+];
+
+const ENROLLMENT_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => s.value !== '');
+
+// Pipeline columns for kanban view (grouped statuses for cleaner view)
+const PIPELINE_COLUMNS = [
+  {
+    id: 'working',
+    label: 'In Progress',
+    statuses: ['not_started', 'in_progress'],
+    color: 'yellow',
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-200',
+    headerColor: 'text-yellow-700',
+    description: 'Application being prepared'
+  },
+  {
+    id: 'submitted',
+    label: 'Submitted',
+    statuses: ['submitted', 'pending_review'],
+    color: 'blue',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    headerColor: 'text-blue-700',
+    description: 'Awaiting payer response'
+  },
+  {
+    id: 'approved',
+    label: 'Approved',
+    statuses: ['approved'],
+    color: 'green',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    headerColor: 'text-green-700',
+    description: 'Successfully credentialed'
+  },
+  {
+    id: 'closed',
+    label: 'Closed',
+    statuses: ['denied', 'terminated'],
+    color: 'red',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    headerColor: 'text-red-700',
+    description: 'Denied or terminated'
+  },
+];
+
+const PRODUCT_TYPE_OPTIONS = [
+  'Commercial',
+  'Medicare',
+  'Medicaid',
+  'Medicare Advantage',
+  'Managed Medicaid',
+  'EAP',
+  'Tricare',
+  'Workers Comp',
+];
+
+const getStatusConfig = (status: string) => {
+  return STATUS_OPTIONS.find((s) => s.value === status) || STATUS_OPTIONS[1];
+};
+
+interface EnrollmentFormData {
+  payerName: string;
+  status: string;
+  productTypes: string[];
+  applicationDate: string;
+  effectiveDate: string;
+  dateContractReceived: string;
+  dateContractSigned: string;
+  lastFollowUpDate: string;
+  recredentialingDate: string;
+  providerNumber: string;
+  groupNumber: string;
+  notes: string;
+}
+
+const initialFormData: EnrollmentFormData = {
+  payerName: '',
+  status: 'not_started',
+  productTypes: [],
+  applicationDate: '',
+  effectiveDate: '',
+  dateContractReceived: '',
+  dateContractSigned: '',
+  lastFollowUpDate: '',
+  recredentialingDate: '',
+  providerNumber: '',
+  groupNumber: '',
+  notes: '',
+};
+
+type ViewMode = 'table' | 'kanban';
+
+export default function EnrollmentsList() {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [payerFilter, setPayerFilter] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
+
+  // New enrollment modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [providerSearch, setProviderSearch] = useState('');
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
+  const [payerSearch, setPayerSearch] = useState('');
+  const [showPayerDropdown, setShowPayerDropdown] = useState(false);
+  const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
+
+  // Fetch all enrollments
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['all-enrollments'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Enrollment[] }>('/enrollments');
+      return response.data;
+    },
+  });
+
+  // Fetch all providers
+  const { data: providersData } = useQuery({
+    queryKey: ['all-providers'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: { items: Provider[] } }>('/providers?pageSize=1000');
+      return response.data;
+    },
+  });
+
+  // Fetch payers for filter dropdown
+  const { data: payersData } = useQuery({
+    queryKey: ['payers'],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Payer[] }>('/enrollments/payers');
+      return response.data;
+    },
+  });
+
+  const enrollments = (data?.data as Enrollment[] | undefined) || [];
+  const providers = (providersData?.data?.items as Provider[] | undefined) || [];
+  const payers = (payersData?.data as Payer[] | undefined) || [];
+
+  // Filter providers based on search
+  const filteredProviders = useMemo(() => {
+    if (!providerSearch.trim()) return providers.slice(0, 20);
+    const searchLower = providerSearch.toLowerCase();
+    return providers
+      .filter(
+        (p) =>
+          p.firstName?.toLowerCase().includes(searchLower) ||
+          p.lastName?.toLowerCase().includes(searchLower) ||
+          `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchLower) ||
+          p.npi?.includes(providerSearch)
+      )
+      .slice(0, 20);
+  }, [providers, providerSearch]);
+
+  // Filter payers based on search
+  const filteredPayers = useMemo(() => {
+    if (!payerSearch.trim()) return payers.slice(0, 50);
+    const searchLower = payerSearch.toLowerCase();
+    return payers.filter((p) => p.name.toLowerCase().includes(searchLower)).slice(0, 50);
+  }, [payers, payerSearch]);
+
+  // Get unique payers from enrollments for the filter
+  const enrolledPayers = useMemo(() => {
+    const payerMap = new Map<string, Payer>();
+    enrollments.forEach((e) => {
+      if (e.payer) {
+        payerMap.set(e.payer.id, e.payer);
+      }
+    });
+    return Array.from(payerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [enrollments]);
+
+  // Filter enrollments
+  const filteredEnrollments = useMemo(() => {
+    return enrollments.filter((enrollment) => {
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesPayer = enrollment.payer?.name?.toLowerCase().includes(searchLower);
+        const matchesProvider =
+          enrollment.provider?.firstName?.toLowerCase().includes(searchLower) ||
+          enrollment.provider?.lastName?.toLowerCase().includes(searchLower) ||
+          `${enrollment.provider?.firstName} ${enrollment.provider?.lastName}`
+            .toLowerCase()
+            .includes(searchLower);
+        const matchesNpi = enrollment.provider?.npi?.includes(search);
+        const matchesProviderNumber = enrollment.providerNumber?.toLowerCase().includes(searchLower);
+
+        if (!matchesPayer && !matchesProvider && !matchesNpi && !matchesProviderNumber) {
+          return false;
+        }
+      }
+
+      // Status filter
+      if (statusFilter && enrollment.status !== statusFilter) {
+        return false;
+      }
+
+      // Payer filter
+      if (payerFilter && enrollment.payer?.id !== payerFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [enrollments, search, statusFilter, payerFilter]);
+
+  // Search providers directly (for quick enrollment creation)
+  const searchedProviders = useMemo(() => {
+    if (!search.trim() || search.length < 2) return [];
+    const searchLower = search.toLowerCase();
+    return providers
+      .filter(
+        (p) =>
+          p.firstName?.toLowerCase().includes(searchLower) ||
+          p.lastName?.toLowerCase().includes(searchLower) ||
+          `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchLower) ||
+          p.npi?.includes(search)
+      )
+      .slice(0, 10);
+  }, [providers, search]);
+
+  // Summary stats
+  const stats = useMemo(() => {
+    return {
+      total: enrollments.length,
+      approved: enrollments.filter((e) => e.status === 'approved').length,
+      inProgress: enrollments.filter((e) =>
+        ['in_progress', 'submitted', 'pending_review'].includes(e.status)
+      ).length,
+      notStarted: enrollments.filter((e) => e.status === 'not_started').length,
+      needsFollowUp: enrollments.filter((e) => {
+        if (!e.lastFollowUpDate) return false;
+        const followUp = new Date(e.lastFollowUpDate);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return followUp < weekAgo && !['approved', 'denied', 'terminated'].includes(e.status);
+      }).length,
+    };
+  }, [enrollments]);
+
+  // Create enrollment mutation
+  const createMutation = useMutation({
+    mutationFn: (data: { providerId: string; formData: EnrollmentFormData }) =>
+      api.post(`/enrollments/provider/${data.providerId}`, data.formData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      closeModal();
+    },
+  });
+
+  const openModal = (provider?: Provider) => {
+    setSelectedProvider(provider || null);
+    setProviderSearch('');
+    setShowProviderDropdown(false);
+    setPayerSearch('');
+    setShowPayerDropdown(false);
+    setFormData(initialFormData);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedProvider(null);
+    setProviderSearch('');
+    setPayerSearch('');
+    setFormData(initialFormData);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProvider) return;
+    createMutation.mutate({ providerId: selectedProvider.id, formData });
+  };
+
+  if (error) {
+    return (
+      <div className="text-red-600 p-4 bg-red-50 rounded-lg">
+        Failed to load enrollments. Please try again.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Enrollment Pipeline</h1>
+          <p className="text-sm text-gray-500">
+            Track and manage all payer enrollments across providers
+          </p>
+        </div>
+        <div className="flex gap-3">
+          {/* View Toggle */}
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Pipeline View"
+            >
+              <Squares2X2Icon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Table View"
+            >
+              <TableCellsIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <ArrowPathIcon className="h-5 w-5 mr-2 text-gray-500" />
+            Refresh
+          </button>
+          <button
+            onClick={() => openModal()}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add Enrollment
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+          <div className="text-sm text-gray-500">Total Enrollments</div>
+        </div>
+        <div className="bg-green-50 rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+          <div className="text-sm text-green-800">Approved</div>
+        </div>
+        <div className="bg-yellow-50 rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-yellow-600">{stats.inProgress}</div>
+          <div className="text-sm text-yellow-800">In Progress</div>
+        </div>
+        <div className="bg-gray-50 rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-gray-600">{stats.notStarted}</div>
+          <div className="text-sm text-gray-800">Not Started</div>
+        </div>
+        <div className="bg-orange-50 rounded-lg shadow p-4">
+          <div className="text-2xl font-bold text-orange-600">{stats.needsFollowUp}</div>
+          <div className="text-sm text-orange-800">Needs Follow-up</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1">
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by provider, payer, NPI, or provider #..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div className="w-full md:w-48">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payer Filter */}
+          <div className="w-full md:w-64">
+            <select
+              value={payerFilter}
+              onChange={(e) => setPayerFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Payers</option>
+              {enrolledPayers.map((payer) => (
+                <option key={payer.id} value={payer.id}>
+                  {payer.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {(search || statusFilter || payerFilter) && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-sm text-gray-500">
+              Showing {filteredEnrollments.length} of {enrollments.length} enrollments
+            </span>
+            <button
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('');
+                setPayerFilter('');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Matching Providers Section */}
+      {search && searchedProviders.length > 0 && (
+        <div className="bg-blue-50 rounded-lg shadow p-4">
+          <h3 className="text-sm font-medium text-blue-900 mb-3">
+            Matching Providers ({searchedProviders.length})
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {searchedProviders.map((provider) => (
+              <div
+                key={provider.id}
+                className="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                    <span className="text-white font-medium text-sm">
+                      {provider.firstName?.[0]}
+                      {provider.lastName?.[0]}
+                    </span>
+                  </div>
+                  <div>
+                    <Link
+                      to={`/providers/${provider.id}`}
+                      className="font-medium text-gray-900 hover:text-blue-600"
+                    >
+                      {provider.firstName} {provider.lastName}
+                    </Link>
+                    <div className="text-xs text-gray-500">NPI: {provider.npi}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => openModal(provider)}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
+                >
+                  <PlusIcon className="h-4 w-4 mr-1" />
+                  Enroll
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Enrollments Display */}
+      {isLoading ? (
+        <div className="animate-pulse space-y-4">
+          {viewMode === 'kanban' ? (
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex-shrink-0 w-72 h-96 bg-gray-200 rounded-xl"></div>
+              ))}
+            </div>
+          ) : (
+            [1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-16 bg-gray-200 rounded-lg"></div>
+            ))
+          )}
+        </div>
+      ) : enrollments.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <FunnelIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Found</h3>
+          <p className="text-gray-500 mb-4">
+            Get started by adding an enrollment for a provider.
+          </p>
+          <button
+            onClick={() => openModal()}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add First Enrollment
+          </button>
+        </div>
+      ) : viewMode === 'kanban' ? (
+        /* Kanban Pipeline View */
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {PIPELINE_COLUMNS.map((column) => {
+            const columnEnrollments = filteredEnrollments.filter((e) =>
+              column.statuses.includes(e.status)
+            );
+
+            return (
+              <div
+                key={column.id}
+                className={`flex-shrink-0 w-80 rounded-xl border-2 ${column.borderColor} ${column.bgColor} overflow-hidden`}
+              >
+                {/* Column Header */}
+                <div className={`p-4 border-b ${column.borderColor}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={`font-semibold ${column.headerColor}`}>
+                        {column.label}
+                      </h3>
+                      <p className="text-xs text-gray-500">{column.description}</p>
+                    </div>
+                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                      column.color === 'gray' ? 'bg-gray-200 text-gray-700' :
+                      column.color === 'yellow' ? 'bg-yellow-200 text-yellow-700' :
+                      column.color === 'blue' ? 'bg-blue-200 text-blue-700' :
+                      column.color === 'green' ? 'bg-green-200 text-green-700' :
+                      'bg-red-200 text-red-700'
+                    }`}>
+                      {columnEnrollments.length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Column Cards */}
+                <div className="p-3 space-y-3 max-h-[calc(100vh-380px)] overflow-y-auto">
+                  {columnEnrollments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <p className="text-sm">No enrollments</p>
+                    </div>
+                  ) : (
+                    columnEnrollments.map((enrollment) => {
+                      const statusConfig = getStatusConfig(enrollment.status);
+                      const needsFollowUp =
+                        enrollment.lastFollowUpDate &&
+                        new Date(enrollment.lastFollowUpDate) <
+                          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
+                        !['approved', 'denied', 'terminated'].includes(enrollment.status);
+
+                      return (
+                        <Link
+                          key={enrollment.id}
+                          to={`/providers/${enrollment.providerId}?tab=enrollments`}
+                          className="block bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all duration-200 overflow-hidden"
+                        >
+                          {/* Card Header with Provider */}
+                          <div className="p-3 border-b border-gray-100">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                                <span className="text-white font-medium text-sm">
+                                  {enrollment.provider?.firstName?.[0]}
+                                  {enrollment.provider?.lastName?.[0]}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-gray-900 truncate">
+                                  {enrollment.provider?.firstName} {enrollment.provider?.lastName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  NPI: {enrollment.provider?.npi}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Body with Payer Info */}
+                          <div className="p-3 space-y-2">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {enrollment.payer?.name}
+                              </p>
+                              <p className="text-xs text-gray-500">{enrollment.payer?.payerType}</p>
+                            </div>
+
+                            {/* Product Types */}
+                            {enrollment.productTypes && enrollment.productTypes.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {enrollment.productTypes.slice(0, 2).map((type) => (
+                                  <span
+                                    key={type}
+                                    className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700"
+                                  >
+                                    {type}
+                                  </span>
+                                ))}
+                                {enrollment.productTypes.length > 2 && (
+                                  <span className="text-xs text-gray-500">
+                                    +{enrollment.productTypes.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Status Badge (for combined columns) */}
+                            {column.statuses.length > 1 && (
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}`}>
+                                {statusConfig.label}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Card Footer */}
+                          <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs">
+                            {enrollment.effectiveDate ? (
+                              <span className="text-gray-600 flex items-center gap-1">
+                                <CalendarDaysIcon className="h-3.5 w-3.5" />
+                                {new Date(enrollment.effectiveDate).toLocaleDateString()}
+                              </span>
+                            ) : enrollment.applicationDate ? (
+                              <span className="text-gray-500">
+                                Applied {new Date(enrollment.applicationDate).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">No date</span>
+                            )}
+
+                            {needsFollowUp && (
+                              <span className="flex items-center gap-1 text-orange-600 font-medium">
+                                <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                                Follow-up
+                              </span>
+                            )}
+
+                            {enrollment.providerNumber && (
+                              <span className="text-gray-500">
+                                #{enrollment.providerNumber}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Table View */
+        <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Provider
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payer
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product Types
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Provider #
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Effective Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Follow-up
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredEnrollments.map((enrollment) => {
+                const statusConfig = getStatusConfig(enrollment.status);
+                const needsFollowUp =
+                  enrollment.lastFollowUpDate &&
+                  new Date(enrollment.lastFollowUpDate) <
+                    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
+                  !['approved', 'denied', 'terminated'].includes(enrollment.status);
+
+                return (
+                  <tr key={enrollment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Link
+                        to={`/providers/${enrollment.providerId}`}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <div className="font-medium">
+                          {enrollment.provider?.firstName} {enrollment.provider?.lastName}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          NPI: {enrollment.provider?.npi}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{enrollment.payer?.name}</div>
+                      <div className="text-sm text-gray-500">{enrollment.payer?.payerType}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {enrollment.productTypes && enrollment.productTypes.length > 0 ? (
+                          enrollment.productTypes.map((type) => (
+                            <span
+                              key={type}
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                            >
+                              {type}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
+                      >
+                        {statusConfig.label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">
+                      {enrollment.providerNumber || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                      {enrollment.effectiveDate
+                        ? new Date(enrollment.effectiveDate).toLocaleDateString()
+                        : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {enrollment.lastFollowUpDate ? (
+                        <span
+                          className={
+                            needsFollowUp ? 'text-orange-600 font-medium' : 'text-gray-500'
+                          }
+                        >
+                          {new Date(enrollment.lastFollowUpDate).toLocaleDateString()}
+                          {needsFollowUp && ' (overdue)'}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <Link
+                        to={`/providers/${enrollment.providerId}?tab=enrollments`}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add Enrollment Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              onClick={closeModal}
+            />
+
+            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Add New Enrollment</h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {/* Provider Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Provider *
+                  </label>
+                  {selectedProvider ? (
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                        <span className="text-white font-medium">
+                          {selectedProvider.firstName?.[0]}
+                          {selectedProvider.lastName?.[0]}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {selectedProvider.firstName} {selectedProvider.lastName}
+                        </div>
+                        <div className="text-sm text-gray-500">NPI: {selectedProvider.npi}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProvider(null)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <input
+                          type="text"
+                          value={providerSearch}
+                          onChange={(e) => {
+                            setProviderSearch(e.target.value);
+                            setShowProviderDropdown(true);
+                          }}
+                          onFocus={() => setShowProviderDropdown(true)}
+                          placeholder="Search providers by name or NPI..."
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      {showProviderDropdown && (
+                        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {filteredProviders.length > 0 ? (
+                            filteredProviders.map((provider) => (
+                              <button
+                                key={provider.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedProvider(provider);
+                                  setProviderSearch('');
+                                  setShowProviderDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">
+                                  {provider.firstName} {provider.lastName}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  NPI: {provider.npi}
+                                  {provider.providerType && ` | ${provider.providerType}`}
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              No providers found. Try a different search.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Payer Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payer *
+                  </label>
+                  <div className="relative">
+                    <div className="relative">
+                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={payerSearch}
+                        onChange={(e) => {
+                          setPayerSearch(e.target.value);
+                          setShowPayerDropdown(true);
+                        }}
+                        onFocus={() => setShowPayerDropdown(true)}
+                        placeholder="Search payers..."
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    {formData.payerName && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Selected:</span>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          {formData.payerName}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, payerName: '' });
+                              setPayerSearch('');
+                            }}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      </div>
+                    )}
+                    {showPayerDropdown && !formData.payerName && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredPayers.length > 0 ? (
+                          filteredPayers.map((payer) => (
+                            <button
+                              key={payer.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, payerName: payer.name });
+                                setPayerSearch('');
+                                setShowPayerDropdown(false);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                            >
+                              <div className="font-medium text-gray-900">{payer.name}</div>
+                              <div className="text-xs text-gray-500">{payer.payerType}</div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500">
+                            No payers found. Type to search from 3,000+ payers.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Product Types */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {PRODUCT_TYPE_OPTIONS.map((type) => (
+                      <label
+                        key={type}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer border ${
+                          formData.productTypes.includes(type)
+                            ? 'bg-blue-100 border-blue-500 text-blue-800'
+                            : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.productTypes.includes(type)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({
+                                ...formData,
+                                productTypes: [...formData.productTypes, type],
+                              });
+                            } else {
+                              setFormData({
+                                ...formData,
+                                productTypes: formData.productTypes.filter((t) => t !== type),
+                              });
+                            }
+                          }}
+                          className="sr-only"
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {ENROLLMENT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Provider & Group Numbers */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Provider Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.providerNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, providerNumber: e.target.value })
+                      }
+                      placeholder="Assigned provider #"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Group Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.groupNumber}
+                      onChange={(e) => setFormData({ ...formData, groupNumber: e.target.value })}
+                      placeholder="Group #"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Key Dates */}
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Key Dates</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Submission Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.applicationDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, applicationDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Effective Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.effectiveDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, effectiveDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contract Received
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dateContractReceived}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateContractReceived: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contract Signed
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dateContractSigned}
+                        onChange={(e) =>
+                          setFormData({ ...formData, dateContractSigned: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Last Follow Up
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.lastFollowUpDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, lastFollowUpDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Recredentialing Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.recredentialingDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, recredentialingDate: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                    placeholder="Any additional notes..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!selectedProvider || !formData.payerName || createMutation.isPending}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {createMutation.isPending ? 'Creating...' : 'Create Enrollment'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

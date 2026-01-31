@@ -7,6 +7,11 @@ import {
   TrashIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
+  BellIcon,
+  BellAlertIcon,
+  PaperAirplaneIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface Payer {
@@ -33,6 +38,28 @@ interface Enrollment {
   groupNumber: string | null;
   notes: string | null;
   payer: Payer;
+  // Follow-up automation fields
+  followUpEnabled: boolean;
+  followUpEmail: string | null;
+  followUpFrequencyDays: number;
+  lastFollowUpSentAt: string | null;
+  nextFollowUpDate: string | null;
+}
+
+interface FollowUpSettings {
+  enabled: boolean;
+  email: string;
+  frequencyDays: number;
+}
+
+interface EmailPreviewData {
+  providerName: string;
+  providerNpi: string;
+  groupNpi: string;
+  practiceName: string;
+  practiceCity: string;
+  practiceState: string;
+  payerName: string;
 }
 
 interface ProviderEnrollmentsProps {
@@ -98,6 +125,27 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
+
+  // Follow-up modal state
+  const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
+  const [followUpEnrollment, setFollowUpEnrollment] = useState<Enrollment | null>(null);
+  const [followUpSettings, setFollowUpSettings] = useState<FollowUpSettings>({
+    enabled: false,
+    email: '',
+    frequencyDays: 14,
+  });
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [emailPreviewData, setEmailPreviewData] = useState<EmailPreviewData | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailPreviewHtml, setEmailPreviewHtml] = useState('');
+  const [emailPreviewSubject, setEmailPreviewSubject] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [editableEmailBody, setEditableEmailBody] = useState('');
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [payerSearch, setPayerSearch] = useState('');
@@ -156,6 +204,112 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       setDeleteConfirm(null);
     },
   });
+
+  // Follow-up settings mutation
+  const followUpMutation = useMutation({
+    mutationFn: ({ id, settings }: { id: string; settings: FollowUpSettings }) =>
+      api.put(`/follow-up/enrollment/${id}/settings`, settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+      setFollowUpModalOpen(false);
+      setFollowUpEnrollment(null);
+    },
+  });
+
+  const openFollowUpModal = async (enrollment: Enrollment) => {
+    setFollowUpEnrollment(enrollment);
+    setFollowUpSettings({
+      enabled: enrollment.followUpEnabled || false,
+      email: enrollment.followUpEmail || '',
+      frequencyDays: enrollment.followUpFrequencyDays || 14,
+    });
+    setTestEmailResult(null);
+    setRecipientEmail('');
+    setCustomMessage('');
+    setAttachment(null);
+    setFollowUpModalOpen(true);
+
+    // Fetch email preview data
+    try {
+      const response = await api.get<{ success: boolean; data: EmailPreviewData }>(
+        `/follow-up/enrollment/${enrollment.id}/preview`
+      );
+      if (response.data.success) {
+        setEmailPreviewData(response.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load preview data:', err);
+    }
+  };
+
+  const handleSaveFollowUpSettings = () => {
+    if (!followUpEnrollment) return;
+    followUpMutation.mutate({
+      id: followUpEnrollment.id,
+      settings: followUpSettings,
+    });
+  };
+
+  const handlePreviewEmail = async () => {
+    if (!followUpEnrollment) return;
+    setPreviewLoading(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { subject: string; html: string } }>(
+        `/follow-up/enrollment/${followUpEnrollment.id}/preview-html`,
+        { customMessage }
+      );
+      if (response.data.success) {
+        setEmailPreviewSubject(response.data.data.subject);
+        setEmailPreviewHtml(response.data.data.html);
+        // Convert HTML to plain text for editing (extract the body content)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = response.data.data.html;
+        setEditableEmailBody(tempDiv.innerText || '');
+        setEditingEmail(false);
+        setShowEmailPreview(true);
+      }
+    } catch (err) {
+      console.error('Failed to generate preview:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleSendFollowUpEmail = async () => {
+    if (!followUpEnrollment || !recipientEmail) return;
+    setTestEmailSending(true);
+    setTestEmailResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('email', recipientEmail);
+      if (customMessage) {
+        formData.append('customMessage', customMessage);
+      }
+      if (attachment) {
+        formData.append('attachment', attachment);
+      }
+
+      const response = await fetch(`/api/v1/follow-up/enrollment/${followUpEnrollment.id}/send`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTestEmailResult({ success: true, message: 'Follow-up email sent successfully!' });
+        // Refresh the enrollments to show updated last follow-up date
+        queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+      } else {
+        setTestEmailResult({ success: false, message: result.error || 'Failed to send email' });
+      }
+    } catch (err) {
+      setTestEmailResult({ success: false, message: 'Failed to send email' });
+    } finally {
+      setTestEmailSending(false);
+    }
+  };
 
   const openCreateModal = () => {
     setEditingEnrollment(null);
@@ -374,9 +528,27 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
+                      {/* Follow-up button - only for active enrollments */}
+                      {!['approved', 'denied', 'terminated'].includes(enrollment.status) && (
+                        <button
+                          onClick={() => openFollowUpModal(enrollment)}
+                          className={`mr-3 ${
+                            enrollment.followUpEnabled
+                              ? 'text-green-600 hover:text-green-800'
+                              : 'text-gray-400 hover:text-blue-600'
+                          }`}
+                          title={enrollment.followUpEnabled ? 'Follow-up enabled' : 'Set up follow-up'}
+                        >
+                          {enrollment.followUpEnabled ? (
+                            <BellAlertIcon className="h-5 w-5" />
+                          ) : (
+                            <BellIcon className="h-5 w-5" />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditModal(enrollment)}
-                        className="text-blue-600 hover:text-blue-800 mr-4"
+                        className="text-blue-600 hover:text-blue-800 mr-3"
                         title="Edit"
                       >
                         <PencilIcon className="h-5 w-5" />
@@ -711,6 +883,330 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up Email Modal */}
+      {followUpModalOpen && followUpEnrollment && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              onClick={() => setFollowUpModalOpen(false)}
+            />
+
+            <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Send Follow-up Email
+                </h3>
+                <button
+                  onClick={() => setFollowUpModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircleIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Provider Data Preview */}
+              {emailPreviewData && (
+                <div className="mb-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                    Provider Information (included in email)
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-slate-500">Name:</span>
+                      <p className="font-medium text-slate-900">{emailPreviewData.providerName}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Provider NPI:</span>
+                      <p className="font-medium text-slate-900">{emailPreviewData.providerNpi}</p>
+                    </div>
+                    {emailPreviewData.groupNpi && (
+                      <div>
+                        <span className="text-slate-500">Group NPI:</span>
+                        <p className="font-medium text-slate-900">{emailPreviewData.groupNpi}</p>
+                      </div>
+                    )}
+                    {emailPreviewData.practiceName && (
+                      <div>
+                        <span className="text-slate-500">Practice:</span>
+                        <p className="font-medium text-slate-900">{emailPreviewData.practiceName}</p>
+                      </div>
+                    )}
+                    {(emailPreviewData.practiceCity || emailPreviewData.practiceState) && (
+                      <div>
+                        <span className="text-slate-500">Location:</span>
+                        <p className="font-medium text-slate-900">
+                          {emailPreviewData.practiceCity}{emailPreviewData.practiceCity && emailPreviewData.practiceState && ', '}{emailPreviewData.practiceState}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-slate-500">Payer:</span>
+                      <p className="font-medium text-slate-900">{emailPreviewData.payerName}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Recipient Email */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Send to (Payer Email) *
+                  </label>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="payer-credentialing@insurance.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Custom Message */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Additional Message (optional)
+                  </label>
+                  <textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    rows={3}
+                    placeholder="Add any specific notes or questions..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Attachment */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Attachment (optional)
+                  </label>
+                  <div className="mt-1">
+                    {attachment ? (
+                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                          <span className="text-sm text-blue-800 font-medium">{attachment.name}</span>
+                          <span className="text-xs text-blue-600">({(attachment.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAttachment(null)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <XCircleIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                        <div className="text-center">
+                          <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="mt-1 text-sm text-gray-600">Click to upload a file</p>
+                          <p className="text-xs text-gray-500">PDF, DOC, or image (max 10MB)</p>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setAttachment(file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Last sent info */}
+                {followUpEnrollment.lastFollowUpSentAt && (
+                  <div className="p-3 bg-gray-50 rounded-lg text-sm">
+                    <p className="text-gray-600">
+                      <strong>Last follow-up sent:</strong>{' '}
+                      {new Date(followUpEnrollment.lastFollowUpSentAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Result Message */}
+                {testEmailResult && (
+                  <div
+                    className={`p-3 rounded-lg flex items-center gap-2 ${
+                      testEmailResult.success
+                        ? 'bg-green-50 text-green-800'
+                        : 'bg-red-50 text-red-800'
+                    }`}
+                  >
+                    {testEmailResult.success ? (
+                      <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <XCircleIcon className="h-5 w-5 text-red-500" />
+                    )}
+                    <span className="text-sm">{testEmailResult.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="mt-6 flex justify-between">
+                <button
+                  type="button"
+                  onClick={handlePreviewEmail}
+                  disabled={previewLoading}
+                  className="inline-flex items-center px-4 py-2 text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 disabled:opacity-50"
+                >
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  {previewLoading ? 'Loading...' : 'Preview Email'}
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFollowUpModalOpen(false)}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendFollowUpEmail}
+                    disabled={!recipientEmail || testEmailSending}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <PaperAirplaneIcon className="h-4 w-4 mr-2" />
+                    {testEmailSending ? 'Sending...' : 'Send Email'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Preview Modal */}
+      {showEmailPreview && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-900 bg-opacity-75"
+              onClick={() => setShowEmailPreview(false)}
+            />
+
+            <div className="relative z-10 inline-block w-full max-w-2xl my-8 text-left align-middle bg-white rounded-lg shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {editingEmail ? 'Edit Email' : 'Email Preview'}
+                    </h3>
+                    <button
+                      onClick={() => setEditingEmail(!editingEmail)}
+                      className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
+                        editingEmail
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      <PencilIcon className="h-3 w-3 mr-1" />
+                      {editingEmail ? 'Editing' : 'Edit'}
+                    </button>
+                  </div>
+                  {!editingEmail && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      <strong>Subject:</strong> {emailPreviewSubject}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowEmailPreview(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircleIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              {editingEmail ? (
+                <div className="p-4">
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subject
+                    </label>
+                    <input
+                      type="text"
+                      value={emailPreviewSubject}
+                      onChange={(e) => setEmailPreviewSubject(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Body
+                    </label>
+                    <textarea
+                      value={editableEmailBody}
+                      onChange={(e) => setEditableEmailBody(e.target.value)}
+                      rows={16}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Note: Editing the email will send it as plain text instead of the formatted HTML version.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-100 max-h-[70vh] overflow-y-auto">
+                  <div
+                    className="bg-white rounded-lg shadow-sm"
+                    dangerouslySetInnerHTML={{ __html: emailPreviewHtml }}
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-between gap-3 px-6 py-4 bg-gray-50 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmailPreview(false);
+                    setEditingEmail(false);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <div className="flex gap-3">
+                  {editingEmail && (
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewEmail()}
+                      className="px-4 py-2 text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
+                    >
+                      Reset to Template
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmailPreview(false);
+                      setEditingEmail(false);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    {editingEmail ? 'Done Editing' : 'Looks Good'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
