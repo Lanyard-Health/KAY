@@ -13,6 +13,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
+import { usePdmStatus } from '../../hooks/usePdmStatus';
+import { PdmStatusBadgeForEnrollment } from '../../components/PdmAttestationBadge';
 
 interface Payer {
   id: string;
@@ -158,6 +160,10 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       return response.data;
     },
   });
+
+  // Fetch PDM status for all enrollments
+  const { data: pdmData } = usePdmStatus(providerId);
+  const pdmStatuses = pdmData?.data?.statuses || [];
 
   // Fetch all payers for dropdown
   const { data: payersData } = useQuery({
@@ -466,6 +472,12 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Recredentialing
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  PDM Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Attested
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -526,6 +538,17 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       {enrollment.recredentialingDate
                         ? new Date(enrollment.recredentialingDate).toLocaleDateString()
                         : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <PdmStatusBadgeForEnrollment
+                        enrollmentId={enrollment.id}
+                        statuses={pdmStatuses}
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                      {pdmStatuses.find((s) => s.enrollmentId === enrollment.id)?.lastAttestedAt
+                        ? new Date(pdmStatuses.find((s) => s.enrollmentId === enrollment.id)!.lastAttestedAt!).toLocaleDateString()
+                        : 'Never'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       {/* Follow-up button - only for active enrollments */}

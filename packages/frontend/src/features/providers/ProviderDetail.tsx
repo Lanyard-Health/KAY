@@ -13,6 +13,9 @@ import PracticeLocationModal from './PracticeLocationModal';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
+import PdmComplianceCard from '../../components/PdmComplianceCard';
+import { CaqhCard } from '../../components/CaqhCard';
+import { usePdmAlerts } from '../../hooks/usePdmStatus';
 
 const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
@@ -57,6 +60,11 @@ export default function ProviderDetail() {
     enabled: !!provider?.npi,
     staleTime: 1000 * 60 * 60, // Cache for 1 hour
   });
+
+  // PDM alerts for banner
+  const { data: pdmAlerts } = usePdmAlerts(id || '');
+  const overdueCount = pdmAlerts?.data?.alerts?.filter((a) => a.status === 'overdue').length || 0;
+  const dueSoonCount = pdmAlerts?.data?.alerts?.filter((a) => a.status === 'due_soon').length || 0;
 
   const deleteLocationMutation = useMutation({
     mutationFn: async (locationId: string) => {
@@ -318,6 +326,39 @@ export default function ProviderDetail() {
 
   return (
     <div>
+      {/* PDM Alert Banner */}
+      {(overdueCount > 0 || dueSoonCount > 0) && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <svg
+              className="h-5 w-5 text-red-600 mt-0.5 mr-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-red-800">PDM Attestation Required</h3>
+              <p className="mt-1 text-sm text-red-700">
+                {overdueCount > 0 && (
+                  <span className="font-semibold">{overdueCount} enrollment(s) are overdue. </span>
+                )}
+                {dueSoonCount > 0 && (
+                  <span>{dueSoonCount} enrollment(s) due soon. </span>
+                )}
+                Per CAA 2021, provider directory information must be attested every 90 days.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div className="flex items-center">
@@ -629,33 +670,8 @@ export default function ProviderDetail() {
             </span>
           </div>
 
-          {/* CAQH Status */}
-          <div className="card card-body">
-            <h3 className="text-sm font-medium text-gray-500 mb-3">CAQH ProView</h3>
-            {provider.caqhProviderId ? (
-              <div>
-                <p className="text-sm text-gray-900">ID: {provider.caqhProviderId}</p>
-                <p className="text-sm text-gray-500 capitalize">
-                  Status: {provider.caqhStatus || 'Unknown'}
-                </p>
-                {provider.caqhLastSync && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Last synced: {format(new Date(provider.caqhLastSync), 'MMM d, yyyy')}
-                  </p>
-                )}
-                <button className="mt-2 text-sm text-primary-600 hover:text-primary-500">
-                  Sync Now
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Not connected to CAQH</p>
-                <button className="text-sm text-primary-600 hover:text-primary-500">
-                  Connect to CAQH
-                </button>
-              </div>
-            )}
-          </div>
+          {/* CAQH ProView */}
+          <CaqhCard providerId={id!} provider={provider} />
 
           {/* Medicare Enrollment */}
           <div className="card card-body">
@@ -708,6 +724,9 @@ export default function ProviderDetail() {
               <p className="text-sm text-gray-400">Loading...</p>
             )}
           </div>
+
+          {/* PDM Compliance */}
+          <PdmComplianceCard providerId={id!} />
 
           {/* Documents */}
           <div className="card card-body">

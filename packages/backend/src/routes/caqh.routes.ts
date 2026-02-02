@@ -4,6 +4,7 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
+import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
 
 export const caqhRoutes = Router();
 
@@ -11,6 +12,130 @@ caqhRoutes.use(authenticate);
 caqhRoutes.use(authorize('admin', 'credentialing_staff'));
 
 const caqhService = new CaqhService();
+
+// ============================================
+// CAQH CREDENTIALS VERIFICATION ROUTES
+// ============================================
+
+// POST /api/v1/caqh/credentials/test - Test credentials without saving (for initial validation)
+// NOTE: This route MUST come before /:providerId routes to prevent "test" being matched as a provider ID
+caqhRoutes.post(
+  '/credentials/test',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({
+          success: false,
+          error: 'Username and password are required',
+        });
+      }
+
+      const result = await caqhCredentialsService.verifyCredentials(username, password);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/caqh/credentials/:providerId - Save CAQH credentials
+caqhRoutes.post(
+  '/credentials/:providerId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params;
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({
+          success: false,
+          error: 'Username and password are required',
+        });
+      }
+
+      const provider = await prisma.provider.findUnique({
+        where: { id: providerId },
+      });
+
+      if (!provider) {
+        throw new NotFoundError('Provider');
+      }
+
+      await caqhCredentialsService.saveCredentials(providerId, username, password);
+
+      res.json({
+        success: true,
+        message: 'CAQH credentials saved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/credentials/:providerId - Get credential status (not the actual password)
+caqhRoutes.get(
+  '/credentials/:providerId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params;
+
+      const provider = await prisma.provider.findUnique({
+        where: { id: providerId },
+      });
+
+      if (!provider) {
+        throw new NotFoundError('Provider');
+      }
+
+      const status = await caqhCredentialsService.getCredentialStatus(providerId);
+
+      res.json({
+        success: true,
+        data: status,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/caqh/credentials/:providerId/verify - Verify CAQH credentials
+caqhRoutes.post(
+  '/credentials/:providerId/verify',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { providerId } = req.params;
+
+      const provider = await prisma.provider.findUnique({
+        where: { id: providerId },
+      });
+
+      if (!provider) {
+        throw new NotFoundError('Provider');
+      }
+
+      const result = await caqhCredentialsService.verifyAndUpdateProvider(providerId);
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
+// EXISTING CAQH ROSTER ROUTES
+// ============================================
 
 // POST /api/v1/caqh/roster - Add provider to CAQH roster
 caqhRoutes.post(

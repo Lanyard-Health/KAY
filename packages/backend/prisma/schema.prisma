@@ -109,9 +109,16 @@ model Provider {
   languages    String[]     @default([])
 
   // CAQH Integration
-  caqhProviderId String?    @map("caqh_provider_id")
-  caqhStatus     CaqhStatus? @map("caqh_status")
-  caqhLastSync   DateTime?  @map("caqh_last_sync")
+  caqhProviderId       String?     @map("caqh_provider_id")
+  caqhStatus           CaqhStatus? @map("caqh_status")
+  caqhLastSync         DateTime?   @map("caqh_last_sync")
+  caqhUsername         String?     @map("caqh_username")
+  caqhPassword         String?     @map("caqh_password") // Encrypted
+  caqhCredentialsValid Boolean?    @map("caqh_credentials_valid")
+  caqhCredentialsLastChecked DateTime? @map("caqh_credentials_last_checked")
+
+  // Directory change tracking (golden record for PDM)
+  lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
   // Status
   status ProviderStatus @default(pending)
@@ -217,6 +224,9 @@ model PracticeLocation {
   languagesSpoken      String[] @default([])   @map("languages_spoken")
   specialServices      String[] @default([])   @map("special_services")
   notes                String?
+
+  // Directory change tracking (golden record for PDM)
+  lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -760,6 +770,11 @@ model PayerEnrollment {
   followUpFrequencyDays  Int       @default(14) @map("follow_up_frequency_days")
   lastFollowUpSentAt     DateTime? @map("last_follow_up_sent_at")
   nextFollowUpDate       DateTime? @map("next_follow_up_date")
+
+  // PDM Attestation Tracking (CAA 2021 - 90 day requirement)
+  pdmLastAttestedAt      DateTime? @map("pdm_last_attested_at")
+  pdmLastAttestedBy      String?   @map("pdm_last_attested_by")
+  pdmEnabled             Boolean   @default(true) @map("pdm_enabled")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
