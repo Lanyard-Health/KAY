@@ -47,6 +47,17 @@ export default function ProviderDetail() {
     },
   });
 
+  // Fetch Medicare enrollment status
+  const { data: medicareEnrollment } = useQuery({
+    queryKey: ['medicare-enrollment', provider?.npi],
+    queryFn: async () => {
+      const response = await api.get(`/pecos/lookup/${provider.npi}`);
+      return response.data.data;
+    },
+    enabled: !!provider?.npi,
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+  });
+
   const deleteLocationMutation = useMutation({
     mutationFn: async (locationId: string) => {
       return api.delete(`/practice-locations/${locationId}`);
@@ -643,6 +654,58 @@ export default function ProviderDetail() {
                   Connect to CAQH
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* Medicare Enrollment */}
+          <div className="card card-body">
+            <h3 className="text-sm font-medium text-gray-500 mb-3">Medicare Enrollment</h3>
+            {medicareEnrollment?.found ? (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Enrolled
+                  </span>
+                  {medicareEnrollment.pacId && (
+                    <span className="text-xs text-gray-400">PAC: {medicareEnrollment.pacId}</span>
+                  )}
+                </div>
+                {medicareEnrollment.enrollments && medicareEnrollment.enrollments.length > 0 && (
+                  <div className="text-xs text-gray-600 space-y-1 mb-2">
+                    {medicareEnrollment.enrollments.slice(0, 3).map((enrollment: any, idx: number) => (
+                      <p key={idx} className="truncate" title={enrollment.providerTypeDesc}>
+                        • {enrollment.state}: {enrollment.providerTypeDesc.replace('PRACTITIONER - ', '')}
+                      </p>
+                    ))}
+                    {medicareEnrollment.enrollments.length > 3 && (
+                      <p className="text-gray-400">+{medicareEnrollment.enrollments.length - 3} more</p>
+                    )}
+                  </div>
+                )}
+                {medicareEnrollment.orderingPrivileges && (
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    {medicareEnrollment.orderingPrivileges.dme && <p>✓ DME</p>}
+                    {medicareEnrollment.orderingPrivileges.hha && <p>✓ Home Health</p>}
+                    {medicareEnrollment.orderingPrivileges.hospice && <p>✓ Hospice</p>}
+                  </div>
+                )}
+                {medicareEnrollment.verifiedAt && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Verified: {format(new Date(medicareEnrollment.verifiedAt), 'MMM d, yyyy')}
+                  </p>
+                )}
+              </div>
+            ) : medicareEnrollment && !medicareEnrollment.found ? (
+              <div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  Not Enrolled
+                </span>
+                <p className="text-xs text-gray-500 mt-2">
+                  Provider not found in Medicare enrollment database
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Loading...</p>
             )}
           </div>
 

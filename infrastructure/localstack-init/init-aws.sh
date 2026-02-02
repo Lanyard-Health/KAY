@@ -15,7 +15,7 @@ awslocal s3api put-bucket-cors --bucket credentials-documents --cors-configurati
     {
       "AllowedHeaders": ["*"],
       "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
-      "AllowedOrigins": ["http://localhost:5173"],
+      "AllowedOrigins": ["http://localhost:5190", "http://localhost:5173", "*"],
       "ExposeHeaders": ["ETag"]
     }
   ]

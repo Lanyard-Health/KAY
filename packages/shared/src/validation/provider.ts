@@ -10,11 +10,12 @@ export const phoneSchema = z.string().regex(
   'Invalid phone number format'
 );
 
-// Optional phone that allows empty string
+// Optional phone that allows empty string or null
 export const optionalPhoneSchema = z.union([
   z.literal(''),
+  z.null(),
   phoneSchema,
-]).optional();
+]).optional().transform(val => val === null ? undefined : val);
 
 export const genderSchema = z.enum(['male', 'female', 'other', 'prefer_not_to_say']);
 
@@ -50,7 +51,7 @@ export const createProviderSchema = z.object({
 
 export const updateProviderSchema = createProviderSchema.partial().extend({
   status: providerStatusSchema.optional(),
-  caqhProviderId: z.string().max(50).optional(),
+  caqhProviderId: z.union([z.string().max(50), z.null()]).optional().transform(val => val === null ? undefined : val),
 });
 
 export const addressSchema = z.object({

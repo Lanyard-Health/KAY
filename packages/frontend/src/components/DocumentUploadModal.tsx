@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   XMarkIcon,
@@ -70,6 +70,20 @@ export default function DocumentUploadModal({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadedDocument, setUploadedDocument] = useState<any>(null);
+
+  // Reset state when modal opens with a different document type
+  useEffect(() => {
+    if (isOpen) {
+      setDocumentType(defaultDocumentType || '');
+      setFile(null);
+      setDescription('');
+      setExpirationDate('');
+      setUploadStep('select');
+      setUploadProgress(0);
+      setErrorMessage('');
+      setUploadedDocument(null);
+    }
+  }, [isOpen, defaultDocumentType]);
 
   const resetState = () => {
     setFile(null);

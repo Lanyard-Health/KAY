@@ -127,6 +127,9 @@ export class DocumentService {
         data: { fileSize },
       });
 
+      // Link checklist documents (W9, COI, CP575) to the provider's checklist
+      await this.linkChecklistDocument(document.providerId, document.documentType, documentId);
+
       // Trigger OCR if applicable (skip in LocalStack/development mode)
       const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';
       if (isLocalStack) {
@@ -149,6 +152,49 @@ export class DocumentService {
       logger.error('Failed to confirm upload', error);
       throw new Error('Failed to confirm upload - file may not exist');
     }
+  }
+
+  private async linkChecklistDocument(
+    providerId: string,
+    documentType: string,
+    documentId: string
+  ): Promise<void> {
+    const checklistDocTypes = ['w9', 'coi', 'cp575'];
+    if (!checklistDocTypes.includes(documentType)) {
+      return;
+    }
+
+    // Find or create the provider's checklist
+    let checklist = await prisma.providerChecklist.findUnique({
+      where: { providerId },
+    });
+
+    if (!checklist) {
+      checklist = await prisma.providerChecklist.create({
+        data: { providerId },
+      });
+    }
+
+    // Update the appropriate document ID and status
+    const updateData: Record<string, unknown> = {};
+
+    if (documentType === 'w9') {
+      updateData.w9DocumentId = documentId;
+      updateData.w9Status = 'pending_review';
+    } else if (documentType === 'coi') {
+      updateData.coiDocumentId = documentId;
+      updateData.coiStatus = 'pending_review';
+    } else if (documentType === 'cp575') {
+      updateData.cp575DocumentId = documentId;
+      updateData.cp575Status = 'pending_review';
+    }
+
+    await prisma.providerChecklist.update({
+      where: { providerId },
+      data: updateData,
+    });
+
+    logger.info(`Linked ${documentType} document ${documentId} to checklist for provider ${providerId}`);
   }
 
   async getDownloadUrl(s3Key: string): Promise<string> {

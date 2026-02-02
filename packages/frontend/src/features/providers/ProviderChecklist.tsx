@@ -174,7 +174,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
       );
       const extension = doc.fileName.split('.').pop()?.toLowerCase() || '';
       setPreviewDoc({
-        url: response.data.downloadUrl,
+        url: response.data.data.downloadUrl,
         name: doc.fileName,
         type: ['pdf'].includes(extension) ? 'pdf' : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension) ? 'image' : 'other',
       });

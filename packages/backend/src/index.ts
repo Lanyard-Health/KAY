@@ -24,6 +24,8 @@ import practiceLocationRoutes from './routes/practiceLocation.routes.js';
 import checklistRoutes from './routes/checklist.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
 import followUpRoutes from './routes/followup.routes.js';
+import { npiRoutes } from './routes/npi.routes.js';
+import { pecosRoutes } from './routes/pecos.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
@@ -78,6 +80,8 @@ app.use('/api/v1/practice-locations', practiceLocationRoutes);
 app.use('/api/v1/checklist', checklistRoutes);
 app.use('/api/v1/enrollments', enrollmentRoutes);
 app.use('/api/v1/follow-up', followUpRoutes);
+app.use('/api/v1/npi', npiRoutes);
+app.use('/api/v1/pecos', pecosRoutes);
 
 // Error handling
 app.use(errorHandler);
