@@ -42,6 +42,7 @@ model User {
   auditLogs        AuditLog[]
   documentsCreated Document[]           @relation("DocumentCreatedBy")
   documentsReviewed Document[]          @relation("DocumentReviewedBy")
+  rosterTemplates  RosterTemplate[]
 
   @@map("users")
 }
@@ -892,4 +893,24 @@ model Notification {
   @@index([status])
   @@index([type])
   @@map("notifications")
+}
+
+// ==========================================
+// ROSTER REPORT TEMPLATES
+// ==========================================
+
+model RosterTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  columns     Json     // [{ fieldKey, label, width? }]
+  filters     Json?
+  sortConfig  Json?    @map("sort_config")
+  isShared    Boolean  @default(false) @map("is_shared")
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("roster_templates")
 }

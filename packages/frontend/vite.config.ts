@@ -7,13 +7,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@credential-management/shared': path.resolve(__dirname, '../shared/src/index.ts'),
     },
   },
   server: {
     port: 5190,
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
