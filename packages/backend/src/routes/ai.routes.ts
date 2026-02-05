@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import type { Request, Response, NextFunction } from 'express';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ForbiddenError } from '../middleware/error.middleware.js';
+import { prisma } from '../utils/prisma.js';
 import {
   isConfigured,
   getModelInfo,
@@ -12,6 +14,20 @@ import {
   getRecommendations,
   updateRecommendationStatus,
 } from '../services/ai.service.js';
+
+// Helper to check enrollment access for AI operations
+async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
+  const { role, providerId: userProviderId } = req.user!;
+  if (role === 'admin' || role === 'credentialing_staff') return;
+
+  const enrollment = await prisma.payerEnrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { providerId: true },
+  });
+  if (!enrollment) return; // Let service handle not found
+  if (role === 'provider' && userProviderId === enrollment.providerId) return;
+  throw new ForbiddenError('Access denied to this enrollment');
+}
 
 const router = Router();
 
@@ -34,12 +50,13 @@ router.get('/status', async (_req: Request, res: Response) => {
 /**
  * POST /api/v1/ai/enrollment/:id/generate-email
  */
-router.post('/enrollment/:id/generate-email', async (req: Request, res: Response) => {
+router.post('/enrollment/:id/generate-email', async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
     }
     const { id } = req.params;
+    await assertEnrollmentAccess(req, id!);
     const { tone, additionalContext } = req.body || {};
     const result = await generateFollowUpEmail(id!, { tone, additionalContext });
     res.json({ success: true, data: result });
@@ -53,12 +70,13 @@ router.post('/enrollment/:id/generate-email', async (req: Request, res: Response
 /**
  * POST /api/v1/ai/enrollment/:id/analyze
  */
-router.post('/enrollment/:id/analyze', async (req: Request, res: Response) => {
+router.post('/enrollment/:id/analyze', async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
     }
     const { id } = req.params;
+    await assertEnrollmentAccess(req, id!);
     const result = await analyzeEnrollment(id!);
     res.json({ success: true, data: result });
   } catch (error: unknown) {
@@ -69,9 +87,9 @@ router.post('/enrollment/:id/analyze', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/v1/ai/portfolio/analyze
+ * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -86,9 +104,9 @@ router.post('/portfolio/analyze', async (_req: Request, res: Response) => {
 });
 
 /**
- * GET /api/v1/ai/recommendations
+ * GET /api/v1/ai/recommendations (admin/staff only)
  */
-router.get('/recommendations', async (req: Request, res: Response) => {
+router.get('/recommendations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
     const { type, status, enrollmentId } = req.query;
     const recommendations = await getRecommendations({
@@ -103,9 +121,9 @@ router.get('/recommendations', async (req: Request, res: Response) => {
 });
 
 /**
- * PATCH /api/v1/ai/recommendations/:id
+ * PATCH /api/v1/ai/recommendations/:id (admin/staff only)
  */
-router.patch('/recommendations/:id', async (req: Request, res: Response) => {
+router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;

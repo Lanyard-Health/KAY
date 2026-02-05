@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -25,6 +25,7 @@ const updateChecklistSchema = z.object({
 router.get(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -66,6 +67,7 @@ router.get(
 router.put(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -151,6 +153,7 @@ router.put(
 router.post(
   '/provider/:providerId/link-document',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;

@@ -1,7 +1,22 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ForbiddenError } from '../middleware/error.middleware.js';
+
+// Helper to check enrollment access (staff/admin can access all, providers only their own)
+async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
+  const { role, providerId: userProviderId } = req.user!;
+  if (role === 'admin' || role === 'credentialing_staff') return;
+
+  const enrollment = await prisma.payerEnrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { providerId: true },
+  });
+  if (!enrollment) return; // Let the 404 be handled by the route
+  if (role === 'provider' && userProviderId === enrollment.providerId) return;
+  throw new ForbiddenError('Access denied to this enrollment');
+}
 
 const router = Router();
 
@@ -90,10 +105,11 @@ router.post(
 // ENROLLMENT ROUTES
 // ==========================================
 
-// Get all enrollments across all providers
+// Get all enrollments across all providers (admin/staff only)
 router.get(
   '/',
   authenticate,
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.payerEnrollment.findMany({
@@ -122,6 +138,7 @@ router.get(
 router.get(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -146,6 +163,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
+      await assertEnrollmentAccess(req, id!);
 
       const enrollment = await prisma.payerEnrollment.findUnique({
         where: { id },
@@ -170,6 +188,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -255,6 +274,7 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
+      await assertEnrollmentAccess(req, id!);
       const validated = updateEnrollmentSchema.parse(req.body);
 
       const existing = await prisma.payerEnrollment.findUnique({
@@ -301,10 +321,11 @@ router.put(
   }
 );
 
-// Delete enrollment
+// Delete enrollment (admin/staff only)
 router.delete(
   '/:id',
   authenticate,
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;

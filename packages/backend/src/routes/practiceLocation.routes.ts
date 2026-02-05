@@ -1,7 +1,21 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
-import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ForbiddenError } from '../middleware/error.middleware.js';
+
+// Helper to check location access
+async function assertLocationAccess(req: Request, locationId: string): Promise<{ providerId: string } | null> {
+  const { role, providerId: userProviderId } = req.user!;
+  const location = await prisma.practiceLocation.findUnique({
+    where: { id: locationId },
+    select: { providerId: true },
+  });
+  if (!location) return null;
+  if (role === 'admin' || role === 'credentialing_staff') return location;
+  if (role === 'provider' && userProviderId === location.providerId) return location;
+  throw new ForbiddenError('Access denied to this practice location');
+}
 
 const router = Router();
 
@@ -43,6 +57,7 @@ const updatePracticeLocationSchema = createPracticeLocationSchema.partial();
 router.get(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -67,10 +82,7 @@ router.get(
     try {
       const { id } = req.params;
 
-      const location = await prisma.practiceLocation.findUnique({
-        where: { id },
-      });
-
+      const location = await assertLocationAccess(req, id!);
       if (!location) {
         return res.status(404).json({
           success: false,
@@ -78,7 +90,11 @@ router.get(
         });
       }
 
-      res.json({ success: true, data: location });
+      const fullLocation = await prisma.practiceLocation.findUnique({
+        where: { id },
+      });
+
+      res.json({ success: true, data: fullLocation });
     } catch (error) {
       next(error);
     }
@@ -89,6 +105,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -134,10 +151,7 @@ router.put(
       const { id } = req.params;
       const validated = updatePracticeLocationSchema.parse(req.body);
 
-      const existing = await prisma.practiceLocation.findUnique({
-        where: { id },
-      });
-
+      const existing = await assertLocationAccess(req, id!);
       if (!existing) {
         return res.status(404).json({
           success: false,
@@ -145,8 +159,12 @@ router.put(
         });
       }
 
+      const fullExisting = await prisma.practiceLocation.findUnique({
+        where: { id },
+      });
+
       // If this is being set as primary, unset other primary locations
-      if (validated.isPrimary && !existing.isPrimary) {
+      if (validated.isPrimary && !fullExisting!.isPrimary) {
         await prisma.practiceLocation.updateMany({
           where: { providerId: existing.providerId, isPrimary: true },
           data: { isPrimary: false },
@@ -176,10 +194,11 @@ router.put(
   }
 );
 
-// Delete a practice location
+// Delete a practice location (admin/staff only)
 router.delete(
   '/:id',
   authenticate,
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
