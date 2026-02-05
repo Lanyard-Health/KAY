@@ -5,6 +5,7 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { NotFoundError, ValidationError } from '../middleware/error.middleware.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
+import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
 
 export const providerRoutes = Router();
 
@@ -17,10 +18,7 @@ providerRoutes.get(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query['page'] as string) || 1;
-      const pageSize = Math.min(parseInt(req.query['pageSize'] as string) || 20, 100);
-      const search = req.query['search'] as string;
-      const status = req.query['status'] as string;
+      const { page, pageSize, search, status } = parseQuery(req.query, providerListQuerySchema);
 
       const where = {
         ...(search && {

@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import { validateEnv } from './utils/env.js';
+
+// Validate environment variables before anything else
+const env = validateEnv();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

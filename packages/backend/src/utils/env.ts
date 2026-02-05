@@ -1,0 +1,43 @@
+import { z } from 'zod';
+
+const envSchema = z.object({
+  // Required
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().default(3002),
+
+  // Auth
+  JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
+  DEV_AUTH_BYPASS: z.string().optional(),
+
+  // Encryption
+  ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be a 64-character hex string').optional(),
+
+  // AI (optional — feature degrades gracefully)
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-sonnet-4-20250514'),
+  AI_DAILY_TOKEN_BUDGET: z.coerce.number().default(100000),
+
+  // Frontend URL (for CORS)
+  FRONTEND_URL: z.string().optional(),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+/**
+ * Validate environment variables on startup.
+ * Throws with clear error messages if required vars are missing.
+ */
+export function validateEnv(): Env {
+  const result = envSchema.safeParse(process.env);
+
+  if (!result.success) {
+    const errors = result.error.flatten().fieldErrors;
+    const messages = Object.entries(errors)
+      .map(([key, msgs]) => `  ${key}: ${msgs?.join(', ')}`)
+      .join('\n');
+    throw new Error(`Environment validation failed:\n${messages}`);
+  }
+
+  return result.data;
+}

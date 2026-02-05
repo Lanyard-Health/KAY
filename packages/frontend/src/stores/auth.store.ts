@@ -44,12 +44,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: async () => {
     try {
-      console.log('[Auth] checkAuth starting, DEV_BYPASS_ENABLED:', DEV_BYPASS_ENABLED);
       set({ isLoading: true });
 
       // In dev bypass mode, check if we have a stored dev session
       if (DEV_BYPASS_ENABLED) {
-        console.log('[Auth] Dev bypass mode active');
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
           // Fetch user from API (backend will auto-authenticate in dev mode)
@@ -65,7 +63,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return;
           }
         }
-        console.log('[Auth] No dev session, setting isLoading=false');
         set({
           user: null,
           isAuthenticated: false,
@@ -76,7 +73,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Normal Cognito auth flow
-      console.log('[Auth] Using Cognito auth flow');
       const { fetchAuthSession } = await getAmplifyAuth();
       const session = await fetchAuthSession();
 

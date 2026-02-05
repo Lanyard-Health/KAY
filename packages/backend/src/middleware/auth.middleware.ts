@@ -6,8 +6,7 @@ import type { UserRole } from '@prisma/client';
 import { RolePermissions } from '@credential-management/shared';
 import { logger } from '../utils/logger.js';
 
-// Development mode check
-const isDevelopment = process.env['NODE_ENV'] === 'development';
+// Auth bypass controlled by DEV_AUTH_BYPASS env var (set to "false" when real auth is ready)
 const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
 
 // Development mock user
@@ -46,9 +45,9 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Development auth bypass
-    if (isDevelopment && DEV_BYPASS_ENABLED) {
-      logger.warn('⚠️  DEV AUTH BYPASS ENABLED - Do not use in production!');
+    // Auth bypass (controlled by DEV_AUTH_BYPASS env var)
+    if (DEV_BYPASS_ENABLED) {
+      logger.warn('⚠️  AUTH BYPASS ENABLED — set DEV_AUTH_BYPASS=false for real authentication');
 
       // Check if dev user exists in DB, create if not
       let user = await prisma.user.findUnique({

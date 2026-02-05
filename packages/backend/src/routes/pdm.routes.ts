@@ -1,4 +1,7 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { logger } from '../utils/logger.js';
+import { parseQuery } from '../utils/queryValidation.js';
 import {
   getAttestationStatuses,
   getEnrollmentsNeedingAttestation,
@@ -29,7 +32,7 @@ router.get('/provider/:providerId/status', async (req: Request, res: Response) =
       },
     });
   } catch (error) {
-    console.error('Error fetching PDM status:', error);
+    logger.error('Error fetching PDM status:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch PDM attestation status',
@@ -44,7 +47,9 @@ router.get('/provider/:providerId/status', async (req: Request, res: Response) =
 router.get('/provider/:providerId/alerts', async (req: Request, res: Response) => {
   try {
     const { providerId } = req.params;
-    const warningDays = parseInt(req.query['warningDays'] as string) || 14;
+    const { warningDays } = parseQuery(req.query, z.object({
+      warningDays: z.coerce.number().int().min(1).max(365).default(14),
+    }));
 
     const alerts = await getEnrollmentsNeedingAttestation(providerId!, warningDays);
 
@@ -56,7 +61,7 @@ router.get('/provider/:providerId/alerts', async (req: Request, res: Response) =
       },
     });
   } catch (error) {
-    console.error('Error fetching PDM alerts:', error);
+    logger.error('Error fetching PDM alerts:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch PDM alerts',
@@ -94,7 +99,7 @@ router.post('/provider/:providerId/attest', async (req: Request, res: Response) 
       },
     });
   } catch (error) {
-    console.error('Error recording attestation:', error);
+    logger.error('Error recording attestation:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to record attestation',

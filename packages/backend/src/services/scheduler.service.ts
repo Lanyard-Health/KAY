@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { followUpService } from './followup.service.js';
 import { emailService } from './email.service.js';
+import { logger } from '../utils/logger.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
@@ -13,12 +14,12 @@ class SchedulerService {
    */
   initialize(): void {
     if (!emailService.isConfigured()) {
-      console.log('[Scheduler] Email service not configured.');
+      logger.info('[Scheduler] Email service not configured.');
       return;
     }
 
-    console.log('[Scheduler] Email configured. Follow-ups controlled per-enrollment.');
-    console.log('[Scheduler] Use POST /api/v1/follow-up/run to manually process due follow-ups.');
+    logger.info('[Scheduler] Email configured. Follow-ups controlled per-enrollment.');
+    logger.info('[Scheduler] Use POST /api/v1/follow-up/run to manually process due follow-ups.');
   }
 
   /**
@@ -38,33 +39,33 @@ class SchedulerService {
     }>;
   }> {
     if (this.isRunning) {
-      console.log('[Scheduler] Follow-up job already running, skipping...');
+      logger.info('[Scheduler] Follow-up job already running, skipping...');
       return { processed: 0, successful: 0, failed: 0, results: [] };
     }
 
     this.isRunning = true;
-    console.log('[Scheduler] Starting follow-up job...');
+    logger.info('[Scheduler] Starting follow-up job...');
 
     try {
       const result = await followUpService.processAllDueFollowUps();
 
-      console.log(`[Scheduler] Follow-up job completed:`);
-      console.log(`  - Processed: ${result.processed}`);
-      console.log(`  - Successful: ${result.successful}`);
-      console.log(`  - Failed: ${result.failed}`);
+      logger.info(`[Scheduler] Follow-up job completed:`);
+      logger.info(`  - Processed: ${result.processed}`);
+      logger.info(`  - Successful: ${result.successful}`);
+      logger.info(`  - Failed: ${result.failed}`);
 
       if (result.failed > 0) {
-        console.log('[Scheduler] Failed follow-ups:');
+        logger.info('[Scheduler] Failed follow-ups:');
         result.results
           .filter((r: { success: boolean }) => !r.success)
           .forEach((r: { providerName: string; payerName: string; error?: string }) => {
-            console.log(`  - ${r.providerName} / ${r.payerName}: ${r.error}`);
+            logger.info(`  - ${r.providerName} / ${r.payerName}: ${r.error}`);
           });
       }
 
       return result;
     } catch (error) {
-      console.error('[Scheduler] Follow-up job error:', error);
+      logger.error('[Scheduler] Follow-up job error:', error);
       throw error;
     } finally {
       this.isRunning = false;
@@ -78,7 +79,7 @@ class SchedulerService {
     if (this.followUpJob) {
       this.followUpJob.stop();
       this.followUpJob = null;
-      console.log('[Scheduler] Follow-up job stopped');
+      logger.info('[Scheduler] Follow-up job stopped');
     }
   }
 

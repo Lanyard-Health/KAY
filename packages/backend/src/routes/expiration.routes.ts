@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ExpirationService } from '../services/expiration.service.js';
+import { expirationQuerySchema, parseQuery } from '../utils/queryValidation.js';
 
 export const expirationRoutes = Router();
 
@@ -16,8 +17,7 @@ expirationRoutes.get(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const days = parseInt(req.query['days'] as string) || 30;
-      const type = req.query['type'] as string;
+      const { days, type } = parseQuery(req.query, expirationQuerySchema);
 
       const expirations = await expirationService.getUpcomingExpirations(days, type);
 

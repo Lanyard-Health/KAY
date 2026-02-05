@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { auditQuerySchema, paginationSchema, parseQuery } from '../utils/queryValidation.js';
 
 export const auditRoutes = Router();
 
@@ -13,13 +15,7 @@ auditRoutes.get(
   '/',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query['page'] as string) || 1;
-      const pageSize = Math.min(parseInt(req.query['pageSize'] as string) || 50, 100);
-      const userId = req.query['userId'] as string;
-      const resourceType = req.query['resourceType'] as string;
-      const action = req.query['action'] as string;
-      const startDate = req.query['startDate'] as string;
-      const endDate = req.query['endDate'] as string;
+      const { page, pageSize, userId, resourceType, action, startDate, endDate } = parseQuery(req.query, auditQuerySchema);
 
       const where = {
         ...(userId && { userId }),
@@ -104,8 +100,9 @@ auditRoutes.get(
   '/user/:userId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const page = parseInt(req.query['page'] as string) || 1;
-      const pageSize = Math.min(parseInt(req.query['pageSize'] as string) || 50, 100);
+      const { page, pageSize } = parseQuery(req.query, paginationSchema.extend({
+        pageSize: z.coerce.number().int().min(1).max(100).default(50),
+      }));
 
       const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
@@ -138,8 +135,10 @@ auditRoutes.get(
   '/stats',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const startDate = req.query['startDate'] as string;
-      const endDate = req.query['endDate'] as string;
+      const { startDate, endDate } = parseQuery(req.query, z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }));
 
       const dateFilter = {
         ...(startDate || endDate) && {
