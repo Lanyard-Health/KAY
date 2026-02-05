@@ -18,6 +18,12 @@ const envSchema = z.object({
   AI_MODEL: z.string().default('claude-sonnet-4-20250514'),
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().default(100000),
 
+  // Gmail API (optional — email features degrade gracefully)
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REFRESH_TOKEN: z.string().optional(),
+  GMAIL_SENDER_EMAIL: z.string().optional(),
+
   // Frontend URL (for CORS)
   FRONTEND_URL: z.string().optional(),
 });
