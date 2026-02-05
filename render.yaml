@@ -42,10 +42,9 @@ services:
     envVars:
       - key: VITE_DEV_AUTH_BYPASS
         value: "true"
+      - key: VITE_API_URL
+        value: https://kay-os62.onrender.com/api/v1
     routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://kay-os62.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
