@@ -784,11 +784,54 @@ model PayerEnrollment {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  payer    Payer    @relation(fields: [payerId], references: [id])
+  provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer             Payer              @relation(fields: [payerId], references: [id])
+  aiRecommendations AiRecommendation[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
+}
+
+// ==========================================
+// AI RECOMMENDATIONS
+// ==========================================
+
+enum AiRecommendationType {
+  follow_up_email
+  strategy
+  priority_alert
+}
+
+enum AiRecommendationStatus {
+  pending
+  accepted
+  dismissed
+  expired
+}
+
+model AiRecommendation {
+  id               String                 @id @default(uuid())
+  enrollmentId     String                 @map("enrollment_id")
+  type             AiRecommendationType
+  status           AiRecommendationStatus @default(pending)
+  title            String
+  content          String
+  reasoning        String?
+  metadata         Json?
+  promptTokens     Int                    @default(0) @map("prompt_tokens")
+  completionTokens Int                    @default(0) @map("completion_tokens")
+  modelUsed        String?                @map("model_used")
+  actedOnBy        String?                @map("acted_on_by")
+  actedOnAt        DateTime?              @map("acted_on_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  enrollment PayerEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+  @@index([type])
+  @@index([status])
+  @@map("ai_recommendations")
 }
 
 // ==========================================

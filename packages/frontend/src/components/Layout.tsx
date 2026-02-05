@@ -9,6 +9,7 @@ import {
   ClockIcon,
   ClipboardDocumentListIcon,
   TableCellsIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
   { name: 'Expirations', href: '/expirations', icon: ClockIcon },
   { name: 'Roster', href: '/roster', icon: TableCellsIcon },
+  { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
 ];
 
 export default function Layout() {

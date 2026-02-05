@@ -28,6 +28,7 @@ import { npiRoutes } from './routes/npi.routes.js';
 import { pecosRoutes } from './routes/pecos.routes.js';
 import { pdmRoutes } from './routes/pdm.routes.js';
 import { rosterRoutes } from './routes/roster.routes.js';
+import { aiRoutes } from './routes/ai.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
@@ -86,6 +87,7 @@ app.use('/api/v1/npi', npiRoutes);
 app.use('/api/v1/pecos', pecosRoutes);
 app.use('/api/v1/pdm', pdmRoutes);
 app.use('/api/v1/roster', rosterRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Error handling
 app.use(errorHandler);

@@ -10,6 +10,7 @@ import DocumentList from './features/documents/DocumentList';
 import ExpirationDashboard from './features/dashboard/ExpirationDashboard';
 import EnrollmentsList from './features/enrollments/EnrollmentsList';
 import RosterPage from './features/roster/RosterPage';
+import AiAgentDashboard from './features/ai-agent/AiAgentDashboard';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="enrollments" element={<EnrollmentsList />} />
         <Route path="expirations" element={<ExpirationDashboard />} />
         <Route path="roster" element={<RosterPage />} />
+        <Route path="ai-agent" element={<AiAgentDashboard />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
