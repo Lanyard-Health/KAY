@@ -3,10 +3,12 @@ import multer from 'multer';
 import { emailService } from '../services/email.service.js';
 import { followUpService } from '../services/followup.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/prisma.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
 
-const prisma = new PrismaClient();
 const followUpRoutes = Router();
+
+followUpRoutes.use(authenticate);
 
 // Configure multer for file uploads (memory storage for email attachments)
 const ALLOWED_ATTACHMENT_TYPES = [
@@ -36,7 +38,7 @@ const upload = multer({
 });
 
 // Get email service status and config
-followUpRoutes.get('/status', async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/status', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const emailConfig = emailService.getConfig();
     const schedulerStatus = schedulerService.getStatus();
@@ -64,7 +66,7 @@ followUpRoutes.get('/status', async (_req: Request, res: Response, next: NextFun
 });
 
 // Send test email to verify SMTP configuration
-followUpRoutes.post('/test-email', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/test-email', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email } = req.body;
 
@@ -97,7 +99,7 @@ followUpRoutes.post('/test-email', async (req: Request, res: Response, next: Nex
 });
 
 // Get enrollment data for email preview
-followUpRoutes.get('/enrollment/:id/preview', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const data = await followUpService.getEnrollmentEmailData(id!);
@@ -119,7 +121,7 @@ followUpRoutes.get('/enrollment/:id/preview', async (req: Request, res: Response
 });
 
 // Generate email HTML preview
-followUpRoutes.post('/enrollment/:id/preview-html', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { customMessage } = req.body;
@@ -150,6 +152,7 @@ followUpRoutes.post('/enrollment/:id/preview-html', async (req: Request, res: Re
 // Send follow-up email with optional attachment
 followUpRoutes.post(
   '/enrollment/:id/send',
+  authorize('admin', 'credentialing_staff'),
   upload.single('attachment'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -195,7 +198,7 @@ followUpRoutes.post(
 );
 
 // Legacy: Send test follow-up for a specific enrollment
-followUpRoutes.post('/enrollment/:id/test', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { email } = req.body;
@@ -223,7 +226,7 @@ followUpRoutes.post('/enrollment/:id/test', async (req: Request, res: Response, 
 });
 
 // Configure follow-up settings for an enrollment
-followUpRoutes.put('/enrollment/:id/settings', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { enabled, email, frequencyDays } = req.body;
@@ -265,7 +268,7 @@ followUpRoutes.put('/enrollment/:id/settings', async (req: Request, res: Respons
 });
 
 // Get follow-up settings for an enrollment
-followUpRoutes.get('/enrollment/:id/settings', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
 
@@ -299,7 +302,7 @@ followUpRoutes.get('/enrollment/:id/settings', async (req: Request, res: Respons
 });
 
 // Get all enrollments with follow-up enabled
-followUpRoutes.get('/enrollments', async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const enrollments = await prisma.payerEnrollment.findMany({
       where: {
@@ -336,7 +339,7 @@ followUpRoutes.get('/enrollments', async (_req: Request, res: Response, next: Ne
 });
 
 // Get enrollments due for follow-up
-followUpRoutes.get('/due', async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/due', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const enrollments = await followUpService.getEnrollmentsDueForFollowUp();
 
@@ -351,7 +354,7 @@ followUpRoutes.get('/due', async (_req: Request, res: Response, next: NextFuncti
 });
 
 // Manually trigger follow-up processing (for testing or manual runs)
-followUpRoutes.post('/run', async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/run', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await schedulerService.runFollowUpJob();
 
@@ -365,7 +368,7 @@ followUpRoutes.post('/run', async (_req: Request, res: Response, next: NextFunct
 });
 
 // Get follow-up history (notifications) for an enrollment
-followUpRoutes.get('/enrollment/:id/history', async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
-import { NotFoundError } from '../middleware/error.middleware.js';
+import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
 import { DocumentService } from '../services/document.service.js';
 import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
 
@@ -11,6 +11,13 @@ export const documentRoutes = Router();
 documentRoutes.use(authenticate);
 
 const documentService = new DocumentService();
+
+function assertDocumentAccess(req: Request, document: { providerId: string }): void {
+  const { role, providerId: userProviderId } = req.user!;
+  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'provider' && userProviderId === document.providerId) return;
+  throw new ForbiddenError('Access denied to this document');
+}
 
 // POST /api/v1/documents/upload-url - Get pre-signed upload URL
 documentRoutes.post(
@@ -28,6 +35,8 @@ documentRoutes.post(
         throw new NotFoundError('Provider');
       }
 
+      assertDocumentAccess(req, { providerId: data.providerId });
+
       const result = await documentService.getUploadUrl(data, req.user!.id);
 
       res.json({ success: true, data: result });
@@ -43,6 +52,12 @@ documentRoutes.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { documentId } = req.body;
+
+      const existing = await prisma.document.findUnique({
+        where: { id: documentId },
+      });
+      if (!existing) throw new NotFoundError('Document');
+      assertDocumentAccess(req, existing);
 
       const document = await documentService.confirmUpload(documentId);
 
@@ -71,6 +86,8 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
+      assertDocumentAccess(req, document);
+
       res.json({ success: true, data: document });
     } catch (error) {
       next(error);
@@ -91,6 +108,8 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
+      assertDocumentAccess(req, document);
+
       const downloadUrl = await documentService.getDownloadUrl(document.s3Key);
 
       res.json({ success: true, data: { downloadUrl, expiresIn: 3600 } });
@@ -109,6 +128,7 @@ documentRoutes.get(
         where: { id: req.params['id'] },
         select: {
           id: true,
+          providerId: true,
           ocrStatus: true,
           ocrData: true,
           ocrConfidence: true,
@@ -119,6 +139,8 @@ documentRoutes.get(
       if (!document) {
         throw new NotFoundError('Document');
       }
+
+      assertDocumentAccess(req, document);
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -133,6 +155,12 @@ documentRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { extractedFields } = req.body;
+
+      const existing = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+      });
+      if (!existing) throw new NotFoundError('Document');
+      assertDocumentAccess(req, existing);
 
       const document = await prisma.document.update({
         where: { id: req.params['id'] },
@@ -165,6 +193,8 @@ documentRoutes.put(
         throw new NotFoundError('Document');
       }
 
+      assertDocumentAccess(req, document);
+
       const updatedDocument = await prisma.document.update({
         where: { id: req.params['id'] },
         data: {
@@ -194,6 +224,8 @@ documentRoutes.delete(
       if (!document) {
         throw new NotFoundError('Document');
       }
+
+      assertDocumentAccess(req, document);
 
       // Delete from S3
       await documentService.deleteDocument(document.s3Key);

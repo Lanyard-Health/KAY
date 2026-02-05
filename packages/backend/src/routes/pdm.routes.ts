@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { parseQuery } from '../utils/queryValidation.js';
+import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
 import {
   getAttestationStatuses,
   getEnrollmentsNeedingAttestation,
@@ -11,11 +12,13 @@ import {
 
 const router = Router();
 
+router.use(authenticate);
+
 /**
  * GET /api/v1/pdm/provider/:providerId/status
  * Get all attestation statuses for a provider
  */
-router.get('/provider/:providerId/status', async (req: Request, res: Response) => {
+router.get('/provider/:providerId/status', requireProviderAccess, async (req: Request, res: Response) => {
   try {
     const { providerId } = req.params;
 
@@ -44,7 +47,7 @@ router.get('/provider/:providerId/status', async (req: Request, res: Response) =
  * GET /api/v1/pdm/provider/:providerId/alerts
  * Get enrollments needing attention (due soon, overdue, or directory changed)
  */
-router.get('/provider/:providerId/alerts', async (req: Request, res: Response) => {
+router.get('/provider/:providerId/alerts', requireProviderAccess, async (req: Request, res: Response) => {
   try {
     const { providerId } = req.params;
     const { warningDays } = parseQuery(req.query, z.object({
@@ -73,7 +76,7 @@ router.get('/provider/:providerId/alerts', async (req: Request, res: Response) =
  * POST /api/v1/pdm/provider/:providerId/attest
  * Record attestation for one or more enrollments
  */
-router.post('/provider/:providerId/attest', async (req: Request, res: Response) => {
+router.post('/provider/:providerId/attest', requireProviderAccess, async (req: Request, res: Response) => {
   try {
     const { enrollmentIds } = req.body;
 
@@ -84,8 +87,7 @@ router.post('/provider/:providerId/attest', async (req: Request, res: Response) 
       });
     }
 
-    // Get attestedBy from authenticated user or request body
-    const attestedBy = req.body.attestedBy || (req as any).user?.email || 'system';
+    const attestedBy = req.user!.email;
 
     await recordAttestation(enrollmentIds, attestedBy);
 

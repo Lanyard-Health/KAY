@@ -65,6 +65,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/licenses/:id
 credentialRoutes.put(
   '/licenses/:id',
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createLicenseSchema.partial().parse(req.body);
