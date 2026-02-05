@@ -3,7 +3,7 @@
   "outputDirectory": "packages/frontend/dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://YOUR_RENDER_URL/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://kay-os62.onrender.com/api/:path*" }
   ],
   "routes": [
     { "handle": "filesystem" },
