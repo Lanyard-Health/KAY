@@ -121,7 +121,7 @@ async function createAuditLog(data: {
       action: data.action,
       resourceType: data.resourceType,
       resourceId: data.resourceId,
-      changes: data.changes ?? undefined,
+      changes: data.changes as any,
       ipAddress: data.ipAddress,
       userAgent: data.userAgent,
     },

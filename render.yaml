@@ -1,0 +1,34 @@
+databases:
+  - name: kay-db
+    plan: free
+    databaseName: kay
+    user: kay
+
+services:
+  - type: web
+    name: kay-backend
+    runtime: node
+    plan: free
+    buildCommand: npm ci && cd packages/backend && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: cd packages/backend && node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kay-db
+          property: connectionString
+      - key: DEV_AUTH_BYPASS
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://YOUR_VERCEL_URL
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: claude-sonnet-4-20250514
+      - key: AI_DAILY_TOKEN_BUDGET
+        value: "100000"

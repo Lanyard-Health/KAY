@@ -1,6 +1,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
+import { encrypt, decrypt } from '../utils/crypto.js';
 
 const CAQH_PROVIEW_LOGIN_URL = 'https://proview.caqh.org/Login';
 
@@ -180,9 +181,20 @@ export class CaqhCredentialsService {
 
     logger.info(`Verifying CAQH credentials for provider: ${provider.firstName} ${provider.lastName}`);
 
+    // Decrypt password before verification
+    let decryptedPassword: string;
+    try {
+      decryptedPassword = decrypt(provider.caqhPassword);
+    } catch {
+      // Handle legacy unencrypted passwords
+      decryptedPassword = provider.caqhPassword;
+      logger.warn(`Provider ${providerId} has unencrypted CAQH password — re-encrypting`);
+      await this.saveCredentials(providerId, provider.caqhUsername, provider.caqhPassword);
+    }
+
     const result = await this.verifyCredentials(
       provider.caqhUsername,
-      provider.caqhPassword
+      decryptedPassword
     );
 
     // Update the provider record with verification result
@@ -209,7 +221,7 @@ export class CaqhCredentialsService {
       where: { id: providerId },
       data: {
         caqhUsername: username,
-        caqhPassword: password, // In production, this should be encrypted
+        caqhPassword: encrypt(password),
         caqhCredentialsValid: null,
         caqhCredentialsLastChecked: null,
       },
@@ -343,7 +355,10 @@ export class CaqhCredentialsService {
 
   private async checkLoginResult(page: Page): Promise<CredentialVerificationResult> {
     const currentUrl = page.url();
-    const pageText = await page.evaluate(() => document.body.innerText);
+    const pageText = await page.evaluate(() => {
+      // This runs in browser context where document is available
+      return (globalThis as any).document.body.innerText;
+    });
 
     logger.info(`CAQH login check - URL: ${currentUrl}`);
     logger.info(`CAQH login check - Page text length: ${pageText.length}`);
@@ -466,13 +481,15 @@ export class CaqhCredentialsService {
     if (currentUrl.includes('login') || currentUrl.includes('Login') || currentUrl.includes('signin') || currentUrl.includes('SignIn')) {
       // Check if there are any error elements visible
       const hasErrorElements = await page.evaluate(() => {
+        // This runs in browser context where document is available
+        const doc = (globalThis as any).document;
         const errorSelectors = [
           '.error', '.alert-danger', '.alert-error', '[role="alert"]',
           '.validation-error', '.error-message', '.login-error',
           '[class*="error"]', '[class*="invalid"]'
         ];
         for (const selector of errorSelectors) {
-          const el = document.querySelector(selector);
+          const el = doc.querySelector(selector);
           if (el && el.textContent && el.textContent.trim().length > 0) {
             return el.textContent.trim();
           }

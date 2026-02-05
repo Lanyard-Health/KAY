@@ -17,8 +17,8 @@ router.get('/provider/:providerId/status', async (req: Request, res: Response) =
     const { providerId } = req.params;
 
     const [statuses, summary] = await Promise.all([
-      getAttestationStatuses(providerId),
-      getAttestationSummary(providerId),
+      getAttestationStatuses(providerId!),
+      getAttestationSummary(providerId!),
     ]);
 
     res.json({
@@ -44,9 +44,9 @@ router.get('/provider/:providerId/status', async (req: Request, res: Response) =
 router.get('/provider/:providerId/alerts', async (req: Request, res: Response) => {
   try {
     const { providerId } = req.params;
-    const warningDays = parseInt(req.query.warningDays as string) || 14;
+    const warningDays = parseInt(req.query['warningDays'] as string) || 14;
 
-    const alerts = await getEnrollmentsNeedingAttestation(providerId, warningDays);
+    const alerts = await getEnrollmentsNeedingAttestation(providerId!, warningDays);
 
     res.json({
       success: true,

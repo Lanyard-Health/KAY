@@ -105,7 +105,7 @@ router.post(
       const location = await prisma.practiceLocation.create({
         data: {
           ...validated,
-          providerId,
+          providerId: providerId!,
           email: validated.email || null,
           npi: validated.npi || null,
           createdById: req.user?.id,

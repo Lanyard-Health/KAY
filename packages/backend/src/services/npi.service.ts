@@ -155,14 +155,14 @@ export class NPIService {
         return { found: false };
       }
 
-      const data: NPIAPIResponse = await response.json();
+      const data = await response.json() as NPIAPIResponse;
 
       if (data.result_count === 0 || !data.results || data.results.length === 0) {
         logger.info(`NPI ${npiNumber} not found`);
         return { found: false };
       }
 
-      const result = data.results[0];
+      const result = data.results[0]!;
       return this.parseNPIResult(result);
     } catch (error) {
       logger.error('NPI lookup failed:', error);
@@ -195,7 +195,7 @@ export class NPIService {
         return [];
       }
 
-      const data: NPIAPIResponse = await response.json();
+      const data = await response.json() as NPIAPIResponse;
 
       if (data.result_count === 0 || !data.results) {
         return [];
@@ -286,7 +286,7 @@ export class NPIService {
     if (primaryTax) {
       parsed.primaryTaxonomy = {
         code: primaryTax.code,
-        description: primaryTax.description,
+        description: primaryTax.desc,
         license: primaryTax.license,
         state: primaryTax.state,
       };

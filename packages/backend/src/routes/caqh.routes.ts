@@ -67,7 +67,7 @@ caqhRoutes.post(
         throw new NotFoundError('Provider');
       }
 
-      await caqhCredentialsService.saveCredentials(providerId, username, password);
+      await caqhCredentialsService.saveCredentials(providerId!, username, password);
 
       res.json({
         success: true,
@@ -94,7 +94,7 @@ caqhRoutes.get(
         throw new NotFoundError('Provider');
       }
 
-      const status = await caqhCredentialsService.getCredentialStatus(providerId);
+      const status = await caqhCredentialsService.getCredentialStatus(providerId!);
 
       res.json({
         success: true,
@@ -121,7 +121,7 @@ caqhRoutes.post(
         throw new NotFoundError('Provider');
       }
 
-      const result = await caqhCredentialsService.verifyAndUpdateProvider(providerId);
+      const result = await caqhCredentialsService.verifyAndUpdateProvider(providerId!);
 
       res.json({
         success: true,
@@ -264,7 +264,7 @@ caqhRoutes.post(
           data: {
             status: 'completed',
             completedAt: new Date(),
-            changesApplied: changes,
+            changesApplied: changes as any,
           },
         });
 

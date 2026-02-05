@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   UserPlusIcon,
   DocumentArrowUpIcon,
@@ -17,8 +17,6 @@ import clsx from 'clsx';
 import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-
   // Fetch all dashboard data
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-full'],
@@ -200,9 +198,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
               <h3 className="font-semibold text-gray-900">Incomplete Profiles</h3>
-              {data?.incompleteProviders?.length > 0 && (
+              {(data?.incompleteProviders?.length ?? 0) > 0 && (
                 <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {data.incompleteProviders.length}
+                  {data?.incompleteProviders?.length}
                 </span>
               )}
             </div>
@@ -258,9 +256,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ClockIcon className="h-5 w-5 text-red-500" />
               <h3 className="font-semibold text-gray-900">Expiring Soon</h3>
-              {data?.expiringItems?.length > 0 && (
+              {(data?.expiringItems?.length ?? 0) > 0 && (
                 <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {data.expiringItems.length}
+                  {data?.expiringItems?.length}
                 </span>
               )}
             </div>
@@ -331,9 +329,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ClipboardDocumentListIcon className="h-5 w-5 text-blue-500" />
               <h3 className="font-semibold text-gray-900">Enrollments - Follow Up Needed</h3>
-              {data?.needsFollowUp?.length > 0 && (
+              {(data?.needsFollowUp?.length ?? 0) > 0 && (
                 <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {data.needsFollowUp.length}
+                  {data?.needsFollowUp?.length}
                 </span>
               )}
             </div>

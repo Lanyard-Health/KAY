@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 
-// Development mode check
-const isDevelopment = import.meta.env.DEV;
+// Check if dev bypass is enabled (works in both dev and production)
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
 
 // Lazy load Amplify auth functions only when needed (not in dev bypass mode)
@@ -41,15 +40,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   token: null,
   error: null,
-  isDevMode: isDevelopment && DEV_BYPASS_ENABLED,
+  isDevMode: DEV_BYPASS_ENABLED,
 
   checkAuth: async () => {
     try {
-      console.log('[Auth] checkAuth starting, DEV_BYPASS_ENABLED:', DEV_BYPASS_ENABLED, 'isDevelopment:', isDevelopment);
+      console.log('[Auth] checkAuth starting, DEV_BYPASS_ENABLED:', DEV_BYPASS_ENABLED);
       set({ isLoading: true });
 
       // In dev bypass mode, check if we have a stored dev session
-      if (isDevelopment && DEV_BYPASS_ENABLED) {
+      if (DEV_BYPASS_ENABLED) {
         console.log('[Auth] Dev bypass mode active');
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
@@ -127,8 +126,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Development login bypass
   devLogin: async () => {
-    if (!isDevelopment || !DEV_BYPASS_ENABLED) {
-      throw new Error('Dev login only available in development mode');
+    if (!DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
     }
 
     set({ isLoading: true, error: null });
@@ -180,7 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     try {
       // Clear dev session if in dev mode
-      if (isDevelopment && DEV_BYPASS_ENABLED) {
+      if (DEV_BYPASS_ENABLED) {
         localStorage.removeItem('dev_session');
       } else {
         const { signOut } = await getAmplifyAuth();

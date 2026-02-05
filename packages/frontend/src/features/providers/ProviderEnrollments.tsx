@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import {
@@ -46,12 +47,6 @@ interface Enrollment {
   followUpFrequencyDays: number;
   lastFollowUpSentAt: string | null;
   nextFollowUpDate: string | null;
-}
-
-interface FollowUpSettings {
-  enabled: boolean;
-  email: string;
-  frequencyDays: number;
 }
 
 interface EmailPreviewData {
@@ -131,11 +126,6 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   // Follow-up modal state
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [followUpEnrollment, setFollowUpEnrollment] = useState<Enrollment | null>(null);
-  const [followUpSettings, setFollowUpSettings] = useState<FollowUpSettings>({
-    enabled: false,
-    email: '',
-    frequencyDays: 14,
-  });
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
   const [emailPreviewData, setEmailPreviewData] = useState<EmailPreviewData | null>(null);
@@ -211,24 +201,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     },
   });
 
-  // Follow-up settings mutation
-  const followUpMutation = useMutation({
-    mutationFn: ({ id, settings }: { id: string; settings: FollowUpSettings }) =>
-      api.put(`/follow-up/enrollment/${id}/settings`, settings),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
-      setFollowUpModalOpen(false);
-      setFollowUpEnrollment(null);
-    },
-  });
-
   const openFollowUpModal = async (enrollment: Enrollment) => {
     setFollowUpEnrollment(enrollment);
-    setFollowUpSettings({
-      enabled: enrollment.followUpEnabled || false,
-      email: enrollment.followUpEmail || '',
-      frequencyDays: enrollment.followUpFrequencyDays || 14,
-    });
     setTestEmailResult(null);
     setRecipientEmail('');
     setCustomMessage('');
@@ -248,14 +222,6 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     }
   };
 
-  const handleSaveFollowUpSettings = () => {
-    if (!followUpEnrollment) return;
-    followUpMutation.mutate({
-      id: followUpEnrollment.id,
-      settings: followUpSettings,
-    });
-  };
-
   const handlePreviewEmail = async () => {
     if (!followUpEnrollment) return;
     setPreviewLoading(true);
@@ -269,7 +235,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         setEmailPreviewHtml(response.data.data.html);
         // Convert HTML to plain text for editing (extract the body content)
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = response.data.data.html;
+        tempDiv.innerHTML = DOMPurify.sanitize(response.data.data.html);
         setEditableEmailBody(tempDiv.innerText || '');
         setEditingEmail(false);
         setShowEmailPreview(true);
@@ -1192,7 +1158,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 <div className="p-4 bg-gray-100 max-h-[70vh] overflow-y-auto">
                   <div
                     className="bg-white rounded-lg shadow-sm"
-                    dangerouslySetInnerHTML={{ __html: emailPreviewHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(emailPreviewHtml) }}
                   />
                 </div>
               )}

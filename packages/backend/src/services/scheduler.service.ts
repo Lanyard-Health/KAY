@@ -1,6 +1,6 @@
 import cron from 'node-cron';
-import { followUpService } from './followup.service';
-import { emailService } from './email.service';
+import { followUpService } from './followup.service.js';
+import { emailService } from './email.service.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
@@ -56,8 +56,8 @@ class SchedulerService {
       if (result.failed > 0) {
         console.log('[Scheduler] Failed follow-ups:');
         result.results
-          .filter((r) => !r.success)
-          .forEach((r) => {
+          .filter((r: { success: boolean }) => !r.success)
+          .forEach((r: { providerName: string; payerName: string; error?: string }) => {
             console.log(`  - ${r.providerName} / ${r.payerName}: ${r.error}`);
           });
       }

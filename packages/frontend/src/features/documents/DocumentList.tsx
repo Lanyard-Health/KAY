@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
-import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 
@@ -60,17 +59,6 @@ export default function DocumentList() {
     return DOCUMENT_TYPES.find((t) => t.value === type)?.label || type;
   };
 
-  const getOcrStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      completed: 'bg-green-100 text-green-800',
-      processing: 'bg-blue-100 text-blue-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      failed: 'bg-red-100 text-red-800',
-      not_applicable: 'bg-gray-100 text-gray-800',
-    };
-    return colors[status] || colors['not_applicable'];
-  };
-
   const handleDownload = async (documentId: string, fileName: string) => {
     try {
       const response = await api.get(`/documents/${documentId}/download-url`);
@@ -86,15 +74,6 @@ export default function DocumentList() {
       document.body.removeChild(link);
     } catch (error) {
       toast.error('Failed to download document');
-    }
-  };
-
-  const handleViewOcr = async (doc: any) => {
-    try {
-      const response = await api.get(`/documents/${doc.id}/ocr-results`);
-      setViewingOcr({ document: doc, ocrData: response.data.data });
-    } catch (error) {
-      toast.error('Failed to load OCR results');
     }
   };
 

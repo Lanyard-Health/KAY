@@ -87,7 +87,7 @@ export function errorHandler(
 
   // Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
-    const prismaError = err as { code: string; meta?: Record<string, unknown> };
+    const prismaError = err as unknown as { code: string };
 
     if (prismaError.code === 'P2002') {
       res.status(409).json({
@@ -95,7 +95,6 @@ export function errorHandler(
         error: {
           code: 'CONFLICT',
           message: 'A record with this value already exists',
-          details: prismaError.meta,
         },
       });
       return;

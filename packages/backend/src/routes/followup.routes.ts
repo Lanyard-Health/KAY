@@ -1,18 +1,37 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { emailService } from '../services/email.service';
-import { followUpService } from '../services/followup.service';
-import { schedulerService } from '../services/scheduler.service';
+import { emailService } from '../services/email.service.js';
+import { followUpService } from '../services/followup.service.js';
+import { schedulerService } from '../services/scheduler.service.js';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const followUpRoutes = Router();
 
 // Configure multer for file uploads (memory storage for email attachments)
+const ALLOWED_ATTACHMENT_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/tiff',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+];
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_ATTACHMENT_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type not allowed: ${file.mimetype}`));
+    }
   },
 });
 
@@ -81,7 +100,7 @@ followUpRoutes.post('/test-email', async (req: Request, res: Response, next: Nex
 followUpRoutes.get('/enrollment/:id/preview', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const data = await followUpService.getEnrollmentEmailData(id);
+    const data = await followUpService.getEnrollmentEmailData(id!);
 
     if (!data) {
       return res.status(404).json({
@@ -105,7 +124,7 @@ followUpRoutes.post('/enrollment/:id/preview-html', async (req: Request, res: Re
     const { id } = req.params;
     const { customMessage } = req.body;
 
-    const data = await followUpService.getEnrollmentEmailData(id);
+    const data = await followUpService.getEnrollmentEmailData(id!);
 
     if (!data) {
       return res.status(404).json({
@@ -145,7 +164,7 @@ followUpRoutes.post(
         });
       }
 
-      const result = await followUpService.sendCustomFollowUp(id, email, {
+      const result = await followUpService.sendCustomFollowUp(id!, email, {
         customMessage,
         attachment: file ? {
           filename: file.originalname,
@@ -181,7 +200,7 @@ followUpRoutes.post('/enrollment/:id/test', async (req: Request, res: Response, 
     const { id } = req.params;
     const { email } = req.body;
 
-    const result = await followUpService.sendCustomFollowUp(id, email || '');
+    const result = await followUpService.sendCustomFollowUp(id!, email || '');
 
     if (result.success) {
       res.json({
@@ -223,7 +242,7 @@ followUpRoutes.put('/enrollment/:id/settings', async (req: Request, res: Respons
       });
     }
 
-    const enrollment = await followUpService.configureFollowUp(id, {
+    const enrollment = await followUpService.configureFollowUp(id!, {
       enabled,
       email,
       frequencyDays,

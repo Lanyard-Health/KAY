@@ -349,7 +349,7 @@ export default function ProviderList() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {data?.data?.map((provider: Provider) => {
-                const { progress, details } = calculateProgress(provider);
+                const { progress } = calculateProgress(provider);
                 const StatusIcon = statusIcons[provider.status];
 
                 return (

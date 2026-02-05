@@ -215,7 +215,7 @@ export class PECOSService {
       );
 
       batch.forEach((npi, index) => {
-        results.set(npi, batchResults[index]);
+        results.set(npi, batchResults[index]!);
       });
     }
 

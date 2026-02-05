@@ -201,7 +201,7 @@ router.post(
       const existingEnrollment = await prisma.payerEnrollment.findUnique({
         where: {
           providerId_payerId: {
-            providerId,
+            providerId: providerId!,
             payerId: payer.id,
           },
         },
@@ -216,7 +216,7 @@ router.post(
 
       const enrollment = await prisma.payerEnrollment.create({
         data: {
-          providerId,
+          providerId: providerId!,
           payerId: payer.id,
           status: validated.status || 'not_started',
           productTypes: validated.productTypes || [],

@@ -75,7 +75,7 @@ export class CaqhService {
       throw new Error(`CAQH API error: ${response.status}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   async addToRoster(provider: {

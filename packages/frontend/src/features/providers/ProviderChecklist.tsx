@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import {
@@ -81,7 +81,6 @@ const CHECKLIST_ITEMS = [
 export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChecklistProps) {
   const queryClient = useQueryClient();
   const [previewDoc, setPreviewDoc] = useState<{ url: string; name: string; type: string } | null>(null);
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['checklist', providerId],

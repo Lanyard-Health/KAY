@@ -36,7 +36,7 @@ router.get(
 
       if (!checklist) {
         checklist = await prisma.providerChecklist.create({
-          data: { providerId },
+          data: { providerId: providerId! },
         });
       }
 
@@ -92,16 +92,16 @@ router.put(
 
       // Add reviewer info for status changes
       if (validated.w9Status === 'approved' || validated.w9Status === 'rejected') {
-        updateData.w9ReviewedAt = new Date();
-        updateData.w9ReviewedBy = req.user?.id;
+        updateData['w9ReviewedAt'] = new Date();
+        updateData['w9ReviewedBy'] = req.user?.id;
       }
       if (validated.coiStatus === 'approved' || validated.coiStatus === 'rejected') {
-        updateData.coiReviewedAt = new Date();
-        updateData.coiReviewedBy = req.user?.id;
+        updateData['coiReviewedAt'] = new Date();
+        updateData['coiReviewedBy'] = req.user?.id;
       }
       if (validated.cp575Status === 'approved' || validated.cp575Status === 'rejected') {
-        updateData.cp575ReviewedAt = new Date();
-        updateData.cp575ReviewedBy = req.user?.id;
+        updateData['cp575ReviewedAt'] = new Date();
+        updateData['cp575ReviewedBy'] = req.user?.id;
       }
 
       if (checklist) {
@@ -112,7 +112,7 @@ router.put(
       } else {
         checklist = await prisma.providerChecklist.create({
           data: {
-            providerId,
+            providerId: providerId!,
             ...updateData,
           },
         });
@@ -181,10 +181,10 @@ router.post(
       updateData[`${checklistItem}Status`] = 'pending_review';
 
       const checklist = await prisma.providerChecklist.upsert({
-        where: { providerId },
+        where: { providerId: providerId! },
         update: updateData,
         create: {
-          providerId,
+          providerId: providerId!,
           ...updateData,
         },
       });

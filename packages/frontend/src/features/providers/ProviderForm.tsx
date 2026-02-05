@@ -7,7 +7,6 @@ import { api } from '../../services/api';
 import {
   CheckIcon,
   UserIcon,
-  BriefcaseIcon,
   DocumentTextIcon,
   ClipboardDocumentCheckIcon,
   ArrowLeftIcon,

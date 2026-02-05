@@ -60,7 +60,7 @@ export class DocumentService {
     expiresAt: Date;
   }> {
     const documentId = uuid();
-    const fileExtension = data.fileName.split('.').pop() || '';
+    const fileExtension = (data.fileName.split('.').pop() || '').replace(/[^a-zA-Z0-9]/g, '');
     const s3Key = `${this.documentsPrefix}${data.providerId}/${documentId}.${fileExtension}`;
 
     // Create document record
@@ -179,14 +179,14 @@ export class DocumentService {
     const updateData: Record<string, unknown> = {};
 
     if (documentType === 'w9') {
-      updateData.w9DocumentId = documentId;
-      updateData.w9Status = 'pending_review';
+      updateData['w9DocumentId'] = documentId;
+      updateData['w9Status'] = 'pending_review';
     } else if (documentType === 'coi') {
-      updateData.coiDocumentId = documentId;
-      updateData.coiStatus = 'pending_review';
+      updateData['coiDocumentId'] = documentId;
+      updateData['coiStatus'] = 'pending_review';
     } else if (documentType === 'cp575') {
-      updateData.cp575DocumentId = documentId;
-      updateData.cp575Status = 'pending_review';
+      updateData['cp575DocumentId'] = documentId;
+      updateData['cp575Status'] = 'pending_review';
     }
 
     await prisma.providerChecklist.update({

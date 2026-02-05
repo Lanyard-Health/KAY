@@ -2,12 +2,11 @@ const API_BASE_URL = '/api/v1';
 
 // Check if dev bypass is enabled
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
-const isDevelopment = import.meta.env.DEV;
 
 class ApiClient {
   private async getAuthToken(): Promise<string | null> {
     // In dev bypass mode, use the dev token
-    if (isDevelopment && DEV_BYPASS_ENABLED) {
+    if (DEV_BYPASS_ENABLED) {
       const devSession = localStorage.getItem('dev_session');
       return devSession ? 'dev-token' : null;
     }

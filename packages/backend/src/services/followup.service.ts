@@ -1,5 +1,5 @@
 import { PrismaClient, PayerEnrollment, Provider, Payer, PracticeLocation } from '@prisma/client';
-import { emailService } from './email.service';
+import { emailService } from './email.service.js';
 
 const prisma = new PrismaClient();
 
