@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 // Check if dev bypass is enabled (works in both dev and production)
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // Lazy load Amplify auth functions only when needed (not in dev bypass mode)
 const getAmplifyAuth = async () => {
@@ -51,7 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
           // Fetch user from API (backend will auto-authenticate in dev mode)
-          const response = await fetch('/api/v1/users/me');
+          const response = await fetch(`${API_BASE_URL}/users/me`);
           if (response.ok) {
             const { data } = await response.json();
             set({
@@ -80,7 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const token = session.tokens.accessToken.toString();
 
         // Fetch user details from our API
-        const response = await fetch('/api/v1/users/me', {
+        const response = await fetch(`${API_BASE_URL}/users/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -133,7 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('dev_session', 'true');
 
       // Fetch user from API (backend auto-creates dev user)
-      const response = await fetch('/api/v1/users/me');
+      const response = await fetch(`${API_BASE_URL}/users/me`);
 
       if (response.ok) {
         const { data } = await response.json();
