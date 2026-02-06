@@ -38,21 +38,21 @@ const ALLOWED_MIME_TYPES = [
 ] as const;
 
 export const uploadUrlRequestSchema = z.object({
-  providerId: z.string().uuid(),
+  providerId: z.string().min(1),
   fileName: z.string().min(1).max(255),
   contentType: z.enum(ALLOWED_MIME_TYPES),
   documentType: documentTypeSchema,
 });
 
 export const createDocumentSchema = z.object({
-  providerId: z.string().uuid(),
+  providerId: z.string().min(1),
   fileName: z.string().min(1).max(255),
   fileSize: z.number().int().positive().max(MAX_FILE_SIZE, 'File size exceeds 25MB limit'),
   mimeType: z.enum(ALLOWED_MIME_TYPES),
   documentType: documentTypeSchema,
   description: z.string().max(500).optional(),
   linkedEntityType: linkedEntityTypeSchema.optional(),
-  linkedEntityId: z.string().uuid().optional(),
+  linkedEntityId: z.string().min(1).optional(),
   expirationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 

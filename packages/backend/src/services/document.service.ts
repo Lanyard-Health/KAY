@@ -3,6 +3,9 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
+  PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
@@ -48,6 +51,34 @@ export class DocumentService {
     });
     this.bucket = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
     this.documentsPrefix = process.env['S3_DOCUMENTS_PREFIX'] || 'documents/';
+
+    this.ensureBucketExists();
+  }
+
+  private async ensureBucketExists(): Promise<void> {
+    try {
+      await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch {
+      logger.info(`S3 bucket "${this.bucket}" not found, creating...`);
+      try {
+        await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
+        await this.s3.send(new PutBucketCorsCommand({
+          Bucket: this.bucket,
+          CORSConfiguration: {
+            CORSRules: [{
+              AllowedHeaders: ['*'],
+              AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+              AllowedOrigins: ['*'],
+              ExposeHeaders: ['ETag'],
+              MaxAgeSeconds: 3600,
+            }],
+          },
+        }));
+        logger.info(`S3 bucket "${this.bucket}" created with CORS`);
+      } catch (createError) {
+        logger.error(`Failed to create S3 bucket "${this.bucket}"`, createError);
+      }
+    }
   }
 
   async getUploadUrl(
