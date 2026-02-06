@@ -2,6 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // Check if dev bypass is enabled
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
+const isDevelopment = import.meta.env.DEV;
 
 class ApiClient {
   private async getAuthToken(): Promise<string | null> {
