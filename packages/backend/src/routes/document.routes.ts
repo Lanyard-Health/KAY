@@ -3,14 +3,21 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
-import { DocumentService } from '../services/document.service.js';
 import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
 
 export const documentRoutes = Router();
 
 documentRoutes.use(authenticate);
 
-const documentService = new DocumentService();
+// Lazy-load DocumentService (heavy S3/Textract SDKs) on first use
+let _documentService: import('../services/document.service.js').DocumentService | null = null;
+async function getDocumentService() {
+  if (!_documentService) {
+    const { DocumentService } = await import('../services/document.service.js');
+    _documentService = new DocumentService();
+  }
+  return _documentService;
+}
 
 function assertDocumentAccess(req: Request, document: { providerId: string }): void {
   const { role, providerId: userProviderId } = req.user!;
@@ -37,7 +44,7 @@ documentRoutes.post(
 
       assertDocumentAccess(req, { providerId: data.providerId });
 
-      const result = await documentService.getUploadUrl(data, req.user!.id);
+      const result = await (await getDocumentService()).getUploadUrl(data, req.user!.id);
 
       res.json({ success: true, data: result });
     } catch (error) {
@@ -59,7 +66,7 @@ documentRoutes.post(
       if (!existing) throw new NotFoundError('Document');
       assertDocumentAccess(req, existing);
 
-      const document = await documentService.confirmUpload(documentId);
+      const document = await (await getDocumentService()).confirmUpload(documentId);
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -110,7 +117,7 @@ documentRoutes.get(
 
       assertDocumentAccess(req, document);
 
-      const downloadUrl = await documentService.getDownloadUrl(document.s3Key);
+      const downloadUrl = await (await getDocumentService()).getDownloadUrl(document.s3Key);
 
       res.json({ success: true, data: { downloadUrl, expiresIn: 3600 } });
     } catch (error) {
@@ -229,7 +236,7 @@ documentRoutes.delete(
 
       // Delete from S3 (ignore errors for orphaned records)
       try {
-        await documentService.deleteDocument(document.s3Key);
+        await (await getDocumentService()).deleteDocument(document.s3Key);
       } catch {
         // File may not exist in S3 if upload failed — proceed with DB cleanup
       }

@@ -115,8 +115,27 @@ app.listen(PORT, async () => {
   logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
   logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
 
+  // Warm up Prisma connection pool with a lightweight query
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    logger.info('Database connection pool warmed up');
+  } catch (err) {
+    logger.error('Database warmup failed:', err);
+  }
+
   // Initialize scheduled jobs
   schedulerService.initialize();
+
+  // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
+  if (process.env['NODE_ENV'] === 'production') {
+    const keepAliveUrl = `http://localhost:${PORT}/health`;
+    setInterval(async () => {
+      try {
+        await fetch(keepAliveUrl);
+      } catch { /* ignore */ }
+    }, 5 * 60 * 1000);
+    logger.info('Keep-alive ping enabled (every 5 minutes)');
+  }
 
   // Pre-create dev bypass users on startup so auth never fails after restart
   if (process.env['DEV_AUTH_BYPASS'] === 'true') {
