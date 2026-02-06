@@ -30,12 +30,14 @@ export class DocumentService {
 
     this.s3 = new S3Client({
       region: process.env['AWS_REGION'] || 'us-east-1',
-      ...(isLocalStack && s3Endpoint && {
+      ...(s3Endpoint && {
         endpoint: s3Endpoint,
         forcePathStyle: true,
+      }),
+      ...(process.env['AWS_ACCESS_KEY_ID'] && {
         credentials: {
-          accessKeyId: process.env['AWS_ACCESS_KEY_ID'] || 'test',
-          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || 'test',
+          accessKeyId: process.env['AWS_ACCESS_KEY_ID'],
+          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || '',
         },
       }),
     });
