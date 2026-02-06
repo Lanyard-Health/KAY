@@ -7,7 +7,7 @@ import { RolePermissions } from '@credential-management/shared';
 import { logger } from '../utils/logger.js';
 
 // Auth bypass controlled by DEV_AUTH_BYPASS env var (set to "false" when real auth is ready)
-const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true' && process.env['NODE_ENV'] !== 'production';
+const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
 
 // Development mock user
 const DEV_USER = {
