@@ -91,11 +91,14 @@ export async function fetchAllRosterData(columns: RosterColumn[]) {
 /**
  * Get a nested value from an object by dot-notation path.
  */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function getNestedValue(obj: any, path: string): any {
   const parts = path.split('.');
   let current = obj;
   for (const part of parts) {
     if (current == null) return null;
+    if (DANGEROUS_KEYS.has(part) || !Object.hasOwn(current, part)) return null;
     current = current[part];
   }
   return current;

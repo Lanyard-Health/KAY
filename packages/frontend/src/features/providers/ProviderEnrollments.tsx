@@ -234,9 +234,9 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         setEmailPreviewSubject(response.data.data.subject);
         setEmailPreviewHtml(response.data.data.html);
         // Convert HTML to plain text for editing (extract the body content)
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = DOMPurify.sanitize(response.data.data.html);
-        setEditableEmailBody(tempDiv.innerText || '');
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(DOMPurify.sanitize(response.data.data.html), 'text/html');
+        setEditableEmailBody(doc.body.innerText || '');
         setEditingEmail(false);
         setShowEmailPreview(true);
       }
