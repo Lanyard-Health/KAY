@@ -13,5 +13,10 @@ Before completing ANY task, automatically perform these checks on all changed fi
 
 6. ERROR HANDLING: Never expose stack traces, internal paths, or system details in error responses.
 
+## Git Workflow
+All changes to `master` must go through a pull request with:
+- At least 1 approval
+- Security Gate CI check passing
+
 ## After Every Task
 Provide a brief security summary: what was checked, any issues found, and any issues fixed.

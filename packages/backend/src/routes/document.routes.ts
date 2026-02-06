@@ -227,8 +227,12 @@ documentRoutes.delete(
 
       assertDocumentAccess(req, document);
 
-      // Delete from S3
-      await documentService.deleteDocument(document.s3Key);
+      // Delete from S3 (ignore errors for orphaned records)
+      try {
+        await documentService.deleteDocument(document.s3Key);
+      } catch {
+        // File may not exist in S3 if upload failed — proceed with DB cleanup
+      }
 
       // Delete from database
       await prisma.document.delete({
