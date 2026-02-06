@@ -90,18 +90,18 @@ export async function fetchAllRosterData(columns: RosterColumn[]) {
 
 /**
  * Get a nested value from an object by dot-notation path.
+ * Uses reduce with safe property access to avoid prototype pollution.
  */
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+function safeGet(target: any, key: string): any {
+  if (target == null || DANGEROUS_KEYS.has(key)) return null;
+  const desc = Object.getOwnPropertyDescriptor(target, key);
+  return desc !== undefined ? desc.value : null;
+}
+
 function getNestedValue(obj: any, path: string): any {
-  const parts = path.split('.');
-  let current = obj;
-  for (const part of parts) {
-    if (current == null) return null;
-    if (DANGEROUS_KEYS.has(part) || !Object.hasOwn(current, part)) return null;
-    current = current[part];
-  }
-  return current;
+  return path.split('.').reduce((current, part) => safeGet(current, part), obj);
 }
 
 /**
