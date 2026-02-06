@@ -71,6 +71,11 @@ app.use(morgan('combined', {
 // Audit logging middleware
 app.use(auditMiddleware);
 
+// Root route — redirect to frontend
+app.get('/', (_req, res) => {
+  res.redirect(process.env['FRONTEND_URL'] || 'http://localhost:5190');
+});
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
