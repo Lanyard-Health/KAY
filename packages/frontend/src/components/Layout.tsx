@@ -74,7 +74,7 @@ export default function Layout() {
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
                   <div className="flex h-16 shrink-0 items-center">
-                    <img src="/logo.png" alt="Lanyard Health" className="h-8 brightness-0 invert" />
+                    <span className="text-white text-xl font-bold">Lanyard Health</span>
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
