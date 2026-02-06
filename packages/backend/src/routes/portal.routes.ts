@@ -1,0 +1,513 @@
+import { Router, Request, Response } from 'express';
+import {
+  submitApplication,
+  getApplicationStatusByNpi,
+  getApplications,
+  getApplicationById,
+  approveApplication,
+  rejectApplication,
+  getPendingApplicationCount,
+  getUnreadNotificationCount,
+  getAdminNotifications,
+  markNotificationsAsRead,
+  ProviderApplicationInput,
+} from '../services/portal.service.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { prisma } from '../utils/prisma.js';
+import { logger } from '../utils/logger.js';
+
+const router = Router();
+
+// ==========================================
+// PUBLIC ENDPOINTS (No Auth Required)
+// ==========================================
+
+/**
+ * POST /api/v1/portal/register
+ * Submit a new provider application
+ */
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const data: ProviderApplicationInput = req.body;
+
+    // Validate required fields
+    if (!data.npi || !data.firstName || !data.lastName || !data.email || !data.phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: npi, firstName, lastName, email, phone',
+      });
+    }
+
+    // Validate NPI format (10 digits)
+    if (!/^\d{10}$/.test(data.npi)) {
+      return res.status(400).json({
+        success: false,
+        error: 'NPI must be exactly 10 digits',
+      });
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format',
+      });
+    }
+
+    // Validate name lengths
+    if (data.firstName.length < 2 || data.lastName.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'First and last name must be at least 2 characters',
+      });
+    }
+
+    const application = await submitApplication(data);
+
+    res.status(201).json({
+      success: true,
+      message: 'Application submitted successfully',
+      data: {
+        id: application.id,
+        status: application.status,
+        submittedAt: application.submittedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Error submitting application:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('already pending') || error.message.includes('already exists')) {
+        return res.status(409).json({
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit application',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/portal/status/:npi
+ * Check application status by NPI
+ */
+router.get('/status/:npi', async (req: Request, res: Response) => {
+  try {
+    const npi = req.params['npi']!;
+
+    if (!/^\d{10}$/.test(npi)) {
+      return res.status(400).json({
+        success: false,
+        error: 'NPI must be exactly 10 digits',
+      });
+    }
+
+    const status = await getApplicationStatusByNpi(npi);
+
+    if (!status) {
+      return res.status(404).json({
+        success: false,
+        error: 'No application found for this NPI',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error) {
+    console.error('Error fetching application status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch application status',
+    });
+  }
+});
+
+// ==========================================
+// ADMIN ENDPOINTS (Auth Required)
+// ==========================================
+
+/**
+ * GET /api/v1/portal/admin/applications
+ * List all applications
+ */
+router.get('/admin/applications', async (req: Request, res: Response) => {
+  try {
+    const statusParam = req.query['status'] as string | undefined;
+    let status: 'pending' | 'approved' | 'rejected' | undefined;
+
+    if (statusParam) {
+      const lower = statusParam.toLowerCase();
+      if (!['pending', 'approved', 'rejected'].includes(lower)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid status. Must be pending, approved, or rejected',
+        });
+      }
+      status = lower as 'pending' | 'approved' | 'rejected';
+    }
+
+    const applications = await getApplications(status);
+    const pendingCount = await getPendingApplicationCount();
+
+    res.json({
+      success: true,
+      data: {
+        applications,
+        pendingCount,
+        total: applications.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch applications',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/portal/admin/applications/:id
+ * Get single application
+ */
+router.get('/admin/applications/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id']!;
+    const application = await getApplicationById(id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: application,
+    });
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch application',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/portal/admin/applications/:id/approve
+ * Approve an application
+ */
+router.post('/admin/applications/:id/approve', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id']!;
+    const { notes } = req.body;
+    const reviewedBy = (req as any).user?.email || 'admin';
+
+    const application = await approveApplication(id, reviewedBy, notes);
+
+    res.json({
+      success: true,
+      message: 'Application approved',
+      data: application,
+    });
+  } catch (error) {
+    console.error('Error approving application:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      if (error.message.includes('already been reviewed')) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to approve application',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/portal/admin/applications/:id/reject
+ * Reject an application
+ */
+router.post('/admin/applications/:id/reject', async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id']!;
+    const { notes } = req.body;
+
+    if (!notes || notes.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Rejection notes are required',
+      });
+    }
+
+    const reviewedBy = (req as any).user?.email || 'admin';
+    const application = await rejectApplication(id, reviewedBy, notes);
+
+    res.json({
+      success: true,
+      message: 'Application rejected',
+      data: application,
+    });
+  } catch (error) {
+    console.error('Error rejecting application:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      if (error.message.includes('already been reviewed')) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reject application',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/portal/admin/notifications
+ * Get admin notifications
+ */
+router.get('/admin/notifications', async (req: Request, res: Response) => {
+  try {
+    const unreadOnly = req.query['unreadOnly'] === 'true';
+
+    const [notifications, unreadCount] = await Promise.all([
+      getAdminNotifications(unreadOnly),
+      getUnreadNotificationCount(),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        notifications,
+        unreadCount,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notifications',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/portal/admin/notifications/mark-read
+ * Mark notifications as read
+ */
+router.post('/admin/notifications/mark-read', async (req: Request, res: Response) => {
+  try {
+    const { notificationIds } = req.body;
+    await markNotificationsAsRead(notificationIds);
+
+    res.json({
+      success: true,
+      message: 'Notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark notifications as read',
+    });
+  }
+});
+
+// ==========================================
+// PUBLIC ENDPOINTS - NPI Lookup
+// ==========================================
+
+/**
+ * GET /api/v1/portal/npi-lookup/:npi
+ * Lookup provider info from the NPPES NPI Registry (public, no auth required)
+ */
+router.get('/npi-lookup/:npi', async (req: Request, res: Response) => {
+  try {
+    const npi = req.params['npi']!;
+
+    if (!/^\d{10}$/.test(npi)) {
+      return res.status(400).json({ success: false, error: 'NPI must be exactly 10 digits' });
+    }
+
+    const nppes = await fetch(
+      `https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`
+    );
+    const data: any = await nppes.json();
+
+    if (!data.results || data.results.length === 0) {
+      return res.status(404).json({ success: false, error: 'NPI not found in NPPES registry' });
+    }
+
+    const result: any = data.results[0];
+    const basic = result.basic || {};
+    const taxonomies = result.taxonomies || [];
+    const addresses = result.addresses || [];
+
+    const primaryTaxonomy = taxonomies.find((t: any) => t.primary) || taxonomies[0];
+    const practiceAddress = addresses.find((a: any) => a.address_purpose === 'LOCATION') || addresses[0];
+
+    res.json({
+      success: true,
+      data: {
+        npi,
+        firstName: basic.first_name || '',
+        lastName: basic.last_name || '',
+        middleName: basic.middle_name || '',
+        suffix: basic.credential || '',
+        gender: basic.gender === 'M' ? 'Male' : basic.gender === 'F' ? 'Female' : '',
+        taxonomy: primaryTaxonomy?.code || '',
+        taxonomyDescription: primaryTaxonomy?.desc || '',
+        specialization: primaryTaxonomy?.desc || '',
+        phone: practiceAddress?.telephone_number || '',
+        state: practiceAddress?.state || '',
+        enumeration_type: result.enumeration_type,
+      },
+    });
+  } catch (error) {
+    logger.error('NPI lookup error:', error);
+    res.status(500).json({ success: false, error: 'Failed to lookup NPI' });
+  }
+});
+
+// ==========================================
+// AUTHENTICATED PROVIDER ENDPOINTS
+// ==========================================
+
+/**
+ * GET /api/v1/portal/me
+ * Get current provider's dashboard summary
+ */
+router.get('/me', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+
+    if (!providerId) {
+      return res.status(404).json({
+        success: false,
+        error: 'No provider profile linked to this account',
+      });
+    }
+
+    const provider = await prisma.provider.findUnique({
+      where: { id: providerId },
+      include: {
+        payerEnrollments: {
+          include: {
+            payer: true,
+          },
+        },
+        practiceLocations: true,
+      },
+    });
+
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        error: 'Provider not found',
+      });
+    }
+
+    // Map to the shape the frontend expects
+    const providerData = {
+      ...provider,
+      enrollments: provider.payerEnrollments,
+      locations: provider.practiceLocations,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        provider: providerData,
+        enrollmentCount: provider.payerEnrollments.length,
+        locationCount: provider.practiceLocations.length,
+      },
+    });
+  } catch (error) {
+    logger.error('Error fetching provider dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch provider dashboard',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/portal/me/completeness
+ * Get profile completeness calculation
+ */
+router.get('/me/completeness', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+
+    if (!providerId) {
+      return res.status(404).json({
+        success: false,
+        error: 'No provider profile linked to this account',
+      });
+    }
+
+    const provider = await prisma.provider.findUnique({
+      where: { id: providerId },
+      include: {
+        practiceLocations: true,
+        payerEnrollments: true,
+      },
+    });
+
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        error: 'Provider not found',
+      });
+    }
+
+    const sections = [
+      { name: 'Personal Info', complete: !!(provider.firstName && provider.lastName && provider.email && provider.phone) },
+      { name: 'NPI', complete: !!provider.npi },
+      { name: 'Specialties', complete: provider.specialties.length > 0 },
+      { name: 'Date of Birth', complete: !!provider.dateOfBirth },
+      { name: 'Provider Type', complete: !!provider.providerType },
+      { name: 'Practice Locations', complete: provider.practiceLocations.length > 0 },
+    ];
+
+    const completedCount = sections.filter(s => s.complete).length;
+    const percentage = Math.round((completedCount / sections.length) * 100);
+
+    res.json({
+      success: true,
+      data: {
+        percentage,
+        sections,
+        completedCount,
+        totalCount: sections.length,
+      },
+    });
+  } catch (error) {
+    logger.error('Error calculating completeness:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate profile completeness',
+    });
+  }
+});
+
+export default router;

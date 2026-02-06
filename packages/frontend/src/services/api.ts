@@ -27,9 +27,15 @@ class ApiClient {
   ): Promise<{ data: T; status: number }> {
     const token = await this.getAuthToken();
 
+    // In dev mode, pass the role header so backend knows which user to use
+    const devRole = isDevelopment && DEV_BYPASS_ENABLED
+      ? localStorage.getItem('dev_session')
+      : null;
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
       ...options.headers,
     };
 

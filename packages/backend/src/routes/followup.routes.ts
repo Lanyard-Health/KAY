@@ -101,8 +101,8 @@ followUpRoutes.post('/test-email', authorize('admin', 'credentialing_staff'), as
 // Get enrollment data for email preview
 followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    const data = await followUpService.getEnrollmentEmailData(id!);
+    const id = req.params['id']!;
+    const data = await followUpService.getEnrollmentEmailData(id);
 
     if (!data) {
       return res.status(404).json({
@@ -123,7 +123,7 @@ followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_
 // Generate email HTML preview
 followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id']!;
     const { customMessage } = req.body;
 
     const data = await followUpService.getEnrollmentEmailData(id!);
@@ -156,7 +156,7 @@ followUpRoutes.post(
   upload.single('attachment'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params['id']!;
       const { email, customMessage } = req.body;
       const file = req.file;
 
@@ -200,7 +200,7 @@ followUpRoutes.post(
 // Legacy: Send test follow-up for a specific enrollment
 followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id']!;
     const { email } = req.body;
 
     const result = await followUpService.sendCustomFollowUp(id!, email || '');
@@ -228,7 +228,7 @@ followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_st
 // Configure follow-up settings for an enrollment
 followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id']!;
     const { enabled, email, frequencyDays } = req.body;
 
     if (enabled && !email) {
@@ -270,7 +270,7 @@ followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing
 // Get follow-up settings for an enrollment
 followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id']!;
 
     const enrollment = await prisma.payerEnrollment.findUnique({
       where: { id },
@@ -370,7 +370,7 @@ followUpRoutes.post('/run', authorize('admin', 'credentialing_staff'), async (_r
 // Get follow-up history (notifications) for an enrollment
 followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id']!;
 
     // First get the enrollment to find the email
     const enrollment = await prisma.payerEnrollment.findUnique({

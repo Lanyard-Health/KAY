@@ -308,7 +308,7 @@ export default function ProviderDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600"></div>
       </div>
     );
   }
@@ -671,7 +671,7 @@ export default function ProviderDetail() {
           </div>
 
           {/* CAQH ProView */}
-          <CaqhCard providerId={id!} provider={provider} />
+          <CaqhCard providerId={id!} />
 
           {/* Medicare Enrollment */}
           <div className="card card-body">
@@ -679,7 +679,7 @@ export default function ProviderDetail() {
             {medicareEnrollment?.found ? (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                     Enrolled
                   </span>
                   {medicareEnrollment.pacId && (

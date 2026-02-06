@@ -49,7 +49,7 @@ type ItemStatus = 'not_started' | 'pending_upload' | 'pending_review' | 'approve
 const STATUS_CONFIG: Record<ItemStatus, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bgColor: string; borderColor: string }> = {
   not_started: { label: 'Not Started', icon: ClockIcon, color: 'text-gray-400', bgColor: 'bg-gray-100', borderColor: 'border-gray-300' },
   pending_upload: { label: 'Pending Upload', icon: DocumentArrowUpIcon, color: 'text-yellow-600', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
-  pending_review: { label: 'Under Review', icon: ClockIcon, color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-300' },
+  pending_review: { label: 'Under Review', icon: ClockIcon, color: 'text-primary-600', bgColor: 'bg-primary-50', borderColor: 'border-primary-300' },
   approved: { label: 'Approved', icon: CheckCircleIcon, color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-300' },
   rejected: { label: 'Needs Resubmission', icon: XCircleIcon, color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
 };
@@ -185,29 +185,29 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
   return (
     <div className="space-y-6">
       {/* Progress Header Card */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl shadow-lg p-6 text-white">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xl font-semibold">Credentialing Checklist</h3>
-            <p className="text-blue-100 text-sm mt-1">
+            <p className="text-primary-100 text-sm mt-1">
               Complete all required documents to finish credentialing
             </p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{completedCount}/{CHECKLIST_ITEMS.length}</div>
-            <div className="text-blue-100 text-sm">Completed</div>
+            <div className="text-primary-100 text-sm">Completed</div>
           </div>
         </div>
 
         {/* Progress Bar */}
         <div className="relative">
-          <div className="w-full bg-blue-400/30 rounded-full h-3">
+          <div className="w-full bg-primary-400/30 rounded-full h-3">
             <div
               className="bg-white h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="flex justify-between mt-2 text-xs text-blue-100">
+          <div className="flex justify-between mt-2 text-xs text-primary-100">
             <span>Start</span>
             <span>{Math.round(progressPercent)}% Complete</span>
           </div>
@@ -259,17 +259,17 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                         <CheckCircleSolidIcon className="h-6 w-6 text-white" />
                       </div>
                     ) : isUpNext ? (
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 shadow-lg ring-4 ring-blue-100 animate-pulse">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 shadow-lg ring-4 ring-primary-100 animate-pulse">
                         <span className="text-white font-bold">{index + 1}</span>
                       </div>
                     ) : (
                       <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                        status === 'pending_review' ? 'border-blue-400 bg-blue-50' :
+                        status === 'pending_review' ? 'border-primary-400 bg-primary-50' :
                         status === 'rejected' ? 'border-red-400 bg-red-50' :
                         'border-gray-300 bg-white'
                       }`}>
                         <span className={`font-medium ${
-                          status === 'pending_review' ? 'text-blue-600' :
+                          status === 'pending_review' ? 'text-primary-600' :
                           status === 'rejected' ? 'text-red-600' :
                           'text-gray-400'
                         }`}>{index + 1}</span>
@@ -280,19 +280,19 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                   {/* Content Card */}
                   <div className={`ml-4 flex-1 ${isUpNext ? 'transform scale-[1.02]' : ''} transition-transform duration-200`}>
                     <div className={`rounded-xl border-2 overflow-hidden transition-all duration-200 ${
-                      isUpNext ? 'border-blue-400 shadow-lg shadow-blue-100' :
+                      isUpNext ? 'border-primary-400 shadow-lg shadow-primary-100' :
                       isComplete ? 'border-green-200 bg-green-50/30' :
-                      status === 'pending_review' ? 'border-blue-200 bg-blue-50/30' :
+                      status === 'pending_review' ? 'border-primary-200 bg-primary-50/30' :
                       status === 'rejected' ? 'border-red-200 bg-red-50/30' :
                       'border-gray-200 hover:border-gray-300'
                     }`}>
                       {/* Header */}
-                      <div className={`p-4 ${isUpNext ? 'bg-blue-50' : ''}`}>
+                      <div className={`p-4 ${isUpNext ? 'bg-primary-50' : ''}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-2">
                               {isUpNext && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-600 text-white">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary-600 text-white">
                                   UP NEXT
                                 </span>
                               )}
@@ -338,7 +338,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                             <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => handlePreviewDocument(document)}
-                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                                 title="Preview"
                               >
                                 <EyeIcon className="h-5 w-5" />
@@ -346,7 +346,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                               {!isComplete && (
                                 <button
                                   onClick={() => onUploadDocument(item.key)}
-                                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                                   title="Replace"
                                 >
                                   <ArrowPathIcon className="h-5 w-5" />
@@ -359,8 +359,8 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                             onClick={() => onUploadDocument(item.key)}
                             className={`w-full py-4 px-4 border-2 border-dashed rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 ${
                               isUpNext
-                                ? 'border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+                                ? 'border-primary-400 bg-primary-50 text-primary-700 hover:bg-primary-100'
+                                : 'border-gray-300 text-gray-600 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50'
                             }`}
                           >
                             <DocumentArrowUpIcon className="h-6 w-6" />
@@ -440,10 +440,10 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
               onClick={() => setPreviewDoc(null)}
             />
-            <div className="relative inline-block bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl sm:w-full">
+            <div className="relative inline-block bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl sm:w-full">
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">{previewDoc.name}</h3>
@@ -478,7 +478,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
                           href={previewDoc.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          className="mt-4 inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                         >
                           Download File
                         </a>

@@ -374,7 +374,7 @@ export default function ProviderForm() {
   if (isEditing && loadingProvider) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600"></div>
       </div>
     );
   }
@@ -523,10 +523,10 @@ export default function ProviderForm() {
           <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
               <div
-                className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+                className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
                 onClick={() => setNpiLookupModalOpen(false)}
               />
-              <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+              <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">NPI Registry Results</h3>
                   <button onClick={() => setNpiLookupModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -701,32 +701,32 @@ export default function ProviderForm() {
                 {/* Medicare Enrollment Status */}
                 <div className="mt-3">
                   {medicareEnrollment?.found ? (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <CheckCircleIcon className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                        <p className="text-sm font-medium text-blue-900">Medicare Enrolled</p>
+                        <CheckCircleIcon className="h-5 w-5 text-primary-600 flex-shrink-0" />
+                        <p className="text-sm font-medium text-primary-900">Medicare Enrolled</p>
                         {medicareEnrollment.pacId && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                          <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded">
                             PAC ID: {medicareEnrollment.pacId}
                           </span>
                         )}
                       </div>
                       {medicareEnrollment.primaryEnrollment && (
-                        <p className="text-xs text-blue-700 mb-1">
+                        <p className="text-xs text-primary-700 mb-1">
                           Primary: {medicareEnrollment.primaryEnrollment.providerTypeDesc} ({medicareEnrollment.primaryEnrollment.state})
                           {medicareEnrollment.primaryEnrollment.enrollmentDate &&
                             ` • Since ${medicareEnrollment.primaryEnrollment.enrollmentDate}`}
                         </p>
                       )}
                       {medicareEnrollment.enrollments && medicareEnrollment.enrollments.length > 1 && (
-                        <p className="text-xs text-blue-600">
+                        <p className="text-xs text-primary-600">
                           +{medicareEnrollment.enrollments.length - 1} more enrollment(s) in: {
                             [...new Set(medicareEnrollment.enrollments.slice(1).map(e => e.state))].join(', ')
                           }
                         </p>
                       )}
                       {medicareEnrollment.orderingPrivileges && (
-                        <p className="text-xs text-blue-700 mt-1">
+                        <p className="text-xs text-primary-700 mt-1">
                           Can order: {[
                             medicareEnrollment.orderingPrivileges.dme && 'DME',
                             medicareEnrollment.orderingPrivileges.hha && 'Home Health',
@@ -745,8 +745,8 @@ export default function ProviderForm() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
+                <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                  <p className="text-sm text-primary-800">
                     <strong>Next:</strong> Click "Continue" to review and complete the provider profile.
                     The information above will be pre-filled, and you'll add email and date of birth.
                     {npiLookupResult.practiceLocation && (
@@ -946,8 +946,8 @@ export default function ProviderForm() {
               })}
             </div>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
+            <div className="mt-6 p-4 bg-primary-50 rounded-lg">
+              <p className="text-sm text-primary-800">
                 <strong>Tip:</strong> You can skip this step and upload documents later from the provider's profile page.
               </p>
             </div>
@@ -1027,18 +1027,18 @@ export default function ProviderForm() {
                 <div>
                   <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                     {medicareEnrollment.found ? (
-                      <CheckCircleIcon className="h-5 w-5 text-blue-500" />
+                      <CheckCircleIcon className="h-5 w-5 text-primary-500" />
                     ) : (
                       <span className="h-5 w-5 rounded-full border-2 border-yellow-400" />
                     )}
                     Medicare Enrollment
                   </h4>
                   {medicareEnrollment.found ? (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                    <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="font-medium text-blue-900">Enrolled in Medicare</p>
+                        <p className="font-medium text-primary-900">Enrolled in Medicare</p>
                         {medicareEnrollment.pacId && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                          <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded">
                             PAC ID: {medicareEnrollment.pacId}
                           </span>
                         )}
@@ -1046,7 +1046,7 @@ export default function ProviderForm() {
                       {medicareEnrollment.enrollments && medicareEnrollment.enrollments.length > 0 && (
                         <div className="space-y-1 mb-2">
                           {medicareEnrollment.enrollments.map((enrollment, idx) => (
-                            <p key={idx} className="text-xs text-blue-700">
+                            <p key={idx} className="text-xs text-primary-700">
                               • {enrollment.providerTypeDesc} ({enrollment.state})
                               {enrollment.enrollmentDate && ` - Since ${enrollment.enrollmentDate}`}
                             </p>
@@ -1054,7 +1054,7 @@ export default function ProviderForm() {
                         </div>
                       )}
                       {medicareEnrollment.orderingPrivileges && (
-                        <p className="text-blue-700 text-xs">
+                        <p className="text-primary-700 text-xs">
                           Ordering: {[
                             medicareEnrollment.orderingPrivileges.dme && 'DME',
                             medicareEnrollment.orderingPrivileges.hha && 'Home Health',
@@ -1063,7 +1063,7 @@ export default function ProviderForm() {
                           ].filter(Boolean).join(', ') || 'Standard'}
                         </p>
                       )}
-                      <p className="text-blue-600 text-xs mt-1">
+                      <p className="text-primary-600 text-xs mt-1">
                         Verified: {new Date(medicareEnrollment.verifiedAt!).toLocaleDateString()}
                       </p>
                     </div>
@@ -1264,7 +1264,7 @@ export default function ProviderForm() {
                           <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">{tax.code}</code>
                           <span className="text-gray-600">{tax.description}</span>
                           {tax.primary && (
-                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Primary</span>
+                            <span className="text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded">Primary</span>
                           )}
                         </div>
                       ))}
@@ -1273,8 +1273,8 @@ export default function ProviderForm() {
                 )}
 
                 {/* Import Note */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                  <p className="text-blue-800">
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm">
+                  <p className="text-primary-800">
                     <strong>Note:</strong> Clicking "Import" will fill in the provider's name, gender, phone, and taxonomy code.
                     You'll still need to enter email and date of birth manually.
                   </p>

@@ -31,6 +31,7 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   devLogin: () => Promise<void>;
+  devProviderLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -52,7 +53,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
           // Fetch user from API (backend will auto-authenticate in dev mode)
-          const response = await fetch(`${API_BASE_URL}/users/me`);
+          const headers: Record<string, string> = {};
+          if (devSession && devSession !== 'true') {
+            headers['X-Dev-Role'] = devSession;
+          }
+          const response = await fetch(`${API_BASE_URL}/users/me`, { headers });
           if (response.ok) {
             const { data } = await response.json();
             set({
@@ -121,7 +126,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Development login bypass
+  // Development admin login bypass
   devLogin: async () => {
     if (!DEV_BYPASS_ENABLED) {
       throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
@@ -130,8 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Store dev session marker
-      localStorage.setItem('dev_session', 'true');
+      localStorage.setItem('dev_session', 'admin');
 
       // Fetch user from API (backend auto-creates dev user)
       const response = await fetch(`${API_BASE_URL}/users/me`);
@@ -151,6 +155,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev login failed',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  // Development provider login bypass
+  devProviderLogin: async () => {
+    if (!isDevelopment || !DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available in development mode');
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      localStorage.setItem('dev_session', 'provider');
+
+      const response = await fetch('/api/v1/users/me', {
+        headers: { 'X-Dev-Role': 'provider' },
+      });
+
+      if (response.ok) {
+        const { data } = await response.json();
+        set({
+          user: data,
+          isAuthenticated: true,
+          token: 'dev-token',
+          isLoading: false,
+        });
+      } else {
+        throw new Error('Failed to fetch dev provider user');
+      }
+    } catch (error) {
+      localStorage.removeItem('dev_session');
+      set({
+        error: error instanceof Error ? error.message : 'Dev provider login failed',
         isLoading: false,
       });
       throw error;

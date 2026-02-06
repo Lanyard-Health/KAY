@@ -49,7 +49,109 @@ export async function authenticate(
     if (DEV_BYPASS_ENABLED) {
       logger.warn('⚠️  AUTH BYPASS ENABLED — set DEV_AUTH_BYPASS=false for real authentication');
 
-      // Check if dev user exists in DB, create if not
+      const devRole = req.headers['x-dev-role'] as string | undefined;
+
+      if (devRole === 'provider') {
+        // Dev provider login
+        const DEV_PROVIDER_COGNITO_ID = 'dev-provider-cognito-id';
+        const DEV_PROVIDER_EMAIL = 'provider@dev.local';
+
+        // Find or create the dev provider user
+        let user = await prisma.user.findUnique({
+          where: { cognitoId: DEV_PROVIDER_COGNITO_ID },
+        });
+
+        if (!user) {
+          // Also check by email in case it exists from a previous run
+          user = await prisma.user.findFirst({
+            where: { email: DEV_PROVIDER_EMAIL },
+          });
+
+          if (user) {
+            // Update the existing user to have the dev cognito ID
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { cognitoId: DEV_PROVIDER_COGNITO_ID, role: 'provider' },
+            });
+          }
+        }
+
+        if (!user) {
+          // Find or create a provider record
+          let provider = await prisma.provider.findUnique({
+            where: { npi: '1234567890' },
+          });
+
+          if (!provider) {
+            provider = await prisma.provider.create({
+              data: {
+                firstName: 'Dev',
+                lastName: 'Provider',
+                npi: '1234567890',
+                email: DEV_PROVIDER_EMAIL,
+                phone: '555-000-0000',
+                status: 'active',
+                providerType: 'psychiatrist',
+                dateOfBirth: new Date('1980-01-01'),
+                gender: 'male',
+              },
+            });
+          }
+
+          user = await prisma.user.create({
+            data: {
+              cognitoId: DEV_PROVIDER_COGNITO_ID,
+              email: DEV_PROVIDER_EMAIL,
+              firstName: 'Dev',
+              lastName: 'Provider',
+              role: 'provider',
+              isActive: true,
+              providerId: provider.id,
+            },
+          });
+          logger.info('Created development provider user with linked provider record');
+        } else if (!user.providerId) {
+          // User exists but no linked provider — find or create one
+          let provider = await prisma.provider.findUnique({
+            where: { npi: '1234567890' },
+          });
+
+          if (!provider) {
+            provider = await prisma.provider.create({
+              data: {
+                firstName: 'Dev',
+                lastName: 'Provider',
+                npi: '1234567890',
+                email: DEV_PROVIDER_EMAIL,
+                phone: '555-000-0000',
+                status: 'active',
+                providerType: 'psychiatrist',
+                dateOfBirth: new Date('1980-01-01'),
+                gender: 'male',
+              },
+            });
+          }
+
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { providerId: provider.id },
+          });
+          logger.info('Linked existing dev provider user to new provider record');
+        }
+
+        req.user = {
+          id: user.id,
+          cognitoId: user.cognitoId,
+          email: user.email,
+          role: user.role,
+          providerId: user.providerId ?? undefined,
+        };
+
+        next();
+        return;
+      }
+
+      // Default: dev admin login
       let user = await prisma.user.findUnique({
         where: { cognitoId: DEV_USER.cognitoId },
       });

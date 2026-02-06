@@ -214,11 +214,11 @@ export default function DocumentUploadModal({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
         <div
-          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+          className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
           onClick={handleClose}
         />
 
-        <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+        <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">
               Upload Document {providerName && `for ${providerName}`}
@@ -238,7 +238,7 @@ export default function DocumentUploadModal({
                 className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                   file
                     ? 'border-green-500 bg-green-50'
-                    : 'border-gray-300 hover:border-blue-500 hover:bg-blue-50'
+                    : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50'
                 }`}
               >
                 <input
@@ -262,7 +262,7 @@ export default function DocumentUploadModal({
                   <>
                     <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
                     <p className="mt-2 text-sm text-gray-600">
-                      <span className="font-medium text-blue-600">Click to upload</span> or drag
+                      <span className="font-medium text-primary-600">Click to upload</span> or drag
                       and drop
                     </p>
                     <p className="mt-1 text-xs text-gray-500">PDF, JPEG, PNG, TIFF up to 25MB</p>
@@ -278,7 +278,7 @@ export default function DocumentUploadModal({
                 <select
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">Select type...</option>
                   {DOCUMENT_TYPES.map((type) => (
@@ -299,7 +299,7 @@ export default function DocumentUploadModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g., Medical License - State of Texas"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
@@ -312,7 +312,7 @@ export default function DocumentUploadModal({
                   type="date"
                   value={expirationDate}
                   onChange={(e) => setExpirationDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
@@ -327,7 +327,7 @@ export default function DocumentUploadModal({
                 <button
                   onClick={() => uploadMutation.mutate()}
                   disabled={!file || !documentType}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Upload & Process
                 </button>
@@ -337,7 +337,7 @@ export default function DocumentUploadModal({
 
           {(uploadStep === 'uploading' || uploadStep === 'processing') && (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600 mx-auto"></div>
               <p className="mt-4 text-gray-900 font-medium">
                 {uploadStep === 'uploading' ? 'Uploading document...' : 'Processing with OCR...'}
               </p>
@@ -346,7 +346,7 @@ export default function DocumentUploadModal({
               </p>
               <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
@@ -367,7 +367,7 @@ export default function DocumentUploadModal({
               <div className="mt-6">
                 <button
                   onClick={handleClose}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
                 >
                   Done
                 </button>
@@ -392,7 +392,7 @@ export default function DocumentUploadModal({
                     setUploadStep('select');
                     setErrorMessage('');
                   }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
                 >
                   Try Again
                 </button>

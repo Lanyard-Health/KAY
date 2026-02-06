@@ -20,7 +20,7 @@ router.use(authenticate);
  */
 router.get('/provider/:providerId/status', requireProviderAccess, async (req: Request, res: Response) => {
   try {
-    const { providerId } = req.params;
+    const providerId = req.params['providerId']!;
 
     const [statuses, summary] = await Promise.all([
       getAttestationStatuses(providerId!),
@@ -49,7 +49,7 @@ router.get('/provider/:providerId/status', requireProviderAccess, async (req: Re
  */
 router.get('/provider/:providerId/alerts', requireProviderAccess, async (req: Request, res: Response) => {
   try {
-    const { providerId } = req.params;
+    const providerId = req.params['providerId']!;
     const { warningDays } = parseQuery(req.query, z.object({
       warningDays: z.coerce.number().int().min(1).max(365).default(14),
     }));

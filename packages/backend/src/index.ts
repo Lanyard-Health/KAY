@@ -34,6 +34,7 @@ import { pecosRoutes } from './routes/pecos.routes.js';
 import { pdmRoutes } from './routes/pdm.routes.js';
 import { rosterRoutes } from './routes/roster.routes.js';
 import { aiRoutes } from './routes/ai.routes.js';
+import portalRoutes from './routes/portal.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
@@ -93,6 +94,7 @@ app.use('/api/v1/pecos', pecosRoutes);
 app.use('/api/v1/pdm', pdmRoutes);
 app.use('/api/v1/roster', rosterRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/portal', portalRoutes);
 
 // Error handling
 app.use(errorHandler);

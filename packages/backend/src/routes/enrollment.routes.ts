@@ -141,7 +141,7 @@ router.get(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
 
       const enrollments = await prisma.payerEnrollment.findMany({
         where: { providerId },
@@ -162,8 +162,8 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
-      await assertEnrollmentAccess(req, id!);
+      const id = req.params['id']!;
+      await assertEnrollmentAccess(req, id);
 
       const enrollment = await prisma.payerEnrollment.findUnique({
         where: { id },
@@ -191,7 +191,7 @@ router.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const validated = createEnrollmentSchema.parse(req.body);
 
       // First, find or create the payer
@@ -273,8 +273,8 @@ router.put(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
-      await assertEnrollmentAccess(req, id!);
+      const id = req.params['id']!;
+      await assertEnrollmentAccess(req, id);
       const validated = updateEnrollmentSchema.parse(req.body);
 
       const existing = await prisma.payerEnrollment.findUnique({
@@ -328,7 +328,7 @@ router.delete(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params['id']!;
 
       const existing = await prisma.payerEnrollment.findUnique({
         where: { id },

@@ -60,7 +60,7 @@ router.get(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
 
       const locations = await prisma.practiceLocation.findMany({
         where: { providerId },
@@ -80,7 +80,7 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params['id']!;
 
       const location = await assertLocationAccess(req, id!);
       if (!location) {
@@ -108,7 +108,7 @@ router.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const validated = createPracticeLocationSchema.parse(req.body);
 
       // If this is set as primary, unset other primary locations
@@ -148,7 +148,7 @@ router.put(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params['id']!;
       const validated = updatePracticeLocationSchema.parse(req.body);
 
       const existing = await assertLocationAccess(req, id!);
@@ -201,7 +201,7 @@ router.delete(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const id = req.params['id']!;
 
       const existing = await prisma.practiceLocation.findUnique({
         where: { id },

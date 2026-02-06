@@ -49,7 +49,7 @@ caqhRoutes.post(
   '/credentials/:providerId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const { username, password } = req.body;
 
       if (!username || !password) {
@@ -84,7 +84,7 @@ caqhRoutes.get(
   '/credentials/:providerId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
 
       const provider = await prisma.provider.findUnique({
         where: { id: providerId },
@@ -111,7 +111,7 @@ caqhRoutes.post(
   '/credentials/:providerId/verify',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
 
       const provider = await prisma.provider.findUnique({
         where: { id: providerId },

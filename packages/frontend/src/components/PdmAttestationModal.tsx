@@ -83,12 +83,12 @@ export function PdmAttestationModal({
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+        <div className="relative bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -109,16 +109,16 @@ export function PdmAttestationModal({
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {/* Availity link */}
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mb-4 p-3 bg-primary-50 rounded-lg border border-primary-200">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-800">
+                <span className="text-sm text-primary-800">
                   Complete attestation in Availity PDM first, then record it here.
                 </span>
                 <a
                   href={AVAILITY_PDM_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
+                  className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-800"
                 >
                   Open Availity PDM
                   <ArrowTopRightOnSquareIcon className="ml-1 h-4 w-4" />

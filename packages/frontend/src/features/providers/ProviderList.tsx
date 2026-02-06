@@ -186,7 +186,7 @@ export default function ProviderList() {
           </form>
 
           {/* View Toggle */}
-          <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+          <div className="flex border border-gray-200 rounded-xl overflow-hidden">
             <button
               onClick={() => setViewMode('cards')}
               className={clsx(
@@ -213,7 +213,7 @@ export default function ProviderList() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
+            <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 animate-pulse">
               <div className="flex items-start gap-4">
                 <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
                 <div className="flex-1">
@@ -225,7 +225,7 @@ export default function ProviderList() {
           ))}
         </div>
       ) : data?.data?.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200/60">
           <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No providers found</h3>
           <p className="mt-1 text-sm text-gray-500">Get started by adding a new provider.</p>
@@ -247,7 +247,7 @@ export default function ProviderList() {
               <Link
                 key={provider.id}
                 to={`/providers/${provider.id}`}
-                className="bg-white rounded-lg shadow hover:shadow-lg transition-all hover:scale-[1.02] overflow-hidden"
+                className="bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-all hover:scale-[1.01] overflow-hidden"
               >
                 {/* Progress Bar at Top */}
                 <div className="h-1.5 bg-gray-100">
@@ -325,7 +325,7 @@ export default function ProviderList() {
         /* Table View */
         <div className="card overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Provider
@@ -413,7 +413,7 @@ export default function ProviderList() {
 
       {/* Pagination */}
       {data?.totalPages > 1 && (
-        <div className="mt-6 bg-white px-4 py-3 flex items-center justify-between border border-gray-200 rounded-lg sm:px-6">
+        <div className="mt-6 bg-white px-4 py-3 flex items-center justify-between border border-gray-200/60 rounded-2xl sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
               onClick={() =>

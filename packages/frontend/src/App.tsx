@@ -11,6 +11,14 @@ import ExpirationDashboard from './features/dashboard/ExpirationDashboard';
 import EnrollmentsList from './features/enrollments/EnrollmentsList';
 import RosterPage from './features/roster/RosterPage';
 import AiAgentDashboard from './features/ai-agent/AiAgentDashboard';
+import RegisterPage from './features/portal/RegisterPage';
+import PendingProviders from './features/admin/PendingProviders';
+import PortalLayout from './features/portal/PortalLayout';
+import PortalDashboard from './features/portal/PortalDashboard';
+import PortalProfile from './features/portal/PortalProfile';
+import PortalLicenses from './features/portal/PortalLicenses';
+import PortalLocations from './features/portal/PortalLocations';
+import RegistrationSuccess from './features/portal/RegistrationSuccess';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -30,17 +38,79 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role === 'provider') {
+    return <Navigate to="/portal" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function ProviderRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'provider') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/registration-success" element={<RegistrationSuccess />} />
 
+      {/* Portal routes (provider role) */}
+      <Route
+        path="/portal"
+        element={
+          <ProviderRoute>
+            <PortalLayout />
+          </ProviderRoute>
+        }
+      >
+        <Route index element={<PortalDashboard />} />
+        <Route path="profile" element={<PortalProfile />} />
+        <Route path="licenses" element={<PortalLicenses />} />
+        <Route path="locations" element={<PortalLocations />} />
+      </Route>
+
+      {/* Admin routes (admin/credentialing_staff) */}
       <Route
         path="/"
         element={
-          <PrivateRoute>
+          <AdminRoute>
             <Layout />
-          </PrivateRoute>
+          </AdminRoute>
         }
       >
         <Route index element={<Dashboard />} />
@@ -53,6 +123,7 @@ export default function App() {
         <Route path="expirations" element={<ExpirationDashboard />} />
         <Route path="roster" element={<RosterPage />} />
         <Route path="ai-agent" element={<AiAgentDashboard />} />
+        <Route path="pending-providers" element={<PendingProviders />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -28,7 +28,7 @@ router.get(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
 
       // Get or create checklist for this provider
       let checklist = await prisma.providerChecklist.findUnique({
@@ -70,7 +70,7 @@ router.put(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const validated = updateChecklistSchema.parse(req.body);
 
       // Check if provider exists
@@ -109,14 +109,14 @@ router.put(
       if (checklist) {
         checklist = await prisma.providerChecklist.update({
           where: { providerId },
-          data: updateData,
+          data: updateData as any,
         });
       } else {
         checklist = await prisma.providerChecklist.create({
           data: {
             providerId: providerId!,
             ...updateData,
-          },
+          } as any,
         });
       }
 
@@ -156,7 +156,7 @@ router.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const { documentId, checklistItem } = req.body;
 
       if (!['w9', 'coi', 'cp575'].includes(checklistItem)) {
@@ -185,11 +185,11 @@ router.post(
 
       const checklist = await prisma.providerChecklist.upsert({
         where: { providerId: providerId! },
-        update: updateData,
+        update: updateData as any,
         create: {
           providerId: providerId!,
           ...updateData,
-        },
+        } as any,
       });
 
       res.json({ success: true, data: checklist });

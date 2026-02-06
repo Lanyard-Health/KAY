@@ -66,7 +66,7 @@ interface ProviderEnrollmentsProps {
 const STATUS_OPTIONS = [
   { value: 'not_started', label: 'Not Started', color: 'bg-gray-100 text-gray-800' },
   { value: 'in_progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'submitted', label: 'Submitted', color: 'bg-blue-100 text-blue-800' },
+  { value: 'submitted', label: 'Submitted', color: 'bg-primary-100 text-primary-800' },
   { value: 'pending_review', label: 'Pending Review', color: 'bg-purple-100 text-purple-800' },
   { value: 'approved', label: 'Approved', color: 'bg-green-100 text-green-800' },
   { value: 'denied', label: 'Denied', color: 'bg-red-100 text-red-800' },
@@ -359,7 +359,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         </div>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
           Add Enrollment
@@ -406,7 +406,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
           </p>
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
             Add First Enrollment
@@ -470,7 +470,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                           enrollment.productTypes.map((type) => (
                             <span
                               key={type}
-                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
                             >
                               {type}
                             </span>
@@ -524,7 +524,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                           className={`mr-3 ${
                             enrollment.followUpEnabled
                               ? 'text-green-600 hover:text-green-800'
-                              : 'text-gray-400 hover:text-blue-600'
+                              : 'text-gray-400 hover:text-primary-600'
                           }`}
                           title={enrollment.followUpEnabled ? 'Follow-up enabled' : 'Set up follow-up'}
                         >
@@ -537,7 +537,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       )}
                       <button
                         onClick={() => openEditModal(enrollment)}
-                        className="text-blue-600 hover:text-blue-800 mr-3"
+                        className="text-primary-600 hover:text-primary-800 mr-3"
                         title="Edit"
                       >
                         <PencilIcon className="h-5 w-5" />
@@ -580,11 +580,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={closeModal}
             />
 
-            <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+            <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 {editingEnrollment ? 'Edit Enrollment' : 'Add New Enrollment'}
               </h3>
@@ -614,13 +614,13 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                           }}
                           onFocus={() => setShowPayerDropdown(true)}
                           placeholder="Search payers..."
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       {formData.payerName && (
                         <div className="mt-2 flex items-center gap-2">
                           <span className="text-sm text-gray-600">Selected:</span>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                             {formData.payerName}
                             <button
                               type="button"
@@ -628,7 +628,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                                 setFormData({ ...formData, payerName: '' });
                                 setPayerSearch('');
                               }}
-                              className="ml-2 text-blue-600 hover:text-blue-800"
+                              className="ml-2 text-primary-600 hover:text-primary-800"
                             >
                               &times;
                             </button>
@@ -647,7 +647,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                                   setPayerSearch('');
                                   setShowPayerDropdown(false);
                                 }}
-                                className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                                className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
                               >
                                 <div className="font-medium text-gray-900">{payer.name}</div>
                                 <div className="text-xs text-gray-500">{payer.payerType}</div>
@@ -674,7 +674,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         key={type}
                         className={`inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer border ${
                           formData.productTypes.includes(type)
-                            ? 'bg-blue-100 border-blue-500 text-blue-800'
+                            ? 'bg-primary-100 border-primary-500 text-primary-800'
                             : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
                         }`}
                       >
@@ -711,7 +711,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     onChange={(e) =>
                       setFormData({ ...formData, status: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     {STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -733,7 +733,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         setFormData({ ...formData, providerNumber: e.target.value })
                       }
                       placeholder="Assigned provider #"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
@@ -747,7 +747,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         setFormData({ ...formData, groupNumber: e.target.value })
                       }
                       placeholder="Group #"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                 </div>
@@ -765,7 +765,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, applicationDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -778,7 +778,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, effectiveDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -791,7 +791,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, dateContractReceived: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -804,7 +804,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, dateContractSigned: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -817,7 +817,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, lastFollowUpDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -830,7 +830,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, recredentialingDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                   </div>
@@ -847,7 +847,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     }
                     rows={3}
                     placeholder="Any additional notes..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
 
@@ -862,7 +862,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   <button
                     type="submit"
                     disabled={createMutation.isPending || updateMutation.isPending}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
                   >
                     {createMutation.isPending || updateMutation.isPending
                       ? 'Saving...'
@@ -882,11 +882,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setFollowUpModalOpen(false)}
             />
 
-            <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+            <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
                   Send Follow-up Email
@@ -953,7 +953,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     value={recipientEmail}
                     onChange={(e) => setRecipientEmail(e.target.value)}
                     placeholder="payer-credentialing@insurance.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
 
@@ -967,7 +967,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     onChange={(e) => setCustomMessage(e.target.value)}
                     rows={3}
                     placeholder="Add any specific notes or questions..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
 
@@ -978,24 +978,24 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   </label>
                   <div className="mt-1">
                     {attachment ? (
-                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-primary-50 border border-primary-200 rounded-lg">
                         <div className="flex items-center gap-2">
-                          <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                           </svg>
-                          <span className="text-sm text-blue-800 font-medium">{attachment.name}</span>
-                          <span className="text-xs text-blue-600">({(attachment.size / 1024).toFixed(1)} KB)</span>
+                          <span className="text-sm text-primary-800 font-medium">{attachment.name}</span>
+                          <span className="text-xs text-primary-600">({(attachment.size / 1024).toFixed(1)} KB)</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => setAttachment(null)}
-                          className="text-blue-600 hover:text-blue-800"
+                          className="text-primary-600 hover:text-primary-800"
                         >
                           <XCircleIcon className="h-5 w-5" />
                         </button>
                       </div>
                     ) : (
-                      <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                      <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition-colors">
                         <div className="text-center">
                           <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -1052,7 +1052,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   type="button"
                   onClick={handlePreviewEmail}
                   disabled={previewLoading}
-                  className="inline-flex items-center px-4 py-2 text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 disabled:opacity-50"
+                  className="inline-flex items-center px-4 py-2 text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50"
                 >
                   <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1072,7 +1072,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     type="button"
                     onClick={handleSendFollowUpEmail}
                     disabled={!recipientEmail || testEmailSending}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <PaperAirplaneIcon className="h-4 w-4 mr-2" />
                     {testEmailSending ? 'Sending...' : 'Send Email'}
@@ -1089,11 +1089,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         <div className="fixed inset-0 z-[60] overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-900 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setShowEmailPreview(false)}
             />
 
-            <div className="relative z-10 inline-block w-full max-w-2xl my-8 text-left align-middle bg-white rounded-lg shadow-xl overflow-hidden">
+            <div className="relative z-10 inline-block w-full max-w-2xl my-8 text-left align-middle bg-white rounded-2xl shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
@@ -1104,7 +1104,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       onClick={() => setEditingEmail(!editingEmail)}
                       className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
                         editingEmail
-                          ? 'bg-blue-100 text-blue-700'
+                          ? 'bg-primary-100 text-primary-700'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
@@ -1136,7 +1136,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       type="text"
                       value={emailPreviewSubject}
                       onChange={(e) => setEmailPreviewSubject(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
@@ -1147,7 +1147,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       value={editableEmailBody}
                       onChange={(e) => setEditableEmailBody(e.target.value)}
                       rows={16}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
                     />
                   </div>
                   <p className="mt-2 text-xs text-gray-500">
@@ -1179,7 +1179,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                     <button
                       type="button"
                       onClick={() => handlePreviewEmail()}
-                      className="px-4 py-2 text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
+                      className="px-4 py-2 text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100"
                     >
                       Reset to Template
                     </button>
@@ -1190,7 +1190,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       setShowEmailPreview(false);
                       setEditingEmail(false);
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
                   >
                     {editingEmail ? 'Done Editing' : 'Looks Good'}
                   </button>

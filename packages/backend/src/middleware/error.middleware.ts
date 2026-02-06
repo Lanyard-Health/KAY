@@ -87,7 +87,7 @@ export function errorHandler(
 
   // Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
-    const prismaError = err as unknown as { code: string };
+    const prismaError = err as unknown as { code: string; meta?: Record<string, unknown> };
 
     if (prismaError.code === 'P2002') {
       res.status(409).json({

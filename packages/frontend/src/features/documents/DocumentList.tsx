@@ -59,6 +59,18 @@ export default function DocumentList() {
     return DOCUMENT_TYPES.find((t) => t.value === type)?.label || type;
   };
 
+  const getOcrStatusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      completed: 'bg-green-100 text-green-800',
+      processing: 'bg-primary-100 text-primary-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      failed: 'bg-red-100 text-red-800',
+      not_applicable: 'bg-gray-100 text-gray-800',
+    };
+    return colors[status] || colors['not_applicable'];
+  };
+
+
   const handleDownload = async (documentId: string, fileName: string) => {
     try {
       const response = await api.get(`/documents/${documentId}/download-url`);
@@ -196,7 +208,7 @@ export default function DocumentList() {
         </div>
       ) : isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600"></div>
         </div>
       ) : documents?.length === 0 ? (
         <div className="text-center py-12">
@@ -313,10 +325,10 @@ export default function DocumentList() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setViewingOcr(null)}
             />
-            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 OCR Results - {viewingOcr.document.originalFileName}
               </h3>
@@ -355,10 +367,10 @@ export default function DocumentList() {
         <div className="fixed inset-0 z-50 overflow-hidden">
           <div className="flex items-center justify-center min-h-screen">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-900 bg-opacity-90"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setPreviewDoc(null)}
             />
-            <div className="relative z-10 w-full max-w-5xl h-[90vh] mx-4 flex flex-col bg-white rounded-lg shadow-xl overflow-hidden">
+            <div className="relative z-10 w-full max-w-5xl h-[90vh] mx-4 flex flex-col bg-white rounded-2xl shadow-xl overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
                 <div>
@@ -428,10 +440,10 @@ export default function DocumentList() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setEditingDoc(null)}
             />
-            <div className="relative z-10 inline-block w-full max-w-md p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+            <div className="relative z-10 inline-block w-full max-w-md p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Edit Document
               </h3>
@@ -445,7 +457,7 @@ export default function DocumentList() {
                   <select
                     value={editForm.documentType}
                     onChange={(e) => setEditForm({ ...editForm, documentType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     {DOCUMENT_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -464,7 +476,7 @@ export default function DocumentList() {
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     placeholder="Optional description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
 
@@ -476,7 +488,7 @@ export default function DocumentList() {
                     type="date"
                     value={editForm.expirationDate}
                     onChange={(e) => setEditForm({ ...editForm, expirationDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
@@ -491,7 +503,7 @@ export default function DocumentList() {
                 <button
                   onClick={handleSaveEdit}
                   disabled={updateMutation.isPending}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
                 >
                   {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </button>

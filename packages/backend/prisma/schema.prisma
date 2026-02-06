@@ -146,6 +146,7 @@ model Provider {
   documents              Document[]
   payerEnrollments       PayerEnrollment[]
   checklist              ProviderChecklist?
+  applications           ProviderApplication[]
 
   @@map("providers")
 }
@@ -956,4 +957,59 @@ model RosterTemplate {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("roster_templates")
+}
+
+// ==========================================
+// PROVIDER PORTAL / SELF-REGISTRATION
+// ==========================================
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+model ProviderApplication {
+  id     String            @id @default(uuid())
+  status ApplicationStatus @default(pending)
+
+  // Provider Info
+  npi        String
+  firstName  String @map("first_name")
+  lastName   String @map("last_name")
+  middleName String? @map("middle_name")
+  suffix     String?
+  email      String
+  phone      String
+
+  // Professional Info
+  providerType String?  @map("provider_type")
+  taxonomy     String?
+  specialties  String[]
+
+  // Tracking
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  reviewedBy  String?   @map("reviewed_by")
+  reviewNotes String?   @map("review_notes")
+
+  // Link to created provider (after approval)
+  providerId String?   @map("provider_id")
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  @@index([status])
+  @@index([npi])
+  @@map("provider_applications")
+}
+
+model AdminNotification {
+  id            String   @id @default(uuid())
+  type          String   // 'NEW_APPLICATION'
+  message       String
+  read          Boolean  @default(false)
+  applicationId String?  @map("application_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([read])
+  @@map("admin_notifications")
 }

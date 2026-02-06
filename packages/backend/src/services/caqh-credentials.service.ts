@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';

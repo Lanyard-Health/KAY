@@ -55,7 +55,7 @@ const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'not_started', label: 'Not Started', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300', headerBg: 'bg-gray-50', icon: ClockIcon },
   { value: 'in_progress', label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-300', headerBg: 'bg-yellow-50', icon: ArrowRightIcon },
-  { value: 'submitted', label: 'Submitted', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-300', headerBg: 'bg-blue-50', icon: ArrowRightIcon },
+  { value: 'submitted', label: 'Submitted', color: 'bg-primary-100 text-primary-800', borderColor: 'border-primary-300', headerBg: 'bg-primary-50', icon: ArrowRightIcon },
   { value: 'pending_review', label: 'Pending Review', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-300', headerBg: 'bg-purple-50', icon: ClockIcon },
   { value: 'approved', label: 'Approved', color: 'bg-green-100 text-green-800', borderColor: 'border-green-300', headerBg: 'bg-green-50', icon: CheckCircleIcon },
   { value: 'denied', label: 'Denied', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300', headerBg: 'bg-red-50', icon: XCircleIcon },
@@ -81,9 +81,9 @@ const PIPELINE_COLUMNS = [
     label: 'Submitted',
     statuses: ['submitted', 'pending_review'],
     color: 'blue',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    headerColor: 'text-blue-700',
+    bgColor: 'bg-primary-50',
+    borderColor: 'border-primary-200',
+    headerColor: 'text-primary-700',
     description: 'Awaiting payer response'
   },
   {
@@ -363,7 +363,7 @@ export default function EnrollmentsList() {
               onClick={() => setViewMode('kanban')}
               className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'kanban'
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-primary-100 text-primary-700'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
               title="Pipeline View"
@@ -374,7 +374,7 @@ export default function EnrollmentsList() {
               onClick={() => setViewMode('table')}
               className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-primary-100 text-primary-700'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
               title="Table View"
@@ -391,7 +391,7 @@ export default function EnrollmentsList() {
           </button>
           <button
             onClick={() => openModal()}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
             Add Enrollment
@@ -401,30 +401,30 @@ export default function EnrollmentsList() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-2xl shadow-sm p-4">
           <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
           <div className="text-sm text-gray-500">Total Enrollments</div>
         </div>
-        <div className="bg-green-50 rounded-lg shadow p-4">
+        <div className="bg-green-50 rounded-2xl shadow-sm p-4">
           <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
           <div className="text-sm text-green-800">Approved</div>
         </div>
-        <div className="bg-yellow-50 rounded-lg shadow p-4">
+        <div className="bg-yellow-50 rounded-2xl shadow-sm p-4">
           <div className="text-2xl font-bold text-yellow-600">{stats.inProgress}</div>
           <div className="text-sm text-yellow-800">In Progress</div>
         </div>
-        <div className="bg-gray-50 rounded-lg shadow p-4">
+        <div className="bg-gray-50 rounded-2xl shadow-sm p-4">
           <div className="text-2xl font-bold text-gray-600">{stats.notStarted}</div>
           <div className="text-sm text-gray-800">Not Started</div>
         </div>
-        <div className="bg-orange-50 rounded-lg shadow p-4">
+        <div className="bg-orange-50 rounded-2xl shadow-sm p-4">
           <div className="text-2xl font-bold text-orange-600">{stats.needsFollowUp}</div>
           <div className="text-sm text-orange-800">Needs Follow-up</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-2xl shadow-sm p-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
@@ -435,7 +435,7 @@ export default function EnrollmentsList() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by provider, payer, NPI, or provider #..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
@@ -445,7 +445,7 @@ export default function EnrollmentsList() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -460,7 +460,7 @@ export default function EnrollmentsList() {
             <select
               value={payerFilter}
               onChange={(e) => setPayerFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">All Payers</option>
               {enrolledPayers.map((payer) => (
@@ -483,7 +483,7 @@ export default function EnrollmentsList() {
                 setStatusFilter('');
                 setPayerFilter('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="text-sm text-primary-600 hover:text-primary-800"
             >
               Clear filters
             </button>
@@ -493,18 +493,18 @@ export default function EnrollmentsList() {
 
       {/* Matching Providers Section */}
       {search && searchedProviders.length > 0 && (
-        <div className="bg-blue-50 rounded-lg shadow p-4">
-          <h3 className="text-sm font-medium text-blue-900 mb-3">
+        <div className="bg-primary-50 rounded-2xl shadow-sm p-4">
+          <h3 className="text-sm font-medium text-primary-900 mb-3">
             Matching Providers ({searchedProviders.length})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {searchedProviders.map((provider) => (
               <div
                 key={provider.id}
-                className="flex items-center justify-between bg-white rounded-lg p-3 border border-blue-200"
+                className="flex items-center justify-between bg-white rounded-lg p-3 border border-primary-200"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
                     <span className="text-white font-medium text-sm">
                       {provider.firstName?.[0]}
                       {provider.lastName?.[0]}
@@ -513,7 +513,7 @@ export default function EnrollmentsList() {
                   <div>
                     <Link
                       to={`/providers/${provider.id}`}
-                      className="font-medium text-gray-900 hover:text-blue-600"
+                      className="font-medium text-gray-900 hover:text-primary-600"
                     >
                       {provider.firstName} {provider.lastName}
                     </Link>
@@ -522,7 +522,7 @@ export default function EnrollmentsList() {
                 </div>
                 <button
                   onClick={() => openModal(provider)}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-primary-700 bg-primary-100 rounded-md hover:bg-primary-200"
                 >
                   <PlusIcon className="h-4 w-4 mr-1" />
                   Enroll
@@ -557,7 +557,7 @@ export default function EnrollmentsList() {
           </p>
           <button
             onClick={() => openModal()}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
             Add First Enrollment
@@ -574,7 +574,7 @@ export default function EnrollmentsList() {
             return (
               <div
                 key={column.id}
-                className={`flex-shrink-0 w-80 rounded-xl border-2 ${column.borderColor} ${column.bgColor} overflow-hidden`}
+                className={`flex-shrink-0 w-80 rounded-2xl border-2 ${column.borderColor} ${column.bgColor} overflow-hidden`}
               >
                 {/* Column Header */}
                 <div className={`p-4 border-b ${column.borderColor}`}>
@@ -588,7 +588,7 @@ export default function EnrollmentsList() {
                     <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
                       column.color === 'gray' ? 'bg-gray-200 text-gray-700' :
                       column.color === 'yellow' ? 'bg-yellow-200 text-yellow-700' :
-                      column.color === 'blue' ? 'bg-blue-200 text-blue-700' :
+                      column.color === 'blue' ? 'bg-primary-200 text-primary-700' :
                       column.color === 'green' ? 'bg-green-200 text-green-700' :
                       'bg-red-200 text-red-700'
                     }`}>
@@ -616,12 +616,12 @@ export default function EnrollmentsList() {
                         <Link
                           key={enrollment.id}
                           to={`/providers/${enrollment.providerId}?tab=enrollments`}
-                          className="block bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all duration-200 overflow-hidden"
+                          className="block bg-white rounded-xl shadow-sm border border-gray-200/60 hover:shadow-md hover:border-primary-300 transition-all duration-200 overflow-hidden"
                         >
                           {/* Card Header with Provider */}
                           <div className="p-3 border-b border-gray-100">
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
                                 <span className="text-white font-medium text-sm">
                                   {enrollment.provider?.firstName?.[0]}
                                   {enrollment.provider?.lastName?.[0]}
@@ -653,7 +653,7 @@ export default function EnrollmentsList() {
                                 {enrollment.productTypes.slice(0, 2).map((type) => (
                                   <span
                                     key={type}
-                                    className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700"
+                                    className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-50 text-primary-700"
                                   >
                                     {type}
                                   </span>
@@ -715,7 +715,7 @@ export default function EnrollmentsList() {
         /* Table View */
         <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Provider
@@ -757,7 +757,7 @@ export default function EnrollmentsList() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Link
                         to={`/providers/${enrollment.providerId}`}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="text-primary-600 hover:text-primary-800"
                       >
                         <div className="font-medium">
                           {enrollment.provider?.firstName} {enrollment.provider?.lastName}
@@ -777,7 +777,7 @@ export default function EnrollmentsList() {
                           enrollment.productTypes.map((type) => (
                             <span
                               key={type}
-                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
                             >
                               {type}
                             </span>
@@ -819,7 +819,7 @@ export default function EnrollmentsList() {
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Link
                         to={`/providers/${enrollment.providerId}?tab=enrollments`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="text-primary-600 hover:text-primary-800 text-sm font-medium"
                       >
                         View
                       </Link>
@@ -837,11 +837,11 @@ export default function EnrollmentsList() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
               onClick={closeModal}
             />
 
-            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-lg shadow-xl">
+            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Add New Enrollment</h3>
                 <button
@@ -859,8 +859,8 @@ export default function EnrollmentsList() {
                     Provider *
                   </label>
                   {selectedProvider ? (
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                      <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                    <div className="flex items-center gap-3 p-3 bg-primary-50 rounded-lg">
+                      <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
                         <span className="text-white font-medium">
                           {selectedProvider.firstName?.[0]}
                           {selectedProvider.lastName?.[0]}
@@ -875,7 +875,7 @@ export default function EnrollmentsList() {
                       <button
                         type="button"
                         onClick={() => setSelectedProvider(null)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="text-primary-600 hover:text-primary-800"
                       >
                         Change
                       </button>
@@ -893,7 +893,7 @@ export default function EnrollmentsList() {
                           }}
                           onFocus={() => setShowProviderDropdown(true)}
                           placeholder="Search providers by name or NPI..."
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
                       {showProviderDropdown && (
@@ -908,7 +908,7 @@ export default function EnrollmentsList() {
                                   setProviderSearch('');
                                   setShowProviderDropdown(false);
                                 }}
-                                className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                                className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
                               >
                                 <div className="font-medium text-gray-900">
                                   {provider.firstName} {provider.lastName}
@@ -947,13 +947,13 @@ export default function EnrollmentsList() {
                         }}
                         onFocus={() => setShowPayerDropdown(true)}
                         placeholder="Search payers..."
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     {formData.payerName && (
                       <div className="mt-2 flex items-center gap-2">
                         <span className="text-sm text-gray-600">Selected:</span>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                           {formData.payerName}
                           <button
                             type="button"
@@ -961,7 +961,7 @@ export default function EnrollmentsList() {
                               setFormData({ ...formData, payerName: '' });
                               setPayerSearch('');
                             }}
-                            className="ml-2 text-blue-600 hover:text-blue-800"
+                            className="ml-2 text-primary-600 hover:text-primary-800"
                           >
                             &times;
                           </button>
@@ -980,7 +980,7 @@ export default function EnrollmentsList() {
                                 setPayerSearch('');
                                 setShowPayerDropdown(false);
                               }}
-                              className="w-full text-left px-4 py-2 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                              className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
                             >
                               <div className="font-medium text-gray-900">{payer.name}</div>
                               <div className="text-xs text-gray-500">{payer.payerType}</div>
@@ -1007,7 +1007,7 @@ export default function EnrollmentsList() {
                         key={type}
                         className={`inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer border ${
                           formData.productTypes.includes(type)
-                            ? 'bg-blue-100 border-blue-500 text-blue-800'
+                            ? 'bg-primary-100 border-primary-500 text-primary-800'
                             : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
                         }`}
                       >
@@ -1041,7 +1041,7 @@ export default function EnrollmentsList() {
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     {ENROLLMENT_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1064,7 +1064,7 @@ export default function EnrollmentsList() {
                         setFormData({ ...formData, providerNumber: e.target.value })
                       }
                       placeholder="Assigned provider #"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
@@ -1076,7 +1076,7 @@ export default function EnrollmentsList() {
                       value={formData.groupNumber}
                       onChange={(e) => setFormData({ ...formData, groupNumber: e.target.value })}
                       placeholder="Group #"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                 </div>
@@ -1095,7 +1095,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, applicationDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -1108,7 +1108,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, effectiveDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -1121,7 +1121,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, dateContractReceived: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -1134,7 +1134,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, dateContractSigned: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -1147,7 +1147,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, lastFollowUpDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                     <div>
@@ -1160,7 +1160,7 @@ export default function EnrollmentsList() {
                         onChange={(e) =>
                           setFormData({ ...formData, recredentialingDate: e.target.value })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                   </div>
@@ -1174,7 +1174,7 @@ export default function EnrollmentsList() {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     placeholder="Any additional notes..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
 
@@ -1190,7 +1190,7 @@ export default function EnrollmentsList() {
                   <button
                     type="submit"
                     disabled={!selectedProvider || !formData.payerName || createMutation.isPending}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {createMutation.isPending ? 'Creating...' : 'Create Enrollment'}
                   </button>

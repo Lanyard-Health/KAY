@@ -4,39 +4,68 @@ import { Dialog, Menu, Transition } from '@headlessui/react';
 import {
   Bars3Icon,
   HomeIcon,
-  UsersIcon,
-  DocumentDuplicateIcon,
-  ClockIcon,
-  ClipboardDocumentListIcon,
-  TableCellsIcon,
-  SparklesIcon,
-  UserPlusIcon,
+  UserIcon,
+  ShieldCheckIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
-import { useAuthStore } from '../stores/auth.store';
+import { useAuthStore } from '../../stores/auth.store';
+import { useProfileCompleteness } from './hooks/usePortalData';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
-  { name: 'Providers', href: '/providers', icon: UsersIcon },
-  { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
-  { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
-  { name: 'Expirations', href: '/expirations', icon: ClockIcon },
-  { name: 'Roster', href: '/roster', icon: TableCellsIcon },
-  { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
-  { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
+  { name: 'Dashboard', href: '/portal', icon: HomeIcon },
+  { name: 'Profile', href: '/portal/profile', icon: UserIcon },
+  { name: 'Licenses', href: '/portal/licenses', icon: ShieldCheckIcon },
+  { name: 'Locations', href: '/portal/locations', icon: MapPinIcon },
 ];
 
-export default function Layout() {
+export default function PortalLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { data: completeness } = useProfileCompleteness();
+
+  const percentage = (completeness as any)?.data?.percentage ?? 0;
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
+
+  const isActive = (href: string) => {
+    if (href === '/portal') return location.pathname === '/portal';
+    return location.pathname.startsWith(href);
+  };
+
+  const sidebarNav = (
+    <nav className="flex flex-1 flex-col">
+      <ul role="list" className="flex flex-1 flex-col gap-y-7">
+        <li>
+          <ul role="list" className="-mx-2 space-y-1">
+            {navigation.map((item) => (
+              <li key={item.name}>
+                <Link
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={clsx(
+                    isActive(item.href)
+                      ? 'bg-white/10 text-white'
+                      : 'text-primary-100/70 hover:text-white hover:bg-white/10',
+                    'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200'
+                  )}
+                >
+                  <item.icon className="h-6 w-6 shrink-0" />
+                  {item.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </li>
+      </ul>
+    </nav>
+  );
 
   return (
     <div className="h-full">
@@ -68,32 +97,20 @@ export default function Layout() {
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
                   <div className="flex h-16 shrink-0 items-center">
-                    <span className="text-white text-xl font-bold">Lanyard Health</span>
+                    <span className="text-white text-xl font-bold">Provider Portal</span>
                   </div>
-                  <nav className="flex flex-1 flex-col">
-                    <ul role="list" className="flex flex-1 flex-col gap-y-7">
-                      <li>
-                        <ul role="list" className="-mx-2 space-y-1">
-                          {navigation.map((item) => (
-                            <li key={item.name}>
-                              <Link
-                                to={item.href}
-                                className={clsx(
-                                  location.pathname === item.href
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-primary-100/70 hover:text-white hover:bg-white/10',
-                                  'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200'
-                                )}
-                              >
-                                <item.icon className="h-6 w-6 shrink-0" />
-                                {item.name}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </li>
-                    </ul>
-                  </nav>
+                  {/* Profile completeness */}
+                  <div className="px-2 py-2 border-t border-primary-600">
+                    <div className="text-xs text-primary-200 mb-1">Profile Completeness</div>
+                    <div className="w-full bg-black/20 rounded-full h-2">
+                      <div
+                        className="bg-primary-300 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-primary-200 mt-1">{percentage}% complete</div>
+                  </div>
+                  {sidebarNav}
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -105,32 +122,20 @@ export default function Layout() {
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
           <div className="flex h-16 shrink-0 items-center">
-            <span className="text-white text-xl font-bold">Lanyard Health</span>
+            <span className="text-white text-xl font-bold">Provider Portal</span>
           </div>
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              <li>
-                <ul role="list" className="-mx-2 space-y-1">
-                  {navigation.map((item) => (
-                    <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        className={clsx(
-                          location.pathname === item.href
-                            ? 'bg-white/10 text-white'
-                            : 'text-primary-100/70 hover:text-white hover:bg-white/10',
-                          'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200'
-                        )}
-                      >
-                        <item.icon className="h-6 w-6 shrink-0" />
-                        {item.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            </ul>
-          </nav>
+          {/* Profile completeness */}
+          <div className="px-2 py-2 border-t border-primary-600">
+            <div className="text-xs text-primary-200 mb-1">Profile Completeness</div>
+            <div className="w-full bg-black/20 rounded-full h-2">
+              <div
+                className="bg-primary-300 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+            <div className="text-xs text-primary-200 mt-1">{percentage}% complete</div>
+          </div>
+          {sidebarNav}
         </div>
       </div>
 
@@ -149,7 +154,6 @@ export default function Layout() {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              {/* User menu */}
               <Menu as="div" className="relative">
                 <Menu.Button className="-m-1.5 flex items-center p-1.5">
                   <span className="sr-only">Open user menu</span>
@@ -167,10 +171,10 @@ export default function Layout() {
                 </Menu.Button>
                 <Transition
                   as={Fragment}
-                  enter="transition ease-out duration-200"
+                  enter="transition ease-out duration-100"
                   enterFrom="transform opacity-0 scale-95"
                   enterTo="transform opacity-100 scale-100"
-                  leave="transition ease-in duration-150"
+                  leave="transition ease-in duration-75"
                   leaveFrom="transform opacity-100 scale-100"
                   leaveTo="transform opacity-0 scale-95"
                 >

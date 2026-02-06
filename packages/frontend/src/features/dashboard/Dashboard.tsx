@@ -74,21 +74,21 @@ export default function Dashboard() {
       description: 'Start credentialing a new provider',
       icon: UserPlusIcon,
       href: '/providers/new',
-      color: 'bg-blue-500 hover:bg-blue-600',
+      color: 'bg-white/20 hover:bg-white/30',
     },
     {
       name: 'Upload Document',
       description: 'Add documents to a provider',
       icon: DocumentArrowUpIcon,
       href: '/documents',
-      color: 'bg-purple-500 hover:bg-purple-600',
+      color: 'bg-white/20 hover:bg-white/30',
     },
     {
       name: 'New Enrollment',
       description: 'Start a payer enrollment',
       icon: ClipboardDocumentListIcon,
       href: '/enrollments',
-      color: 'bg-green-500 hover:bg-green-600',
+      color: 'bg-white/20 hover:bg-white/30',
     },
   ];
 
@@ -101,8 +101,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-xl p-6 text-white">
-        <h1 className="text-2xl font-bold">Welcome to Credential Management</h1>
+      <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
+        <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
         <p className="mt-1 text-primary-100">
           {actionItemsCount > 0
             ? `You have ${actionItemsCount} item${actionItemsCount !== 1 ? 's' : ''} that need${actionItemsCount === 1 ? 's' : ''} attention`
@@ -116,9 +116,9 @@ export default function Dashboard() {
               key={action.name}
               to={action.href}
               className={clsx(
-                'flex items-center gap-3 p-4 rounded-lg transition-all',
+                'flex items-center gap-3 p-4 rounded-xl transition-all',
                 action.color,
-                'text-white shadow-lg hover:shadow-xl hover:scale-[1.02]'
+                'text-white backdrop-blur-sm hover:scale-[1.02]'
               )}
             >
               <action.icon className="h-8 w-8 flex-shrink-0" />
@@ -133,7 +133,7 @@ export default function Dashboard() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total Providers</p>
@@ -141,13 +141,13 @@ export default function Dashboard() {
                 {isLoading ? '-' : data?.totalProviders || 0}
               </p>
             </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <UserCircleIcon className="h-6 w-6 text-blue-600" />
+            <div className="p-3 bg-primary-100 rounded-2xl">
+              <UserCircleIcon className="h-6 w-6 text-primary-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Active</p>
@@ -155,13 +155,13 @@ export default function Dashboard() {
                 {isLoading ? '-' : data?.activeProviders || 0}
               </p>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
+            <div className="p-3 bg-green-100 rounded-2xl">
               <CheckCircleIcon className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Pending</p>
@@ -169,13 +169,13 @@ export default function Dashboard() {
                 {isLoading ? '-' : data?.pendingProviders || 0}
               </p>
             </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
+            <div className="p-3 bg-yellow-100 rounded-2xl">
               <ClockIcon className="h-6 w-6 text-yellow-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Needs Attention</p>
@@ -183,7 +183,7 @@ export default function Dashboard() {
                 {isLoading ? '-' : actionItemsCount}
               </p>
             </div>
-            <div className="p-3 bg-red-100 rounded-full">
+            <div className="p-3 bg-red-100 rounded-2xl">
               <BellAlertIcon className="h-6 w-6 text-red-600" />
             </div>
           </div>
@@ -193,8 +193,8 @@ export default function Dashboard() {
       {/* Action Items Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Incomplete Providers */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
               <h3 className="font-semibold text-gray-900">Incomplete Profiles</h3>
@@ -226,7 +226,7 @@ export default function Dashboard() {
                   <li key={provider.id}>
                     <Link
                       to={`/providers/${provider.id}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100/80 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
@@ -251,8 +251,8 @@ export default function Dashboard() {
         </div>
 
         {/* Expiring Soon */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClockIcon className="h-5 w-5 text-red-500" />
               <h3 className="font-semibold text-gray-900">Expiring Soon</h3>
@@ -285,7 +285,7 @@ export default function Dashboard() {
                   const isUrgent = daysUntil <= 7;
                   return (
                     <li key={index}>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                         <div className="flex items-center gap-3">
                           <div className={clsx(
                             'h-10 w-10 rounded-full flex items-center justify-center',
@@ -324,13 +324,13 @@ export default function Dashboard() {
         </div>
 
         {/* Enrollments Needing Follow-up */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ClipboardDocumentListIcon className="h-5 w-5 text-blue-500" />
+              <ClipboardDocumentListIcon className="h-5 w-5 text-primary-500" />
               <h3 className="font-semibold text-gray-900">Enrollments - Follow Up Needed</h3>
               {(data?.needsFollowUp?.length ?? 0) > 0 && (
-                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                <span className="bg-primary-100 text-primary-800 text-xs font-medium px-2 py-0.5 rounded-full">
                   {data?.needsFollowUp?.length}
                 </span>
               )}
@@ -357,11 +357,11 @@ export default function Dashboard() {
                   <li key={enrollment.id}>
                     <Link
                       to="/enrollments"
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100/80 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <ClipboardDocumentListIcon className="h-5 w-5 text-blue-600" />
+                        <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                          <ClipboardDocumentListIcon className="h-5 w-5 text-primary-600" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
@@ -375,7 +375,7 @@ export default function Dashboard() {
                       <div className="text-right">
                         <span className={clsx(
                           'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                          enrollment.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                          enrollment.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
                           enrollment.status === 'submitted' ? 'bg-purple-100 text-purple-800' :
                           'bg-gray-100 text-gray-800'
                         )}>
@@ -396,8 +396,8 @@ export default function Dashboard() {
         </div>
 
         {/* Getting Started Guide */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-5 py-4 border-b border-gray-200">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
+          <div className="px-5 py-4 border-b border-gray-100">
             <h3 className="font-semibold text-gray-900">Getting Started</h3>
           </div>
           <div className="p-5">
