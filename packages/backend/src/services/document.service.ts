@@ -64,22 +64,30 @@ export class DocumentService {
       logger.info(`S3 bucket "${this.bucket}" not found, creating...`);
       try {
         await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
-        await this.s3.send(new PutBucketCorsCommand({
-          Bucket: this.bucket,
-          CORSConfiguration: {
-            CORSRules: [{
-              AllowedHeaders: ['*'],
-              AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-              AllowedOrigins: ['*'],
-              ExposeHeaders: ['ETag'],
-              MaxAgeSeconds: 3600,
-            }],
-          },
-        }));
-        logger.info(`S3 bucket "${this.bucket}" created with CORS`);
+        logger.info(`S3 bucket "${this.bucket}" created`);
       } catch (createError) {
         logger.error(`Failed to create S3 bucket "${this.bucket}"`, createError);
       }
+    }
+
+    // Always ensure CORS is set (covers existing buckets and new ones)
+    try {
+      const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
+      await this.s3.send(new PutBucketCorsCommand({
+        Bucket: this.bucket,
+        CORSConfiguration: {
+          CORSRules: [{
+            AllowedHeaders: ['*'],
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+            AllowedOrigins: [frontendUrl, 'http://localhost:5190'],
+            ExposeHeaders: ['ETag'],
+            MaxAgeSeconds: 3600,
+          }],
+        },
+      }));
+      logger.info(`S3 bucket CORS configured for ${frontendUrl}`);
+    } catch (corsError) {
+      logger.error('Failed to set S3 bucket CORS', corsError);
     }
   }
 
