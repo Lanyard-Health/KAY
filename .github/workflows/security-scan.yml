@@ -1,0 +1,418 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gitleaks:
+    name: Secret Detection (Gitleaks)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+      - name: Parse Gitleaks Results
+        if: always()
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let findings = [];
+            let status = 'pass';
+            try {
+              const report = fs.readFileSync('results.sarif', 'utf8');
+              const sarif = JSON.parse(report);
+              findings = sarif.runs?.[0]?.results || [];
+              if (findings.length > 0) status = 'fail';
+            } catch (e) {
+              // No SARIF file means no findings
+            }
+            const summary = findings.length === 0
+              ? '### :white_check_mark: Gitleaks: No secrets detected'
+              : `### :x: Gitleaks: ${findings.length} secret(s) detected\n\n` +
+                findings.map(f =>
+                  `- **${f.ruleId}**: ${f.locations?.[0]?.physicalLocation?.artifactLocation?.uri || 'unknown file'} (line ${f.locations?.[0]?.physicalLocation?.region?.startLine || '?'})`
+                ).join('\n');
+            core.setOutput('status', status);
+            core.setOutput('summary', summary);
+
+      - name: Upload Gitleaks Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-summary
+          path: results.sarif
+          if-no-files-found: ignore
+
+  npm-audit:
+    name: Dependency Audit (npm)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        continue-on-error: true
+        run: |
+          npm audit --json > npm-audit-results.json 2>&1 || true
+
+      - name: Parse Audit Results
+        if: always()
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let status = 'pass';
+            let summary = '';
+            try {
+              const raw = fs.readFileSync('npm-audit-results.json', 'utf8');
+              const audit = JSON.parse(raw);
+              const vulns = audit.vulnerabilities || {};
+              let high = 0, critical = 0, moderate = 0, low = 0;
+              const highCritList = [];
+              for (const [name, info] of Object.entries(vulns)) {
+                const sev = info.severity;
+                if (sev === 'critical') { critical++; highCritList.push(`- **CRITICAL**: \`${name}\` - ${info.via?.[0]?.title || info.via?.[0] || 'unknown'}`); }
+                else if (sev === 'high') { high++; highCritList.push(`- **HIGH**: \`${name}\` - ${info.via?.[0]?.title || info.via?.[0] || 'unknown'}`); }
+                else if (sev === 'moderate') moderate++;
+                else low++;
+              }
+              if (critical + high > 0) {
+                status = 'fail';
+                summary = `### :x: npm audit: ${critical} critical, ${high} high, ${moderate} moderate, ${low} low\n\n` +
+                  highCritList.join('\n');
+              } else if (moderate + low > 0) {
+                summary = `### :warning: npm audit: ${moderate} moderate, ${low} low (no high/critical)\n\nThese do not block the build.`;
+              } else {
+                summary = '### :white_check_mark: npm audit: No known vulnerabilities';
+              }
+            } catch (e) {
+              summary = '### :white_check_mark: npm audit: No known vulnerabilities';
+            }
+            core.setOutput('status', status);
+            core.setOutput('summary', summary);
+
+      - name: Upload Audit Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-summary
+          path: npm-audit-results.json
+          if-no-files-found: ignore
+
+  eslint-security:
+    name: Code Security Lint (ESLint)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run ESLint Security Scan
+        id: eslint
+        continue-on-error: true
+        run: |
+          npx eslint \
+            "packages/*/src/**/*.{ts,tsx}" \
+            --format json \
+            --output-file eslint-results.json \
+            || true
+
+      - name: Parse ESLint Results
+        if: always()
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let status = 'pass';
+            let summary = '';
+            try {
+              const raw = fs.readFileSync('eslint-results.json', 'utf8');
+              const results = JSON.parse(raw);
+              let errorCount = 0;
+              let warnCount = 0;
+              const securityErrors = [];
+              const securityWarnings = [];
+              for (const file of results) {
+                for (const msg of file.messages) {
+                  const ruleId = msg.ruleId || '';
+                  const isSecurityRule = ruleId.startsWith('security/');
+                  if (!isSecurityRule) continue;
+                  const relPath = file.filePath.replace(/.*\/packages\//, 'packages/');
+                  const entry = `- \`${ruleId}\`: ${relPath}:${msg.line} - ${msg.message}`;
+                  if (msg.severity === 2) {
+                    errorCount++;
+                    securityErrors.push(entry);
+                  } else {
+                    warnCount++;
+                    securityWarnings.push(entry);
+                  }
+                }
+              }
+              if (errorCount > 0) {
+                status = 'fail';
+                summary = `### :x: ESLint Security: ${errorCount} error(s), ${warnCount} warning(s)\n\n`;
+                summary += '**Errors (blocking):**\n' + securityErrors.slice(0, 20).join('\n');
+                if (securityErrors.length > 20) summary += `\n...and ${securityErrors.length - 20} more`;
+                if (warnCount > 0) {
+                  summary += '\n\n**Warnings (non-blocking):**\n' + securityWarnings.slice(0, 10).join('\n');
+                  if (securityWarnings.length > 10) summary += `\n...and ${securityWarnings.length - 10} more`;
+                }
+              } else if (warnCount > 0) {
+                summary = `### :warning: ESLint Security: ${warnCount} warning(s) (no errors)\n\n` +
+                  securityWarnings.slice(0, 15).join('\n');
+                if (securityWarnings.length > 15) summary += `\n...and ${securityWarnings.length - 15} more`;
+              } else {
+                summary = '### :white_check_mark: ESLint Security: No security issues found';
+              }
+            } catch (e) {
+              summary = `### :grey_question: ESLint Security: Could not parse results\n\nError: ${e.message}`;
+            }
+            core.setOutput('status', status);
+            core.setOutput('summary', summary);
+
+      - name: Upload ESLint Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-security-summary
+          path: eslint-results.json
+          if-no-files-found: ignore
+
+  semgrep:
+    name: SAST Scan (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        id: semgrep
+        continue-on-error: true
+        run: |
+          semgrep scan \
+            --config p/default \
+            --config p/security-audit \
+            --config p/nodejs \
+            --config p/typescript \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude 'infrastructure' \
+            --exclude '*.test.ts' \
+            --exclude 'package-lock.json' \
+            --json \
+            --output semgrep-results.json \
+            packages/ \
+            || true
+
+      - name: Parse Semgrep Results
+        if: always()
+        id: parse
+        shell: python3 {0}
+        run: |
+          import json, os, uuid
+
+          status = 'pass'
+          summary = ''
+          try:
+              with open('semgrep-results.json') as f:
+                  data = json.load(f)
+              results = data.get('results', [])
+              high_crit = []
+              medium = []
+              low_info = []
+              for r in results:
+                  sev = r.get('extra', {}).get('severity', 'INFO').upper()
+                  check_id = r.get('check_id', 'unknown')
+                  path = r.get('path', 'unknown')
+                  line = r.get('start', {}).get('line', '?')
+                  msg = r.get('extra', {}).get('message', 'No description')
+                  if len(msg) > 120:
+                      msg = msg[:120] + '...'
+                  entry = f"- **{sev}** `{check_id}`: {path}:{line} - {msg}"
+                  if sev in ('ERROR', 'WARNING', 'HIGH', 'CRITICAL'):
+                      high_crit.append(entry)
+                  elif sev == 'MEDIUM':
+                      medium.append(entry)
+                  else:
+                      low_info.append(entry)
+              if high_crit:
+                  status = 'fail'
+                  summary = f"### :x: Semgrep: {len(high_crit)} high/critical, {len(medium)} medium, {len(low_info)} low/info\n\n"
+                  summary += "**High/Critical (blocking):**\n" + "\n".join(high_crit[:20])
+                  if len(high_crit) > 20:
+                      summary += f"\n...and {len(high_crit) - 20} more"
+              elif medium:
+                  summary = f"### :warning: Semgrep: {len(medium)} medium, {len(low_info)} low/info (no high/critical)\n\n"
+                  summary += "\n".join(medium[:15])
+              elif low_info:
+                  summary = f"### :information_source: Semgrep: {len(low_info)} low/info findings only"
+              else:
+                  summary = "### :white_check_mark: Semgrep: No security issues found"
+          except Exception as e:
+              summary = f"### :grey_question: Semgrep: Could not parse results\n\nError: {e}"
+
+          delimiter = uuid.uuid4().hex
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"status={status}\n")
+              f.write(f"summary<<{delimiter}\n{summary}\n{delimiter}\n")
+
+      - name: Upload Semgrep Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-summary
+          path: semgrep-results.json
+          if-no-files-found: ignore
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [gitleaks, npm-audit, eslint-security, semgrep]
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Aggregate Results and Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const gitleaksStatus = '${{ needs.gitleaks.outputs.status }}' || 'unknown';
+            const gitleaksSummary = `${{ needs.gitleaks.outputs.summary }}` || '### :grey_question: Gitleaks: No results available';
+            const npmAuditStatus = '${{ needs.npm-audit.outputs.status }}' || 'unknown';
+            const npmAuditSummary = `${{ needs.npm-audit.outputs.summary }}` || '### :grey_question: npm audit: No results available';
+            const eslintStatus = '${{ needs.eslint-security.outputs.status }}' || 'unknown';
+            const eslintSummary = `${{ needs.eslint-security.outputs.summary }}` || '### :grey_question: ESLint Security: No results available';
+            const semgrepStatus = '${{ needs.semgrep.outputs.status }}' || 'unknown';
+            const semgrepSummary = `${{ needs.semgrep.outputs.summary }}` || '### :grey_question: Semgrep: No results available';
+
+            const anyFailed = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus].includes('fail');
+
+            const overallIcon = anyFailed ? ':rotating_light:' : ':shield:';
+            const overallText = anyFailed
+              ? 'Security issues were found that must be resolved before merging.'
+              : 'All security scans passed.';
+
+            const body = [
+              `## ${overallIcon} Security Scan Results`,
+              '',
+              overallText,
+              '',
+              '---',
+              '',
+              gitleaksSummary,
+              '',
+              '---',
+              '',
+              npmAuditSummary,
+              '',
+              '---',
+              '',
+              eslintSummary,
+              '',
+              '---',
+              '',
+              semgrepSummary,
+              '',
+              '---',
+              '',
+              `*Scan completed at ${new Date().toISOString()}*`,
+            ].join('\n');
+
+            // Post comment on PR (sticky - update existing or create new)
+            if (context.eventName === 'pull_request') {
+              const prNumber = context.payload.pull_request.number;
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              const marker = '<!-- security-scan-results -->';
+              const existing = comments.data.find(c => c.body.includes(marker));
+              const fullBody = marker + '\n' + body;
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body: fullBody,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: fullBody,
+                });
+              }
+              core.info('Posted security scan results as PR comment');
+            } else {
+              core.info('Not a PR event, skipping comment. Results logged to workflow summary.');
+            }
+
+            // Write to workflow summary
+            await core.summary
+              .addRaw(body)
+              .write();
+
+            // Fail the gate if any scan found high/critical issues
+            if (anyFailed) {
+              core.setFailed('Security scan found HIGH or CRITICAL issues. See PR comment or workflow summary for details.');
+            }
