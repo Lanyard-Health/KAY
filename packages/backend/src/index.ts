@@ -38,12 +38,12 @@ import portalRoutes from './routes/portal.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 
 const app = express();
-const PORT = process.env['PORT'] || 3001;
+const PORT = process.env['PORT'] || 3002;
 
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env['FRONTEND_URL'] || 'http://localhost:5173',
+  origin: process.env['FRONTEND_URL'] || 'http://localhost:5190',
   credentials: true,
 }));
 
@@ -105,7 +105,9 @@ app.use((_req, res) => {
 });
 
 app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Backend running on port ${PORT}`);
+  logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
+  logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
 
   // Initialize scheduled jobs
   schedulerService.initialize();
