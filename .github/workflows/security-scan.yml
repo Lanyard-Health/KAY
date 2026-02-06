@@ -331,16 +331,25 @@ jobs:
 
       - name: Aggregate Results and Comment on PR
         uses: actions/github-script@v7
+        env:
+          GITLEAKS_STATUS: ${{ needs.gitleaks.outputs.status }}
+          GITLEAKS_SUMMARY: ${{ needs.gitleaks.outputs.summary }}
+          NPM_AUDIT_STATUS: ${{ needs.npm-audit.outputs.status }}
+          NPM_AUDIT_SUMMARY: ${{ needs.npm-audit.outputs.summary }}
+          ESLINT_STATUS: ${{ needs.eslint-security.outputs.status }}
+          ESLINT_SUMMARY: ${{ needs.eslint-security.outputs.summary }}
+          SEMGREP_STATUS: ${{ needs.semgrep.outputs.status }}
+          SEMGREP_SUMMARY: ${{ needs.semgrep.outputs.summary }}
         with:
           script: |
-            const gitleaksStatus = '${{ needs.gitleaks.outputs.status }}' || 'unknown';
-            const gitleaksSummary = `${{ needs.gitleaks.outputs.summary }}` || '### :grey_question: Gitleaks: No results available';
-            const npmAuditStatus = '${{ needs.npm-audit.outputs.status }}' || 'unknown';
-            const npmAuditSummary = `${{ needs.npm-audit.outputs.summary }}` || '### :grey_question: npm audit: No results available';
-            const eslintStatus = '${{ needs.eslint-security.outputs.status }}' || 'unknown';
-            const eslintSummary = `${{ needs.eslint-security.outputs.summary }}` || '### :grey_question: ESLint Security: No results available';
-            const semgrepStatus = '${{ needs.semgrep.outputs.status }}' || 'unknown';
-            const semgrepSummary = `${{ needs.semgrep.outputs.summary }}` || '### :grey_question: Semgrep: No results available';
+            const gitleaksStatus = process.env.GITLEAKS_STATUS || 'unknown';
+            const gitleaksSummary = process.env.GITLEAKS_SUMMARY || '### :grey_question: Gitleaks: No results available';
+            const npmAuditStatus = process.env.NPM_AUDIT_STATUS || 'unknown';
+            const npmAuditSummary = process.env.NPM_AUDIT_SUMMARY || '### :grey_question: npm audit: No results available';
+            const eslintStatus = process.env.ESLINT_STATUS || 'unknown';
+            const eslintSummary = process.env.ESLINT_SUMMARY || '### :grey_question: ESLint Security: No results available';
+            const semgrepStatus = process.env.SEMGREP_STATUS || 'unknown';
+            const semgrepSummary = process.env.SEMGREP_SUMMARY || '### :grey_question: Semgrep: No results available';
 
             const anyFailed = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus].includes('fail');
 
