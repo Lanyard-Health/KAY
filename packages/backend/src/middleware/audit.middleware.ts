@@ -36,6 +36,7 @@ const methodToAction: Record<string, AuditAction> = {
 // Routes that should not be audited
 const excludedPaths = [
   '/health',
+  '/api/health',
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
 ];

@@ -10,6 +10,30 @@ const getAmplifyAuth = async () => {
   return { fetchAuthSession, signIn, signOut };
 };
 
+/**
+ * Fetch with retry for dev mode — retries on network errors and 503 (server starting).
+ * Returns the response on success or non-retryable error, or null if all attempts fail.
+ */
+async function fetchWithDevRetry(
+  url: string,
+  headers: Record<string, string>,
+  maxAttempts = 3,
+  delayMs = 1000,
+): Promise<Response | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, { headers });
+      if (response.status !== 503) return response;
+    } catch {
+      // Network error — backend not reachable yet
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return null;
+}
+
 interface User {
   id: string;
   email: string;
@@ -52,7 +76,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (DEV_BYPASS_ENABLED) {
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
-          // Retry fetching user — backend may still be starting up
           const headers: Record<string, string> = {
             Authorization: 'Bearer dev-token',
           };
@@ -60,16 +83,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             headers['X-Dev-Role'] = devSession;
           }
 
-          let response: Response | null = null;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              response = await fetch(`${API_BASE_URL}/users/me`, { headers });
-              if (response.ok) break;
-            } catch {
-              // Backend not ready yet
-            }
-            if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
-          }
+          const response = await fetchWithDevRetry(`${API_BASE_URL}/users/me`, headers);
 
           if (response?.ok) {
             const { data } = await response.json();
@@ -80,6 +94,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isLoading: false,
             });
             return;
+          }
+
+          // Stale session recovery: re-authenticate using the stored role
+          if (devSession === 'provider') {
+            try {
+              await get().devProviderLogin();
+              return;
+            } catch {
+              // Recovery failed — fall through to unauthenticated state
+            }
+          } else {
+            try {
+              await get().devLogin();
+              return;
+            } catch {
+              // Recovery failed — fall through to unauthenticated state
+            }
           }
         }
         set({
@@ -150,12 +181,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       localStorage.setItem('dev_session', 'admin');
 
-      // Fetch user from API (backend auto-creates dev user)
-      const response = await fetch(`${API_BASE_URL}/users/me`, {
-        headers: { Authorization: 'Bearer dev-token' },
-      });
+      // Fetch user from API with retry (backend may still be starting)
+      const response = await fetchWithDevRetry(
+        `${API_BASE_URL}/users/me`,
+        { Authorization: 'Bearer dev-token' },
+      );
 
-      if (response.ok) {
+      if (response?.ok) {
         const { data } = await response.json();
         set({
           user: data,
@@ -187,14 +219,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       localStorage.setItem('dev_session', 'provider');
 
-      const response = await fetch(`${API_BASE_URL}/users/me`, {
-        headers: {
+      const response = await fetchWithDevRetry(
+        `${API_BASE_URL}/users/me`,
+        {
           Authorization: 'Bearer dev-token',
           'X-Dev-Role': 'provider',
         },
-      });
+      );
 
-      if (response.ok) {
+      if (response?.ok) {
         const { data } = await response.json();
         set({
           user: data,

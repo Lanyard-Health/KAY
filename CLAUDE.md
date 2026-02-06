@@ -109,5 +109,10 @@ All changes to `master` must go through a pull request with:
 - At least 1 approval
 - Security Gate CI check passing
 
+## DEV ENVIRONMENT RULES
+- The dev bypass user must be auto-created on every backend startup when `DEV_AUTH_BYPASS=true`. Never require manual database intervention to start the dev environment.
+- The backend exposes a readiness gate: `/health` and `/api/health` return `{ ready: false }` with 503 until all async initialization (DB warmup, dev user seeding) completes. The frontend retries automatically.
+- The dev environment must work with a single command (`docker compose up -d && npm run dev`) after a clean restart — no manual steps, no seed scripts, no browser cache clearing.
+
 ## After Every Task
 Provide a brief security summary: what was checked, any issues found, and any issues fixed.

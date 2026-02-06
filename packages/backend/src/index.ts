@@ -40,6 +40,7 @@ import { prisma } from './utils/prisma.js';
 
 const app = express();
 const PORT = process.env['PORT'] || 3002;
+let serverReady = false;
 
 // Security middleware
 app.use(helmet());
@@ -76,9 +77,25 @@ app.get('/', (_req, res) => {
   res.redirect(process.env['FRONTEND_URL'] || 'http://localhost:5190');
 });
 
-// Health check
+// Health check (with readiness info)
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const payload = { status: serverReady ? 'ok' : 'starting', ready: serverReady, timestamp: new Date().toISOString() };
+  res.status(serverReady ? 200 : 503).json(payload);
+});
+
+// Health check alias under /api (registered before the readiness gate)
+app.get('/api/health', (_req, res) => {
+  const payload = { status: serverReady ? 'ok' : 'starting', ready: serverReady, timestamp: new Date().toISOString() };
+  res.status(serverReady ? 200 : 503).json(payload);
+});
+
+// Readiness gate — block /api requests until server is fully initialized
+app.use('/api', (_req, res, next) => {
+  if (!serverReady) {
+    res.status(503).json({ error: 'Server starting', retry: true });
+    return;
+  }
+  next();
 });
 
 // API Routes
@@ -204,6 +221,9 @@ app.listen(PORT, async () => {
       logger.error('Failed to bootstrap dev users on startup:', err);
     }
   }
+
+  serverReady = true;
+  logger.info(`Server fully ready — accepting API requests on port ${PORT}`);
 });
 
 export default app;
