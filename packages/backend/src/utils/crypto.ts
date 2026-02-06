@@ -1,6 +1,6 @@
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
 
-const ALGORITHM = 'aes-256-gcm';
+const ALGORITHM = 'aes-256-gcm' as const;
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
