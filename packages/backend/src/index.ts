@@ -36,6 +36,7 @@ import { rosterRoutes } from './routes/roster.routes.js';
 import { aiRoutes } from './routes/ai.routes.js';
 import portalRoutes from './routes/portal.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
+import { prisma } from './utils/prisma.js';
 
 const app = express();
 const PORT = process.env['PORT'] || 3002;
@@ -104,13 +105,81 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`Backend running on port ${PORT}`);
   logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
   logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
 
   // Initialize scheduled jobs
   schedulerService.initialize();
+
+  // Pre-create dev bypass users on startup so auth never fails after restart
+  if (process.env['DEV_AUTH_BYPASS'] === 'true') {
+    try {
+      // Ensure dev admin user exists
+      const adminUser = await prisma.user.findUnique({
+        where: { cognitoId: 'dev-cognito-id' },
+      });
+      if (adminUser) {
+        logger.info(`Dev admin user ready (id: ${adminUser.id}, email: ${adminUser.email})`);
+      } else {
+        const newAdmin = await prisma.user.create({
+          data: {
+            cognitoId: 'dev-cognito-id',
+            email: 'admin@dev.local',
+            firstName: 'Dev',
+            lastName: 'Admin',
+            role: 'admin',
+            isActive: true,
+          },
+        });
+        logger.info(`Created dev admin user on startup (id: ${newAdmin.id})`);
+      }
+
+      // Ensure dev provider user exists with linked provider record
+      const providerUser = await prisma.user.findUnique({
+        where: { cognitoId: 'dev-provider-cognito-id' },
+      });
+      if (providerUser) {
+        logger.info(`Dev provider user ready (id: ${providerUser.id}, providerId: ${providerUser.providerId})`);
+      } else {
+        let provider = await prisma.provider.findUnique({
+          where: { npi: '1234567890' },
+        });
+        if (!provider) {
+          provider = await prisma.provider.create({
+            data: {
+              firstName: 'Dev',
+              lastName: 'Provider',
+              npi: '1234567890',
+              email: 'provider@dev.local',
+              phone: '555-000-0000',
+              status: 'active',
+              providerType: 'psychiatrist',
+              dateOfBirth: new Date('1980-01-01'),
+              gender: 'male',
+            },
+          });
+        }
+        const newProvider = await prisma.user.create({
+          data: {
+            cognitoId: 'dev-provider-cognito-id',
+            email: 'provider@dev.local',
+            firstName: 'Dev',
+            lastName: 'Provider',
+            role: 'provider',
+            isActive: true,
+            providerId: provider.id,
+          },
+        });
+        logger.info(`Created dev provider user on startup (id: ${newProvider.id})`);
+      }
+
+      logger.info('DEV_AUTH_BYPASS=true — dev users validated and ready');
+    } catch (err) {
+      logger.error('Failed to bootstrap dev users on startup:', err);
+    }
+  }
 });
 
 export default app;

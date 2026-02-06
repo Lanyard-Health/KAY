@@ -52,13 +52,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (DEV_BYPASS_ENABLED) {
         const devSession = localStorage.getItem('dev_session');
         if (devSession) {
-          // Fetch user from API (backend will auto-authenticate in dev mode)
-          const headers: Record<string, string> = {};
+          // Retry fetching user — backend may still be starting up
+          const headers: Record<string, string> = {
+            Authorization: 'Bearer dev-token',
+          };
           if (devSession && devSession !== 'true') {
             headers['X-Dev-Role'] = devSession;
           }
-          const response = await fetch(`${API_BASE_URL}/users/me`, { headers });
-          if (response.ok) {
+
+          let response: Response | null = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              response = await fetch(`${API_BASE_URL}/users/me`, { headers });
+              if (response.ok) break;
+            } catch {
+              // Backend not ready yet
+            }
+            if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
+          }
+
+          if (response?.ok) {
             const { data } = await response.json();
             set({
               user: data,
@@ -138,7 +151,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('dev_session', 'admin');
 
       // Fetch user from API (backend auto-creates dev user)
-      const response = await fetch(`${API_BASE_URL}/users/me`);
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        headers: { Authorization: 'Bearer dev-token' },
+      });
 
       if (response.ok) {
         const { data } = await response.json();
@@ -163,8 +178,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Development provider login bypass
   devProviderLogin: async () => {
-    if (!isDevelopment || !DEV_BYPASS_ENABLED) {
-      throw new Error('Dev login only available in development mode');
+    if (!DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
     }
 
     set({ isLoading: true, error: null });
@@ -172,8 +187,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       localStorage.setItem('dev_session', 'provider');
 
-      const response = await fetch('/api/v1/users/me', {
-        headers: { 'X-Dev-Role': 'provider' },
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        headers: {
+          Authorization: 'Bearer dev-token',
+          'X-Dev-Role': 'provider',
+        },
       });
 
       if (response.ok) {
