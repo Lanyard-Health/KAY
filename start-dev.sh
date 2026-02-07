@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /Users/kay/KAY
+cd /Users/kay/Documents/KAY
 
 # Clean up both servers on Ctrl+C
 cleanup() {

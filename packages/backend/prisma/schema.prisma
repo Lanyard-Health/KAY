@@ -20,6 +20,18 @@ enum UserRole {
   provider
 }
 
+enum PracticeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PracticeRole {
+  SUPER_ADMIN
+  PRACTICE_ADMIN
+  PRACTICE_STAFF
+  PROVIDER
+}
+
 model User {
   id          String    @id @default(uuid())
   cognitoId   String    @unique @map("cognito_id")
@@ -46,8 +58,46 @@ model User {
   tasksAssigned        Task[]              @relation("TaskAssignedTo")
   tasksCompleted       Task[]              @relation("TaskCompletedBy")
   termLettersReviewed  TerminationLetter[] @relation("TermLetterReviewedBy")
+  practices            UserPractice[]
 
   @@map("users")
+}
+
+// ==========================================
+// PRACTICE (MULTI-TENANT)
+// ==========================================
+
+model Practice {
+  id        String          @id @default(uuid())
+  name      String
+  status    PracticeStatus  @default(ACTIVE)
+  phone     String?
+  email     String?
+  website   String?
+  notes     String?
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  users              UserPractice[]
+  providers          Provider[]
+  practiceLocations  PracticeLocation[]
+
+  @@map("practices")
+}
+
+model UserPractice {
+  id         String       @id @default(uuid())
+  userId     String       @map("user_id")
+  practiceId String       @map("practice_id")
+  role       PracticeRole
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, practiceId])
+  @@index([practiceId])
+  @@map("user_practices")
 }
 
 // ==========================================
@@ -133,6 +183,9 @@ model Provider {
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
 
+  // Multi-tenant
+  practiceId  String?  @map("practice_id")
+
   // Relations
   user                   User?
   addresses              ProviderAddress[]
@@ -152,6 +205,7 @@ model Provider {
   applications           ProviderApplication[]
   tasks                  Task[]
   terminationLetters     TerminationLetter[]
+  practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@map("providers")
 }
@@ -242,8 +296,12 @@ model PracticeLocation {
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
 
+  // Multi-tenant
+  practiceId  String?  @map("practice_id")
+
   // Relations
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice Practice? @relation(fields: [practiceId], references: [id])
 
   @@map("practice_locations")
 }

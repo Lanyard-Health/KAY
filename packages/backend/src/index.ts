@@ -37,6 +37,7 @@ import { aiRoutes } from './routes/ai.routes.js';
 import portalRoutes from './routes/portal.routes.js';
 import taskRoutes from './routes/task.routes.js';
 import terminationLetterRoutes from './routes/terminationLetter.routes.js';
+import practiceRoutes from './routes/practice.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -122,6 +123,7 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/portal', portalRoutes);
 app.use('/api/v1', taskRoutes);
 app.use('/api/v1', terminationLetterRoutes);
+app.use('/api/v1/practices', practiceRoutes);
 
 // Error handling
 app.use(errorHandler);
