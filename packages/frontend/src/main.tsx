@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
+import { validateEnv } from './utils/validateEnv';
 
 // Only configure AWS Amplify if not in dev bypass mode
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
@@ -12,6 +13,8 @@ const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
 
 const initApp = async () => {
+  validateEnv();
+
   // Only load and configure Amplify when not in dev bypass mode
   if (!DEV_BYPASS_ENABLED && userPoolId && clientId) {
     const { Amplify } = await import('aws-amplify');

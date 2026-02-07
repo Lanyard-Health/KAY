@@ -53,7 +53,7 @@ JWT_SECRET=your-secret-key-change-in-production
 **Frontend** (`packages/frontend/.env`):
 ```env
 VITE_DEV_AUTH_BYPASS=true
-VITE_API_URL=http://localhost:3002
+# VITE_API_URL is NOT needed in dev — the Vite proxy handles /api → localhost:3002
 ```
 
 ### Step 5: Initialize the Database
