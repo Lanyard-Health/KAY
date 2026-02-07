@@ -379,15 +379,12 @@ export default function ProviderDetail() {
             </p>
             {(() => {
               const primaryLocation = provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0];
-              if (!primaryLocation) return null;
-              const maskedTaxId = primaryLocation.taxId
+              const maskedTaxId = primaryLocation?.taxId
                 ? `****${primaryLocation.taxId.slice(-4)}`
-                : null;
+                : '—';
               return (
                 <p className="text-sm text-gray-500">
-                  {primaryLocation.groupNpi && <>Group NPI: {primaryLocation.groupNpi}</>}
-                  {primaryLocation.groupNpi && maskedTaxId && <> | </>}
-                  {maskedTaxId && <>Tax ID: {maskedTaxId}</>}
+                  Group NPI: {primaryLocation?.groupNpi || '—'} | Tax ID: {maskedTaxId}
                 </p>
               );
             })()}
