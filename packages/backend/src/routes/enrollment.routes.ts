@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
+import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -307,6 +308,16 @@ router.put(
         },
         include: { payer: true },
       });
+
+      // Trigger termination workflow when terminationDate transitions from null → value
+      if (
+        validated.terminationDate &&
+        !existing.terminationDate &&
+        enrollment.terminationDate
+      ) {
+        triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
+          .catch((err) => console.error('Termination workflow trigger failed:', err));
+      }
 
       res.json({ success: true, data: enrollment });
     } catch (error) {

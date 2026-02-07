@@ -37,6 +37,7 @@ const createPracticeLocationSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   taxId: z.string().max(20).optional(),
   npi: z.string().regex(/^\d{10}$/).optional().or(z.literal('')),
+  groupNpi: z.string().regex(/^\d{10}$/).optional().or(z.literal('')),
   officeHours: z.record(z.object({
     open: z.string(),
     close: z.string(),

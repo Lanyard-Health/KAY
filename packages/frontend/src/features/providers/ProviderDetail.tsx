@@ -2,7 +2,7 @@ import { useState, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import PracticeLocationModal from './PracticeLocationModal';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
+import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import PdmComplianceCard from '../../components/PdmComplianceCard';
 import { CaqhCard } from '../../components/CaqhCard';
@@ -21,6 +22,7 @@ const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
   { name: 'Checklist', icon: ClipboardDocumentCheckIcon },
   { name: 'Enrollments', icon: BuildingOfficeIcon },
+  { name: 'Tasks', icon: ListBulletIcon },
 ];
 
 export default function ProviderDetail() {
@@ -375,6 +377,20 @@ export default function ProviderDetail() {
             <p className="text-sm text-gray-500">
               NPI: {provider.npi} | {provider.providerType.replace('_', ' ')}
             </p>
+            {(() => {
+              const primaryLocation = provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0];
+              if (!primaryLocation) return null;
+              const maskedTaxId = primaryLocation.taxId
+                ? `****${primaryLocation.taxId.slice(-4)}`
+                : null;
+              return (
+                <p className="text-sm text-gray-500">
+                  {primaryLocation.groupNpi && <>Group NPI: {primaryLocation.groupNpi}</>}
+                  {primaryLocation.groupNpi && maskedTaxId && <> | </>}
+                  {maskedTaxId && <>Tax ID: {maskedTaxId}</>}
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="mt-4 sm:mt-0 flex gap-3">
@@ -765,6 +781,11 @@ export default function ProviderDetail() {
           {/* Enrollments Tab */}
           <Tab.Panel>
             <ProviderEnrollments providerId={id!} />
+          </Tab.Panel>
+
+          {/* Tasks Tab */}
+          <Tab.Panel>
+            <ProviderTasks providerId={id!} />
           </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>

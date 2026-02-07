@@ -35,6 +35,8 @@ import { pdmRoutes } from './routes/pdm.routes.js';
 import { rosterRoutes } from './routes/roster.routes.js';
 import { aiRoutes } from './routes/ai.routes.js';
 import portalRoutes from './routes/portal.routes.js';
+import taskRoutes from './routes/task.routes.js';
+import terminationLetterRoutes from './routes/terminationLetter.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -118,6 +120,8 @@ app.use('/api/v1/pdm', pdmRoutes);
 app.use('/api/v1/roster', rosterRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/portal', portalRoutes);
+app.use('/api/v1', taskRoutes);
+app.use('/api/v1', terminationLetterRoutes);
 
 // Error handling
 app.use(errorHandler);

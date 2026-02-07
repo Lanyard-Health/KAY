@@ -22,6 +22,7 @@ interface PracticeLocationFormData {
   email?: string;
   taxId?: string;
   npi?: string;
+  groupNpi?: string;
   wheelchairAccessible: boolean;
   publicTransitAccess: boolean;
   parkingAvailable: boolean;
@@ -94,6 +95,7 @@ export default function PracticeLocationModal({
       email: '',
       taxId: '',
       npi: '',
+      groupNpi: '',
       wheelchairAccessible: false,
       publicTransitAccess: false,
       parkingAvailable: true,
@@ -129,6 +131,7 @@ export default function PracticeLocationModal({
         email: '',
         taxId: '',
         npi: '',
+        groupNpi: '',
         wheelchairAccessible: false,
         publicTransitAccess: false,
         parkingAvailable: true,
@@ -298,6 +301,36 @@ export default function PracticeLocationModal({
                           placeholder="(555) 555-5555"
                         />
                         <input type="hidden" {...register('fax')} />
+                      </div>
+                    </div>
+
+                    {/* Identifiers */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div>
+                        <label className="label">Location NPI</label>
+                        <input
+                          {...register('npi')}
+                          className="input"
+                          placeholder="1234567890"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Group NPI</label>
+                        <input
+                          {...register('groupNpi')}
+                          className="input"
+                          placeholder="1234567890"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Tax ID (EIN/SSN)</label>
+                        <input
+                          {...register('taxId')}
+                          className="input"
+                          placeholder="12-3456789"
+                        />
                       </div>
                     </div>
 
