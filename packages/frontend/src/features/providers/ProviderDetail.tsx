@@ -683,6 +683,33 @@ export default function ProviderDetail() {
             </span>
           </div>
 
+          {/* Practice Assignment */}
+          <div className="card card-body">
+            <h3 className="text-sm font-medium text-gray-500 mb-3">Practice</h3>
+            {provider.practice ? (
+              <div>
+                <Link
+                  to={`/practices/${provider.practice.id}`}
+                  className="text-sm font-medium text-primary-600 hover:text-primary-500"
+                >
+                  {provider.practice.name}
+                </Link>
+                <span
+                  className={clsx(
+                    'ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                    provider.practice.status === 'ACTIVE'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600'
+                  )}
+                >
+                  {provider.practice.status}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Unassigned</p>
+            )}
+          </div>
+
           {/* CAQH ProView */}
           <CaqhCard providerId={id!} />
 

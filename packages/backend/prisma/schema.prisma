@@ -38,6 +38,7 @@ model User {
   email       String    @unique
   firstName   String    @map("first_name")
   lastName    String    @map("last_name")
+  phone       String?
   role        UserRole
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")

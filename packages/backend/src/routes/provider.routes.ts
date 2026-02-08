@@ -23,6 +23,11 @@ providerRoutes.get(
 
       const where = {
         ...getPracticeProviderFilter(req),
+        ...(req.query['practiceId'] === 'null'
+          ? { practiceId: null }
+          : req.query['practiceId']
+          ? { practiceId: req.query['practiceId'] as string }
+          : {}),
         ...(search && {
           OR: [
             { firstName: { contains: search, mode: 'insensitive' as const } },
@@ -100,6 +105,7 @@ providerRoutes.get(
               createdAt: true,
             },
           },
+          practice: { select: { id: true, name: true, status: true } },
         },
       });
 
