@@ -63,6 +63,7 @@ interface AuthState {
   challengeName: string | null;
   challengeSession: any | null;
   challengeEmail: string | null;
+  challengeMissingAttributes: string[];
   handleNewPasswordChallenge: (newPassword: string) => Promise<void>;
   handleMfaChallenge: (code: string) => Promise<void>;
   handleMfaSetup: () => Promise<{ qrUri: string; secretCode: string }>;
@@ -81,6 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   challengeName: null,
   challengeSession: null,
   challengeEmail: null,
+  challengeMissingAttributes: [],
 
   checkAuth: async () => {
     try {
@@ -279,10 +281,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const step = result.nextStep.signInStep;
 
         if (step === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+          const missing = (result.nextStep as any).missingAttributes || [];
           set({
             challengeName: 'NEW_PASSWORD_REQUIRED',
             challengeSession: result,
             challengeEmail: email,
+            challengeMissingAttributes: missing,
             isLoading: false,
           });
           return;
@@ -327,17 +331,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: true, error: null });
       const { confirmSignIn } = await import('aws-amplify/auth');
       const email = get().challengeEmail || '';
+      const missing = get().challengeMissingAttributes;
+
+      // Build userAttributes only for what Cognito says is missing
+      const userAttributes: Record<string, string> = {};
+      if (missing.length > 0 && email.includes('@')) {
+        if (missing.includes('email')) userAttributes.email = email;
+        if (missing.includes('name')) userAttributes.name = email.split('@')[0];
+        if (missing.includes('given_name')) userAttributes.given_name = email.split('@')[0];
+        if (missing.includes('family_name')) userAttributes.family_name = '';
+      }
+
       const result = await confirmSignIn({
         challengeResponse: newPassword,
-        options: {
-          userAttributes: {
-            ...(email.includes('@') ? { email, name: email.split('@')[0] } : {}),
-          },
-        },
+        ...(Object.keys(userAttributes).length > 0 && {
+          options: { userAttributes },
+        }),
       });
 
       if (result.nextStep?.signInStep === 'DONE') {
-        set({ challengeName: null, challengeSession: null, challengeEmail: null });
+        set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
         await get().checkAuth();
       } else if (result.nextStep?.signInStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
         set({
@@ -346,7 +359,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
         });
       } else {
-        set({ challengeName: null, challengeSession: null, challengeEmail: null });
+        set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
         await get().checkAuth();
       }
     } catch (error) {
