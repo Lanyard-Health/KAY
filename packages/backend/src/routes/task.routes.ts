@@ -3,11 +3,18 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
-  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'admin') return;
+  if (role === 'credentialing_staff') {
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { providerId: true } });
+    if (!t) return;
+    if (!(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
+    return;
+  }
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -46,7 +53,7 @@ const updateTaskSchema = z.object({
 router.get(
   '/providers/:providerId/tasks',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -86,7 +93,7 @@ router.get(
 router.post(
   '/providers/:providerId/tasks',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -204,6 +211,13 @@ router.patch(
       });
 
       if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Task not found' },
+        });
+      }
+
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Task not found' },

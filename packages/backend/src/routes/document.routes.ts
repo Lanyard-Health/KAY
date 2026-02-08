@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
 
 export const documentRoutes = Router();
@@ -19,9 +20,13 @@ async function getDocumentService() {
   return _documentService;
 }
 
-function assertDocumentAccess(req: Request, document: { providerId: string }): void {
+async function assertDocumentAccess(req: Request, document: { providerId: string }): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
-  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'admin') return;
+  if (role === 'credentialing_staff') {
+    if (!(await validateProviderPracticeAccess(req, document.providerId))) throw new ForbiddenError('Access denied to this document');
+    return;
+  }
   if (role === 'provider' && userProviderId === document.providerId) return;
   throw new ForbiddenError('Access denied to this document');
 }
@@ -42,7 +47,7 @@ documentRoutes.post(
         throw new NotFoundError('Provider');
       }
 
-      assertDocumentAccess(req, { providerId: data.providerId });
+      await assertDocumentAccess(req, { providerId: data.providerId });
 
       const result = await (await getDocumentService()).getUploadUrl(data, req.user!.id);
 
@@ -64,7 +69,7 @@ documentRoutes.post(
         where: { id: documentId },
       });
       if (!existing) throw new NotFoundError('Document');
-      assertDocumentAccess(req, existing);
+      await assertDocumentAccess(req, existing);
 
       const document = await (await getDocumentService()).confirmUpload(documentId);
 
@@ -93,7 +98,7 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      assertDocumentAccess(req, document);
+      await assertDocumentAccess(req, document);
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -115,7 +120,7 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      assertDocumentAccess(req, document);
+      await assertDocumentAccess(req, document);
 
       const downloadUrl = await (await getDocumentService()).getDownloadUrl(document.s3Key);
 
@@ -147,7 +152,7 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      assertDocumentAccess(req, document);
+      await assertDocumentAccess(req, document);
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -167,7 +172,7 @@ documentRoutes.put(
         where: { id: req.params['id'] },
       });
       if (!existing) throw new NotFoundError('Document');
-      assertDocumentAccess(req, existing);
+      await assertDocumentAccess(req, existing);
 
       const document = await prisma.document.update({
         where: { id: req.params['id'] },
@@ -200,7 +205,7 @@ documentRoutes.put(
         throw new NotFoundError('Document');
       }
 
-      assertDocumentAccess(req, document);
+      await assertDocumentAccess(req, document);
 
       const updatedDocument = await prisma.document.update({
         where: { id: req.params['id'] },
@@ -232,7 +237,7 @@ documentRoutes.delete(
         throw new NotFoundError('Document');
       }
 
-      assertDocumentAccess(req, document);
+      await assertDocumentAccess(req, document);
 
       // Delete from S3 (ignore errors for orphaned records)
       try {
@@ -256,7 +261,7 @@ documentRoutes.delete(
 // GET /api/v1/documents/provider/:providerId - List documents for a provider
 documentRoutes.get(
   '/provider/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const documents = await prisma.document.findMany({

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { requirePracticeProvider, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { NotFoundError, ValidationError } from '../middleware/error.middleware.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
@@ -21,6 +22,7 @@ providerRoutes.get(
       const { page, pageSize, search, status } = parseQuery(req.query, providerListQuerySchema);
 
       const where = {
+        ...getPracticeProviderFilter(req),
         ...(search && {
           OR: [
             { firstName: { contains: search, mode: 'insensitive' as const } },
@@ -71,7 +73,7 @@ providerRoutes.get(
 // GET /api/v1/providers/:id - Get single provider
 providerRoutes.get(
   '/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const provider = await prisma.provider.findUnique({
@@ -146,7 +148,7 @@ providerRoutes.post(
 // PUT /api/v1/providers/:id - Update provider
 providerRoutes.put(
   '/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validatedData = updateProviderSchema.parse(req.body);
@@ -185,7 +187,7 @@ providerRoutes.put(
 // DELETE /api/v1/providers/:id - Soft delete provider
 providerRoutes.delete(
   '/:providerId',
-  authorize('admin'),
+  authorize('admin'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.provider.findUnique({
@@ -221,7 +223,7 @@ providerRoutes.delete(
 // GET /api/v1/providers/:id/export - Export provider data for forms
 providerRoutes.get(
   '/:providerId/export',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const format = req.query['format'] as string || 'caqh';

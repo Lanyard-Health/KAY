@@ -5,6 +5,7 @@ import { followUpService } from '../services/followup.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 
 const followUpRoutes = Router();
 
@@ -36,6 +37,19 @@ const upload = multer({
     }
   },
 });
+
+// Practice-scope check for enrollment :id routes
+async function checkEnrollmentPracticeAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const id = req.params['id'];
+  if (!id) return next();
+  const enrollment = await prisma.payerEnrollment.findUnique({ where: { id }, select: { providerId: true } });
+  if (!enrollment) return next(); // Let route handle 404
+  if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) {
+    res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
+    return;
+  }
+  next();
+}
 
 // Get email service status and config
 followUpRoutes.get('/status', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
@@ -99,7 +113,7 @@ followUpRoutes.post('/test-email', authorize('admin', 'credentialing_staff'), as
 });
 
 // Get enrollment data for email preview
-followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const data = await followUpService.getEnrollmentEmailData(id);
@@ -121,7 +135,7 @@ followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_
 });
 
 // Generate email HTML preview
-followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { customMessage } = req.body;
@@ -153,6 +167,7 @@ followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credenti
 followUpRoutes.post(
   '/enrollment/:id/send',
   authorize('admin', 'credentialing_staff'),
+  checkEnrollmentPracticeAccess,
   upload.single('attachment'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -198,7 +213,7 @@ followUpRoutes.post(
 );
 
 // Legacy: Send test follow-up for a specific enrollment
-followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { email } = req.body;
@@ -226,7 +241,7 @@ followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_st
 });
 
 // Configure follow-up settings for an enrollment
-followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { enabled, email, frequencyDays } = req.body;
@@ -268,7 +283,7 @@ followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing
 });
 
 // Get follow-up settings for an enrollment
-followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
 
@@ -302,11 +317,12 @@ followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing
 });
 
 // Get all enrollments with follow-up enabled
-followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const enrollments = await prisma.payerEnrollment.findMany({
       where: {
         followUpEnabled: true,
+        ...getPracticeRelationFilter(req),
       },
       include: {
         provider: {
@@ -368,7 +384,7 @@ followUpRoutes.post('/run', authorize('admin', 'credentialing_staff'), async (_r
 });
 
 // Get follow-up history (notifications) for an enrollment
-followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
 

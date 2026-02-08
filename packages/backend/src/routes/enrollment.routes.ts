@@ -3,12 +3,19 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
-  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'admin') return;
+  if (role === 'credentialing_staff') {
+    const enr = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    if (!enr) return;
+    if (!(await validateProviderPracticeAccess(req, enr.providerId))) throw new ForbiddenError('Access denied to this enrollment');
+    return;
+  }
 
   const enrollment = await prisma.payerEnrollment.findUnique({
     where: { id: enrollmentId },
@@ -114,6 +121,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.payerEnrollment.findMany({
+        where: getPracticeRelationFilter(req),
         include: {
           payer: true,
           provider: {
@@ -139,7 +147,7 @@ router.get(
 router.get(
   '/provider/:providerId',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -189,7 +197,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -350,6 +358,10 @@ router.delete(
           success: false,
           error: { message: 'Enrollment not found' },
         });
+      }
+
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
+        return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
       }
 
       await prisma.payerEnrollment.delete({ where: { id } });

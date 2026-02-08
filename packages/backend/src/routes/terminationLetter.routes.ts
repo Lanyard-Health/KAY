@@ -3,13 +3,20 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { generateTerminationLetter } from '../services/terminationLetter.service.js';
 import { logger } from '../utils/logger.js';
 
 // Helper: staff/admin can access all letters, providers only their own
 async function assertLetterAccess(req: Request, letterId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
-  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'admin') return;
+  if (role === 'credentialing_staff') {
+    const l = await prisma.terminationLetter.findUnique({ where: { id: letterId }, select: { providerId: true } });
+    if (!l) return;
+    if (!(await validateProviderPracticeAccess(req, l.providerId))) throw new ForbiddenError('Access denied to this letter');
+    return;
+  }
 
   const letter = await prisma.terminationLetter.findUnique({
     where: { id: letterId },
@@ -40,7 +47,7 @@ const updateLetterSchema = z.object({
 router.post(
   '/providers/:providerId/termination-letters/generate',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -133,7 +140,7 @@ router.post(
 router.get(
   '/providers/:providerId/termination-letters',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -227,6 +234,13 @@ router.patch(
         });
       }
 
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Termination letter not found' },
+        });
+      }
+
       if (existing.status === 'SENT') {
         return res.status(400).json({
           success: false,
@@ -283,6 +297,13 @@ router.post(
       });
 
       if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Termination letter not found' },
+        });
+      }
+
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Termination letter not found' },

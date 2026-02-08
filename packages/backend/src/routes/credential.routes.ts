@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   createLicenseSchema,
   createBoardCertificationSchema,
@@ -22,7 +23,7 @@ credentialRoutes.use(authenticate);
 // GET /api/v1/credentials/licenses/:providerId
 credentialRoutes.get(
   '/licenses/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const licenses = await prisma.license.findMany({
@@ -40,7 +41,7 @@ credentialRoutes.get(
 // POST /api/v1/credentials/licenses/:providerId
 credentialRoutes.post(
   '/licenses/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createLicenseSchema.parse(req.body);
@@ -70,6 +71,10 @@ credentialRoutes.put(
     try {
       const data = createLicenseSchema.partial().parse(req.body);
 
+      const existing = await prisma.license.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('License');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('License');
+
       const license = await prisma.license.update({
         where: { id: req.params['id'] },
         data: {
@@ -93,6 +98,10 @@ credentialRoutes.delete(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const existing = await prisma.license.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('License');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('License');
+
       await prisma.license.delete({
         where: { id: req.params['id'] },
       });
@@ -111,7 +120,7 @@ credentialRoutes.delete(
 // GET /api/v1/credentials/certifications/:providerId
 credentialRoutes.get(
   '/certifications/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const certifications = await prisma.boardCertification.findMany({
@@ -129,7 +138,7 @@ credentialRoutes.get(
 // POST /api/v1/credentials/certifications/:providerId
 credentialRoutes.post(
   '/certifications/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBoardCertificationSchema.parse(req.body);
@@ -158,7 +167,7 @@ credentialRoutes.post(
 // GET /api/v1/credentials/malpractice/:providerId
 credentialRoutes.get(
   '/malpractice/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const insurance = await prisma.malpracticeInsurance.findMany({
@@ -176,7 +185,7 @@ credentialRoutes.get(
 // POST /api/v1/credentials/malpractice/:providerId
 credentialRoutes.post(
   '/malpractice/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeInsuranceSchema.parse(req.body);
@@ -205,7 +214,7 @@ credentialRoutes.post(
 // GET /api/v1/credentials/education/:providerId
 credentialRoutes.get(
   '/education/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const education = await prisma.education.findMany({
@@ -223,7 +232,7 @@ credentialRoutes.get(
 // POST /api/v1/credentials/education/:providerId
 credentialRoutes.post(
   '/education/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEducationSchema.parse(req.body);
@@ -253,7 +262,7 @@ credentialRoutes.post(
 // GET /api/v1/credentials/work-history/:providerId
 credentialRoutes.get(
   '/work-history/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const workHistory = await prisma.workHistory.findMany({
@@ -271,7 +280,7 @@ credentialRoutes.get(
 // POST /api/v1/credentials/work-history/:providerId
 credentialRoutes.post(
   '/work-history/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createWorkHistorySchema.parse(req.body);

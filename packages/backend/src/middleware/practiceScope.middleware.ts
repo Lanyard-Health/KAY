@@ -1,0 +1,178 @@
+import type { Request, Response, NextFunction } from 'express';
+import { prisma } from '../utils/prisma.js';
+import { logger } from '../utils/logger.js';
+import { ForbiddenError } from './error.middleware.js';
+
+/**
+ * Non-middleware helper: initializes req.practiceScope.
+ * Called by authenticate middleware after setting req.user.
+ * Skips if practiceScope is already set.
+ */
+export async function initPracticeScope(req: Request): Promise<void> {
+  if (req.practiceScope || !req.user) return;
+
+  if (req.user.role === 'admin') {
+    req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
+    return;
+  }
+
+  try {
+    const assignments = await prisma.userPractice.findMany({
+      where: { userId: req.user.id },
+      select: { practiceId: true },
+    });
+    req.practiceScope = {
+      isSuperAdmin: false,
+      practiceIds: assignments.map((a) => a.practiceId),
+    };
+  } catch (err) {
+    logger.error('Failed to load practice scope:', err);
+    req.practiceScope = { isSuperAdmin: false, practiceIds: [] };
+  }
+}
+
+/**
+ * Global middleware: attaches practice scope to every authenticated request.
+ * Safety net — initPracticeScope is the primary path (called from authenticate).
+ *
+ * - admin role → isSuperAdmin = true, bypasses all practice filtering
+ * - other roles → queries UserPractice for assigned practiceIds
+ */
+export async function attachPracticeScope(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
+  if (!req.user) return next();
+
+  if (req.user.role === 'admin') {
+    req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
+    return next();
+  }
+
+  try {
+    const assignments = await prisma.userPractice.findMany({
+      where: { userId: req.user.id },
+      select: { practiceId: true },
+    });
+
+    const practiceIds = assignments.map((a) => a.practiceId);
+    req.practiceScope = { isSuperAdmin: false, practiceIds };
+
+    logger.debug(
+      `Practice scope: user=${req.user.id} role=${req.user.role} practiceIds=[${practiceIds.join(',')}]`
+    );
+  } catch (err) {
+    logger.error('Failed to load practice scope:', err);
+    req.practiceScope = { isSuperAdmin: false, practiceIds: [] };
+  }
+
+  next();
+}
+
+/**
+ * Route middleware for :providerId routes.
+ * Validates that the provider belongs to the user's assigned practice(s).
+ * Super admins bypass. Must run AFTER attachPracticeScope.
+ */
+export async function requirePracticeProvider(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  if (req.practiceScope?.isSuperAdmin) return next();
+
+  const providerId = req.params['providerId'] || req.body?.providerId;
+  if (!providerId) return next();
+
+  try {
+    const provider = await prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { practiceId: true },
+    });
+
+    if (!provider) return next(); // Let route handler deal with 404
+
+    const practiceIds = req.practiceScope?.practiceIds ?? [];
+
+    // practiceId null = unassigned → only super admins (already bypassed above)
+    if (!provider.practiceId || !practiceIds.includes(provider.practiceId)) {
+      logger.warn(
+        `Practice access denied: user=${req.user?.id} provider=${providerId} providerPractice=${provider.practiceId}`
+      );
+      res.status(403).json({
+        success: false,
+        error: { message: 'Access denied — provider not in your practice' },
+      });
+      return;
+    }
+  } catch (err) {
+    logger.error('Practice provider check failed:', err);
+    res.status(500).json({ success: false, error: { message: 'Internal error' } });
+    return;
+  }
+
+  next();
+}
+
+/**
+ * Async helper: validates a providerId against practice scope.
+ * Returns true if access is allowed, false otherwise.
+ * Use inside route handlers for resource-ID routes (tasks, letters, documents, etc.).
+ */
+export async function validateProviderPracticeAccess(
+  req: Request,
+  providerId: string
+): Promise<boolean> {
+  if (req.practiceScope?.isSuperAdmin) return true;
+
+  const provider = await prisma.provider.findUnique({
+    where: { id: providerId },
+    select: { practiceId: true },
+  });
+
+  if (!provider) return true; // Let route handler deal with 404
+
+  const practiceIds = req.practiceScope?.practiceIds ?? [];
+  if (!provider.practiceId || !practiceIds.includes(provider.practiceId)) {
+    logger.warn(
+      `Practice access denied: user=${req.user?.id} provider=${providerId}`
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Returns a Prisma WHERE clause fragment to filter providers by practice.
+ * Use in list endpoints: { ...existingWhere, ...getPracticeProviderFilter(req) }
+ *
+ * For super admins: returns {} (no filter).
+ * For others: returns { practiceId: { in: [...] } } — naturally excludes null practiceId.
+ * For users with no practices: returns impossible match so no results are returned.
+ */
+export function getPracticeProviderFilter(
+  req: Request
+): Record<string, unknown> {
+  if (req.practiceScope?.isSuperAdmin) return {};
+  const ids = req.practiceScope?.practiceIds ?? [];
+  if (ids.length === 0) return { practiceId: '__no_practice_match__' };
+  return { practiceId: { in: ids } };
+}
+
+/**
+ * Returns a Prisma WHERE clause fragment to filter resources (enrollments, tasks,
+ * termination letters) through their provider's practiceId.
+ * Use: { ...existingWhere, ...getPracticeRelationFilter(req) }
+ */
+export function getPracticeRelationFilter(
+  req: Request
+): Record<string, unknown> {
+  if (req.practiceScope?.isSuperAdmin) return {};
+  const ids = req.practiceScope?.practiceIds ?? [];
+  if (ids.length === 0) {
+    return { provider: { practiceId: '__no_practice_match__' } };
+  }
+  return { provider: { practiceId: { in: ids } } };
+}

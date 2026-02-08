@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 
 // Helper to check location access
 async function assertLocationAccess(req: Request, locationId: string): Promise<{ providerId: string } | null> {
@@ -12,7 +13,11 @@ async function assertLocationAccess(req: Request, locationId: string): Promise<{
     select: { providerId: true },
   });
   if (!location) return null;
-  if (role === 'admin' || role === 'credentialing_staff') return location;
+  if (role === 'admin') return location;
+  if (role === 'credentialing_staff') {
+    if (!(await validateProviderPracticeAccess(req, location.providerId))) throw new ForbiddenError('Access denied to this practice location');
+    return location;
+  }
   if (role === 'provider' && userProviderId === location.providerId) return location;
   throw new ForbiddenError('Access denied to this practice location');
 }
@@ -58,7 +63,7 @@ const updatePracticeLocationSchema = createPracticeLocationSchema.partial();
 router.get(
   '/provider/:providerId',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -106,7 +111,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -209,6 +214,13 @@ router.delete(
       });
 
       if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Practice location not found' },
+        });
+      }
+
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Practice location not found' },

@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
+import { attachPracticeScope } from './middleware/practiceScope.middleware.js';
 import { logger } from './utils/logger.js';
 
 // Routes
@@ -74,6 +75,9 @@ app.use(morgan('combined', {
 
 // Audit logging middleware
 app.use(auditMiddleware);
+
+// Practice scope middleware (must run after authenticate in each route)
+app.use(attachPracticeScope);
 
 // Root route — redirect to frontend
 app.get('/', (_req, res) => {
