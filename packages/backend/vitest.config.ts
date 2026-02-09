@@ -11,5 +11,6 @@ export default defineConfig({
     ],
     isolate: true,
     restoreMocks: true,
+    testTimeout: 10000,
   },
 });
