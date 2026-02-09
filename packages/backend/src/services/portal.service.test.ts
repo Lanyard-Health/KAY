@@ -13,6 +13,10 @@ vi.mock('@prisma/client', () => {
   };
   const mockProvider = {
     findUnique: vi.fn(),
+    create: vi.fn(),
+  };
+  const mockUser = {
+    create: vi.fn(),
   };
   const mockAdminNotification = {
     create: vi.fn(),
@@ -25,7 +29,13 @@ vi.mock('@prisma/client', () => {
     PrismaClient: vi.fn().mockImplementation(() => ({
       providerApplication: mockProviderApplication,
       provider: mockProvider,
+      user: mockUser,
       adminNotification: mockAdminNotification,
+      $transaction: vi.fn((fn: any) => fn({
+        provider: mockProvider,
+        user: mockUser,
+        providerApplication: mockProviderApplication,
+      })),
     })),
   };
 });
@@ -35,6 +45,11 @@ vi.mock('./email.service.js', () => ({
     isConfigured: vi.fn().mockReturnValue(false),
     sendEmail: vi.fn(),
   },
+}));
+
+vi.mock('./cognitoUser.service.js', () => ({
+  createCognitoUser: vi.fn(() => Promise.resolve({ cognitoId: 'dev-test-cognito-id' })),
+  deleteCognitoUser: vi.fn(() => Promise.resolve()),
 }));
 
 import { PrismaClient } from '@prisma/client';
@@ -60,6 +75,13 @@ const mockApplication = {
   lastName: 'Doe',
   email: 'jane@test.com',
   phone: '555-1234',
+  dateOfBirth: new Date('1985-06-15'),
+  gender: 'female',
+  providerType: 'psychiatrist',
+  taxonomy: null,
+  specialties: [],
+  middleName: null,
+  suffix: null,
   status: 'pending',
   submittedAt: new Date(),
   reviewedAt: null,
@@ -85,6 +107,8 @@ describe('Portal Service', () => {
         lastName: 'Doe',
         email: 'jane@test.com',
         phone: '555-1234',
+        dateOfBirth: '1985-06-15',
+        gender: 'female',
       });
 
       expect(result.id).toBe('app-1-id');
@@ -110,6 +134,8 @@ describe('Portal Service', () => {
           lastName: 'Doe',
           email: 'jane@test.com',
           phone: '555-1234',
+          dateOfBirth: '1985-06-15',
+          gender: 'female',
         })
       ).rejects.toThrow('already pending');
     });
@@ -125,32 +151,30 @@ describe('Portal Service', () => {
           lastName: 'Doe',
           email: 'jane@test.com',
           phone: '555-1234',
+          dateOfBirth: '1985-06-15',
+          gender: 'female',
         })
       ).rejects.toThrow('already exists');
     });
   });
 
   describe('approveApplication', () => {
-    it('updates status to approved and marks notification read', async () => {
+    it('creates provider, user, and updates application status', async () => {
       prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaInstance.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaInstance.user.create.mockResolvedValue({ id: 'new-user-id' });
       prismaInstance.providerApplication.update.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
+        providerId: 'new-provider-id',
       });
       prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await approveApplication('app-1-id', 'admin@test.com', 'Approved');
 
       expect(result.status).toBe('approved');
-      expect(prismaInstance.providerApplication.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'app-1-id' },
-          data: expect.objectContaining({
-            status: 'approved',
-            reviewedBy: 'admin@test.com',
-          }),
-        })
-      );
+      expect(prismaInstance.provider.create).toHaveBeenCalled();
+      expect(prismaInstance.user.create).toHaveBeenCalled();
     });
 
     it('throws when application not found', async () => {

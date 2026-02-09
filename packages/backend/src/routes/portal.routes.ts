@@ -62,6 +62,30 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
+    // Validate date of birth
+    if (!data.dateOfBirth) {
+      return res.status(400).json({
+        success: false,
+        error: 'Date of birth is required',
+      });
+    }
+    const dob = new Date(data.dateOfBirth);
+    if (isNaN(dob.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date of birth format',
+      });
+    }
+
+    // Validate gender
+    const validGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
+    if (!data.gender || !validGenders.includes(data.gender)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Gender is required',
+      });
+    }
+
     const application = await submitApplication(data);
 
     res.status(201).json({

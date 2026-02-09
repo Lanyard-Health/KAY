@@ -49,10 +49,17 @@ import {
 
 describe('AI Routes', () => {
   const app = createTestApp(aiRoutes, adminUser);
+  // Enable trust proxy so X-Forwarded-For is respected for rate limit buckets
+  app.set('trust proxy', 1);
+
+  // Each describe block uses a unique IP to avoid rate limit bleed
+  let testIpCounter = 0;
+  function nextIp() {
+    return `10.0.0.${++testIpCounter}`;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: AI is configured and enrollment exists
     (isConfigured as any).mockReturnValue(true);
     prismaMock.payerEnrollment.findUnique.mockResolvedValue({
       id: 'enroll-1',
@@ -94,6 +101,9 @@ describe('AI Routes', () => {
   });
 
   describe('POST /enrollment/:id/generate-email', () => {
+    // Use a shared IP for this group; tests below are within the 10-request limit
+    const ip = '10.1.0.1';
+
     it('generates a follow-up email', async () => {
       (generateFollowUpEmail as any).mockResolvedValue({
         subject: 'Follow-up',
@@ -102,6 +112,7 @@ describe('AI Routes', () => {
 
       const res = await request(app)
         .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
         .send({ tone: 'professional' });
 
       expect(res.status).toBe(200);
@@ -113,6 +124,7 @@ describe('AI Routes', () => {
 
       const res = await request(app)
         .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
         .send({});
 
       expect(res.status).toBe(503);
@@ -124,6 +136,7 @@ describe('AI Routes', () => {
 
       const res = await request(app)
         .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
         .send({});
 
       expect(res.status).toBe(404);
@@ -134,17 +147,64 @@ describe('AI Routes', () => {
 
       const res = await request(app)
         .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
         .send({});
 
       expect(res.status).toBe(429);
     });
+
+    it('passes valid tone ("polite") through to service', async () => {
+      (generateFollowUpEmail as any).mockResolvedValue({ subject: 'test', body: 'test' });
+
+      await request(app)
+        .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
+        .send({ tone: 'polite' });
+
+      expect(generateFollowUpEmail).toHaveBeenCalledWith('enroll-1', {
+        tone: 'polite',
+        additionalContext: undefined,
+      });
+    });
+
+    it('replaces invalid tone ("rude") with undefined', async () => {
+      (generateFollowUpEmail as any).mockResolvedValue({ subject: 'test', body: 'test' });
+
+      await request(app)
+        .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
+        .send({ tone: 'rude' });
+
+      expect(generateFollowUpEmail).toHaveBeenCalledWith('enroll-1', {
+        tone: undefined,
+        additionalContext: undefined,
+      });
+    });
+
+    it('defaults missing tone to undefined', async () => {
+      (generateFollowUpEmail as any).mockResolvedValue({ subject: 'test', body: 'test' });
+
+      await request(app)
+        .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', ip)
+        .send({});
+
+      expect(generateFollowUpEmail).toHaveBeenCalledWith('enroll-1', {
+        tone: undefined,
+        additionalContext: undefined,
+      });
+    });
   });
 
   describe('POST /enrollment/:id/analyze', () => {
+    const ip = '10.1.0.2';
+
     it('analyzes an enrollment', async () => {
       (analyzeEnrollment as any).mockResolvedValue({ score: 85, recommendations: [] });
 
-      const res = await request(app).post('/enrollment/enroll-1/analyze');
+      const res = await request(app)
+        .post('/enrollment/enroll-1/analyze')
+        .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(200);
       expect(res.body.data.score).toBe(85);
@@ -153,17 +213,23 @@ describe('AI Routes', () => {
     it('returns 503 when AI is not configured', async () => {
       (isConfigured as any).mockReturnValue(false);
 
-      const res = await request(app).post('/enrollment/enroll-1/analyze');
+      const res = await request(app)
+        .post('/enrollment/enroll-1/analyze')
+        .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(503);
     });
   });
 
   describe('POST /portfolio/analyze', () => {
+    const ip = '10.1.0.3';
+
     it('analyzes the full portfolio', async () => {
       (analyzePortfolio as any).mockResolvedValue({ total: 10, insights: [] });
 
-      const res = await request(app).post('/portfolio/analyze');
+      const res = await request(app)
+        .post('/portfolio/analyze')
+        .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(200);
       expect(res.body.data.total).toBe(10);
@@ -172,7 +238,9 @@ describe('AI Routes', () => {
     it('returns 503 when AI is not configured', async () => {
       (isConfigured as any).mockReturnValue(false);
 
-      const res = await request(app).post('/portfolio/analyze');
+      const res = await request(app)
+        .post('/portfolio/analyze')
+        .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(503);
     });
@@ -180,7 +248,9 @@ describe('AI Routes', () => {
     it('returns 429 when budget exceeded', async () => {
       (analyzePortfolio as any).mockRejectedValue(new Error('Token budget exceeded'));
 
-      const res = await request(app).post('/portfolio/analyze');
+      const res = await request(app)
+        .post('/portfolio/analyze')
+        .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(429);
     });
@@ -265,6 +335,38 @@ describe('AI Routes', () => {
         .send({ status: 'accepted' });
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Rate limiting', () => {
+    // Isolated IP just for rate limit testing
+    const rateLimitIp = '10.99.99.99';
+
+    it('allows 10 requests within the rate limit window', async () => {
+      (generateFollowUpEmail as any).mockResolvedValue({ subject: 'ok', body: 'ok' });
+
+      const results = [];
+      for (let i = 0; i < 10; i++) {
+        const res = await request(app)
+          .post('/enrollment/enroll-1/generate-email')
+          .set('X-Forwarded-For', rateLimitIp)
+          .send({});
+        results.push(res.status);
+      }
+
+      expect(results.every((s) => s === 200)).toBe(true);
+    });
+
+    it('returns 429 on the 11th request', async () => {
+      (generateFollowUpEmail as any).mockResolvedValue({ subject: 'ok', body: 'ok' });
+
+      const res = await request(app)
+        .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', rateLimitIp)
+        .send({});
+
+      expect(res.status).toBe(429);
+      expect(res.body.error).toContain('Too many AI requests');
     });
   });
 });

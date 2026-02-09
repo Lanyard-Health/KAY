@@ -9,6 +9,15 @@ const AI_DAILY_TOKEN_BUDGET = parseInt(process.env['AI_DAILY_TOKEN_BUDGET'] || '
 
 let client: Anthropic | null = null;
 
+export function sanitizeUserInput(input: string, maxLength = 500): string {
+  return input
+    .replace(/\b(ignore|disregard|forget)\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, '[redacted]')
+    .replace(/\b(system|assistant)\s*:/gi, '[redacted]')
+    .replace(/```/g, '')
+    .slice(0, maxLength)
+    .trim();
+}
+
 function getClient(): Anthropic {
   if (!client) {
     if (!ANTHROPIC_API_KEY) {
@@ -158,7 +167,7 @@ export async function generateFollowUpEmail(
 **Follow-Up Count (estimated):** ${followUpCount}
 **Provider Number:** ${enrollment.providerNumber || 'Not yet assigned'}
 **Follow-Up Email Contact:** ${enrollment.followUpEmail || 'Not specified'}
-${options?.additionalContext ? `**Additional Context:** ${options.additionalContext}` : ''}
+${options?.additionalContext ? `**Additional Context:** ${sanitizeUserInput(options.additionalContext)}` : ''}
 ${options?.tone ? `**Requested Tone:** ${options.tone}` : ''}
 
 Respond with JSON only:
@@ -190,6 +199,16 @@ Respond with JSON only:
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
+  }
+
+  if (!parsed.subject || !parsed.body || !parsed.htmlBody || !parsed.tone) {
+    throw new Error('AI response missing required email fields (subject, body, htmlBody, tone)');
+  }
+
+  // Re-check budget after API call to guard against concurrent requests
+  const finalBudget = await checkTokenBudget();
+  if (!finalBudget.allowed) {
+    throw new Error('Daily token budget exceeded during concurrent request.');
   }
 
   const recommendation = await prisma.aiRecommendation.create({
@@ -306,6 +325,16 @@ Respond with JSON only:
     throw new Error('Failed to parse AI response as JSON');
   }
 
+  if (typeof parsed.urgencyScore !== 'number' || !parsed.riskLevel || !Array.isArray(parsed.recommendations)) {
+    throw new Error('AI response missing required analysis fields (urgencyScore, riskLevel, recommendations)');
+  }
+
+  // Re-check budget after API call to guard against concurrent requests
+  const finalBudget = await checkTokenBudget();
+  if (!finalBudget.allowed) {
+    throw new Error('Daily token budget exceeded during concurrent request.');
+  }
+
   const recommendation = await prisma.aiRecommendation.create({
     data: {
       enrollmentId,
@@ -418,6 +447,16 @@ Respond with JSON only:
     throw new Error('Failed to parse AI response as JSON');
   }
 
+  if (!Array.isArray(parsed.enrollments) || typeof parsed.summary !== 'string') {
+    throw new Error('AI response missing required portfolio fields (enrollments array, summary)');
+  }
+
+  // Re-check budget after API call to guard against concurrent requests
+  const finalBudget = await checkTokenBudget();
+  if (!finalBudget.allowed) {
+    throw new Error('Daily token budget exceeded during concurrent request.');
+  }
+
   const enrichedEnrollments: PortfolioItem[] = [];
   for (const aiItem of parsed.enrollments) {
     const enrollment = enrollments.find((e) => e.id === aiItem.enrollmentId);
@@ -465,6 +504,31 @@ Respond with JSON only:
       },
     });
     savedRec = { id: rec.id };
+  }
+
+  // Create per-enrollment alerts for high urgency items
+  const highUrgencyItems = enrichedEnrollments.filter(e => e.urgencyScore >= 7);
+  if (highUrgencyItems.length > 0) {
+    await prisma.aiRecommendation.createMany({
+      data: highUrgencyItems.map(item => ({
+        enrollmentId: item.enrollmentId,
+        type: 'priority_alert' as AiRecommendationType,
+        status: 'pending' as AiRecommendationStatus,
+        title: `Priority: ${item.providerName} → ${item.payerName} (${item.urgencyScore}/10)`,
+        content: JSON.stringify({
+          urgencyScore: item.urgencyScore,
+          riskLevel: item.riskLevel,
+          recommendation: item.recommendation,
+          daysSinceApplication: item.daysSinceApplication,
+          daysSinceLastFollowUp: item.daysSinceLastFollowUp,
+        }),
+        reasoning: item.recommendation,
+        metadata: { urgencyScore: item.urgencyScore, riskLevel: item.riskLevel },
+        promptTokens: 0,
+        completionTokens: 0,
+        modelUsed: AI_MODEL,
+      })),
+    });
   }
 
   logger.info(`AI portfolio analysis complete: ${enrichedEnrollments.length} enrollments ranked`);

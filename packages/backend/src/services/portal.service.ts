@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { emailService } from './email.service.js';
+import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
 
 const prisma = new PrismaClient();
 
@@ -11,6 +12,8 @@ export interface ProviderApplicationInput {
   suffix?: string;
   email: string;
   phone: string;
+  dateOfBirth: string;
+  gender: string;
   providerType?: string;
   taxonomy?: string;
   specialties?: string[];
@@ -64,6 +67,8 @@ export async function submitApplication(data: ProviderApplicationInput) {
       suffix: data.suffix,
       email: data.email,
       phone: data.phone,
+      dateOfBirth: new Date(data.dateOfBirth),
+      gender: data.gender as any,
       providerType: data.providerType,
       taxonomy: data.taxonomy,
       specialties: data.specialties || [],
@@ -79,16 +84,16 @@ export async function submitApplication(data: ProviderApplicationInput) {
     },
   });
 
-  // Send email notification (non-blocking)
+  // Send email notification to admin (non-blocking)
   const adminEmail = process.env['ADMIN_EMAIL'];
   if (adminEmail && emailService.isConfigured()) {
-    const appUrl = process.env['APP_URL'] || 'http://localhost:5173';
+    const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
     emailService.sendEmail({
       to: adminEmail,
       subject: `New Provider Application: ${data.firstName} ${data.lastName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">New Provider Application</h2>
+          <h2 style="color: #0A3D2E;">New Provider Application</h2>
           <p>A new provider has submitted an application for review.</p>
 
           <h3>Provider Details</h3>
@@ -100,18 +105,48 @@ export async function submitApplication(data: ProviderApplicationInput) {
           </ul>
 
           <p>
-            <a href="${appUrl}/pending-providers" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+            <a href="${appUrl}/pending-providers" style="background-color: #0A3D2E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
               Review Application
             </a>
           </p>
 
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated notification from the Credentialing system.
+            This is an automated notification from Lanyard Health.
           </p>
         </div>
       `,
-    }).catch((err: unknown) => console.error('Failed to send application notification email:', err));
+    }).catch((err: unknown) => console.error('Failed to send admin notification email:', err));
+  }
+
+  // Send confirmation email to provider (non-blocking)
+  if (emailService.isConfigured()) {
+    emailService.sendEmail({
+      to: data.email,
+      subject: 'Application Received — Lanyard Health',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0A3D2E;">Application Received</h2>
+          <p>Dear ${data.firstName},</p>
+          <p>Thank you for submitting your provider registration with Lanyard Health. We have received your application and our credentialing team will review it shortly.</p>
+
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #0A3D2E;">What happens next?</h3>
+            <ul style="margin-bottom: 0;">
+              <li>Our team will review your application</li>
+              <li>You may be contacted for additional information</li>
+              <li>You will receive an email notification once your application is approved</li>
+            </ul>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+          <p style="color: #6b7280; font-size: 12px;">
+            This is an automated notification from Lanyard Health. Please do not reply to this email.
+          </p>
+        </div>
+      `,
+      notificationType: 'application_submitted',
+    }).catch((err: unknown) => console.error('Failed to send provider confirmation email:', err));
   }
 
   return application;
@@ -154,7 +189,7 @@ export async function getApplicationById(id: string) {
 }
 
 /**
- * Approve an application
+ * Approve an application — creates Cognito user, Provider record, and User record
  */
 export async function approveApplication(id: string, reviewedBy: string, notes?: string) {
   const application = await prisma.providerApplication.findUnique({
@@ -169,24 +204,104 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
     throw new Error('Application has already been reviewed');
   }
 
-  // Update the application status
-  const updatedApplication = await prisma.providerApplication.update({
-    where: { id },
-    data: {
-      status: 'approved',
-      reviewedAt: new Date(),
-      reviewedBy,
-      reviewNotes: notes,
-    },
+  // 1. Create Cognito user first (outside transaction — can't roll back Cognito)
+  const { cognitoId } = await createCognitoUser({
+    email: application.email,
+    firstName: application.firstName,
+    lastName: application.lastName,
   });
 
-  // Mark related notification as read
-  await prisma.adminNotification.updateMany({
-    where: { applicationId: id, read: false },
-    data: { read: true },
-  });
+  // 2. Create Provider + User records in a transaction
+  try {
+    const { provider, updatedApplication } = await prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.create({
+        data: {
+          npi: application.npi,
+          firstName: application.firstName,
+          lastName: application.lastName,
+          middleName: application.middleName,
+          suffix: application.suffix,
+          email: application.email,
+          phone: application.phone,
+          dateOfBirth: application.dateOfBirth,
+          gender: application.gender,
+          providerType: (application.providerType as any) || 'other',
+          taxonomy: application.taxonomy,
+          specialties: application.specialties,
+          status: 'active',
+        },
+      });
 
-  return updatedApplication;
+      await tx.user.create({
+        data: {
+          cognitoId,
+          email: application.email,
+          firstName: application.firstName,
+          lastName: application.lastName,
+          phone: application.phone,
+          role: 'provider',
+          providerId: provider.id,
+        },
+      });
+
+      const updatedApplication = await tx.providerApplication.update({
+        where: { id },
+        data: {
+          status: 'approved',
+          reviewedAt: new Date(),
+          reviewedBy,
+          reviewNotes: notes,
+          providerId: provider.id,
+        },
+      });
+
+      return { provider, updatedApplication };
+    });
+
+    // Mark related notification as read
+    await prisma.adminNotification.updateMany({
+      where: { applicationId: id, read: false },
+      data: { read: true },
+    });
+
+    // 3. Send approval email to provider (non-blocking)
+    if (emailService.isConfigured()) {
+      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      emailService.sendEmail({
+        to: application.email,
+        subject: 'Application Approved — Lanyard Health',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #0A3D2E;">Your Application Has Been Approved!</h2>
+            <p>Dear ${application.firstName},</p>
+            <p>We are pleased to inform you that your provider application with Lanyard Health has been approved.</p>
+
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #0A3D2E;">Getting Started</h3>
+              <p>Your account has been created. You will receive a separate email with your temporary login credentials.</p>
+              <p>
+                <a href="${appUrl}/login" style="background-color: #0A3D2E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                  Log In to Lanyard Health
+                </a>
+              </p>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated notification from Lanyard Health. Please do not reply to this email.
+            </p>
+          </div>
+        `,
+        notificationType: 'application_approved',
+      }).catch((err: unknown) => console.error('Failed to send approval email:', err));
+    }
+
+    return updatedApplication;
+  } catch (err) {
+    // Roll back Cognito user if DB transaction failed
+    await deleteCognitoUser(application.email).catch(() => {});
+    throw err;
+  }
 }
 
 /**

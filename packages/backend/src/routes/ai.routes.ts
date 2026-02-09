@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
@@ -36,6 +37,12 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   throw new ForbiddenError('Access denied to this enrollment');
 }
 
+const aiMutationLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { success: false, error: 'Too many AI requests. Please wait before trying again.' },
+});
+
 const router = Router();
 
 // All AI routes require authentication
@@ -57,7 +64,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 /**
  * POST /api/v1/ai/enrollment/:id/generate-email
  */
-router.post('/enrollment/:id/generate-email', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/generate-email', aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -65,7 +72,9 @@ router.post('/enrollment/:id/generate-email', async (req: Request, res: Response
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
     const { tone, additionalContext } = req.body || {};
-    const result = await generateFollowUpEmail(id!, { tone, additionalContext });
+    const validTones = ['polite', 'assertive', 'urgent'];
+    const validatedTone = tone && validTones.includes(tone) ? tone : undefined;
+    const result = await generateFollowUpEmail(id!, { tone: validatedTone, additionalContext });
     res.json({ success: true, data: result });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to generate email';
@@ -77,7 +86,7 @@ router.post('/enrollment/:id/generate-email', async (req: Request, res: Response
 /**
  * POST /api/v1/ai/enrollment/:id/analyze
  */
-router.post('/enrollment/:id/analyze', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/analyze', aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -96,7 +105,7 @@ router.post('/enrollment/:id/analyze', async (req: Request, res: Response, next:
 /**
  * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });

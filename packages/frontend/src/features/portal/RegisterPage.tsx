@@ -12,8 +12,18 @@ interface RegistrationData {
   suffix?: string;
   email: string;
   phone: string;
+  dateOfBirth: string;
+  gender: string;
   providerType?: string;
 }
+
+const GENDER_OPTIONS = [
+  { value: '', label: 'Select Gender' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
 
 const PROVIDER_TYPES = [
   { value: '', label: 'Select Provider Type' },
@@ -36,6 +46,8 @@ export default function RegisterPage() {
     suffix: '',
     email: '',
     phone: '',
+    dateOfBirth: '',
+    gender: '',
     providerType: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -61,6 +73,11 @@ export default function RegisterPage() {
         const result = response.data as any;
         if (result.success && result.data) {
           const d = result.data;
+          // Map NPPES gender values to our enum
+          let mappedGender = '';
+          if (d.gender === 'Male') mappedGender = 'male';
+          else if (d.gender === 'Female') mappedGender = 'female';
+
           setFormData((prev) => ({
             ...prev,
             firstName: d.firstName || prev.firstName,
@@ -68,6 +85,7 @@ export default function RegisterPage() {
             middleName: d.middleName || prev.middleName,
             suffix: d.suffix || prev.suffix,
             phone: d.phone || prev.phone,
+            gender: mappedGender || prev.gender,
           }));
           setNpiLookupStatus('found');
         } else {
@@ -127,6 +145,27 @@ export default function RegisterPage() {
       newErrors.phone = 'Phone is required';
     }
 
+    if (!formData.dateOfBirth) {
+      newErrors.dateOfBirth = 'Date of birth is required';
+    } else {
+      const dob = new Date(formData.dateOfBirth);
+      if (isNaN(dob.getTime())) {
+        newErrors.dateOfBirth = 'Invalid date of birth';
+      } else {
+        const today = new Date();
+        const age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate()) ? age - 1 : age;
+        if (actualAge < 18) {
+          newErrors.dateOfBirth = 'Provider must be at least 18 years old';
+        }
+      }
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = 'Gender is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -160,6 +199,7 @@ export default function RegisterPage() {
               <div className="mt-6 p-4 bg-primary-50 rounded-lg">
                 <h3 className="text-sm font-medium text-primary-800">What happens next?</h3>
                 <ul className="mt-2 text-sm text-primary-700 list-disc list-inside text-left">
+                  <li>A confirmation email has been sent to your address</li>
                   <li>Our credentialing team will review your application</li>
                   <li>You may be contacted for additional information</li>
                   <li>You will receive an email notification once approved</li>
@@ -344,6 +384,51 @@ export default function RegisterPage() {
                   }`}
                 />
                 {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+              </div>
+            </div>
+
+            {/* Date of Birth & Gender */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">
+                  Date of Birth <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  id="dateOfBirth"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+                    errors.dateOfBirth
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                  }`}
+                />
+                {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>}
+              </div>
+              <div>
+                <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="gender"
+                  id="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+                    errors.gender
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+                  }`}
+                >
+                  {GENDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
               </div>
             </div>
 

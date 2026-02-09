@@ -13,6 +13,7 @@ interface SendEmailParams {
   html: string;
   text?: string;
   attachments?: Attachment[];
+  notificationType?: string;
 }
 
 class EmailService {
@@ -160,7 +161,7 @@ class EmailService {
       await prisma.notification.create({
         data: {
           recipientEmail: params.to,
-          type: 'enrollment_follow_up',
+          type: (params.notificationType || 'enrollment_follow_up') as any,
           subject: params.subject,
           body: params.html,
           status: 'sent',
@@ -176,7 +177,7 @@ class EmailService {
       await prisma.notification.create({
         data: {
           recipientEmail: params.to,
-          type: 'enrollment_follow_up',
+          type: (params.notificationType || 'enrollment_follow_up') as any,
           subject: params.subject,
           body: params.html,
           status: 'failed',
