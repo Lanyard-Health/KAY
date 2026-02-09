@@ -86,6 +86,21 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     }
 
+    // Validate practiceId if provided
+    if (data.practiceId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(data.practiceId)) {
+        return res.status(400).json({ success: false, error: 'Invalid practice ID format' });
+      }
+      const practice = await prisma.practice.findUnique({
+        where: { id: data.practiceId },
+        select: { id: true, status: true },
+      });
+      if (!practice || practice.status !== 'ACTIVE') {
+        return res.status(400).json({ success: false, error: 'Practice not found or inactive' });
+      }
+    }
+
     const application = await submitApplication(data);
 
     res.status(201).json({
@@ -150,6 +165,36 @@ router.get('/status/:npi', async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to fetch application status',
     });
+  }
+});
+
+/**
+ * GET /api/v1/portal/practice/:practiceId/info
+ * Get practice name for registration link (public, no auth)
+ */
+router.get('/practice/:practiceId/info', async (req: Request, res: Response) => {
+  try {
+    const { practiceId } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!practiceId || !uuidRegex.test(practiceId)) {
+      return res.status(400).json({ success: false, error: 'Invalid practice ID format' });
+    }
+
+    const practice = await prisma.practice.findUnique({
+      where: { id: practiceId },
+      select: { name: true, status: true },
+    });
+
+    if (!practice || practice.status !== 'ACTIVE') {
+      return res.status(404).json({ success: false, error: 'Practice not found' });
+    }
+
+    res.json({ success: true, data: { name: practice.name, status: practice.status } });
+  } catch (error) {
+    logger.error('Error fetching practice info:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch practice info' });
   }
 });
 

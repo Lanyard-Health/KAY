@@ -80,8 +80,9 @@ model Practice {
   updatedAt DateTime        @updatedAt @map("updated_at")
 
   users              UserPractice[]
-  providers          Provider[]
-  practiceLocations  PracticeLocation[]
+  providers              Provider[]
+  providerApplications   ProviderApplication[]
+  practiceLocations      PracticeLocation[]
 
   @@map("practices")
 }
@@ -1065,6 +1066,10 @@ model ProviderApplication {
   reviewedAt  DateTime? @map("reviewed_at")
   reviewedBy  String?   @map("reviewed_by")
   reviewNotes String?   @map("review_notes")
+
+  // Auto-assign to practice (from registration link)
+  practiceId  String?   @map("practice_id")
+  practice    Practice? @relation(fields: [practiceId], references: [id])
 
   // Link to created provider (after approval)
   providerId String?   @map("provider_id")
