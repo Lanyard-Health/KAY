@@ -979,6 +979,8 @@ enum NotificationType {
   enrollment_follow_up
   document_uploaded
   verification_complete
+  application_submitted
+  application_approved
 }
 
 enum NotificationStatus {
@@ -1048,6 +1050,10 @@ model ProviderApplication {
   suffix     String?
   email      String
   phone      String
+
+  // Personal Info
+  dateOfBirth DateTime  @map("date_of_birth")
+  gender      Gender
 
   // Professional Info
   providerType String?  @map("provider_type")

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { api } from '../services/api';
 
 // ===========================
@@ -155,6 +156,10 @@ export function useGenerateEmail() {
       queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
     },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || 'Failed to generate email';
+      toast.error(message);
+    },
   });
 }
 
@@ -171,6 +176,10 @@ export function useAnalyzeEnrollment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || 'Failed to analyze enrollment';
+      toast.error(message);
     },
   });
 }
@@ -189,6 +198,10 @@ export function useAnalyzePortfolio() {
       queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
     },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || 'Failed to analyze portfolio';
+      toast.error(message);
+    },
   });
 }
 
@@ -205,6 +218,10 @@ export function useUpdateRecommendation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || 'Failed to update recommendation';
+      toast.error(message);
     },
   });
 }

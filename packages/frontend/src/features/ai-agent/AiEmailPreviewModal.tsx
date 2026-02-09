@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import type { GeneratedEmail } from '../../hooks/useAi';
 import { useGenerateEmail } from '../../hooks/useAi';
@@ -40,7 +41,7 @@ export default function AiEmailPreviewModal({
   const handleCopyAndUse = () => {
     const emailText = `Subject: ${displayEmail.subject}\n\n${displayEmail.body}`;
     navigator.clipboard.writeText(emailText).catch(() => {});
-    alert('Email content copied to clipboard. You can paste it into the follow-up email form.');
+    toast.success('Email content copied to clipboard.');
     onClose();
   };
 
@@ -72,6 +73,15 @@ export default function AiEmailPreviewModal({
               </div>
             ) : (
               <>
+                {/* Error banner */}
+                {generateEmail.isError && (
+                  <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3">
+                    <p className="text-sm text-red-800">
+                      Regeneration failed. The previous email is still shown below.
+                    </p>
+                  </div>
+                )}
+
                 {/* Badges */}
                 <div className="mb-4 flex items-center gap-2">
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${toneBadgeColors[displayEmail.tone] || 'bg-gray-100 text-gray-800'}`}>

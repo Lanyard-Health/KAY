@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { SparklesIcon } from '@heroicons/react/24/outline';
 import {
   useAiStatus,
@@ -67,7 +68,7 @@ export default function AiAgentDashboard() {
       setPortfolioResults(result.data.analysis.enrollments);
       setPortfolioSummary(result.data.analysis.summary);
     } catch (err: unknown) {
-      alert(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast.error(`Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -83,7 +84,7 @@ export default function AiAgentDashboard() {
         email: result.data.email,
       });
     } catch (err: unknown) {
-      alert(`Email generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast.error(`Email generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 

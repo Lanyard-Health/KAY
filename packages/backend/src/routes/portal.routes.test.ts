@@ -66,6 +66,8 @@ const validApplicationInput = {
   lastName: 'Doe',
   email: 'jane@test.com',
   phone: '555-1234',
+  dateOfBirth: '1985-06-15',
+  gender: 'female',
 };
 
 describe('Portal Routes', () => {
