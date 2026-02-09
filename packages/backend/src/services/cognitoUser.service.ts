@@ -18,8 +18,14 @@ let client: CognitoIdentityProviderClient | null = null;
 
 function getClient(): CognitoIdentityProviderClient {
   if (!client) {
+    const accessKeyId = process.env['COGNITO_AWS_ACCESS_KEY_ID'] || process.env['AWS_ACCESS_KEY_ID'];
+    const secretAccessKey = process.env['COGNITO_AWS_SECRET_ACCESS_KEY'] || process.env['AWS_SECRET_ACCESS_KEY'];
+
     client = new CognitoIdentityProviderClient({
       region: process.env['AWS_REGION'] || 'us-east-1',
+      ...(accessKeyId && secretAccessKey && accessKeyId !== 'test' ? {
+        credentials: { accessKeyId, secretAccessKey },
+      } : {}),
     });
   }
   return client;

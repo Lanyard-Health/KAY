@@ -274,7 +274,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const { signIn } = await getAmplifyAuth();
+      const { signIn, signOut } = await getAmplifyAuth();
+      // Clear any stale session before attempting login
+      try { await signOut(); } catch { /* no existing session */ }
       const result = await signIn({ username: email, password });
 
       if (result.nextStep) {
