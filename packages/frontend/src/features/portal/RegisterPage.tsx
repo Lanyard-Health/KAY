@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
@@ -15,6 +16,7 @@ interface RegistrationData {
   dateOfBirth: string;
   gender: string;
   providerType?: string;
+  practiceId?: string;
 }
 
 const GENDER_OPTIONS = [
@@ -38,6 +40,18 @@ const PROVIDER_TYPES = [
 
 export default function RegisterPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [searchParams] = useSearchParams();
+  const practiceParam = searchParams.get('practice');
+
+  const { data: practiceInfo } = useQuery({
+    queryKey: ['practice-info', practiceParam],
+    queryFn: async () => {
+      const res = await api.get(`/portal/practice/${practiceParam}/info`);
+      return (res.data as any).data as { name: string; status: string };
+    },
+    enabled: !!practiceParam,
+  });
+
   const [formData, setFormData] = useState<RegistrationData>({
     npi: '',
     firstName: '',
@@ -49,6 +63,7 @@ export default function RegisterPage() {
     dateOfBirth: '',
     gender: '',
     providerType: '',
+    practiceId: practiceParam || undefined,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [npiLookupStatus, setNpiLookupStatus] = useState<'idle' | 'loading' | 'found' | 'not-found'>('idle');
@@ -232,6 +247,13 @@ export default function RegisterPage() {
         <p className="mt-2 text-center text-sm text-gray-600">
           Join our provider network by completing the form below
         </p>
+        {practiceInfo && (
+          <div className="mt-4 mx-auto max-w-lg bg-primary-50 border border-primary-200 rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-primary-800">
+              Registering with <span className="font-semibold">{practiceInfo.name}</span>
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">

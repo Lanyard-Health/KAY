@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Tab } from '@headlessui/react';
-import { ArrowLeftIcon, PencilIcon, UserGroupIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { usePractice } from '../../hooks/usePractices';
 import PracticeFormModal from './PracticeFormModal';
@@ -17,6 +18,13 @@ export default function PracticeDetail() {
   const { practiceId } = useParams();
   const { data: practice, isLoading } = usePractice(practiceId!);
   const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const handleCopyRegistrationLink = () => {
+    const link = `${window.location.origin}/register?practice=${practiceId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      toast.success('Registration link copied to clipboard');
+    });
+  };
 
   if (isLoading) {
     return (
@@ -79,13 +87,22 @@ export default function PracticeDetail() {
             )}
           </div>
         </div>
-        <button
-          onClick={() => setEditModalOpen(true)}
-          className="btn-secondary mt-4 sm:mt-0"
-        >
-          <PencilIcon className="-ml-1 mr-2 h-5 w-5" />
-          Edit
-        </button>
+        <div className="flex items-center gap-3 mt-4 sm:mt-0">
+          <button
+            onClick={handleCopyRegistrationLink}
+            className="btn-secondary"
+          >
+            <LinkIcon className="-ml-1 mr-2 h-5 w-5" />
+            Copy Registration Link
+          </button>
+          <button
+            onClick={() => setEditModalOpen(true)}
+            className="btn-secondary"
+          >
+            <PencilIcon className="-ml-1 mr-2 h-5 w-5" />
+            Edit
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

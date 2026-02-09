@@ -17,6 +17,7 @@ export interface ProviderApplicationInput {
   providerType?: string;
   taxonomy?: string;
   specialties?: string[];
+  practiceId?: string;
 }
 
 /**
@@ -72,6 +73,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
       providerType: data.providerType,
       taxonomy: data.taxonomy,
       specialties: data.specialties || [],
+      ...(data.practiceId && { practiceId: data.practiceId }),
     },
   });
 
@@ -229,10 +231,11 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
           taxonomy: application.taxonomy,
           specialties: application.specialties,
           status: 'active',
+          ...(application.practiceId && { practiceId: application.practiceId }),
         },
       });
 
-      await tx.user.create({
+      const newUser = await tx.user.create({
         data: {
           cognitoId,
           email: application.email,
@@ -243,6 +246,17 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
           providerId: provider.id,
         },
       });
+
+      // Auto-assign to practice if application came from a practice link
+      if (application.practiceId) {
+        await tx.userPractice.create({
+          data: {
+            userId: newUser.id,
+            practiceId: application.practiceId,
+            role: 'PROVIDER',
+          },
+        });
+      }
 
       const updatedApplication = await tx.providerApplication.update({
         where: { id },
