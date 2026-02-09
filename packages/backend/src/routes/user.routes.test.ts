@@ -22,6 +22,11 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+const mockCreateCognitoUser = vi.fn().mockResolvedValue({ cognitoId: 'mock-cognito-id' });
+vi.mock('../services/cognitoUser.service.js', () => ({
+  createCognitoUser: (...args: any[]) => mockCreateCognitoUser(...args),
+}));
+
 import { userRoutes } from './user.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
@@ -126,6 +131,7 @@ describe('User Routes', () => {
 
   describe('POST /', () => {
     it('creates user with 201', async () => {
+      mockCreateCognitoUser.mockResolvedValueOnce({ cognitoId: 'new-cognito-id' });
       prismaMock.user.create.mockResolvedValue({
         ...mockUser,
         ...validUserInput,
@@ -134,18 +140,26 @@ describe('User Routes', () => {
 
       const res = await request(app)
         .post('/')
-        .send({ ...validUserInput, cognitoId: 'new-cognito-id' });
+        .send(validUserInput);
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
+      expect(mockCreateCognitoUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: validUserInput.email,
+          firstName: validUserInput.firstName,
+          lastName: validUserInput.lastName,
+        })
+      );
     });
 
-    it('passes validated data and cognitoId to Prisma', async () => {
+    it('passes validated data and cognitoId from Cognito to Prisma', async () => {
+      mockCreateCognitoUser.mockResolvedValueOnce({ cognitoId: 'cognito-123' });
       prismaMock.user.create.mockResolvedValue(mockUser as any);
 
       await request(app)
         .post('/')
-        .send({ ...validUserInput, cognitoId: 'cognito-123' });
+        .send(validUserInput);
 
       expect(prismaMock.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
