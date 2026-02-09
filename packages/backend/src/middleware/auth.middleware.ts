@@ -5,6 +5,7 @@ import { UnauthorizedError, ForbiddenError } from './error.middleware.js';
 import type { UserRole } from '@prisma/client';
 import { RolePermissions } from '@credential-management/shared';
 import { logger } from '../utils/logger.js';
+import { initPracticeScope } from './practiceScope.middleware.js';
 
 // Auth bypass controlled by DEV_AUTH_BYPASS env var (set to "false" when real auth is ready)
 const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
@@ -50,6 +51,27 @@ export async function authenticate(
       logger.warn('⚠️  AUTH BYPASS ENABLED — set DEV_AUTH_BYPASS=false for real authentication');
 
       const devRole = req.headers['x-dev-role'] as string | undefined;
+
+      if (devRole === 'staff') {
+        // Dev staff login — find the test staff user
+        const staffUser = await prisma.user.findFirst({
+          where: { role: 'credentialing_staff', isActive: true },
+        });
+        if (!staffUser) {
+          next(new UnauthorizedError('No staff user found'));
+          return;
+        }
+        req.user = {
+          id: staffUser.id,
+          cognitoId: staffUser.cognitoId,
+          email: staffUser.email,
+          role: staffUser.role,
+          providerId: staffUser.providerId ?? undefined,
+        };
+        await initPracticeScope(req);
+        next();
+        return;
+      }
 
       if (devRole === 'provider') {
         // Dev provider login
@@ -147,6 +169,7 @@ export async function authenticate(
           providerId: user.providerId ?? undefined,
         };
 
+        await initPracticeScope(req);
         next();
         return;
       }
@@ -178,6 +201,7 @@ export async function authenticate(
         providerId: user.providerId ?? undefined,
       };
 
+      await initPracticeScope(req);
       next();
       return;
     }
@@ -228,6 +252,8 @@ export async function authenticate(
       role: user.role,
       providerId: user.providerId ?? undefined,
     };
+
+    await initPracticeScope(req);
 
     // Update last login
     await prisma.user.update({

@@ -2,7 +2,7 @@ import { useState, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import PracticeLocationModal from './PracticeLocationModal';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
+import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import PdmComplianceCard from '../../components/PdmComplianceCard';
 import { CaqhCard } from '../../components/CaqhCard';
@@ -21,6 +22,7 @@ const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
   { name: 'Checklist', icon: ClipboardDocumentCheckIcon },
   { name: 'Enrollments', icon: BuildingOfficeIcon },
+  { name: 'Tasks', icon: ListBulletIcon },
 ];
 
 export default function ProviderDetail() {
@@ -375,6 +377,17 @@ export default function ProviderDetail() {
             <p className="text-sm text-gray-500">
               NPI: {provider.npi} | {provider.providerType.replace('_', ' ')}
             </p>
+            {(() => {
+              const primaryLocation = provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0];
+              const maskedTaxId = primaryLocation?.taxId
+                ? `****${primaryLocation.taxId.slice(-4)}`
+                : '—';
+              return (
+                <p className="text-sm text-gray-500">
+                  Group NPI: {primaryLocation?.groupNpi || '—'} | Tax ID: {maskedTaxId}
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="mt-4 sm:mt-0 flex gap-3">
@@ -670,6 +683,33 @@ export default function ProviderDetail() {
             </span>
           </div>
 
+          {/* Practice Assignment */}
+          <div className="card card-body">
+            <h3 className="text-sm font-medium text-gray-500 mb-3">Practice</h3>
+            {provider.practice ? (
+              <div>
+                <Link
+                  to={`/practices/${provider.practice.id}`}
+                  className="text-sm font-medium text-primary-600 hover:text-primary-500"
+                >
+                  {provider.practice.name}
+                </Link>
+                <span
+                  className={clsx(
+                    'ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                    provider.practice.status === 'ACTIVE'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600'
+                  )}
+                >
+                  {provider.practice.status}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Unassigned</p>
+            )}
+          </div>
+
           {/* CAQH ProView */}
           <CaqhCard providerId={id!} />
 
@@ -765,6 +805,11 @@ export default function ProviderDetail() {
           {/* Enrollments Tab */}
           <Tab.Panel>
             <ProviderEnrollments providerId={id!} />
+          </Tab.Panel>
+
+          {/* Tasks Tab */}
+          <Tab.Panel>
+            <ProviderTasks providerId={id!} />
           </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>

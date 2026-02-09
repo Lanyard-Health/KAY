@@ -146,6 +146,8 @@ interface ProviderFormData {
   providerType: string;
   taxonomy?: string;
   status?: 'active' | 'pending' | 'inactive';
+  groupNpi?: string;
+  taxId?: string;
 }
 
 export default function ProviderForm() {
@@ -187,6 +189,8 @@ export default function ProviderForm() {
           phone: formatPhoneNumber(provider.phone || ''),
           mobilePhone: formatPhoneNumber(provider.mobilePhone || ''),
           status: provider.status || 'pending',
+          groupNpi: (provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0])?.groupNpi || '',
+          taxId: (provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0])?.taxId || '',
         }
       : {
           status: 'pending',
@@ -211,6 +215,22 @@ export default function ProviderForm() {
       queryClient.invalidateQueries({ queryKey: ['providers'] });
       if (isEditing) {
         queryClient.invalidateQueries({ queryKey: ['provider', id] });
+        // Save groupNpi/taxId to practice location if changed
+        const primaryLocation = provider?.practiceLocations?.find((l: any) => l.isPrimary) || provider?.practiceLocations?.[0];
+        if (primaryLocation) {
+          const locationUpdates: Record<string, string> = {};
+          const currentGroupNpi = primaryLocation.groupNpi || '';
+          const currentTaxId = primaryLocation.taxId || '';
+          if (formValues.groupNpi !== currentGroupNpi) locationUpdates.groupNpi = formValues.groupNpi || '';
+          if (formValues.taxId !== currentTaxId) locationUpdates.taxId = formValues.taxId || '';
+          if (Object.keys(locationUpdates).length > 0) {
+            try {
+              await api.put(`/practice-locations/${primaryLocation.id}`, locationUpdates);
+            } catch (err) {
+              console.error('Failed to update practice location identifiers:', err);
+            }
+          }
+        }
         toast.success('Provider updated');
         navigate('/providers');
       } else {
@@ -504,6 +524,23 @@ export default function ProviderForm() {
               <div>
                 <label className="label">Taxonomy Code</label>
                 <input {...register('taxonomy')} className="input" placeholder="101Y00000X" />
+              </div>
+              <div>
+                <label className="label">Group NPI</label>
+                <input
+                  {...register('groupNpi')}
+                  className="input"
+                  placeholder="1234567890"
+                  maxLength={10}
+                />
+              </div>
+              <div>
+                <label className="label">Tax ID (EIN/SSN)</label>
+                <input
+                  {...register('taxId')}
+                  className="input"
+                  placeholder="12-3456789"
+                />
               </div>
             </div>
           </div>

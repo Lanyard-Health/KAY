@@ -13,6 +13,10 @@ import RosterPage from './features/roster/RosterPage';
 import AiAgentDashboard from './features/ai-agent/AiAgentDashboard';
 import RegisterPage from './features/portal/RegisterPage';
 import PendingProviders from './features/admin/PendingProviders';
+import PracticesList from './features/practices/PracticesList';
+import PracticeDetail from './features/practices/PracticeDetail';
+import UsersList from './features/users/UsersList';
+import UserDetail from './features/users/UserDetail';
 import PortalLayout from './features/portal/PortalLayout';
 import PortalDashboard from './features/portal/PortalDashboard';
 import PortalProfile from './features/portal/PortalProfile';
@@ -123,6 +127,10 @@ export default function App() {
         <Route path="expirations" element={<ExpirationDashboard />} />
         <Route path="roster" element={<RosterPage />} />
         <Route path="ai-agent" element={<AiAgentDashboard />} />
+        <Route path="practices" element={<PracticesList />} />
+        <Route path="practices/:practiceId" element={<PracticeDetail />} />
+        <Route path="users" element={<UsersList />} />
+        <Route path="users/:userId" element={<UserDetail />} />
         <Route path="pending-providers" element={<PendingProviders />} />
       </Route>
 

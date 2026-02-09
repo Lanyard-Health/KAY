@@ -237,6 +237,7 @@ describe('Payer Routes', () => {
 
   describe('PUT /enrollments/update/:id', () => {
     it('updates enrollment partially and sets updatedById', async () => {
+      prismaMock.payerEnrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
       prismaMock.payerEnrollment.update.mockResolvedValue({
         ...mockEnrollment,
         status: 'in_progress',
@@ -262,6 +263,7 @@ describe('Payer Routes', () => {
 
   describe('DELETE /enrollments/delete/:id', () => {
     it('deletes an enrollment', async () => {
+      prismaMock.payerEnrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
       prismaMock.payerEnrollment.delete.mockResolvedValue(mockEnrollment as any);
 
       const res = await request(app).delete('/enrollments/delete/enrollment-1-id');

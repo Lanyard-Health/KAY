@@ -40,14 +40,18 @@ vi.mock('../services/document.service.js', () => ({
 import { documentRoutes } from './document.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
+// UUID constants for request body fields (validated by Zod .uuid())
+const PROVIDER_UUID = '00000000-0000-4000-a000-000000000001';
+const OTHER_PROVIDER_UUID = '00000000-0000-4000-a000-000000000002';
+
 const mockDocument = {
   id: 'doc-1-id',
-  providerId: 'provider-1-id',
+  providerId: PROVIDER_UUID,
   fileName: 'abc123.pdf',
   originalFileName: 'license.pdf',
   fileSize: 1024,
   mimeType: 'application/pdf',
-  s3Key: 'documents/provider-1-id/abc123.pdf',
+  s3Key: `documents/${PROVIDER_UUID}/abc123.pdf`,
   documentType: 'license',
   description: null,
   ocrStatus: 'completed',
@@ -61,7 +65,7 @@ const mockDocument = {
 };
 
 const validUploadUrlRequest = {
-  providerId: 'provider-1-id',
+  providerId: PROVIDER_UUID,
   fileName: 'license.pdf',
   contentType: 'application/pdf',
   documentType: 'license',
@@ -76,11 +80,11 @@ describe('Document Routes', () => {
 
   describe('POST /upload-url', () => {
     it('generates upload URL when provider exists', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-1-id', providerId: 'provider-1-id' } as any);
+      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_UUID, providerId: PROVIDER_UUID } as any);
       mockGetUploadUrl.mockResolvedValue({
         uploadUrl: 'https://s3.example.com/presigned-url',
         documentId: 'new-doc-id',
-        s3Key: 'documents/provider-1-id/new-doc-id.pdf',
+        s3Key: `documents/${PROVIDER_UUID}/new-doc-id.pdf`,
         expiresAt: new Date(),
       });
 
@@ -106,11 +110,11 @@ describe('Document Routes', () => {
 
     it('returns 403 for provider user accessing other provider docs', async () => {
       const providerApp = createTestApp(documentRoutes, providerUser);
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'other-provider-id' } as any);
+      prismaMock.provider.findUnique.mockResolvedValue({ id: OTHER_PROVIDER_UUID } as any);
 
       const res = await request(providerApp)
         .post('/upload-url')
-        .send({ ...validUploadUrlRequest, providerId: 'other-provider-id' });
+        .send({ ...validUploadUrlRequest, providerId: OTHER_PROVIDER_UUID });
 
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
@@ -154,7 +158,7 @@ describe('Document Routes', () => {
       const providerApp = createTestApp(documentRoutes, providerUser);
       prismaMock.document.findUnique.mockResolvedValue({
         ...mockDocument,
-        providerId: 'other-provider-id',
+        providerId: OTHER_PROVIDER_UUID,
       } as any);
 
       const res = await request(providerApp)
@@ -169,7 +173,7 @@ describe('Document Routes', () => {
     it('returns document with provider info', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
         ...mockDocument,
-        provider: { id: 'provider-1-id', firstName: 'Jane', lastName: 'Doe' },
+        provider: { id: PROVIDER_UUID, firstName: 'Jane', lastName: 'Doe' },
       } as any);
 
       const res = await request(app).get('/doc-1-id');
@@ -192,8 +196,8 @@ describe('Document Routes', () => {
       const providerApp = createTestApp(documentRoutes, providerUser);
       prismaMock.document.findUnique.mockResolvedValue({
         ...mockDocument,
-        providerId: 'other-provider-id',
-        provider: { id: 'other-provider-id', firstName: 'Other', lastName: 'Provider' },
+        providerId: OTHER_PROVIDER_UUID,
+        provider: { id: OTHER_PROVIDER_UUID, firstName: 'Other', lastName: 'Provider' },
       } as any);
 
       const res = await request(providerApp).get('/doc-1-id');
@@ -228,7 +232,7 @@ describe('Document Routes', () => {
     it('returns OCR data', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
         id: 'doc-1-id',
-        providerId: 'provider-1-id',
+        providerId: PROVIDER_UUID,
         ocrStatus: 'completed',
         ocrData: { name: { value: 'Jane Doe', confidence: 0.95 } },
         ocrConfidence: 0.95,
@@ -357,14 +361,14 @@ describe('Document Routes', () => {
     it('returns documents for a provider', async () => {
       prismaMock.document.findMany.mockResolvedValue([mockDocument] as any);
 
-      const res = await request(app).get('/provider/provider-1-id');
+      const res = await request(app).get(`/provider/${PROVIDER_UUID}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
       expect(prismaMock.document.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { providerId: 'provider-1-id' },
+          where: { providerId: PROVIDER_UUID },
           orderBy: { createdAt: 'desc' },
         })
       );
@@ -373,7 +377,7 @@ describe('Document Routes', () => {
     it('returns empty array when no documents', async () => {
       prismaMock.document.findMany.mockResolvedValue([]);
 
-      const res = await request(app).get('/provider/provider-1-id');
+      const res = await request(app).get(`/provider/${PROVIDER_UUID}`);
 
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0);

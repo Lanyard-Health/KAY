@@ -58,6 +58,18 @@ interface AuthState {
   devProviderLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
+
+  // Challenge flow
+  challengeName: string | null;
+  challengeSession: any | null;
+  challengeEmail: string | null;
+  challengeMissingAttributes: string[];
+  handleNewPasswordChallenge: (newPassword: string) => Promise<void>;
+  handleMfaChallenge: (code: string) => Promise<void>;
+  handleMfaSetup: () => Promise<{ qrUri: string; secretCode: string }>;
+  confirmMfaSetup: (code: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  confirmForgotPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -67,6 +79,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   error: null,
   isDevMode: DEV_BYPASS_ENABLED,
+  challengeName: null,
+  challengeSession: null,
+  challengeEmail: null,
+  challengeMissingAttributes: [],
 
   checkAuth: async () => {
     try {
@@ -250,10 +266,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email: string, password: string) => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, challengeName: null });
 
-      const { signIn } = await getAmplifyAuth();
-      await signIn({ username: email, password });
+      if (DEV_BYPASS_ENABLED) {
+        // Dev mode doesn't use Amplify signIn
+        await get().checkAuth();
+        return;
+      }
+
+      const { signIn, signOut } = await getAmplifyAuth();
+      // Clear any stale session before attempting login
+      try { await signOut(); } catch { /* no existing session */ }
+      const result = await signIn({ username: email, password });
+
+      if (result.nextStep) {
+        const step = result.nextStep.signInStep;
+
+        if (step === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+          const missing = (result.nextStep as any).missingAttributes || [];
+          set({
+            challengeName: 'NEW_PASSWORD_REQUIRED',
+            challengeSession: result,
+            challengeEmail: email,
+            challengeMissingAttributes: missing,
+            isLoading: false,
+          });
+          return;
+        }
+
+        if (step === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
+          set({
+            challengeName: 'MFA_TOTP',
+            challengeSession: result,
+            isLoading: false,
+          });
+          return;
+        }
+
+        if (step === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
+          set({
+            challengeName: 'MFA_SETUP',
+            challengeSession: result,
+            isLoading: false,
+          });
+          return;
+        }
+
+        if (step === 'DONE') {
+          await get().checkAuth();
+          return;
+        }
+      }
+
       await get().checkAuth();
     } catch (error) {
       set({
@@ -262,6 +326,111 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       throw error;
     }
+  },
+
+  handleNewPasswordChallenge: async (newPassword: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const { confirmSignIn } = await import('aws-amplify/auth');
+      const email = get().challengeEmail || '';
+      const missing = get().challengeMissingAttributes;
+
+      // Build userAttributes only for what Cognito says is missing
+      const userAttributes: Record<string, string> = {};
+      if (missing.length > 0 && email.includes('@')) {
+        if (missing.includes('email')) userAttributes.email = email;
+        if (missing.includes('name')) userAttributes.name = email.split('@')[0];
+        if (missing.includes('given_name')) userAttributes.given_name = email.split('@')[0];
+        if (missing.includes('family_name')) userAttributes.family_name = '';
+      }
+
+      const result = await confirmSignIn({
+        challengeResponse: newPassword,
+        ...(Object.keys(userAttributes).length > 0 && {
+          options: { userAttributes },
+        }),
+      });
+
+      if (result.nextStep?.signInStep === 'DONE') {
+        set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
+        await get().checkAuth();
+      } else if (result.nextStep?.signInStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
+        set({
+          challengeName: 'MFA_SETUP',
+          challengeSession: result,
+          isLoading: false,
+        });
+      } else {
+        set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
+        await get().checkAuth();
+      }
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to set new password',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  handleMfaChallenge: async (code: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const { confirmSignIn } = await import('aws-amplify/auth');
+      await confirmSignIn({ challengeResponse: code });
+      set({ challengeName: null, challengeSession: null });
+      await get().checkAuth();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Invalid MFA code',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  handleMfaSetup: async () => {
+    const { setUpTOTP } = await import('aws-amplify/auth');
+    const totpSetup = await setUpTOTP();
+    const qrUri = totpSetup.getSetupUri('LanyardHealth').toString();
+    const secretCode = totpSetup.sharedSecret;
+    return { qrUri, secretCode };
+  },
+
+  confirmMfaSetup: async (code: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const { verifyTOTPSetup, confirmSignIn } = await import('aws-amplify/auth');
+      await verifyTOTPSetup({ code });
+
+      const state = get();
+      if (state.challengeName === 'MFA_SETUP') {
+        try {
+          await confirmSignIn({ challengeResponse: code });
+        } catch {
+          // May already be confirmed
+        }
+      }
+
+      set({ challengeName: null, challengeSession: null });
+      await get().checkAuth();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'MFA setup failed',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  forgotPassword: async (email: string) => {
+    const { resetPassword } = await import('aws-amplify/auth');
+    await resetPassword({ username: email });
+  },
+
+  confirmForgotPassword: async (email: string, code: string, newPassword: string) => {
+    const { confirmResetPassword } = await import('aws-amplify/auth');
+    await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
   },
 
   logout: async () => {

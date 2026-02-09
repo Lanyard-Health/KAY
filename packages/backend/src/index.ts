@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
+import { attachPracticeScope } from './middleware/practiceScope.middleware.js';
 import { logger } from './utils/logger.js';
 
 // Routes
@@ -35,6 +36,9 @@ import { pdmRoutes } from './routes/pdm.routes.js';
 import { rosterRoutes } from './routes/roster.routes.js';
 import { aiRoutes } from './routes/ai.routes.js';
 import portalRoutes from './routes/portal.routes.js';
+import taskRoutes from './routes/task.routes.js';
+import terminationLetterRoutes from './routes/terminationLetter.routes.js';
+import practiceRoutes from './routes/practice.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -71,6 +75,9 @@ app.use(morgan('combined', {
 
 // Audit logging middleware
 app.use(auditMiddleware);
+
+// Practice scope middleware (must run after authenticate in each route)
+app.use(attachPracticeScope);
 
 // Root route — redirect to frontend
 app.get('/', (_req, res) => {
@@ -118,6 +125,9 @@ app.use('/api/v1/pdm', pdmRoutes);
 app.use('/api/v1/roster', rosterRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/portal', portalRoutes);
+app.use('/api/v1', taskRoutes);
+app.use('/api/v1', terminationLetterRoutes);
+app.use('/api/v1/practices', practiceRoutes);
 
 // Error handling
 app.use(errorHandler);

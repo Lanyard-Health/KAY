@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
 
@@ -10,6 +11,7 @@ export const caqhRoutes = Router();
 
 caqhRoutes.use(authenticate);
 caqhRoutes.use(authorize('admin', 'credentialing_staff'));
+caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();
 

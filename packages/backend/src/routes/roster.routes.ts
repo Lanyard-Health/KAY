@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
+import { getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import {
   validateColumns,
   fetchRosterData,
@@ -227,7 +228,7 @@ rosterRoutes.post(
       const page = data.page || 1;
       const pageSize = data.pageSize || 25;
 
-      const result = await fetchRosterData(columns, page, pageSize);
+      const result = await fetchRosterData(columns, page, pageSize, getPracticeProviderFilter(req));
       const rows = flattenToRows(result.providers, columns);
 
       res.json({
@@ -256,7 +257,7 @@ rosterRoutes.post(
       const columns = data.columns as RosterColumn[];
       const reportName = data.reportName || 'Roster Report';
 
-      const providers = await fetchAllRosterData(columns);
+      const providers = await fetchAllRosterData(columns, getPracticeProviderFilter(req));
       const rows = flattenToRows(providers, columns);
       const buffer = await generateExcel(columns, rows, reportName);
 

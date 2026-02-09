@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { ExpirationService } from '../services/expiration.service.js';
 import { expirationQuerySchema, parseQuery } from '../utils/queryValidation.js';
 
@@ -21,7 +22,20 @@ expirationRoutes.get(
 
       const expirations = await expirationService.getUpcomingExpirations(days, type);
 
-      res.json({ success: true, data: expirations });
+      // Filter by practice scope
+      let filtered = expirations;
+      if (!req.practiceScope?.isSuperAdmin) {
+        const practiceIds = req.practiceScope?.practiceIds ?? [];
+        const providerIds = new Set(
+          (await prisma.provider.findMany({
+            where: { practiceId: { in: practiceIds } },
+            select: { id: true },
+          })).map(p => p.id)
+        );
+        filtered = expirations.filter((e: any) => providerIds.has(e.providerId));
+      }
+
+      res.json({ success: true, data: filtered });
     } catch (error) {
       next(error);
     }
@@ -46,6 +60,7 @@ expirationRoutes.get(
 // GET /api/v1/expirations/provider/:providerId - Get expirations for a provider
 expirationRoutes.get(
   '/provider/:providerId',
+  requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId'];

@@ -111,6 +111,7 @@ describe('Credential Routes', () => {
 
     describe('PUT /licenses/:id', () => {
       it('updates license partially and sets updatedById', async () => {
+        prismaMock.license.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
         prismaMock.license.update.mockResolvedValue({
           ...mockLicense,
           licenseNumber: 'MD-99999',
@@ -134,6 +135,7 @@ describe('Credential Routes', () => {
       });
 
       it('converts date fields when provided in update', async () => {
+        prismaMock.license.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
         prismaMock.license.update.mockResolvedValue(mockLicense as any);
 
         await request(app)
@@ -152,6 +154,7 @@ describe('Credential Routes', () => {
 
     describe('DELETE /licenses/:id', () => {
       it('deletes a license', async () => {
+        prismaMock.license.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
         prismaMock.license.delete.mockResolvedValue(mockLicense as any);
 
         const res = await request(app).delete('/licenses/license-1-id');

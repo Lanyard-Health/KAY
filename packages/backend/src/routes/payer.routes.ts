@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { z } from 'zod';
 
 export const payerRoutes = Router();
@@ -131,7 +132,7 @@ payerRoutes.put(
 // GET /api/v1/payers/enrollments/:providerId - Get provider enrollments
 payerRoutes.get(
   '/enrollments/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.payerEnrollment.findMany({
@@ -152,7 +153,7 @@ payerRoutes.get(
 // POST /api/v1/payers/enrollments/:providerId - Create enrollment
 payerRoutes.post(
   '/enrollments/:providerId',
-  requireProviderAccess,
+  requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEnrollmentSchema.parse(req.body);
@@ -189,6 +190,10 @@ payerRoutes.put(
     try {
       const data = createEnrollmentSchema.partial().parse(req.body);
 
+      const existing = await prisma.payerEnrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Enrollment');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
+
       const enrollment = await prisma.payerEnrollment.update({
         where: { id: req.params['id'] },
         data: {
@@ -215,6 +220,10 @@ payerRoutes.delete(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const existing = await prisma.payerEnrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Enrollment');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
+
       await prisma.payerEnrollment.delete({
         where: { id: req.params['id'] },
       });

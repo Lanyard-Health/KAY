@@ -55,19 +55,21 @@ export function buildIncludeClause(fields: RosterField[]): Record<string, any> {
 export async function fetchRosterData(
   columns: RosterColumn[],
   page: number = 1,
-  pageSize: number = 25
+  pageSize: number = 25,
+  where: Record<string, unknown> = {}
 ) {
   const fields = validateColumns(columns);
   const include = buildIncludeClause(fields);
 
   const [providers, total] = await Promise.all([
     prisma.provider.findMany({
+      where,
       include: Object.keys(include).length > 0 ? include : undefined,
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.provider.count(),
+    prisma.provider.count({ where }),
   ]);
 
   return { providers, total, page, pageSize };
@@ -76,11 +78,12 @@ export async function fetchRosterData(
 /**
  * Fetch ALL provider data (no pagination) for export.
  */
-export async function fetchAllRosterData(columns: RosterColumn[]) {
+export async function fetchAllRosterData(columns: RosterColumn[], where: Record<string, unknown> = {}) {
   const fields = validateColumns(columns);
   const include = buildIncludeClause(fields);
 
   const providers = await prisma.provider.findMany({
+    where,
     include: Object.keys(include).length > 0 ? include : undefined,
     orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
   });

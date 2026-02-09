@@ -20,12 +20,25 @@ enum UserRole {
   provider
 }
 
+enum PracticeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PracticeRole {
+  SUPER_ADMIN
+  PRACTICE_ADMIN
+  PRACTICE_STAFF
+  PROVIDER
+}
+
 model User {
   id          String    @id @default(uuid())
   cognitoId   String    @unique @map("cognito_id")
   email       String    @unique
   firstName   String    @map("first_name")
   lastName    String    @map("last_name")
+  phone       String?
   role        UserRole
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")
@@ -43,8 +56,49 @@ model User {
   documentsCreated Document[]           @relation("DocumentCreatedBy")
   documentsReviewed Document[]          @relation("DocumentReviewedBy")
   rosterTemplates  RosterTemplate[]
+  tasksAssigned        Task[]              @relation("TaskAssignedTo")
+  tasksCompleted       Task[]              @relation("TaskCompletedBy")
+  termLettersReviewed  TerminationLetter[] @relation("TermLetterReviewedBy")
+  practices            UserPractice[]
 
   @@map("users")
+}
+
+// ==========================================
+// PRACTICE (MULTI-TENANT)
+// ==========================================
+
+model Practice {
+  id        String          @id @default(uuid())
+  name      String
+  status    PracticeStatus  @default(ACTIVE)
+  phone     String?
+  email     String?
+  website   String?
+  notes     String?
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  users              UserPractice[]
+  providers          Provider[]
+  practiceLocations  PracticeLocation[]
+
+  @@map("practices")
+}
+
+model UserPractice {
+  id         String       @id @default(uuid())
+  userId     String       @map("user_id")
+  practiceId String       @map("practice_id")
+  role       PracticeRole
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, practiceId])
+  @@index([practiceId])
+  @@map("user_practices")
 }
 
 // ==========================================
@@ -130,6 +184,9 @@ model Provider {
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
 
+  // Multi-tenant
+  practiceId  String?  @map("practice_id")
+
   // Relations
   user                   User?
   addresses              ProviderAddress[]
@@ -147,6 +204,9 @@ model Provider {
   payerEnrollments       PayerEnrollment[]
   checklist              ProviderChecklist?
   applications           ProviderApplication[]
+  tasks                  Task[]
+  terminationLetters     TerminationLetter[]
+  practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@map("providers")
 }
@@ -212,6 +272,7 @@ model PracticeLocation {
   // Business Info
   taxId         String? @map("tax_id")
   npi           String? // Location-specific NPI if different from provider
+  groupNpi      String? @map("group_npi")
 
   // Hours (JSON object with day: {open, close} format)
   officeHours   Json?   @map("office_hours")
@@ -236,8 +297,12 @@ model PracticeLocation {
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
 
+  // Multi-tenant
+  practiceId  String?  @map("practice_id")
+
   // Relations
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice Practice? @relation(fields: [practiceId], references: [id])
 
   @@map("practice_locations")
 }
@@ -765,6 +830,7 @@ model PayerEnrollment {
   providerNumber         String?          @map("provider_number")
   groupNumber            String?          @map("group_number")
   notes                  String?
+  payerEmail             String?          @map("payer_email")
 
   // Automated Follow-up Settings
   followUpEnabled        Boolean   @default(false) @map("follow_up_enabled")
@@ -788,6 +854,7 @@ model PayerEnrollment {
   provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer             Payer              @relation(fields: [payerId], references: [id])
   aiRecommendations AiRecommendation[]
+  tasks             Task[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
@@ -1012,4 +1079,84 @@ model AdminNotification {
 
   @@index([read])
   @@map("admin_notifications")
+}
+
+// ==========================================
+// TERMINATION WORKFLOW
+// ==========================================
+
+enum TaskType {
+  TERMINATE_ENROLLMENT
+  CHECK_AVAILITY
+  UPDATE_CAQH
+  DRAFT_TERM_LETTER
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum TerminationLetterStatus {
+  DRAFT
+  REVIEWED
+  SENT
+}
+
+model Task {
+  id            String     @id @default(uuid())
+  providerId    String     @map("provider_id")
+  enrollmentId  String?    @map("enrollment_id")
+  title         String
+  description   String?
+  type          TaskType
+  status        TaskStatus @default(PENDING)
+  assignedToId  String?    @map("assigned_to_id")
+  dueDate       DateTime?  @map("due_date")
+  completedAt   DateTime?  @map("completed_at")
+  completedById String?    @map("completed_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  provider    Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  enrollment  PayerEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  assignedTo  User?            @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  completedBy User?            @relation("TaskCompletedBy", fields: [completedById], references: [id])
+  terminationLetters TerminationLetter[]
+
+  @@index([providerId])
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([type])
+  @@map("tasks")
+}
+
+model TerminationLetter {
+  id            String                  @id @default(uuid())
+  providerId    String                  @map("provider_id")
+  taskId        String                  @map("task_id")
+  payerName     String                  @map("payer_name")
+  payerEmail    String?                 @map("payer_email")
+  providerName  String                  @map("provider_name")
+  npi           String
+  groupNpi      String?                 @map("group_npi")
+  taxId         String                  @map("tax_id")
+  letterContent String                  @map("letter_content") @db.Text
+  status        TerminationLetterStatus @default(DRAFT)
+  reviewedById  String?                 @map("reviewed_by_id")
+  reviewedAt    DateTime?               @map("reviewed_at")
+  sentAt        DateTime?               @map("sent_at")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reviewedBy User?    @relation("TermLetterReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([providerId])
+  @@index([taskId])
+  @@map("termination_letters")
 }

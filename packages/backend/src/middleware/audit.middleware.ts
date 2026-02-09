@@ -14,6 +14,10 @@ declare global {
         role: string;
         providerId?: string;
       };
+      practiceScope?: {
+        isSuperAdmin: boolean;
+        practiceIds: string[];
+      };
       auditContext?: {
         resourceType: string;
         resourceId?: string;

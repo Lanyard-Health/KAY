@@ -317,11 +317,73 @@ jobs:
           path: semgrep-results.json
           if-no-files-found: ignore
 
+  backend-tests:
+    name: Backend Tests (Vitest)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: packages/backend
+
+      - name: Run Tests
+        id: tests
+        continue-on-error: true
+        run: npx vitest run --reporter=json --outputFile=vitest-results.json 2>&1 || true
+        working-directory: packages/backend
+
+      - name: Parse Test Results
+        if: always()
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let status = 'pass';
+            let summary = '';
+            try {
+              const raw = fs.readFileSync('packages/backend/vitest-results.json', 'utf8');
+              const results = JSON.parse(raw);
+              const passed = results.numPassedTests || 0;
+              const failed = results.numFailedTests || 0;
+              const total = results.numTotalTests || 0;
+              if (failed > 0) {
+                status = 'fail';
+                const failedSuites = (results.testResults || [])
+                  .filter(s => s.status === 'failed')
+                  .map(s => `- \`${s.name.replace(/.*\/packages\//, 'packages/')}\``)
+                  .slice(0, 10)
+                  .join('\n');
+                summary = `### :x: Tests: ${failed}/${total} failed\n\n${failedSuites}`;
+              } else {
+                summary = `### :white_check_mark: Tests: ${passed}/${total} passed`;
+              }
+            } catch (e) {
+              status = 'fail';
+              summary = `### :x: Tests: Could not parse results\n\nError: ${e.message}`;
+            }
+            core.setOutput('status', status);
+            core.setOutput('summary', summary);
+
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [gitleaks, npm-audit, eslint-security, semgrep]
+    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests]
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -340,6 +402,8 @@ jobs:
           ESLINT_SUMMARY: ${{ needs.eslint-security.outputs.summary }}
           SEMGREP_STATUS: ${{ needs.semgrep.outputs.status }}
           SEMGREP_SUMMARY: ${{ needs.semgrep.outputs.summary }}
+          TESTS_STATUS: ${{ needs.backend-tests.outputs.status }}
+          TESTS_SUMMARY: ${{ needs.backend-tests.outputs.summary }}
         with:
           script: |
             const gitleaksStatus = process.env.GITLEAKS_STATUS || 'unknown';
@@ -350,8 +414,10 @@ jobs:
             const eslintSummary = process.env.ESLINT_SUMMARY || '### :grey_question: ESLint Security: No results available';
             const semgrepStatus = process.env.SEMGREP_STATUS || 'unknown';
             const semgrepSummary = process.env.SEMGREP_SUMMARY || '### :grey_question: Semgrep: No results available';
+            const testsStatus = process.env.TESTS_STATUS || 'unknown';
+            const testsSummary = process.env.TESTS_SUMMARY || '### :grey_question: Tests: No results available';
 
-            const anyFailed = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus].includes('fail');
+            const anyFailed = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus].includes('fail');
 
             const overallIcon = anyFailed ? ':rotating_light:' : ':shield:';
             const overallText = anyFailed
@@ -378,6 +444,10 @@ jobs:
               '---',
               '',
               semgrepSummary,
+              '',
+              '---',
+              '',
+              testsSummary,
               '',
               '---',
               '',

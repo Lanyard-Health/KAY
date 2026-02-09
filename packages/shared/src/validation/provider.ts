@@ -52,6 +52,7 @@ export const createProviderSchema = z.object({
 export const updateProviderSchema = createProviderSchema.partial().extend({
   status: providerStatusSchema.optional(),
   caqhProviderId: z.union([z.string().max(50), z.null()]).optional().transform(val => val === null ? undefined : val),
+  practiceId: z.union([z.string().uuid(), z.null()]).optional(),
 });
 
 export const addressSchema = z.object({

@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
+import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   isConfigured,
   getModelInfo,
@@ -18,7 +19,13 @@ import {
 // Helper to check enrollment access for AI operations
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
-  if (role === 'admin' || role === 'credentialing_staff') return;
+  if (role === 'admin') return;
+  if (role === 'credentialing_staff') {
+    const enrollment = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    if (!enrollment) return;
+    if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) throw new ForbiddenError('Access denied to this enrollment');
+    return;
+  }
 
   const enrollment = await prisma.payerEnrollment.findUnique({
     where: { id: enrollmentId },
