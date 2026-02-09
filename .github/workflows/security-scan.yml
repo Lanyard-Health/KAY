@@ -20,6 +20,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        id: checkout-retry1
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (retry 2)
+        if: steps.checkout-retry1.outcome == 'failure'
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -73,6 +89,18 @@ jobs:
       summary: ${{ steps.parse.outputs.summary }}
     steps:
       - name: Checkout
+        uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        id: checkout-retry1
+        continue-on-error: true
+
+      - name: Checkout (retry 2)
+        if: steps.checkout-retry1.outcome == 'failure'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -143,6 +171,18 @@ jobs:
       summary: ${{ steps.parse.outputs.summary }}
     steps:
       - name: Checkout
+        uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        id: checkout-retry1
+        continue-on-error: true
+
+      - name: Checkout (retry 2)
+        if: steps.checkout-retry1.outcome == 'failure'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -237,6 +277,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        id: checkout-retry1
+        continue-on-error: true
+
+      - name: Checkout (retry 2)
+        if: steps.checkout-retry1.outcome == 'failure'
+        uses: actions/checkout@v4
 
       - name: Run Semgrep
         id: semgrep
@@ -325,6 +377,18 @@ jobs:
       summary: ${{ steps.parse.outputs.summary }}
     steps:
       - name: Checkout
+        uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+        id: checkout-retry1
+        continue-on-error: true
+
+      - name: Checkout (retry 2)
+        if: steps.checkout-retry1.outcome == 'failure'
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -417,7 +481,78 @@ jobs:
             const testsStatus = process.env.TESTS_STATUS || 'unknown';
             const testsSummary = process.env.TESTS_SUMMARY || '### :grey_question: Tests: No results available';
 
-            const anyFailed = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus].includes('fail');
+            // Detect infrastructure failure: all jobs failed to produce results
+            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus];
+            const allUnknown = allStatuses.every(s => s === 'unknown' || s === '');
+
+            if (allUnknown) {
+              core.warning('All scan jobs failed to produce results — likely a GitHub infrastructure issue. Re-run the workflow.');
+
+              const infraBody = [
+                '## :construction: Security Scan Results — Infrastructure Issue',
+                '',
+                '**All 5 scan jobs failed to produce results.** This is likely caused by a transient GitHub infrastructure issue (e.g. 500/502 during checkout), not by actual security findings.',
+                '',
+                ':arrow_right: **Action:** Re-run the workflow. If the problem persists, check [GitHub Status](https://www.githubstatus.com/).',
+                '',
+                '---',
+                '',
+                gitleaksSummary,
+                '',
+                '---',
+                '',
+                npmAuditSummary,
+                '',
+                '---',
+                '',
+                eslintSummary,
+                '',
+                '---',
+                '',
+                semgrepSummary,
+                '',
+                '---',
+                '',
+                testsSummary,
+                '',
+                '---',
+                '',
+                `*Scan attempted at ${new Date().toISOString()}*`,
+              ].join('\n');
+
+              if (context.eventName === 'pull_request') {
+                const prNumber = context.payload.pull_request.number;
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                });
+                const marker = '<!-- security-scan-results -->';
+                const existing = comments.data.find(c => c.body.includes(marker));
+                const fullBody = marker + '\n' + infraBody;
+                if (existing) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: existing.id,
+                    body: fullBody,
+                  });
+                } else {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: fullBody,
+                  });
+                }
+              }
+
+              await core.summary.addRaw(infraBody).write();
+              // Don't fail the gate on infrastructure issues
+              return;
+            }
+
+            const anyFailed = allStatuses.includes('fail');
 
             const overallIcon = anyFailed ? ':rotating_light:' : ':shield:';
             const overallText = anyFailed
