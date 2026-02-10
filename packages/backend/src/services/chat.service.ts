@@ -22,13 +22,13 @@ const INTENT_KEYWORDS: Record<Exclude<Intent, 'general'>, string[]> = {
 
 function classifyIntent(message: string): Intent {
   const lower = message.toLowerCase();
-  const scores: Record<string, number> = {};
+  const scores = new Map<string, number>();
 
   for (const [intent, keywords] of Object.entries(INTENT_KEYWORDS)) {
-    scores[intent] = keywords.filter(kw => lower.includes(kw)).length;
+    scores.set(intent, keywords.filter(kw => lower.includes(kw)).length);
   }
 
-  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  const best = [...scores.entries()].sort((a, b) => b[1] - a[1])[0];
   if (best && best[1] > 0) return best[0] as Intent;
   return 'general';
 }
