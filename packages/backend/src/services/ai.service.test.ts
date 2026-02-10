@@ -38,6 +38,17 @@ import {
 } from './ai.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
+// Default mock for chatMessage.aggregate (used by getTodayTokenUsage)
+beforeEach(() => {
+  prismaMock.chatMessage.aggregate.mockResolvedValue({
+    _sum: { promptTokens: 0, completionTokens: 0 },
+    _count: null as any,
+    _avg: null as any,
+    _min: null as any,
+    _max: null as any,
+  });
+});
+
 // ===========================
 // Helpers
 // ===========================

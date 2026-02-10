@@ -16,6 +16,11 @@ import {
   getRecommendations,
   updateRecommendationStatus,
 } from '../services/ai.service.js';
+import {
+  sendChatMessage,
+  getUserConversations,
+  getConversationMessages,
+} from '../services/chat.service.js';
 
 // Helper to check enrollment access for AI operations
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -180,6 +185,67 @@ router.get('/usage', async (_req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch usage stats' });
+  }
+});
+
+/**
+ * POST /api/v1/ai/chat — Send a chat message
+ */
+router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+    }
+    const { conversationId, message } = req.body || {};
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'Message is required' });
+    }
+    if (message.length > 2000) {
+      return res.status(400).json({ success: false, error: 'Message must be 2000 characters or fewer' });
+    }
+    if (conversationId && typeof conversationId !== 'string') {
+      return res.status(400).json({ success: false, error: 'Invalid conversationId' });
+    }
+    const result = await sendChatMessage({
+      userId: req.user!.id,
+      conversationId: conversationId || undefined,
+      message: message.trim(),
+      req,
+    });
+    res.json({ success: true, data: result });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to process chat message';
+    const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/v1/ai/chat/conversations — List user's conversations
+ */
+router.get('/chat/conversations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 20, 50);
+    const offset = Math.max(parseInt(req.query['offset'] as string) || 0, 0);
+    const conversations = await getUserConversations(req.user!.id, limit, offset);
+    res.json({ success: true, data: conversations });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch conversations' });
+  }
+});
+
+/**
+ * GET /api/v1/ai/chat/conversations/:id/messages — Get conversation messages
+ */
+router.get('/chat/conversations/:id/messages', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await getConversationMessages(id!, req.user!.id);
+    res.json({ success: true, data: result });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch messages';
+    const status = message.includes('not found') ? 404 : 500;
+    res.status(status).json({ success: false, error: message });
   }
 });
 

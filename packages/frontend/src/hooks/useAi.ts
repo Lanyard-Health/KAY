@@ -225,3 +225,118 @@ export function useUpdateRecommendation() {
     },
   });
 }
+
+// ===========================
+// Chat Types
+// ===========================
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  title: string | null;
+  lastMessage: {
+    content: string;
+    role: string;
+    createdAt: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatSendResponse {
+  conversationId: string;
+  message: ChatMessage;
+}
+
+// ===========================
+// Chat Hooks
+// ===========================
+
+export function useChatConversations() {
+  return useQuery({
+    queryKey: ['chat-conversations'],
+    queryFn: async () => {
+      const { data } = await api.get<{ success: boolean; data: ChatConversation[] }>(
+        '/ai/chat/conversations'
+      );
+      return data;
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useChatMessages(conversationId: string | null) {
+  return useQuery({
+    queryKey: ['chat-messages', conversationId],
+    queryFn: async () => {
+      const { data } = await api.get<{
+        success: boolean;
+        data: { conversation: { id: string; title: string | null; createdAt: string }; messages: ChatMessage[] };
+      }>(`/ai/chat/conversations/${conversationId}/messages`);
+      return data;
+    },
+    enabled: !!conversationId,
+    staleTime: 10 * 1000,
+  });
+}
+
+export function useSendChatMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, message }: { conversationId?: string; message: string }) => {
+      const { data } = await api.post<{ success: boolean; data: ChatSendResponse }>(
+        '/ai/chat',
+        { conversationId, message }
+      );
+      return data;
+    },
+    onMutate: async ({ conversationId, message }) => {
+      // Optimistic update: add user message to cache immediately
+      if (conversationId) {
+        await queryClient.cancelQueries({ queryKey: ['chat-messages', conversationId] });
+        const previous = queryClient.getQueryData(['chat-messages', conversationId]);
+        queryClient.setQueryData(['chat-messages', conversationId], (old: any) => {
+          if (!old?.data?.messages) return old;
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              messages: [
+                ...old.data.messages,
+                {
+                  id: `optimistic-${Date.now()}`,
+                  role: 'user',
+                  content: message,
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          };
+        });
+        return { previous, conversationId };
+      }
+      return {};
+    },
+    onError: (_error, _variables, context: any) => {
+      // Rollback optimistic update on error
+      if (context?.conversationId && context?.previous) {
+        queryClient.setQueryData(['chat-messages', context.conversationId], context.previous);
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({ queryKey: ['chat-messages', variables.conversationId] });
+      }
+    },
+  });
+}
