@@ -59,17 +59,6 @@ export default function DocumentList() {
     return DOCUMENT_TYPES.find((t) => t.value === type)?.label || type;
   };
 
-  const getOcrStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      completed: 'bg-green-100 text-green-800',
-      processing: 'bg-primary-100 text-primary-800',
-      pending: 'bg-yellow-100 text-yellow-800',
-      failed: 'bg-red-100 text-red-800',
-      not_applicable: 'bg-gray-100 text-gray-800',
-    };
-    return colors[status] || colors['not_applicable'];
-  };
-
 
   const handleDownload = async (documentId: string, fileName: string) => {
     try {
