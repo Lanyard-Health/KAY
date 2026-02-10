@@ -177,6 +177,9 @@ echo "CHECK 3: Route handlers missing auth middleware"
 # Public endpoint patterns that intentionally skip auth
 PUBLIC_ENDPOINT_PATTERNS=(
   "/register"
+  "/login"
+  "/refresh"
+  "/logout"
   "/status/"
   "/practice/"
   "/npi-lookup"
@@ -205,6 +208,13 @@ if [ -d "$ROUTES_DIR" ]; then
 
     # Skip if authenticate is on this line
     if echo "$line_content" | grep -q "authenticate"; then
+      continue
+    fi
+
+    # Skip if authenticate appears in the next 3 lines (multi-line route definition)
+    end_line=$((line_num + 3))
+    next_lines=$(sed -n "$((line_num + 1)),${end_line}p" "$file_path" 2>/dev/null || true)
+    if echo "$next_lines" | grep -q "authenticate"; then
       continue
     fi
 
@@ -263,6 +273,12 @@ if [ -f "$PROVIDER_ROUTES" ]; then
     context=$(sed -n "${start},${line_num}p" "$PROVIDER_ROUTES")
 
     if echo "$context" | grep -q "prisma\.provider\." && ! echo "$context" | grep -q "select:"; then
+      # Check if stripSensitiveFields is applied within 30 lines after the include
+      strip_end=$((line_num + 30))
+      strip_context=$(sed -n "${line_num},${strip_end}p" "$PROVIDER_ROUTES" 2>/dev/null || true)
+      if echo "$strip_context" | grep -q "stripSensitiveFields"; then
+        continue
+      fi
       warn_check "Provider query uses include without select at provider.routes.ts:$line_num"
       check4_found=true
     fi
