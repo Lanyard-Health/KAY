@@ -1,0 +1,16 @@
+name: Security Lint
+
+on:
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  security-lint:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security lint
+        run: bash scripts/security-lint.sh
