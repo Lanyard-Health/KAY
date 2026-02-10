@@ -18,7 +18,7 @@ export function sanitizeUserInput(input: string, maxLength = 500): string {
     .trim();
 }
 
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!client) {
     if (!ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY is not configured');
@@ -52,18 +52,19 @@ export async function getTodayTokenUsage() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const result = await prisma.aiRecommendation.aggregate({
-    where: {
-      createdAt: { gte: startOfDay },
-    },
-    _sum: {
-      promptTokens: true,
-      completionTokens: true,
-    },
-  });
+  const [recResult, chatResult] = await Promise.all([
+    prisma.aiRecommendation.aggregate({
+      where: { createdAt: { gte: startOfDay } },
+      _sum: { promptTokens: true, completionTokens: true },
+    }),
+    prisma.chatMessage.aggregate({
+      where: { role: 'assistant', createdAt: { gte: startOfDay } },
+      _sum: { promptTokens: true, completionTokens: true },
+    }),
+  ]);
 
-  const promptTokens = result._sum.promptTokens || 0;
-  const completionTokens = result._sum.completionTokens || 0;
+  const promptTokens = (recResult._sum.promptTokens || 0) + (chatResult._sum.promptTokens || 0);
+  const completionTokens = (recResult._sum.completionTokens || 0) + (chatResult._sum.completionTokens || 0);
 
   return {
     promptTokens,

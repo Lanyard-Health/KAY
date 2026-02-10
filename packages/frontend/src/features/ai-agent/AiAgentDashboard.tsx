@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { SparklesIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import {
   useAiStatus,
   useAiUsage,
@@ -11,6 +11,7 @@ import {
 } from '../../hooks/useAi';
 import type { PortfolioItem, AiRecommendation } from '../../hooks/useAi';
 import AiEmailPreviewModal from './AiEmailPreviewModal';
+import ChatPanel from './ChatPanel';
 
 // ===========================
 // Helpers
@@ -48,6 +49,8 @@ export default function AiAgentDashboard() {
 
   const [portfolioResults, setPortfolioResults] = useState<PortfolioItem[] | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState('');
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat'>('dashboard');
 
   const [emailModal, setEmailModal] = useState<{
     isOpen: boolean;
@@ -132,6 +135,39 @@ export default function AiAgentDashboard() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'dashboard'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            <SparklesIcon className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            <ChatBubbleLeftRightIcon className="h-4 w-4" />
+            Chat
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'chat' ? (
+        <ChatPanel />
+      ) : (
+      <>
       {/* Portfolio Priority List */}
       <div className="rounded-lg bg-white shadow">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -258,6 +294,9 @@ export default function AiAgentDashboard() {
           </div>
         )}
       </div>
+
+      </>
+      )}
 
       {/* Email Modal */}
       {emailModal?.isOpen && (
