@@ -18,8 +18,6 @@ services:
         fromDatabase:
           name: kay-db
           property: connectionString
-      - key: DEV_AUTH_BYPASS
-        value: "true"
       - key: JWT_SECRET
         generateValue: true
       - key: ENCRYPTION_KEY
@@ -40,8 +38,6 @@ services:
     buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../frontend && npx vite build
     staticPublishPath: packages/frontend/dist
     envVars:
-      - key: VITE_DEV_AUTH_BYPASS
-        value: "true"
       - key: VITE_API_URL
         value: https://kay-os62.onrender.com/api/v1
     routes:
