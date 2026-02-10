@@ -8,6 +8,18 @@ import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
 import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
 
+// Fields to NEVER return in API responses
+const SENSITIVE_FIELDS = ['ssnEncrypted', 'caqhPassword', 'caqhUsername'] as const;
+
+function stripSensitiveFields(provider: any): any {
+  if (!provider) return provider;
+  const cleaned = { ...provider };
+  for (const field of SENSITIVE_FIELDS) {
+    delete cleaned[field];
+  }
+  return cleaned;
+}
+
 export const providerRoutes = Router();
 
 // Apply authentication to all routes
@@ -45,7 +57,23 @@ providerRoutes.get(
           skip: (page - 1) * pageSize,
           take: pageSize,
           orderBy: { lastName: 'asc' },
-          include: {
+          select: {
+            id: true,
+            npi: true,
+            firstName: true,
+            lastName: true,
+            middleName: true,
+            suffix: true,
+            email: true,
+            phone: true,
+            providerType: true,
+            taxonomy: true,
+            specialties: true,
+            languages: true,
+            status: true,
+            practiceId: true,
+            createdAt: true,
+            updatedAt: true,
             addresses: true,
             _count: {
               select: {
@@ -113,7 +141,16 @@ providerRoutes.get(
         throw new NotFoundError('Provider');
       }
 
-      res.json({ success: true, data: provider });
+      const cleaned = stripSensitiveFields(provider);
+
+      // Only include dateOfBirth for admin/staff or the provider themselves
+      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'credentialing_staff';
+      const isSelf = req.user?.providerId === provider.id;
+      if (!isAdminOrStaff && !isSelf) {
+        delete cleaned.dateOfBirth;
+      }
+
+      res.json({ success: true, data: cleaned });
     } catch (error) {
       next(error);
     }
@@ -144,7 +181,7 @@ providerRoutes.post(
         action: 'create',
       });
 
-      res.status(201).json({ success: true, data: provider });
+      res.status(201).json({ success: true, data: stripSensitiveFields(provider) });
     } catch (error) {
       next(error);
     }
@@ -183,7 +220,7 @@ providerRoutes.put(
         changes: { before: existing, after: provider },
       });
 
-      res.json({ success: true, data: provider });
+      res.json({ success: true, data: stripSensitiveFields(provider) });
     } catch (error) {
       next(error);
     }
@@ -253,7 +290,7 @@ providerRoutes.get(
       }
 
       // Format data based on requested format
-      const exportData = formatProviderForExport(provider, format);
+      const exportData = formatProviderForExport(stripSensitiveFields(provider), format);
 
       setAuditContext(req, {
         resourceType: 'providers',
