@@ -90,11 +90,11 @@ export default function PendingProviders() {
   };
 
   const tabs = [
-    { key: 'pending', label: 'Pending', count: data?.pendingCount },
-    { key: 'approved', label: 'Approved' },
-    { key: 'rejected', label: 'Rejected' },
-    { key: 'all', label: 'All' },
-  ] as const;
+    { key: 'pending' as const, label: 'Pending', count: data?.pendingCount },
+    { key: 'approved' as const, label: 'Approved', count: undefined },
+    { key: 'rejected' as const, label: 'Rejected', count: undefined },
+    { key: 'all' as const, label: 'All', count: undefined },
+  ];
 
   return (
     <div>

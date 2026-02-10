@@ -24,24 +24,6 @@ import PortalLicenses from './features/portal/PortalLicenses';
 import PortalLocations from './features/portal/PortalLocations';
 import RegistrationSuccess from './features/portal/RegistrationSuccess';
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuthStore();
-
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <>{children}</>;
-}
-
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuthStore();
 
