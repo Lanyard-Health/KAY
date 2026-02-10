@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "lanyard-health": {
+      "command": "node",
+      "args": ["packages/mcp-server/dist/index.js"],
+      "cwd": "/Users/kay/Documents/KAY",
+      "env": {
+        "DATABASE_URL": "postgresql://credentials:credentials_dev_password@localhost:5433/credentials",
+        "MCP_USER_EMAIL": "admin@lanyardhealth.com"
+      }
+    }
+  }
+}
