@@ -2,13 +2,16 @@ import cron from 'node-cron';
 import { followUpService } from './followup.service.js';
 import { emailService } from './email.service.js';
 import { isConfigured, generateExpirationAlerts } from './ai.service.js';
+import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDirectory.service.js';
 import { logger } from '../utils/logger.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
   private expirationAlertJob: cron.ScheduledTask | null = null;
+  private directoryCheckJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isExpirationJobRunning = false;
+  private isDirectoryJobRunning = false;
 
   /**
    * Initialize all scheduled jobs
@@ -32,6 +35,17 @@ class SchedulerService {
       logger.info(`[Scheduler] Expiration alert job scheduled: ${schedule}`);
     } else {
       logger.info('[Scheduler] AI not configured, expiration alert job not scheduled.');
+    }
+
+    // Schedule weekly directory verification checks
+    if (getConfiguredPayers().length > 0) {
+      const directorySchedule = process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0';
+      this.directoryCheckJob = cron.schedule(directorySchedule, () => {
+        this.runDirectoryCheckJob();
+      });
+      logger.info(`[Scheduler] Directory check job scheduled: ${directorySchedule}`);
+    } else {
+      logger.info('[Scheduler] No directory adapters configured, directory check job not scheduled.');
     }
   }
 
@@ -114,6 +128,31 @@ class SchedulerService {
   }
 
   /**
+   * Run the directory check job
+   */
+  async runDirectoryCheckJob(): Promise<void> {
+    if (this.isDirectoryJobRunning) {
+      logger.info('[Scheduler] Directory check job already running, skipping...');
+      return;
+    }
+
+    this.isDirectoryJobRunning = true;
+    logger.info('[Scheduler] Starting directory check job...');
+
+    try {
+      const result = await runScheduledDirectoryChecks();
+      logger.info(`[Scheduler] Directory check job completed:`);
+      logger.info(`  - Checked: ${result.checked}`);
+      logger.info(`  - Alerts: ${result.alerts}`);
+      logger.info(`  - Errors: ${result.errors}`);
+    } catch (error) {
+      logger.error('[Scheduler] Directory check job error:', error);
+    } finally {
+      this.isDirectoryJobRunning = false;
+    }
+  }
+
+  /**
    * Stop all scheduled jobs
    */
   stop(): void {
@@ -127,6 +166,11 @@ class SchedulerService {
       this.expirationAlertJob = null;
       logger.info('[Scheduler] Expiration alert job stopped');
     }
+    if (this.directoryCheckJob) {
+      this.directoryCheckJob.stop();
+      this.directoryCheckJob = null;
+      logger.info('[Scheduler] Directory check job stopped');
+    }
   }
 
   /**
@@ -137,16 +181,22 @@ class SchedulerService {
     aiConfigured: boolean;
     followUpJobRunning: boolean;
     expirationAlertJobRunning: boolean;
+    directoryCheckConfigured: boolean;
+    directoryCheckJobRunning: boolean;
     followUpSchedule: string;
     expirationAlertSchedule: string;
+    directoryCheckSchedule: string;
   } {
     return {
       emailConfigured: emailService.isConfigured(),
       aiConfigured: isConfigured(),
       followUpJobRunning: this.isRunning,
       expirationAlertJobRunning: this.isExpirationJobRunning,
+      directoryCheckConfigured: getConfiguredPayers().length > 0,
+      directoryCheckJobRunning: this.isDirectoryJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
+      directoryCheckSchedule: process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0',
     };
   }
 }
