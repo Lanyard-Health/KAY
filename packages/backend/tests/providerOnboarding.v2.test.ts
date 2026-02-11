@@ -95,7 +95,7 @@ const validInput = {
   firstName: 'Jane',
   lastName: 'Doe',
   email: 'jane@test.com',
-  phone: '555-1234',
+  phone: '555-123-4567',
   dateOfBirth: '1985-06-15',
   gender: 'female',
   providerType: 'psychiatrist',
@@ -252,10 +252,14 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
   // ==========================================
   describe('POST /register — practiceId validation (route level)', () => {
     const publicApp = createTestApp(portalRouter);
+    publicApp.set('trust proxy', 1);
+    let regIp = 0;
+    function regNextIp() { return `10.99.0.${++regIp}`; }
 
     it('returns 400 for missing required fields', async () => {
       const res = await request(publicApp)
         .post('/register')
+        .set('X-Forwarded-For', regNextIp())
         .send({ npi: '1234567890' });
 
       expect(res.status).toBe(400);
@@ -265,6 +269,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
     it('returns 400 for invalid practiceId format', async () => {
       const res = await request(publicApp)
         .post('/register')
+        .set('X-Forwarded-For', regNextIp())
         .send({ ...validInput, practiceId: 'not-a-uuid' });
 
       expect(res.status).toBe(400);
@@ -276,6 +281,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
 
       const res = await request(publicApp)
         .post('/register')
+        .set('X-Forwarded-For', regNextIp())
         .send({
           ...validInput,
           practiceId: '00000000-0000-4000-a000-000000000099',

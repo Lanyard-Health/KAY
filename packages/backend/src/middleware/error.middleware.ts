@@ -59,14 +59,15 @@ export function errorHandler(
 ): void {
   logger.error(err);
 
-  // Zod validation errors
-  if (err instanceof ZodError) {
+  // Zod validation errors (use name check — instanceof fails across package boundaries)
+  if (err.name === 'ZodError') {
+    const zodErr = err as ZodError;
     res.status(400).json({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Validation failed',
-        details: err.flatten(),
+        details: zodErr.flatten(),
       },
     });
     return;
