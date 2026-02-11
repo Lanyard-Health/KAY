@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from './helpers/test-app.js';
 import { adminUser } from './helpers/fixtures.js';
@@ -137,6 +137,12 @@ const fhirEmptyBundle = {
 // ==========================================
 // Service-level tests
 // ==========================================
+
+const originalFetch = global.fetch;
+
+afterEach(() => {
+  global.fetch = originalFetch;
+});
 
 describe('Provider Directory Service', () => {
   beforeEach(() => {
