@@ -202,7 +202,7 @@ export default function RegisterPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#f8f8fa] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow-sm sm:rounded-2xl border border-gray-200/60 sm:px-10">
             <div className="text-center">
@@ -234,17 +234,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f8fa] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <div className="h-12 w-12 rounded-2xl bg-primary-600 flex items-center justify-center">
-            <span className="text-white text-xl font-bold">C</span>
-          </div>
-        </div>
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+        <img src="/logo.png" alt="Lanyard Health" className="h-12 mx-auto brightness-0 invert" />
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-white">
           Provider Registration
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="mt-2 text-center text-sm text-white/70">
           Join our provider network by completing the form below
         </p>
         {practiceInfo && (
