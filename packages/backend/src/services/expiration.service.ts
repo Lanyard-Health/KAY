@@ -47,6 +47,10 @@ export class ExpirationService {
       ? { lte: cutoffDate }
       : { lte: cutoffDate, gte: new Date() };
 
+    const statusFilter = includeExpired
+      ? { in: ['active' as const, 'expired' as const] }
+      : ('active' as const);
+
     const expirations: ExpiringCredential[] = [];
 
     // Get expiring licenses
@@ -54,7 +58,7 @@ export class ExpirationService {
       const licenses = await prisma.license.findMany({
         where: {
           expirationDate: dateFilter,
-          status: 'active',
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -87,7 +91,7 @@ export class ExpirationService {
       const certifications = await prisma.boardCertification.findMany({
         where: {
           expirationDate: dateFilter,
-          status: 'active',
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -120,7 +124,7 @@ export class ExpirationService {
       const insurances = await prisma.malpracticeInsurance.findMany({
         where: {
           expirationDate: dateFilter,
-          status: 'active',
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -236,7 +240,7 @@ export class ExpirationService {
       prisma.malpracticeInsurance.count({ where: { expirationDate: { lt: now }, status: 'active' } }),
     ]);
 
-    const recentExpirations = await this.getUpcomingExpirations(30);
+    const recentExpirations = await this.getUpcomingExpirations(30, undefined, true);
 
     return {
       expiring7Days: licenses7 + certs7 + insurance7,
