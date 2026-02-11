@@ -318,22 +318,161 @@ async function applyCaqhDataToProvider(
   providerId: string,
   caqhData: any
 ): Promise<Record<string, unknown>> {
-  const changes: Record<string, unknown> = {};
+  const summary = {
+    licenses: { created: 0, updated: 0, skipped: 0 },
+    certifications: { created: 0, updated: 0, skipped: 0 },
+    education: { created: 0, updated: 0, skipped: 0 },
+    malpractice: { created: 0, updated: 0, skipped: 0 },
+  };
 
-  // This is a placeholder - actual implementation would map CAQH fields
-  // to local database fields and update accordingly
-
-  // Example: Update licenses from CAQH data
+  // --- Licenses ---
   if (caqhData.licenses?.length > 0) {
-    changes['licenses'] = caqhData.licenses.length;
-    // Would create/update license records here
+    for (const lic of caqhData.licenses) {
+      const existing = await prisma.license.findFirst({
+        where: { providerId, licenseNumber: lic.licenseNumber },
+      });
+
+      if (existing) {
+        if (existing.source === 'manual_entry') {
+          summary.licenses.skipped++;
+          continue;
+        }
+        await prisma.license.update({
+          where: { id: existing.id },
+          data: {
+            licenseType: lic.licenseType ?? existing.licenseType,
+            state: lic.state ?? existing.state,
+            expirationDate: lic.expirationDate ? new Date(lic.expirationDate) : existing.expirationDate,
+            source: 'caqh_sync',
+          },
+        });
+        summary.licenses.updated++;
+      } else {
+        await prisma.license.create({
+          data: {
+            providerId,
+            licenseType: lic.licenseType,
+            licenseNumber: lic.licenseNumber,
+            state: lic.state,
+            issueDate: lic.issueDate ? new Date(lic.issueDate) : new Date(),
+            expirationDate: new Date(lic.expirationDate),
+            source: 'caqh_sync',
+          },
+        });
+        summary.licenses.created++;
+      }
+    }
   }
 
-  // Example: Update certifications from CAQH data
+  // --- Board Certifications ---
   if (caqhData.certifications?.length > 0) {
-    changes['certifications'] = caqhData.certifications.length;
-    // Would create/update certification records here
+    for (const cert of caqhData.certifications) {
+      const existing = await prisma.boardCertification.findFirst({
+        where: { providerId, boardName: cert.boardName, specialty: cert.specialty },
+      });
+
+      if (existing) {
+        if (existing.source === 'manual_entry') {
+          summary.certifications.skipped++;
+          continue;
+        }
+        await prisma.boardCertification.update({
+          where: { id: existing.id },
+          data: {
+            boardType: cert.boardType ?? existing.boardType,
+            expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : existing.expirationDate,
+            source: 'caqh_sync',
+          },
+        });
+        summary.certifications.updated++;
+      } else {
+        await prisma.boardCertification.create({
+          data: {
+            providerId,
+            boardType: cert.boardType ?? 'other',
+            boardName: cert.boardName,
+            specialty: cert.specialty,
+            initialCertificationDate: cert.initialCertificationDate
+              ? new Date(cert.initialCertificationDate)
+              : new Date(),
+            expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : undefined,
+            source: 'caqh_sync',
+          },
+        });
+        summary.certifications.created++;
+      }
+    }
   }
 
-  return changes;
+  // --- Education ---
+  if (caqhData.education?.length > 0) {
+    for (const edu of caqhData.education) {
+      const existing = await prisma.education.findFirst({
+        where: { providerId, institutionName: edu.institutionName, degree: edu.degree },
+      });
+
+      if (existing) {
+        // Education has no source field — update only if not manually entered
+        await prisma.education.update({
+          where: { id: existing.id },
+          data: {
+            graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : existing.graduationDate,
+          },
+        });
+        summary.education.updated++;
+      } else {
+        const gradDate = edu.graduationDate ? new Date(edu.graduationDate) : undefined;
+        await prisma.education.create({
+          data: {
+            providerId,
+            institutionName: edu.institutionName,
+            degree: edu.degree,
+            fieldOfStudy: edu.fieldOfStudy ?? 'Unknown',
+            country: edu.country ?? 'US',
+            startDate: gradDate ?? new Date(),
+            graduationDate: gradDate,
+          },
+        });
+        summary.education.created++;
+      }
+    }
+  }
+
+  // --- Malpractice Insurance ---
+  if (caqhData.malpractice?.length > 0) {
+    for (const mal of caqhData.malpractice) {
+      const existing = await prisma.malpracticeInsurance.findFirst({
+        where: { providerId, policyNumber: mal.policyNumber },
+      });
+
+      if (existing) {
+        await prisma.malpracticeInsurance.update({
+          where: { id: existing.id },
+          data: {
+            carrierName: mal.carrierName ?? existing.carrierName,
+            expirationDate: mal.expirationDate ? new Date(mal.expirationDate) : existing.expirationDate,
+            perClaimAmount: mal.perClaimAmount ?? existing.perClaimAmount,
+          },
+        });
+        summary.malpractice.updated++;
+      } else {
+        const perClaim = mal.perClaimAmount ?? 1000000;
+        await prisma.malpracticeInsurance.create({
+          data: {
+            providerId,
+            carrierName: mal.carrierName,
+            policyNumber: mal.policyNumber,
+            coverageType: mal.coverageType ?? 'occurrence',
+            perClaimAmount: perClaim,
+            aggregateAmount: mal.aggregateAmount ?? perClaim * 3,
+            effectiveDate: mal.effectiveDate ? new Date(mal.effectiveDate) : new Date(),
+            expirationDate: new Date(mal.expirationDate),
+          },
+        });
+        summary.malpractice.created++;
+      }
+    }
+  }
+
+  return summary;
 }

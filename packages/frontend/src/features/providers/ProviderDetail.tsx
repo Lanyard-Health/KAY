@@ -10,6 +10,9 @@ import { api } from '../../services/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import PracticeLocationModal from './PracticeLocationModal';
+import LicenseModal from './LicenseModal';
+import CertificationModal from './CertificationModal';
+import { useDeleteLicense, useDeleteCertification } from '../../hooks/useCredentials';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
 import ProviderTasks from './ProviderTasks';
@@ -31,6 +34,10 @@ export default function ProviderDetail() {
   const queryClient = useQueryClient();
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<any>(null);
+  const [licenseModalOpen, setLicenseModalOpen] = useState(false);
+  const [editingLicense, setEditingLicense] = useState<any>(null);
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const [editingCert, setEditingCert] = useState<any>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadDocumentType, setUploadDocumentType] = useState<string>('');
@@ -95,6 +102,41 @@ export default function ProviderDetail() {
   const handleDeleteLocation = (locationId: string) => {
     if (window.confirm('Are you sure you want to delete this location?')) {
       deleteLocationMutation.mutate(locationId);
+    }
+  };
+
+  const deleteLicenseMutation = useDeleteLicense();
+  const deleteCertMutation = useDeleteCertification();
+
+  const handleAddLicense = () => {
+    setEditingLicense(null);
+    setLicenseModalOpen(true);
+  };
+
+  const handleEditLicense = (license: any) => {
+    setEditingLicense(license);
+    setLicenseModalOpen(true);
+  };
+
+  const handleDeleteLicense = (licenseId: string) => {
+    if (window.confirm('Are you sure you want to delete this license?')) {
+      deleteLicenseMutation.mutate({ licenseId, providerId: id! });
+    }
+  };
+
+  const handleAddCert = () => {
+    setEditingCert(null);
+    setCertModalOpen(true);
+  };
+
+  const handleEditCert = (cert: any) => {
+    setEditingCert(cert);
+    setCertModalOpen(true);
+  };
+
+  const handleDeleteCert = (certId: string) => {
+    if (window.confirm('Are you sure you want to delete this certification?')) {
+      deleteCertMutation.mutate({ certificationId: certId, providerId: id! });
     }
   };
 
@@ -510,7 +552,11 @@ export default function ProviderDetail() {
           <div className="card">
             <div className="card-header flex items-center justify-between">
               <h2 className="text-lg font-medium text-gray-900">Licenses</h2>
-              <button className="text-sm text-primary-600 hover:text-primary-500">
+              <button
+                onClick={handleAddLicense}
+                className="text-sm text-primary-600 hover:text-primary-500 flex items-center"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
                 Add License
               </button>
             </div>
@@ -522,22 +568,40 @@ export default function ProviderDetail() {
                   {provider.licenses?.map((license: any) => (
                     <div
                       key={license.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                      className="p-4 bg-gray-50 rounded-lg"
                     >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {license.licenseType.replace('_', ' ')} - {license.state}
-                        </p>
-                        <p className="text-sm text-gray-500">#{license.licenseNumber}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Expires</p>
-                        <p className={clsx(
-                          'text-sm font-medium',
-                          new Date(license.expirationDate) < new Date() ? 'text-red-600' : 'text-gray-900'
-                        )}>
-                          {format(new Date(license.expirationDate), 'MMM d, yyyy')}
-                        </p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">
+                            {license.licenseType.replace('_', ' ')} - {license.state}
+                          </p>
+                          <p className="text-sm text-gray-500">#{license.licenseNumber}</p>
+                        </div>
+                        <div className="flex items-center gap-3 ml-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">Expires</p>
+                            <p className={clsx(
+                              'text-sm font-medium',
+                              new Date(license.expirationDate) < new Date() ? 'text-red-600' : 'text-gray-900'
+                            )}>
+                              {format(new Date(license.expirationDate), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditLicense(license)}
+                              className="text-primary-600 hover:text-primary-900"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLicense(license.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -550,7 +614,11 @@ export default function ProviderDetail() {
           <div className="card">
             <div className="card-header flex items-center justify-between">
               <h2 className="text-lg font-medium text-gray-900">Board Certifications</h2>
-              <button className="text-sm text-primary-600 hover:text-primary-500">
+              <button
+                onClick={handleAddCert}
+                className="text-sm text-primary-600 hover:text-primary-500 flex items-center"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
                 Add Certification
               </button>
             </div>
@@ -562,21 +630,39 @@ export default function ProviderDetail() {
                   {provider.boardCertifications?.map((cert: any) => (
                     <div
                       key={cert.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                      className="p-4 bg-gray-50 rounded-lg"
                     >
-                      <div>
-                        <p className="font-medium text-gray-900">{cert.boardName}</p>
-                        <p className="text-sm text-gray-500">{cert.specialty}</p>
-                      </div>
-                      <div className="text-right">
-                        {cert.expirationDate && (
-                          <>
-                            <p className="text-sm text-gray-500">Expires</p>
-                            <p className="text-sm font-medium text-gray-900">
-                              {format(new Date(cert.expirationDate), 'MMM d, yyyy')}
-                            </p>
-                          </>
-                        )}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{cert.boardName}</p>
+                          <p className="text-sm text-gray-500">{cert.specialty}</p>
+                        </div>
+                        <div className="flex items-center gap-3 ml-4">
+                          <div className="text-right">
+                            {cert.expirationDate && (
+                              <>
+                                <p className="text-sm text-gray-500">Expires</p>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {format(new Date(cert.expirationDate), 'MMM d, yyyy')}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditCert(cert)}
+                              className="text-primary-600 hover:text-primary-900"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCert(cert.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -827,6 +913,28 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         location={editingLocation}
+      />
+
+      {/* License Modal */}
+      <LicenseModal
+        isOpen={licenseModalOpen}
+        onClose={() => {
+          setLicenseModalOpen(false);
+          setEditingLicense(null);
+        }}
+        providerId={id!}
+        license={editingLicense}
+      />
+
+      {/* Certification Modal */}
+      <CertificationModal
+        isOpen={certModalOpen}
+        onClose={() => {
+          setCertModalOpen(false);
+          setEditingCert(null);
+        }}
+        providerId={id!}
+        certification={editingCert}
       />
 
       {/* Document Upload Modal */}

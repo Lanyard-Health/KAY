@@ -25,7 +25,7 @@ export default function ExpirationDashboard() {
   const { data: expirations, isLoading: loadingExpirations } = useQuery({
     queryKey: ['expirations', 'list'],
     queryFn: async () => {
-      const response = await api.get('/expirations?days=90');
+      const response = await api.get('/expirations?days=90&includeExpired=true');
       return response.data.data as ExpiringCredential[];
     },
   });
@@ -77,7 +77,7 @@ export default function ExpirationDashboard() {
       {/* Expirations List */}
       <div className="card">
         <div className="card-header">
-          <h3 className="text-lg font-medium text-gray-900">Upcoming Expirations</h3>
+          <h3 className="text-lg font-medium text-gray-900">Expired & Upcoming Expirations</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -110,7 +110,7 @@ export default function ExpirationDashboard() {
               ) : expirations?.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    No upcoming expirations
+                    No expired or upcoming expirations
                   </td>
                 </tr>
               ) : (
