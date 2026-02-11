@@ -208,6 +208,8 @@ model Provider {
   tasks                  Task[]
   terminationLetters     TerminationLetter[]
   aiRecommendations      AiRecommendation[]
+  directorySnapshots     ProviderDirectorySnapshot[]
+  directoryAlerts        ProviderDirectoryAlert[]
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@map("providers")
@@ -800,7 +802,9 @@ model Payer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollments PayerEnrollment[]
+  enrollments          PayerEnrollment[]
+  directorySnapshots   ProviderDirectorySnapshot[]
+  directoryAlerts      ProviderDirectoryAlert[]
 
   @@map("payers")
 }
@@ -1206,4 +1210,67 @@ model TerminationLetter {
   @@index([providerId])
   @@index([taskId])
   @@map("termination_letters")
+}
+
+// ==========================================
+// PROVIDER DIRECTORY VERIFICATION
+// ==========================================
+
+enum DirectoryListingStatus {
+  listed
+  not_found
+  mismatch
+  error
+}
+
+model ProviderDirectorySnapshot {
+  id         String                 @id @default(uuid())
+  providerId String                 @map("provider_id")
+  payerId    String                 @map("payer_id")
+
+  status       DirectoryListingStatus
+  checkedAt    DateTime               @default(now()) @map("checked_at")
+  fhirResponse Json?                  @map("fhir_response")
+
+  // Parsed fields from FHIR Practitioner resource
+  listedName       String?  @map("listed_name")
+  listedNpi        String?  @map("listed_npi")
+  listedPhone      String?  @map("listed_phone")
+  listedSpecialty  String?  @map("listed_specialty")
+  listedAddress    String?  @map("listed_address")
+  networkNames     String[] @default([]) @map("network_names")
+
+  // Mismatch details (JSON array of { field, ours, theirs })
+  mismatches Json? @map("mismatches")
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer    Payer    @relation(fields: [payerId], references: [id])
+  alerts   ProviderDirectoryAlert[]
+
+  @@index([providerId, payerId])
+  @@index([checkedAt])
+  @@map("provider_directory_snapshots")
+}
+
+model ProviderDirectoryAlert {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+  payerId    String @map("payer_id")
+  snapshotId String @map("snapshot_id")
+
+  alertType   String
+  message     String
+  details     Json?
+  resolved    Boolean   @default(false)
+  resolvedAt  DateTime? @map("resolved_at")
+  resolvedBy  String?   @map("resolved_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  provider Provider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer    Payer                     @relation(fields: [payerId], references: [id])
+  snapshot ProviderDirectorySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([resolved])
+  @@map("provider_directory_alerts")
 }

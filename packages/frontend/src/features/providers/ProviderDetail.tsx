@@ -16,6 +16,7 @@ import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import PdmComplianceCard from '../../components/PdmComplianceCard';
 import { CaqhCard } from '../../components/CaqhCard';
+import DirectoryStatusCard from '../../components/DirectoryStatusCard';
 import { usePdmAlerts } from '../../hooks/usePdmStatus';
 
 const TABS = [
@@ -767,6 +768,9 @@ export default function ProviderDetail() {
 
           {/* PDM Compliance */}
           <PdmComplianceCard providerId={id!} />
+
+          {/* Directory Verification */}
+          <DirectoryStatusCard providerId={id!} />
 
           {/* Documents */}
           <div className="card card-body">
