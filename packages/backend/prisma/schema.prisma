@@ -322,6 +322,12 @@ enum CredentialStatus {
   revoked
 }
 
+enum CredentialSource {
+  manual_entry
+  caqh_sync
+  portal_import
+}
+
 enum LicenseType {
   state_medical
   state_psychology
@@ -346,6 +352,7 @@ model License {
   verificationDate   DateTime?        @map("verification_date")
   verificationSource String?          @map("verification_source")
   notes              String?
+  source             CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -386,6 +393,7 @@ model BoardCertification {
   status                   CredentialStatus @default(active)
   isBoardEligible          Boolean          @default(false) @map("is_board_eligible")
   notes                    String?
+  source                   CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")

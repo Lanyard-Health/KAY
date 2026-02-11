@@ -160,6 +160,56 @@ credentialRoutes.post(
   }
 );
 
+// PUT /api/v1/credentials/certifications/:id
+credentialRoutes.put(
+  '/certifications/:id',
+  authorize('admin', 'credentialing_staff'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createBoardCertificationSchema.partial().parse(req.body);
+
+      const existing = await prisma.boardCertification.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Board certification');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Board certification');
+
+      const certification = await prisma.boardCertification.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...data,
+          ...(data.initialCertificationDate && { initialCertificationDate: new Date(data.initialCertificationDate) }),
+          ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: certification });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/credentials/certifications/:id
+credentialRoutes.delete(
+  '/certifications/:id',
+  authorize('admin', 'credentialing_staff'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const existing = await prisma.boardCertification.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Board certification');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Board certification');
+
+      await prisma.boardCertification.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Board certification deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ==========================================
 // MALPRACTICE INSURANCE
 // ==========================================
