@@ -1,9 +1,13 @@
 import 'dotenv/config';
+import { initSentry } from './utils/sentry.js';
+initSentry();
+
 import { validateEnv } from './utils/env.js';
 
 // Validate environment variables before anything else
 const env = validateEnv();
 
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -131,7 +135,8 @@ app.use('/api/v1', terminationLetterRoutes);
 app.use('/api/v1/practices', practiceRoutes);
 app.use('/api/v1/email', emailRoutes);
 
-// Error handling
+// Error handling — Sentry captures before our handler responds
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 // 404 handler
