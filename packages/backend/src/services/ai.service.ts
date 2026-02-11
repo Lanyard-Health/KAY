@@ -548,11 +548,13 @@ export async function getRecommendations(filters?: {
   type?: AiRecommendationType;
   status?: AiRecommendationStatus;
   enrollmentId?: string;
+  providerId?: string;
 }) {
   const where: Record<string, unknown> = {};
   if (filters?.type) where['type'] = filters.type;
   if (filters?.status) where['status'] = filters.status;
   if (filters?.enrollmentId) where['enrollmentId'] = filters.enrollmentId;
+  if (filters?.providerId) where['providerId'] = filters.providerId;
 
   return prisma.aiRecommendation.findMany({
     where,
@@ -562,6 +564,9 @@ export async function getRecommendations(filters?: {
           provider: { select: { firstName: true, lastName: true, npi: true } },
           payer: { select: { name: true } },
         },
+      },
+      provider: {
+        select: { id: true, firstName: true, lastName: true, npi: true },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -582,6 +587,214 @@ export async function updateRecommendationStatus(
       actedOnAt: new Date(),
     },
   });
+}
+
+// ===========================
+// Expiration Alerts
+// ===========================
+
+interface ExpirationAlertResult {
+  generated: number;
+  skipped: number;
+  providersProcessed: number;
+  errors: string[];
+}
+
+const EXPIRATION_ALERT_SYSTEM_PROMPT = `You are an expert healthcare credentialing coordinator. You help credentialing staff manage credential renewals proactively.
+
+When given a list of expiring credentials for a provider, generate a clear, actionable alert for each credential with:
+- A concise title describing what's expiring
+- Specific renewal guidance (steps to take, typical timelines, common pitfalls)
+- An urgency score from 1-10 based on days until expiration and credential importance
+
+Always respond in valid JSON format as specified in each prompt. Be specific and actionable.`;
+
+export async function generateExpirationAlerts(
+  days: number = 90
+): Promise<ExpirationAlertResult> {
+  const budget = await checkTokenBudget();
+  if (!budget.allowed) {
+    logger.info('[ExpirationAlerts] Token budget exhausted, skipping');
+    return { generated: 0, skipped: 0, providersProcessed: 0, errors: ['Token budget exhausted'] };
+  }
+
+  // Reuse the expiration service to get upcoming expirations
+  const { ExpirationService } = await import('./expiration.service.js');
+  const expirationService = new ExpirationService();
+  const expirations = await expirationService.getUpcomingExpirations(days);
+
+  if (expirations.length === 0) {
+    logger.info('[ExpirationAlerts] No upcoming expirations found');
+    return { generated: 0, skipped: 0, providersProcessed: 0, errors: [] };
+  }
+
+  // Group by provider
+  const byProvider = new Map<string, typeof expirations>();
+  for (const exp of expirations) {
+    const existing = byProvider.get(exp.providerId) || [];
+    existing.push(exp);
+    byProvider.set(exp.providerId, existing);
+  }
+
+  let generated = 0;
+  let skipped = 0;
+  let providersProcessed = 0;
+  const errors: string[] = [];
+
+  for (const [providerId, providerExpirations] of byProvider) {
+    // Check budget before each provider
+    const currentBudget = await checkTokenBudget();
+    if (!currentBudget.allowed) {
+      logger.info('[ExpirationAlerts] Token budget exhausted mid-run, stopping');
+      errors.push('Token budget exhausted mid-run');
+      break;
+    }
+
+    try {
+      // Dedup: find existing pending priority_alert recommendations for this provider
+      const existingAlerts = await prisma.aiRecommendation.findMany({
+        where: {
+          providerId,
+          type: 'priority_alert',
+          status: 'pending',
+        },
+        select: { metadata: true },
+      });
+
+      const existingCredentialIds = new Set<string>();
+      for (const alert of existingAlerts) {
+        const meta = alert.metadata as Record<string, unknown> | null;
+        const credId = meta?.['credentialId'];
+        if (credId && typeof credId === 'string') {
+          existingCredentialIds.add(credId);
+        }
+      }
+
+      // Filter out credentials that already have pending alerts
+      const newExpirations = providerExpirations.filter(
+        (exp) => !existingCredentialIds.has(exp.id)
+      );
+
+      if (newExpirations.length === 0) {
+        skipped += providerExpirations.length;
+        continue;
+      }
+
+      // Build prompt for this provider
+      const credentialList = newExpirations
+        .map(
+          (exp, i) =>
+            `${i + 1}. [${exp.id}] ${exp.type}: ${exp.name} — expires ${exp.expirationDate.toLocaleDateString()} (${exp.daysUntilExpiration} days)`
+        )
+        .join('\n');
+
+      const userMessage = `Generate renewal alerts for the following expiring credentials for provider ${newExpirations[0]!.providerName}:
+
+${credentialList}
+
+Respond with JSON only:
+{
+  "alerts": [
+    {
+      "credentialId": "the credential id from brackets above",
+      "title": "Short alert title",
+      "content": "Specific renewal guidance and action steps",
+      "reasoning": "Brief explanation of urgency",
+      "urgencyScore": 1-10
+    }
+  ]
+}`;
+
+      const anthropic = getClient();
+      const response = await anthropic.messages.create({
+        model: AI_MODEL,
+        max_tokens: 1500,
+        system: EXPIRATION_ALERT_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+      });
+
+      const textContent = response.content.find((c) => c.type === 'text');
+      if (!textContent || textContent.type !== 'text') {
+        errors.push(`No text response for provider ${providerId}`);
+        continue;
+      }
+
+      let parsed: {
+        alerts: Array<{
+          credentialId: string;
+          title: string;
+          content: string;
+          reasoning: string;
+          urgencyScore: number;
+        }>;
+      };
+      try {
+        const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        parsed = JSON.parse(jsonStr);
+      } catch {
+        errors.push(`Failed to parse AI response for provider ${providerId}`);
+        continue;
+      }
+
+      if (!Array.isArray(parsed.alerts)) {
+        errors.push(`Invalid response structure for provider ${providerId}`);
+        continue;
+      }
+
+      // Create recommendations for each alert
+      const tokensPerAlert = {
+        prompt: Math.ceil(response.usage.input_tokens / parsed.alerts.length),
+        completion: Math.ceil(response.usage.output_tokens / parsed.alerts.length),
+      };
+
+      for (const alert of parsed.alerts) {
+        // Find the matching expiration to get metadata
+        const matchingExp = newExpirations.find((e) => e.id === alert.credentialId);
+        if (!matchingExp) continue;
+
+        await prisma.aiRecommendation.create({
+          data: {
+            providerId,
+            enrollmentId: null,
+            type: 'priority_alert' as AiRecommendationType,
+            status: 'pending' as AiRecommendationStatus,
+            title: alert.title,
+            content: alert.content,
+            reasoning: alert.reasoning,
+            metadata: {
+              credentialId: matchingExp.id,
+              credentialType: matchingExp.type,
+              credentialName: matchingExp.name,
+              expirationDate: matchingExp.expirationDate.toISOString(),
+              daysUntilExpiration: matchingExp.daysUntilExpiration,
+              urgencyScore: alert.urgencyScore,
+            },
+            promptTokens: tokensPerAlert.prompt,
+            completionTokens: tokensPerAlert.completion,
+            modelUsed: AI_MODEL,
+          },
+        });
+        generated++;
+      }
+
+      skipped += providerExpirations.length - newExpirations.length;
+      providersProcessed++;
+
+      logger.info(
+        `[ExpirationAlerts] Provider ${providerId}: ${parsed.alerts.length} alerts generated, ${providerExpirations.length - newExpirations.length} skipped (dedup)`
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      errors.push(`Provider ${providerId}: ${message}`);
+      logger.error(`[ExpirationAlerts] Error processing provider ${providerId}:`, err);
+    }
+  }
+
+  logger.info(
+    `[ExpirationAlerts] Complete: ${generated} generated, ${skipped} skipped, ${providersProcessed} providers processed`
+  );
+
+  return { generated, skipped, providersProcessed, errors };
 }
 
 // ===========================

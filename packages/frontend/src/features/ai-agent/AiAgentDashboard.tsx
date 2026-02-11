@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { SparklesIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ChatBubbleLeftRightIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
 import {
   useAiStatus,
   useAiUsage,
@@ -8,6 +8,7 @@ import {
   useAnalyzePortfolio,
   useGenerateEmail,
   useUpdateRecommendation,
+  useGenerateExpirationAlerts,
 } from '../../hooks/useAi';
 import type { PortfolioItem, AiRecommendation } from '../../hooks/useAi';
 import AiEmailPreviewModal from './AiEmailPreviewModal';
@@ -46,6 +47,7 @@ export default function AiAgentDashboard() {
   const analyzePortfolio = useAnalyzePortfolio();
   const generateEmail = useGenerateEmail();
   const updateRecommendation = useUpdateRecommendation();
+  const generateExpirationAlerts = useGenerateExpirationAlerts();
 
   const [portfolioResults, setPortfolioResults] = useState<PortfolioItem[] | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState('');
@@ -172,23 +174,42 @@ export default function AiAgentDashboard() {
       <div className="rounded-lg bg-white shadow">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Portfolio Priority List</h2>
-          <button
-            onClick={handleRunPortfolioAnalysis}
-            disabled={analyzePortfolio.isPending || !status?.configured}
-            className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
-          >
-            {analyzePortfolio.isPending ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <SparklesIcon className="h-4 w-4" />
-                Run Analysis
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => generateExpirationAlerts.mutate(undefined)}
+              disabled={generateExpirationAlerts.isPending || !status?.configured}
+              className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+            >
+              {generateExpirationAlerts.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <ShieldExclamationIcon className="h-4 w-4" />
+                  Scan Expirations
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleRunPortfolioAnalysis}
+              disabled={analyzePortfolio.isPending || !status?.configured}
+              className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {analyzePortfolio.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="h-4 w-4" />
+                  Run Analysis
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {portfolioSummary && (
@@ -349,6 +370,17 @@ function RecommendationCard({
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${typeColors[recommendation.type] || 'bg-gray-100 text-gray-800'}`}>
               {typeLabels[recommendation.type] || recommendation.type}
             </span>
+            {recommendation.type === 'priority_alert' && recommendation.metadata?.daysUntilExpiration != null && (
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                (recommendation.metadata.daysUntilExpiration as number) <= 30
+                  ? 'bg-red-100 text-red-800'
+                  : (recommendation.metadata.daysUntilExpiration as number) <= 60
+                  ? 'bg-orange-100 text-orange-800'
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {recommendation.metadata.daysUntilExpiration as number}d remaining
+              </span>
+            )}
             <span className="text-xs text-gray-400">
               {new Date(recommendation.createdAt).toLocaleDateString()}{' '}
               {new Date(recommendation.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -356,8 +388,21 @@ function RecommendationCard({
           </div>
           <h3 className="text-sm font-medium text-gray-900">{recommendation.title}</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            {recommendation.enrollment.provider.firstName} {recommendation.enrollment.provider.lastName} →{' '}
-            {recommendation.enrollment.payer.name}
+            {recommendation.enrollment ? (
+              <>
+                {recommendation.enrollment.provider.firstName} {recommendation.enrollment.provider.lastName} →{' '}
+                {recommendation.enrollment.payer.name}
+              </>
+            ) : recommendation.provider ? (
+              <>
+                {recommendation.provider.firstName} {recommendation.provider.lastName}
+                {recommendation.metadata?.credentialType && (
+                  <> — {String(recommendation.metadata.credentialType)}</>
+                )}
+              </>
+            ) : (
+              <span className="italic">No linked record</span>
+            )}
           </p>
 
           {recommendation.reasoning && (

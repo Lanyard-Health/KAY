@@ -207,6 +207,7 @@ model Provider {
   applications           ProviderApplication[]
   tasks                  Task[]
   terminationLetters     TerminationLetter[]
+  aiRecommendations      AiRecommendation[]
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@map("providers")
@@ -880,7 +881,8 @@ enum AiRecommendationStatus {
 
 model AiRecommendation {
   id               String                 @id @default(uuid())
-  enrollmentId     String                 @map("enrollment_id")
+  enrollmentId     String?                @map("enrollment_id")
+  providerId       String?                @map("provider_id")
   type             AiRecommendationType
   status           AiRecommendationStatus @default(pending)
   title            String
@@ -895,9 +897,11 @@ model AiRecommendation {
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
-  enrollment PayerEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment PayerEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  provider   Provider?        @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId])
+  @@index([providerId])
   @@index([type])
   @@index([status])
   @@map("ai_recommendations")

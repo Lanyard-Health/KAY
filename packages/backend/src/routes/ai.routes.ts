@@ -15,6 +15,7 @@ import {
   analyzePortfolio,
   getRecommendations,
   updateRecommendationStatus,
+  generateExpirationAlerts,
 } from '../services/ai.service.js';
 import {
   sendChatMessage,
@@ -119,6 +120,25 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), aiM
     res.json({ success: true, data: result });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to analyze portfolio';
+    const status = message.includes('budget') ? 429 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
+});
+
+/**
+ * POST /api/v1/ai/expiration-alerts/generate (admin/staff only)
+ */
+router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+    }
+    const days = req.body?.days;
+    const validatedDays = typeof days === 'number' && days > 0 && days <= 365 ? Math.floor(days) : 90;
+    const result = await generateExpirationAlerts(validatedDays);
+    res.json({ success: true, data: result });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to generate expiration alerts';
     const status = message.includes('budget') ? 429 : 500;
     res.status(status).json({ success: false, error: message });
   }
