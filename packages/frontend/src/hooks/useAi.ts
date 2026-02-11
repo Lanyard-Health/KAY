@@ -57,7 +57,8 @@ export interface PortfolioAnalysis {
 
 export interface AiRecommendation {
   id: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
+  providerId: string | null;
   type: 'follow_up_email' | 'strategy' | 'priority_alert';
   status: 'pending' | 'accepted' | 'dismissed' | 'expired';
   title: string;
@@ -74,7 +75,13 @@ export interface AiRecommendation {
   enrollment: {
     provider: { firstName: string; lastName: string; npi: string };
     payer: { name: string };
-  };
+  } | null;
+  provider: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    npi: string;
+  } | null;
 }
 
 export interface AiUsage {
@@ -200,6 +207,43 @@ export function useAnalyzePortfolio() {
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || error.message || 'Failed to analyze portfolio';
+      toast.error(message);
+    },
+  });
+}
+
+export interface ExpirationAlertResult {
+  generated: number;
+  skipped: number;
+  providersProcessed: number;
+  errors: string[];
+}
+
+export function useGenerateExpirationAlerts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (days?: number) => {
+      const { data } = await api.post<{ success: boolean; data: ExpirationAlertResult }>(
+        '/ai/expiration-alerts/generate',
+        days ? { days } : {}
+      );
+      return data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] });
+      queryClient.invalidateQueries({ queryKey: ['ai-usage'] });
+      const { generated, skipped } = result.data;
+      if (generated > 0) {
+        toast.success(`Generated ${generated} expiration alert${generated !== 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} skipped)` : ''}`);
+      } else if (skipped > 0) {
+        toast('All expiring credentials already have pending alerts');
+      } else {
+        toast('No expiring credentials found');
+      }
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || error.message || 'Failed to generate expiration alerts';
       toast.error(message);
     },
   });
