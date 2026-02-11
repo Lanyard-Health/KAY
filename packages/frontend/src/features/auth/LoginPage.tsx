@@ -454,7 +454,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setAuthStep('forgot-password')}
-                  className="text-sm text-primary-600 hover:text-primary-500"
+                  className="text-sm text-white/80 hover:text-white"
                 >
                   Forgot your password?
                 </button>
@@ -502,14 +502,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8f8fa] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <img src="/logo.png" alt="Lanyard Health" className="h-12 mx-auto" />
-          <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
+          <img src="/logo.png" alt="Lanyard Health" className="h-12 mx-auto brightness-0 invert" />
+          <h2 className="mt-6 text-center text-2xl font-bold text-white">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-white/70">
             Healthcare Credentialing Management System
           </p>
         </div>
@@ -558,9 +558,9 @@ export default function LoginPage() {
         {renderAuthForm()}
 
         {authStep === 'login' && (
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-white/70">
             New provider?{' '}
-            <Link to="/register" className="text-primary-600 hover:text-primary-500 font-medium">
+            <Link to="/register" className="text-white hover:text-white/90 font-medium">
               Register here
             </Link>
           </p>
