@@ -12,6 +12,8 @@ interface AiEmailPreviewModalProps {
   recommendationId: string;
   providerName: string;
   payerName: string;
+  onSend?: (email: GeneratedEmail) => void;
+  sendPending?: boolean;
 }
 
 const toneBadgeColors: Record<string, string> = {
@@ -27,6 +29,8 @@ export default function AiEmailPreviewModal({
   enrollmentId,
   providerName,
   payerName,
+  onSend,
+  sendPending,
 }: AiEmailPreviewModalProps) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [toneOverride, setToneOverride] = useState('');
@@ -167,6 +171,15 @@ export default function AiEmailPreviewModal({
             >
               Copy & Use
             </button>
+            {onSend && (
+              <button
+                onClick={() => onSend(displayEmail)}
+                disabled={generateEmail.isPending || sendPending}
+                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {sendPending ? 'Sending...' : 'Send Email'}
+              </button>
+            )}
           </div>
         </div>
       </div>

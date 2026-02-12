@@ -16,6 +16,10 @@ const mockGenerateEmail = {
 const mockUpdateRecommendation = {
   mutate: vi.fn(),
 };
+const mockGenerateExpirationAlerts = {
+  mutate: vi.fn(),
+  isPending: false,
+};
 
 vi.mock('../../hooks/useAi', () => ({
   useAiStatus: vi.fn(() => ({ data: { data: { configured: true, model: 'test-model' } }, isLoading: false })),
@@ -30,6 +34,7 @@ vi.mock('../../hooks/useAi', () => ({
   useAnalyzePortfolio: vi.fn(() => mockAnalyzePortfolio),
   useGenerateEmail: vi.fn(() => mockGenerateEmail),
   useUpdateRecommendation: vi.fn(() => mockUpdateRecommendation),
+  useGenerateExpirationAlerts: vi.fn(() => mockGenerateExpirationAlerts),
 }));
 
 vi.mock('react-hot-toast', () => ({
