@@ -505,7 +505,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <img src="/logo.png" alt="Lanyard Health" className="h-12 mx-auto brightness-0 invert" />
+          <img src="/logo.png" alt="Lanyard Health" className="h-16 mx-auto brightness-0 invert" />
           <h2 className="mt-6 text-center text-2xl font-bold text-white">
             Sign in to your account
           </h2>
