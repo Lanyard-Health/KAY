@@ -210,7 +210,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
 
             {/* Sync Result */}
             {syncResult && (
-              <div className="text-xs p-2 rounded bg-blue-50 text-blue-700 space-y-1">
+              <div className="text-xs p-2 rounded bg-primary-50 text-primary-700 space-y-1">
                 <p className="font-medium">Sync Complete:</p>
                 {(['licenses', 'certifications', 'education', 'malpractice'] as const).map((key) => {
                   const s = syncResult[key];
