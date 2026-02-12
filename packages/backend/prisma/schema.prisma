@@ -60,6 +60,7 @@ model User {
   tasksCompleted       Task[]              @relation("TaskCompletedBy")
   termLettersReviewed  TerminationLetter[] @relation("TermLetterReviewedBy")
   practices            UserPractice[]
+  inAppNotifications   InAppNotification[]
 
   @@map("users")
 }
@@ -1139,6 +1140,42 @@ model AdminNotification {
 
   @@index([read])
   @@map("admin_notifications")
+}
+
+// ==========================================
+// IN-APP NOTIFICATIONS
+// ==========================================
+
+enum InAppNotificationType {
+  new_application
+  application_updated
+  credential_expiring
+  credential_expired
+  document_uploaded
+  document_verified
+  application_approved
+  application_rejected
+  enrollment_status_change
+  system_announcement
+}
+
+model InAppNotification {
+  id        String               @id @default(uuid())
+  userId    String               @map("user_id")
+  type      InAppNotificationType
+  title     String
+  message   String
+  read      Boolean              @default(false)
+  actionUrl String?              @map("action_url")
+  metadata  Json?
+  createdAt DateTime             @default(now()) @map("created_at")
+  readAt    DateTime?            @map("read_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("in_app_notifications")
 }
 
 // ==========================================

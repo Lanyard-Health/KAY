@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { emailService } from './email.service.js';
 import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
+import { notificationService } from './notification.service.js';
 
 const prisma = new PrismaClient();
 
@@ -77,7 +78,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
     },
   });
 
-  // Create in-app notification
+  // Create legacy admin notification
   await prisma.adminNotification.create({
     data: {
       type: 'NEW_APPLICATION',
@@ -85,6 +86,15 @@ export async function submitApplication(data: ProviderApplicationInput) {
       applicationId: application.id,
     },
   });
+
+  // Create in-app notifications for all admin/staff users
+  notificationService.notifyAdminUsers({
+    type: 'new_application',
+    title: 'New Provider Application',
+    message: `${data.firstName} ${data.lastName} (NPI: ${data.npi}) submitted a new application.`,
+    actionUrl: '/pending-providers',
+    metadata: { applicationId: application.id, npi: data.npi },
+  }).catch((err: unknown) => console.error('Failed to create in-app notifications:', err));
 
   // Send email notification to admin (non-blocking)
   const adminEmail = process.env['ADMIN_EMAIL'];
@@ -215,7 +225,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
 
   // 2. Create Provider + User records in a transaction
   try {
-    const { provider, updatedApplication } = await prisma.$transaction(async (tx) => {
+    const { provider, updatedApplication, newUser } = await prisma.$transaction(async (tx) => {
       const provider = await tx.provider.create({
         data: {
           npi: application.npi,
@@ -269,7 +279,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
         },
       });
 
-      return { provider, updatedApplication };
+      return { provider, updatedApplication, newUser };
     });
 
     // Mark related notification as read
@@ -277,6 +287,15 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
       where: { applicationId: id, read: false },
       data: { read: true },
     });
+
+    // Notify provider their application was approved
+    notificationService.createNotification({
+      userId: newUser.id,
+      type: 'application_approved',
+      title: 'Application Approved',
+      message: 'Your provider application has been approved. Welcome to Lanyard Health!',
+      actionUrl: '/portal',
+    }).catch((err: unknown) => console.error('Failed to create approval notification:', err));
 
     // 3. Send approval email to provider (non-blocking)
     if (emailService.isConfigured()) {

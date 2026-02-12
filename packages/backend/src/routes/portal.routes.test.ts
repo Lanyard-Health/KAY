@@ -371,11 +371,11 @@ describe('Portal Routes', () => {
 
       const res = await request(adminApp)
         .post('/admin/notifications/mark-read')
-        .send({ notificationIds: ['notif-1', 'notif-2'] });
+        .send({ notificationIds: ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'] });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(markNotificationsAsRead).toHaveBeenCalledWith(['notif-1', 'notif-2']);
+      expect(markNotificationsAsRead).toHaveBeenCalledWith(['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002']);
     });
   });
 
