@@ -501,6 +501,9 @@ export default function LoginPage() {
     }
   };
 
+  {/* IMPORTANT: Do NOT remove the green gradient background, logo, or white text styling.
+      See PR #41. The gradient (from-primary-800 via-primary-600 to-emerald-500) and
+      brightness-0 invert logo are intentional brand design. */}
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
