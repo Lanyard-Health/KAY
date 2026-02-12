@@ -52,6 +52,13 @@ vi.mock('./cognitoUser.service.js', () => ({
   deleteCognitoUser: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('./notification.service.js', () => ({
+  notificationService: {
+    createNotification: vi.fn(() => Promise.resolve({})),
+    notifyAdminUsers: vi.fn(() => Promise.resolve({ count: 0 })),
+  },
+}));
+
 import { PrismaClient } from '@prisma/client';
 import {
   submitApplication,

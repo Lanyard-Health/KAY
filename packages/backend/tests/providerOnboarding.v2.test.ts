@@ -64,6 +64,13 @@ vi.mock('../src/services/cognitoUser.service.js', () => ({
   deleteCognitoUser: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('../src/services/notification.service.js', () => ({
+  notificationService: {
+    createNotification: vi.fn(() => Promise.resolve({})),
+    notifyAdminUsers: vi.fn(() => Promise.resolve({ count: 0 })),
+  },
+}));
+
 // Mock prisma for route-level tests (portal.routes.ts imports from utils/prisma)
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
