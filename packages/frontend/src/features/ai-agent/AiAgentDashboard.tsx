@@ -97,7 +97,7 @@ export default function AiAgentDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <SparklesIcon className="h-8 w-8 text-purple-600" />
+        <SparklesIcon className="h-8 w-8 text-primary-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">AI Enrollment Agent</h1>
           <p className="text-sm text-gray-500">
@@ -144,7 +144,7 @@ export default function AiAgentDashboard() {
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'dashboard'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
             }`}
           >
@@ -155,7 +155,7 @@ export default function AiAgentDashboard() {
             onClick={() => setActiveTab('chat')}
             className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
               activeTab === 'chat'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
             }`}
           >
@@ -195,7 +195,7 @@ export default function AiAgentDashboard() {
             <button
               onClick={handleRunPortfolioAnalysis}
               disabled={analyzePortfolio.isPending || !status?.configured}
-              className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
             >
               {analyzePortfolio.isPending ? (
                 <>
@@ -213,8 +213,8 @@ export default function AiAgentDashboard() {
         </div>
 
         {portfolioSummary && (
-          <div className="px-6 py-3 bg-purple-50 border-b border-purple-100">
-            <p className="text-sm text-purple-800">{portfolioSummary}</p>
+          <div className="px-6 py-3 bg-primary-50 border-b border-primary-100">
+            <p className="text-sm text-primary-800">{portfolioSummary}</p>
           </div>
         )}
 
@@ -261,7 +261,7 @@ export default function AiAgentDashboard() {
                       <button
                         onClick={() => handleGenerateEmail(item.enrollmentId, item.providerName, item.payerName)}
                         disabled={generateEmail.isPending}
-                        className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800 font-medium disabled:opacity-50"
+                        className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-800 font-medium disabled:opacity-50"
                       >
                         <SparklesIcon className="h-4 w-4" />
                         Draft Email
@@ -287,7 +287,7 @@ export default function AiAgentDashboard() {
           <h2 className="text-lg font-semibold text-gray-900">
             Pending Recommendations
             {recommendations.length > 0 && (
-              <span className="ml-2 inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+              <span className="ml-2 inline-flex items-center rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-800">
                 {recommendations.length}
               </span>
             )}
