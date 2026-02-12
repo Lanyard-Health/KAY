@@ -13,10 +13,17 @@ import {
   PaperAirplaneIcon,
   CheckCircleIcon,
   XCircleIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { usePdmStatus } from '../../hooks/usePdmStatus';
 import { PdmStatusBadgeForEnrollment } from '../../components/PdmAttestationBadge';
 import TerminationConfirmDialog from './TerminationConfirmDialog';
+import FollowUpConfigPanel from './FollowUpConfigPanel';
+import FollowUpHistory from './FollowUpHistory';
+import AiEmailPreviewModal from '../ai-agent/AiEmailPreviewModal';
+import { useGenerateEmail } from '../../hooks/useAi';
+import { useSendFollowUp } from '../../hooks/useFollowUp';
+import type { GeneratedEmail } from '../../hooks/useAi';
 import toast from 'react-hot-toast';
 
 interface Payer {
@@ -145,6 +152,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
   const [editableEmailBody, setEditableEmailBody] = useState('');
+  const [followUpTab, setFollowUpTab] = useState<'send' | 'settings' | 'history'>('send');
+  const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
+  const [aiGeneratedEmail, setAiGeneratedEmail] = useState<GeneratedEmail | null>(null);
+  const generateEmail = useGenerateEmail();
+  const sendFollowUp = useSendFollowUp();
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [terminationConfirm, setTerminationConfirm] = useState(false);
@@ -215,6 +227,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setRecipientEmail('');
     setCustomMessage('');
     setAttachment(null);
+    setFollowUpTab('send');
+    setAiGeneratedEmail(null);
     setFollowUpModalOpen(true);
 
     // Fetch email preview data
@@ -228,6 +242,40 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     } catch (err) {
       console.error('Failed to load preview data:', err);
     }
+  };
+
+  const handleAiDraft = () => {
+    if (!followUpEnrollment) return;
+    generateEmail.mutate(
+      { enrollmentId: followUpEnrollment.id },
+      {
+        onSuccess: (result) => {
+          setAiGeneratedEmail(result.data.email);
+          setAiPreviewOpen(true);
+        },
+      }
+    );
+  };
+
+  const handleAiSend = (email: GeneratedEmail) => {
+    if (!followUpEnrollment || !recipientEmail) {
+      toast.error('Enter a recipient email first');
+      return;
+    }
+    sendFollowUp.mutate(
+      {
+        enrollmentId: followUpEnrollment.id,
+        email: recipientEmail,
+        customMessage: email.body,
+      },
+      {
+        onSuccess: () => {
+          setAiPreviewOpen(false);
+          setAiGeneratedEmail(null);
+          setTestEmailResult({ success: true, message: 'AI-generated email sent!' });
+        },
+      }
+    );
   };
 
   const handlePreviewEmail = async () => {
@@ -971,7 +1019,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
             <div className="relative z-10 inline-block w-full max-w-lg p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
-                  Send Follow-up Email
+                  Follow-Up: {followUpEnrollment.payer.name}
                 </h3>
                 <button
                   onClick={() => setFollowUpModalOpen(false)}
@@ -981,186 +1029,229 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 </button>
               </div>
 
-              {/* Provider Data Preview */}
-              {emailPreviewData && (
-                <div className="mb-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                    Provider Information (included in email)
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-slate-500">Name:</span>
-                      <p className="font-medium text-slate-900">{emailPreviewData.providerName}</p>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Provider NPI:</span>
-                      <p className="font-medium text-slate-900">{emailPreviewData.providerNpi}</p>
-                    </div>
-                    {emailPreviewData.groupNpi && (
-                      <div>
-                        <span className="text-slate-500">Group NPI:</span>
-                        <p className="font-medium text-slate-900">{emailPreviewData.groupNpi}</p>
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 mb-4">
+                {(['send', 'settings', 'history'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setFollowUpTab(tab)}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+                      followUpTab === tab
+                        ? 'border-primary-600 text-primary-700'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab === 'send' ? 'Send' : tab === 'settings' ? 'Settings' : 'History'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab: Send */}
+              {followUpTab === 'send' && (
+                <>
+                  {/* Provider Data Preview */}
+                  {emailPreviewData && (
+                    <div className="mb-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                        Provider Information (included in email)
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-slate-500">Name:</span>
+                          <p className="font-medium text-slate-900">{emailPreviewData.providerName}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Provider NPI:</span>
+                          <p className="font-medium text-slate-900">{emailPreviewData.providerNpi}</p>
+                        </div>
+                        {emailPreviewData.groupNpi && (
+                          <div>
+                            <span className="text-slate-500">Group NPI:</span>
+                            <p className="font-medium text-slate-900">{emailPreviewData.groupNpi}</p>
+                          </div>
+                        )}
+                        {emailPreviewData.practiceName && (
+                          <div>
+                            <span className="text-slate-500">Practice:</span>
+                            <p className="font-medium text-slate-900">{emailPreviewData.practiceName}</p>
+                          </div>
+                        )}
+                        {(emailPreviewData.practiceCity || emailPreviewData.practiceState) && (
+                          <div>
+                            <span className="text-slate-500">Location:</span>
+                            <p className="font-medium text-slate-900">
+                              {emailPreviewData.practiceCity}{emailPreviewData.practiceCity && emailPreviewData.practiceState && ', '}{emailPreviewData.practiceState}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-slate-500">Payer:</span>
+                          <p className="font-medium text-slate-900">{emailPreviewData.payerName}</p>
+                        </div>
                       </div>
-                    )}
-                    {emailPreviewData.practiceName && (
-                      <div>
-                        <span className="text-slate-500">Practice:</span>
-                        <p className="font-medium text-slate-900">{emailPreviewData.practiceName}</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    {/* Recipient Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Send to (Payer Email) *
+                      </label>
+                      <input
+                        type="email"
+                        value={recipientEmail}
+                        onChange={(e) => setRecipientEmail(e.target.value)}
+                        placeholder="payer-credentialing@insurance.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+
+                    {/* Custom Message */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Additional Message (optional)
+                      </label>
+                      <textarea
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                        rows={3}
+                        placeholder="Add any specific notes or questions..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+
+                    {/* Attachment */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Attachment (optional)
+                      </label>
+                      <div className="mt-1">
+                        {attachment ? (
+                          <div className="flex items-center justify-between p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <svg className="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                              <span className="text-sm text-primary-800 font-medium">{attachment.name}</span>
+                              <span className="text-xs text-primary-600">({(attachment.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttachment(null)}
+                              className="text-primary-600 hover:text-primary-800"
+                            >
+                              <XCircleIcon className="h-5 w-5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition-colors">
+                            <div className="text-center">
+                              <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              <p className="mt-1 text-sm text-gray-600">Click to upload a file</p>
+                              <p className="text-xs text-gray-500">PDF, DOC, or image (max 10MB)</p>
+                            </div>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setAttachment(file);
+                              }}
+                            />
+                          </label>
+                        )}
                       </div>
-                    )}
-                    {(emailPreviewData.practiceCity || emailPreviewData.practiceState) && (
-                      <div>
-                        <span className="text-slate-500">Location:</span>
-                        <p className="font-medium text-slate-900">
-                          {emailPreviewData.practiceCity}{emailPreviewData.practiceCity && emailPreviewData.practiceState && ', '}{emailPreviewData.practiceState}
+                    </div>
+
+                    {/* Last sent info */}
+                    {followUpEnrollment.lastFollowUpSentAt && (
+                      <div className="p-3 bg-gray-50 rounded-lg text-sm">
+                        <p className="text-gray-600">
+                          <strong>Last follow-up sent:</strong>{' '}
+                          {new Date(followUpEnrollment.lastFollowUpSentAt).toLocaleString()}
                         </p>
                       </div>
                     )}
-                    <div>
-                      <span className="text-slate-500">Payer:</span>
-                      <p className="font-medium text-slate-900">{emailPreviewData.payerName}</p>
+
+                    {/* Result Message */}
+                    {testEmailResult && (
+                      <div
+                        className={`p-3 rounded-lg flex items-center gap-2 ${
+                          testEmailResult.success
+                            ? 'bg-green-50 text-green-800'
+                            : 'bg-red-50 text-red-800'
+                        }`}
+                      >
+                        {testEmailResult.success ? (
+                          <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircleIcon className="h-5 w-5 text-red-500" />
+                        )}
+                        <span className="text-sm">{testEmailResult.message}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-6 flex justify-between">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handlePreviewEmail}
+                        disabled={previewLoading}
+                        className="inline-flex items-center px-3 py-2 text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50 text-sm"
+                      >
+                        <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        {previewLoading ? 'Loading...' : 'Preview'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAiDraft}
+                        disabled={generateEmail.isPending}
+                        className="inline-flex items-center px-3 py-2 text-purple-700 bg-purple-50 rounded-md hover:bg-purple-100 disabled:opacity-50 text-sm"
+                      >
+                        <SparklesIcon className="h-4 w-4 mr-1.5" />
+                        {generateEmail.isPending ? 'Generating...' : 'AI Draft'}
+                      </button>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFollowUpModalOpen(false)}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 text-sm"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendFollowUpEmail}
+                        disabled={!recipientEmail || testEmailSending}
+                        className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <PaperAirplaneIcon className="h-4 w-4 mr-2" />
+                        {testEmailSending ? 'Sending...' : 'Send Email'}
+                      </button>
                     </div>
                   </div>
-                </div>
+                </>
               )}
 
-              <div className="space-y-4">
-                {/* Recipient Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Send to (Payer Email) *
-                  </label>
-                  <input
-                    type="email"
-                    value={recipientEmail}
-                    onChange={(e) => setRecipientEmail(e.target.value)}
-                    placeholder="payer-credentialing@insurance.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
+              {/* Tab: Settings */}
+              {followUpTab === 'settings' && (
+                <FollowUpConfigPanel enrollmentId={followUpEnrollment.id} />
+              )}
 
-                {/* Custom Message */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Message (optional)
-                  </label>
-                  <textarea
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    rows={3}
-                    placeholder="Add any specific notes or questions..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-
-                {/* Attachment */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Attachment (optional)
-                  </label>
-                  <div className="mt-1">
-                    {attachment ? (
-                      <div className="flex items-center justify-between p-3 bg-primary-50 border border-primary-200 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <svg className="h-5 w-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                          </svg>
-                          <span className="text-sm text-primary-800 font-medium">{attachment.name}</span>
-                          <span className="text-xs text-primary-600">({(attachment.size / 1024).toFixed(1)} KB)</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setAttachment(null)}
-                          className="text-primary-600 hover:text-primary-800"
-                        >
-                          <XCircleIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition-colors">
-                        <div className="text-center">
-                          <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          <p className="mt-1 text-sm text-gray-600">Click to upload a file</p>
-                          <p className="text-xs text-gray-500">PDF, DOC, or image (max 10MB)</p>
-                        </div>
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) setAttachment(file);
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Last sent info */}
-                {followUpEnrollment.lastFollowUpSentAt && (
-                  <div className="p-3 bg-gray-50 rounded-lg text-sm">
-                    <p className="text-gray-600">
-                      <strong>Last follow-up sent:</strong>{' '}
-                      {new Date(followUpEnrollment.lastFollowUpSentAt).toLocaleString()}
-                    </p>
-                  </div>
-                )}
-
-                {/* Result Message */}
-                {testEmailResult && (
-                  <div
-                    className={`p-3 rounded-lg flex items-center gap-2 ${
-                      testEmailResult.success
-                        ? 'bg-green-50 text-green-800'
-                        : 'bg-red-50 text-red-800'
-                    }`}
-                  >
-                    {testEmailResult.success ? (
-                      <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircleIcon className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className="text-sm">{testEmailResult.message}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="mt-6 flex justify-between">
-                <button
-                  type="button"
-                  onClick={handlePreviewEmail}
-                  disabled={previewLoading}
-                  className="inline-flex items-center px-4 py-2 text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50"
-                >
-                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  {previewLoading ? 'Loading...' : 'Preview Email'}
-                </button>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFollowUpModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSendFollowUpEmail}
-                    disabled={!recipientEmail || testEmailSending}
-                    className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <PaperAirplaneIcon className="h-4 w-4 mr-2" />
-                    {testEmailSending ? 'Sending...' : 'Send Email'}
-                  </button>
-                </div>
-              </div>
+              {/* Tab: History */}
+              {followUpTab === 'history' && (
+                <FollowUpHistory enrollmentId={followUpEnrollment.id} />
+              )}
             </div>
           </div>
         </div>
@@ -1175,6 +1266,21 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
             submitForm();
           }}
           onCancel={() => setTerminationConfirm(false)}
+        />
+      )}
+
+      {/* AI Email Preview Modal */}
+      {aiPreviewOpen && aiGeneratedEmail && followUpEnrollment && (
+        <AiEmailPreviewModal
+          isOpen={aiPreviewOpen}
+          onClose={() => { setAiPreviewOpen(false); setAiGeneratedEmail(null); }}
+          email={aiGeneratedEmail}
+          enrollmentId={followUpEnrollment.id}
+          recommendationId=""
+          providerName={emailPreviewData?.providerName || ''}
+          payerName={followUpEnrollment.payer.name}
+          onSend={handleAiSend}
+          sendPending={sendFollowUp.isPending}
         />
       )}
 
