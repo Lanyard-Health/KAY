@@ -21,14 +21,16 @@ export default function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-full'],
     queryFn: async () => {
-      const [providersRes, expirationsRes, enrollmentsRes] = await Promise.all([
+      const [providersRes, expirationsRes, expirationDashRes, enrollmentsRes] = await Promise.all([
         api.get('/providers?pageSize=100'),
         api.get('/expirations?days=30'),
+        api.get('/expirations/dashboard'),
         api.get('/enrollments'),
       ]);
 
       const providers = providersRes.data.data.data || [];
-      const expirations = expirationsRes.data.data || {};
+      const expirations = expirationsRes.data.data || [];
+      const expirationSummary = expirationDashRes.data.data || {};
       const enrollments = enrollmentsRes.data.data || [];
 
       // Calculate provider stats
@@ -47,13 +49,8 @@ export default function Dashboard() {
         return differenceInDays(new Date(), new Date(e.lastFollowUpDate)) > 7;
       });
 
-      // Collect all expiring items
-      const expiringItems = [
-        ...(expirations.licenses || []).map((l: any) => ({ ...l, type: 'License', providerName: `Provider ${l.providerId}` })),
-        ...(expirations.certifications || []).map((c: any) => ({ ...c, type: 'Certification', providerName: `Provider ${c.providerId}` })),
-        ...(expirations.insurances || []).map((i: any) => ({ ...i, type: 'Insurance', providerName: `Provider ${i.providerId}` })),
-        ...(expirations.documents || []).map((d: any) => ({ ...d, type: 'Document', providerName: `Provider ${d.providerId}` })),
-      ].sort((a, b) => new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime());
+      // expirations is already a flat ExpiringCredential[] sorted by date
+      const expiringItems = Array.isArray(expirations) ? expirations : [];
 
       return {
         totalProviders: providers.length,
@@ -61,6 +58,7 @@ export default function Dashboard() {
         pendingProviders: pendingProviders.length,
         incompleteProviders,
         expiringItems,
+        expirationSummary,
         needsFollowUp,
         enrollments,
         providers,
@@ -273,52 +271,74 @@ export default function Dashboard() {
                   <div key={i} className="h-12 bg-gray-100 rounded"></div>
                 ))}
               </div>
-            ) : data?.expiringItems?.length === 0 ? (
+            ) : data?.expiringItems?.length === 0 && !data?.expirationSummary?.expired ? (
               <div className="text-center py-6">
                 <CheckCircleIcon className="h-12 w-12 text-green-400 mx-auto" />
                 <p className="mt-2 text-sm text-gray-500">Nothing expiring in the next 30 days!</p>
               </div>
             ) : (
-              <ul className="space-y-3">
-                {data?.expiringItems?.slice(0, 5).map((item: any, index: number) => {
-                  const daysUntil = differenceInDays(new Date(item.expirationDate), new Date());
-                  const isUrgent = daysUntil <= 7;
-                  return (
-                    <li key={index}>
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className={clsx(
-                            'h-10 w-10 rounded-full flex items-center justify-center',
-                            isUrgent ? 'bg-red-100' : 'bg-yellow-100'
-                          )}>
-                            <DocumentTextIcon className={clsx(
-                              'h-5 w-5',
-                              isUrgent ? 'text-red-600' : 'text-yellow-600'
-                            )} />
+              <>
+                {/* Summary counts */}
+                {data?.expirationSummary && (
+                  <div className="flex items-center gap-3 mb-4 text-xs font-medium">
+                    {data.expirationSummary.expired > 0 && (
+                      <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                        {data.expirationSummary.expired} expired
+                      </span>
+                    )}
+                    {data.expirationSummary.expiring7Days > 0 && (
+                      <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full">
+                        {data.expirationSummary.expiring7Days} within 7d
+                      </span>
+                    )}
+                    {data.expirationSummary.expiring30Days > 0 && (
+                      <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                        {data.expirationSummary.expiring30Days} within 30d
+                      </span>
+                    )}
+                  </div>
+                )}
+                <ul className="space-y-3">
+                  {data?.expiringItems?.slice(0, 5).map((item: any, index: number) => {
+                    const daysUntil = differenceInDays(new Date(item.expirationDate), new Date());
+                    const isUrgent = daysUntil <= 7;
+                    return (
+                      <li key={item.id || index}>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className={clsx(
+                              'h-10 w-10 rounded-full flex items-center justify-center',
+                              isUrgent ? 'bg-red-100' : 'bg-yellow-100'
+                            )}>
+                              <DocumentTextIcon className={clsx(
+                                'h-5 w-5',
+                                isUrgent ? 'text-red-600' : 'text-yellow-600'
+                              )} />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{item.name}</p>
+                              <p className="text-sm text-gray-500">
+                                {item.providerName} &middot; {item.type}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{item.type}</p>
-                            <p className="text-sm text-gray-500">
-                              {item.licenseNumber || item.policyNumber || item.originalFileName || 'Document'}
+                          <div className="text-right">
+                            <p className={clsx(
+                              'text-sm font-medium',
+                              isUrgent ? 'text-red-600' : 'text-yellow-600'
+                            )}>
+                              {daysUntil <= 0 ? 'Expired' : `${daysUntil} days`}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {format(new Date(item.expirationDate), 'MMM d, yyyy')}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className={clsx(
-                            'text-sm font-medium',
-                            isUrgent ? 'text-red-600' : 'text-yellow-600'
-                          )}>
-                            {daysUntil <= 0 ? 'Expired' : `${daysUntil} days`}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(item.expirationDate), 'MMM d, yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </div>
         </div>
