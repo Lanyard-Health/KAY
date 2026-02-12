@@ -10,6 +10,7 @@ import {
   ClipboardDocumentListIcon,
   TableCellsIcon,
   SparklesIcon,
+  ChartBarSquareIcon,
   UserPlusIcon,
   BuildingOffice2Icon,
   UserGroupIcon,
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Expirations', href: '/expirations', icon: ClockIcon },
   { name: 'Roster', href: '/roster', icon: TableCellsIcon },
   { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
+  { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
   { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
 ];
 

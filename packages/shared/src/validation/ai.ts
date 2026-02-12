@@ -40,3 +40,14 @@ export type UpdateRecommendationInput = z.infer<typeof updateRecommendationSchem
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
 export type ChatConversationsQuery = z.infer<typeof chatConversationsQuerySchema>;
 export type RecommendationsQuery = z.infer<typeof recommendationsQuerySchema>;
+
+export const payerIntelligenceQuerySchema = z.object({
+  payerId: z.string().uuid().optional(),
+});
+
+export const payerIntelligenceAnalyzeSchema = z.object({
+  forceRefresh: z.boolean().optional().default(false),
+});
+
+export type PayerIntelligenceQuery = z.infer<typeof payerIntelligenceQuerySchema>;
+export type PayerIntelligenceAnalyzeInput = z.infer<typeof payerIntelligenceAnalyzeSchema>;

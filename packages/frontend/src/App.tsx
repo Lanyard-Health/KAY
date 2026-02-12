@@ -11,6 +11,7 @@ import ExpirationDashboard from './features/dashboard/ExpirationDashboard';
 import EnrollmentsList from './features/enrollments/EnrollmentsList';
 import RosterPage from './features/roster/RosterPage';
 import AiAgentDashboard from './features/ai-agent/AiAgentDashboard';
+import PayerIntelligencePage from './features/payer-intelligence/PayerIntelligencePage';
 import RegisterPage from './features/portal/RegisterPage';
 import PendingProviders from './features/admin/PendingProviders';
 import PracticesList from './features/practices/PracticesList';
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="expirations" element={<ExpirationDashboard />} />
         <Route path="roster" element={<RosterPage />} />
         <Route path="ai-agent" element={<AiAgentDashboard />} />
+        <Route path="payer-intelligence" element={<PayerIntelligencePage />} />
         <Route path="practices" element={<PracticesList />} />
         <Route path="practices/:practiceId" element={<PracticeDetail />} />
         <Route path="users" element={<UsersList />} />
