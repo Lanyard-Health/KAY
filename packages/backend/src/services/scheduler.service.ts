@@ -3,12 +3,14 @@ import { followUpService } from './followup.service.js';
 import { emailService } from './email.service.js';
 import { isConfigured, generateExpirationAlerts } from './ai.service.js';
 import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDirectory.service.js';
+import { notificationService } from './notification.service.js';
 import { logger } from '../utils/logger.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
   private expirationAlertJob: cron.ScheduledTask | null = null;
   private directoryCheckJob: cron.ScheduledTask | null = null;
+  private notificationCleanupJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isExpirationJobRunning = false;
   private isDirectoryJobRunning = false;
@@ -47,6 +49,13 @@ class SchedulerService {
     } else {
       logger.info('[Scheduler] No directory adapters configured, directory check job not scheduled.');
     }
+
+    // Schedule weekly notification cleanup (Sundays at 4am)
+    this.notificationCleanupJob = cron.schedule('0 4 * * 0', () => {
+      notificationService.cleanupOldNotifications(90)
+        .catch((err) => logger.error('[Scheduler] Notification cleanup error:', err));
+    });
+    logger.info('[Scheduler] Notification cleanup job scheduled: 0 4 * * 0');
   }
 
   /**
@@ -170,6 +179,11 @@ class SchedulerService {
       this.directoryCheckJob.stop();
       this.directoryCheckJob = null;
       logger.info('[Scheduler] Directory check job stopped');
+    }
+    if (this.notificationCleanupJob) {
+      this.notificationCleanupJob.stop();
+      this.notificationCleanupJob = null;
+      logger.info('[Scheduler] Notification cleanup job stopped');
     }
   }
 

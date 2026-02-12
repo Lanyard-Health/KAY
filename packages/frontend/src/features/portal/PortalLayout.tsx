@@ -11,6 +11,7 @@ import {
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
 import { useAuthStore } from '../../stores/auth.store';
+import NotificationBell from '../../components/NotificationBell';
 import { useProfileCompleteness } from './hooks/usePortalData';
 
 const navigation = [
@@ -154,6 +155,8 @@ export default function PortalLayout() {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              <NotificationBell />
+              <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
               <Menu as="div" className="relative">
                 <Menu.Button className="-m-1.5 flex items-center p-1.5">
                   <span className="sr-only">Open user menu</span>

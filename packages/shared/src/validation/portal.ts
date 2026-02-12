@@ -18,7 +18,7 @@ export const portalRegistrationSchema = z.object({
 });
 
 export const markNotificationsReadSchema = z.object({
-  notificationIds: z.array(z.string().min(1)).min(1, 'At least one notification ID is required').max(100),
+  notificationIds: z.array(z.string().uuid()).max(100).optional(),
 });
 
 export type PortalRegistrationInput = z.infer<typeof portalRegistrationSchema>;

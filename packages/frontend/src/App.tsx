@@ -24,6 +24,7 @@ import PortalProfile from './features/portal/PortalProfile';
 import PortalLicenses from './features/portal/PortalLicenses';
 import PortalLocations from './features/portal/PortalLocations';
 import RegistrationSuccess from './features/portal/RegistrationSuccess';
+import NotificationsPage from './features/notifications/NotificationsPage';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuthStore();
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="profile" element={<PortalProfile />} />
         <Route path="licenses" element={<PortalLicenses />} />
         <Route path="locations" element={<PortalLocations />} />
+        <Route path="notifications" element={<NotificationsPage />} />
       </Route>
 
       {/* Admin routes (admin/credentialing_staff) */}
@@ -116,6 +118,7 @@ export default function App() {
         <Route path="users" element={<UsersList />} />
         <Route path="users/:userId" element={<UserDetail />} />
         <Route path="pending-providers" element={<PendingProviders />} />
+        <Route path="notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
