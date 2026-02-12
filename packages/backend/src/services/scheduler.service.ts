@@ -4,16 +4,20 @@ import { emailService } from './email.service.js';
 import { isConfigured, generateExpirationAlerts } from './ai.service.js';
 import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDirectory.service.js';
 import { notificationService } from './notification.service.js';
+import { ExpirationService } from './expiration.service.js';
 import { logger } from '../utils/logger.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
   private expirationAlertJob: cron.ScheduledTask | null = null;
+  private expirationEmailJob: cron.ScheduledTask | null = null;
   private directoryCheckJob: cron.ScheduledTask | null = null;
   private notificationCleanupJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isExpirationJobRunning = false;
+  private isExpirationEmailJobRunning = false;
   private isDirectoryJobRunning = false;
+  private expirationService = new ExpirationService();
 
   /**
    * Initialize all scheduled jobs
@@ -37,6 +41,17 @@ class SchedulerService {
       logger.info(`[Scheduler] Expiration alert job scheduled: ${schedule}`);
     } else {
       logger.info('[Scheduler] AI not configured, expiration alert job not scheduled.');
+    }
+
+    // Schedule daily expiration email reminders
+    if (emailService.isConfigured()) {
+      const emailSchedule = process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *';
+      this.expirationEmailJob = cron.schedule(emailSchedule, () => {
+        this.runExpirationEmailJob();
+      });
+      logger.info(`[Scheduler] Expiration email reminder job scheduled: ${emailSchedule}`);
+    } else {
+      logger.info('[Scheduler] Email not configured, expiration email reminder job not scheduled.');
     }
 
     // Schedule weekly directory verification checks
@@ -137,6 +152,32 @@ class SchedulerService {
   }
 
   /**
+   * Run the expiration email reminder job
+   */
+  async runExpirationEmailJob(): Promise<{ sent: number; failed: number }> {
+    if (this.isExpirationEmailJobRunning) {
+      logger.info('[Scheduler] Expiration email job already running, skipping...');
+      return { sent: 0, failed: 0 };
+    }
+
+    this.isExpirationEmailJobRunning = true;
+    logger.info('[Scheduler] Starting expiration email reminder job...');
+
+    try {
+      const result = await this.expirationService.sendExpirationReminders();
+      logger.info(`[Scheduler] Expiration email reminder job completed:`);
+      logger.info(`  - Sent: ${result.sent}`);
+      logger.info(`  - Failed: ${result.failed}`);
+      return result;
+    } catch (error) {
+      logger.error('[Scheduler] Expiration email reminder job error:', error);
+      throw error;
+    } finally {
+      this.isExpirationEmailJobRunning = false;
+    }
+  }
+
+  /**
    * Run the directory check job
    */
   async runDirectoryCheckJob(): Promise<void> {
@@ -175,6 +216,11 @@ class SchedulerService {
       this.expirationAlertJob = null;
       logger.info('[Scheduler] Expiration alert job stopped');
     }
+    if (this.expirationEmailJob) {
+      this.expirationEmailJob.stop();
+      this.expirationEmailJob = null;
+      logger.info('[Scheduler] Expiration email reminder job stopped');
+    }
     if (this.directoryCheckJob) {
       this.directoryCheckJob.stop();
       this.directoryCheckJob = null;
@@ -195,10 +241,12 @@ class SchedulerService {
     aiConfigured: boolean;
     followUpJobRunning: boolean;
     expirationAlertJobRunning: boolean;
+    expirationEmailJobRunning: boolean;
     directoryCheckConfigured: boolean;
     directoryCheckJobRunning: boolean;
     followUpSchedule: string;
     expirationAlertSchedule: string;
+    expirationEmailSchedule: string;
     directoryCheckSchedule: string;
   } {
     return {
@@ -206,10 +254,12 @@ class SchedulerService {
       aiConfigured: isConfigured(),
       followUpJobRunning: this.isRunning,
       expirationAlertJobRunning: this.isExpirationJobRunning,
+      expirationEmailJobRunning: this.isExpirationEmailJobRunning,
       directoryCheckConfigured: getConfiguredPayers().length > 0,
       directoryCheckJobRunning: this.isDirectoryJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
+      expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
       directoryCheckSchedule: process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0',
     };
   }
