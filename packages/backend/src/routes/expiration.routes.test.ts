@@ -64,7 +64,7 @@ describe('Expiration Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
-      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(30, undefined);
+      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(30, undefined, false);
     });
 
     it('respects ?days query param', async () => {
@@ -72,7 +72,7 @@ describe('Expiration Routes', () => {
 
       await request(app).get('/?days=90');
 
-      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(90, undefined);
+      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(90, undefined, false);
     });
 
     it('respects ?type query param', async () => {
@@ -80,7 +80,7 @@ describe('Expiration Routes', () => {
 
       await request(app).get('/?type=license');
 
-      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(30, 'license');
+      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(30, 'license', false);
     });
 
     it('respects both ?days and ?type params', async () => {
@@ -88,7 +88,7 @@ describe('Expiration Routes', () => {
 
       await request(app).get('/?days=60&type=insurance');
 
-      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(60, 'insurance');
+      expect(expirationServiceInstance.getUpcomingExpirations).toHaveBeenCalledWith(60, 'insurance', false);
     });
   });
 

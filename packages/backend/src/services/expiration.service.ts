@@ -37,10 +37,19 @@ export class ExpirationService {
 
   async getUpcomingExpirations(
     days: number = 30,
-    type?: string
+    type?: string,
+    includeExpired: boolean = false
   ): Promise<ExpiringCredential[]> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() + days);
+
+    const dateFilter = includeExpired
+      ? { lte: cutoffDate }
+      : { lte: cutoffDate, gte: new Date() };
+
+    const statusFilter = includeExpired
+      ? { in: ['active' as const, 'expired' as const] }
+      : ('active' as const);
 
     const expirations: ExpiringCredential[] = [];
 
@@ -48,11 +57,8 @@ export class ExpirationService {
     if (!type || type === 'license') {
       const licenses = await prisma.license.findMany({
         where: {
-          expirationDate: {
-            lte: cutoffDate,
-            gte: new Date(),
-          },
-          status: 'active',
+          expirationDate: dateFilter,
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -84,11 +90,8 @@ export class ExpirationService {
     if (!type || type === 'certification') {
       const certifications = await prisma.boardCertification.findMany({
         where: {
-          expirationDate: {
-            lte: cutoffDate,
-            gte: new Date(),
-          },
-          status: 'active',
+          expirationDate: dateFilter,
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -120,11 +123,8 @@ export class ExpirationService {
     if (!type || type === 'insurance') {
       const insurances = await prisma.malpracticeInsurance.findMany({
         where: {
-          expirationDate: {
-            lte: cutoffDate,
-            gte: new Date(),
-          },
-          status: 'active',
+          expirationDate: dateFilter,
+          status: statusFilter,
         },
         include: {
           provider: {
@@ -156,10 +156,7 @@ export class ExpirationService {
     if (!type || type === 'document') {
       const documents = await prisma.document.findMany({
         where: {
-          expirationDate: {
-            lte: cutoffDate,
-            gte: new Date(),
-          },
+          expirationDate: dateFilter,
         },
         include: {
           provider: {
@@ -243,7 +240,7 @@ export class ExpirationService {
       prisma.malpracticeInsurance.count({ where: { expirationDate: { lt: now }, status: 'active' } }),
     ]);
 
-    const recentExpirations = await this.getUpcomingExpirations(30);
+    const recentExpirations = await this.getUpcomingExpirations(30, undefined, true);
 
     return {
       expiring7Days: licenses7 + certs7 + insurance7,

@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   submitApplication,
   getApplicationStatusByNpi,
@@ -13,8 +14,21 @@ import {
   ProviderApplicationInput,
 } from '../services/portal.service.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { portalRegistrationSchema, markNotificationsReadSchema } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+
+const portalRegistrationLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many registration attempts. Please try again later.' },
+});
+
+const portalLookupLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { success: false, error: 'Too many lookup requests. Please try again later.' },
+});
 
 const router = Router();
 
@@ -26,72 +40,12 @@ const router = Router();
  * POST /api/v1/portal/register
  * Submit a new provider application
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', portalRegistrationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data: ProviderApplicationInput = req.body;
+    const data = portalRegistrationSchema.parse(req.body) as ProviderApplicationInput;
 
-    // Validate required fields
-    if (!data.npi || !data.firstName || !data.lastName || !data.email || !data.phone) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: npi, firstName, lastName, email, phone',
-      });
-    }
-
-    // Validate NPI format (10 digits)
-    if (!/^\d{10}$/.test(data.npi)) {
-      return res.status(400).json({
-        success: false,
-        error: 'NPI must be exactly 10 digits',
-      });
-    }
-
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid email format',
-      });
-    }
-
-    // Validate name lengths
-    if (data.firstName.length < 2 || data.lastName.length < 2) {
-      return res.status(400).json({
-        success: false,
-        error: 'First and last name must be at least 2 characters',
-      });
-    }
-
-    // Validate date of birth
-    if (!data.dateOfBirth) {
-      return res.status(400).json({
-        success: false,
-        error: 'Date of birth is required',
-      });
-    }
-    const dob = new Date(data.dateOfBirth);
-    if (isNaN(dob.getTime())) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid date of birth format',
-      });
-    }
-
-    // Validate gender
-    const validGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
-    if (!data.gender || !validGenders.includes(data.gender)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Gender is required',
-      });
-    }
-
-    // Validate practiceId if provided
+    // Validate practiceId exists and is active in DB
     if (data.practiceId) {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(data.practiceId)) {
-        return res.status(400).json({ success: false, error: 'Invalid practice ID format' });
-      }
       const practice = await prisma.practice.findUnique({
         where: { id: data.practiceId },
         select: { id: true, status: true },
@@ -113,6 +67,7 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     console.error('Error submitting application:', error);
 
     if (error instanceof Error) {
@@ -135,7 +90,7 @@ router.post('/register', async (req: Request, res: Response) => {
  * GET /api/v1/portal/status/:npi
  * Check application status by NPI
  */
-router.get('/status/:npi', async (req: Request, res: Response) => {
+router.get('/status/:npi', portalLookupLimit, async (req: Request, res: Response) => {
   try {
     const npi = req.params['npi']!;
 
@@ -383,9 +338,9 @@ router.get('/admin/notifications', authenticate, authorize('admin', 'credentiali
  * POST /api/v1/portal/admin/notifications/mark-read
  * Mark notifications as read
  */
-router.post('/admin/notifications/mark-read', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.post('/admin/notifications/mark-read', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { notificationIds } = req.body;
+    const { notificationIds } = markNotificationsReadSchema.parse(req.body);
     await markNotificationsAsRead(notificationIds);
 
     res.json({
@@ -393,6 +348,7 @@ router.post('/admin/notifications/mark-read', authenticate, authorize('admin', '
       message: 'Notifications marked as read',
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     console.error('Error marking notifications as read:', error);
     res.status(500).json({
       success: false,
@@ -409,7 +365,7 @@ router.post('/admin/notifications/mark-read', authenticate, authorize('admin', '
  * GET /api/v1/portal/npi-lookup/:npi
  * Lookup provider info from the NPPES NPI Registry (public, no auth required)
  */
-router.get('/npi-lookup/:npi', async (req: Request, res: Response) => {
+router.get('/npi-lookup/:npi', portalLookupLimit, async (req: Request, res: Response) => {
   try {
     const npi = req.params['npi']!;
 

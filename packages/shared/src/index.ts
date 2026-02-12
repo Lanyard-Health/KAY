@@ -9,6 +9,9 @@ export * from './types/common.js';
 export * from './validation/provider.js';
 export * from './validation/credentials.js';
 export * from './validation/documents.js';
+export * from './validation/ai.js';
+export * from './validation/portal.js';
+export * from './validation/providerDirectory.js';
 
 // Constants
 export * from './constants/index.js';

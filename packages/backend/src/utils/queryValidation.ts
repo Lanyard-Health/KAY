@@ -35,6 +35,7 @@ export const auditQuerySchema = paginationSchema.extend({
 export const expirationQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(365).default(30),
   type: z.string().optional(),
+  includeExpired: z.coerce.boolean().default(false),
 });
 
 /**

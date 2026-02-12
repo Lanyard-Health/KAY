@@ -18,9 +18,9 @@ expirationRoutes.get(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { days, type } = parseQuery(req.query, expirationQuerySchema);
+      const { days, type, includeExpired } = parseQuery(req.query, expirationQuerySchema);
 
-      const expirations = await expirationService.getUpcomingExpirations(days, type);
+      const expirations = await expirationService.getUpcomingExpirations(days, type, includeExpired);
 
       // Filter by practice scope
       let filtered = expirations;

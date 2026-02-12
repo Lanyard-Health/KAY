@@ -6,6 +6,14 @@ import { ForbiddenError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
+  generateEmailSchema,
+  expirationAlertSchema,
+  updateRecommendationSchema,
+  chatMessageSchema,
+  chatConversationsQuerySchema,
+  recommendationsQuerySchema,
+} from '@credential-management/shared';
+import {
   isConfigured,
   getModelInfo,
   getTodayTokenUsage,
@@ -77,12 +85,11 @@ router.post('/enrollment/:id/generate-email', aiMutationLimit, async (req: Reque
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
-    const { tone, additionalContext } = req.body || {};
-    const validTones = ['polite', 'assertive', 'urgent'];
-    const validatedTone = tone && validTones.includes(tone) ? tone : undefined;
-    const result = await generateFollowUpEmail(id!, { tone: validatedTone, additionalContext });
+    const { tone, additionalContext } = generateEmailSchema.parse(req.body || {});
+    const result = await generateFollowUpEmail(id!, { tone, additionalContext });
     res.json({ success: true, data: result });
   } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     const message = error instanceof Error ? error.message : 'Failed to generate email';
     const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
     res.status(status).json({ success: false, error: message });
@@ -128,16 +135,16 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), aiM
 /**
  * POST /api/v1/ai/expiration-alerts/generate (admin/staff only)
  */
-router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response) => {
+router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
     }
-    const days = req.body?.days;
-    const validatedDays = typeof days === 'number' && days > 0 && days <= 365 ? Math.floor(days) : 90;
-    const result = await generateExpirationAlerts(validatedDays);
+    const { days } = expirationAlertSchema.parse(req.body || {});
+    const result = await generateExpirationAlerts(days);
     res.json({ success: true, data: result });
   } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     const message = error instanceof Error ? error.message : 'Failed to generate expiration alerts';
     const status = message.includes('budget') ? 429 : 500;
     res.status(status).json({ success: false, error: message });
@@ -147,16 +154,17 @@ router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_sta
 /**
  * GET /api/v1/ai/recommendations (admin/staff only)
  */
-router.get('/recommendations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/recommendations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { type, status, enrollmentId } = req.query;
+    const { type, status, enrollmentId } = recommendationsQuerySchema.parse(req.query);
     const recommendations = await getRecommendations({
-      type: type as any,
-      status: status as any,
-      enrollmentId: enrollmentId as string | undefined,
+      ...(type && { type: type as 'follow_up_email' | 'strategy' | 'priority_alert' }),
+      ...(status && { status: status as 'pending' | 'accepted' | 'dismissed' }),
+      enrollmentId,
     });
     res.json({ success: true, data: recommendations });
   } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
   }
 });
@@ -164,17 +172,15 @@ router.get('/recommendations', authorize('admin', 'credentialing_staff'), async 
 /**
  * PATCH /api/v1/ai/recommendations/:id (admin/staff only)
  */
-router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    if (!status || !['accepted', 'dismissed'].includes(status)) {
-      return res.status(400).json({ success: false, error: 'Status must be "accepted" or "dismissed"' });
-    }
+    const { status } = updateRecommendationSchema.parse(req.body);
     const actedOnBy = req.user?.email;
     const updated = await updateRecommendationStatus(id!, status, actedOnBy);
     res.json({ success: true, data: updated });
   } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     const isNotFound = error instanceof Error && 'code' in error && (error as any).code === 'P2025';
     res.status(isNotFound ? 404 : 500).json({
       success: false,
@@ -211,29 +217,21 @@ router.get('/usage', async (_req: Request, res: Response) => {
 /**
  * POST /api/v1/ai/chat — Send a chat message
  */
-router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response) => {
+router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
     }
-    const { conversationId, message } = req.body || {};
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      return res.status(400).json({ success: false, error: 'Message is required' });
-    }
-    if (message.length > 2000) {
-      return res.status(400).json({ success: false, error: 'Message must be 2000 characters or fewer' });
-    }
-    if (conversationId && typeof conversationId !== 'string') {
-      return res.status(400).json({ success: false, error: 'Invalid conversationId' });
-    }
+    const { message, conversationId } = chatMessageSchema.parse(req.body || {});
     const result = await sendChatMessage({
       userId: req.user!.id,
       conversationId: conversationId || undefined,
-      message: message.trim(),
+      message,
       req,
     });
     res.json({ success: true, data: result });
   } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     const message = error instanceof Error ? error.message : 'Failed to process chat message';
     const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
     res.status(status).json({ success: false, error: message });
@@ -243,13 +241,13 @@ router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit,
 /**
  * GET /api/v1/ai/chat/conversations — List user's conversations
  */
-router.get('/chat/conversations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/chat/conversations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const limit = Math.min(parseInt(req.query['limit'] as string) || 20, 50);
-    const offset = Math.max(parseInt(req.query['offset'] as string) || 0, 0);
+    const { limit, offset } = chatConversationsQuerySchema.parse(req.query);
     const conversations = await getUserConversations(req.user!.id, limit, offset);
     res.json({ success: true, data: conversations });
   } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
     res.status(500).json({ success: false, error: 'Failed to fetch conversations' });
   }
 });

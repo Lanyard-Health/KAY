@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   useCaqhCredentialStatus,
   useSaveCaqhCredentials,
@@ -8,9 +10,17 @@ import {
   getCredentialStatusColor,
   CAQH_PROVIEW_URL,
 } from '../hooks/useCaqhCredentials';
+import { api } from '../services/api';
 
 interface CaqhCardProps {
   providerId: string;
+}
+
+interface SyncSummary {
+  licenses: { created: number; updated: number; skipped: number };
+  certifications: { created: number; updated: number; skipped: number };
+  education: { created: number; updated: number; skipped: number };
+  malpractice: { created: number; updated: number; skipped: number };
 }
 
 export function CaqhCard({ providerId }: CaqhCardProps) {
@@ -18,10 +28,27 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncSummary | null>(null);
 
+  const queryClient = useQueryClient();
   const { data: credentialStatusData, isLoading: isLoadingCredentials } = useCaqhCredentialStatus(providerId);
   const saveCredentials = useSaveCaqhCredentials();
   const verifyCredentials = useVerifyCaqhCredentials();
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post(`/caqh/pull/${providerId}`);
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      setSyncResult(data.changes as SyncSummary);
+      queryClient.invalidateQueries({ queryKey: ['provider', providerId] });
+      toast.success('CAQH sync completed');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error?.message || 'CAQH sync failed');
+    },
+  });
 
   const credentialStatus = credentialStatusData?.data;
 
@@ -181,26 +208,50 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
               </div>
             )}
 
+            {/* Sync Result */}
+            {syncResult && (
+              <div className="text-xs p-2 rounded bg-blue-50 text-blue-700 space-y-1">
+                <p className="font-medium">Sync Complete:</p>
+                {(['licenses', 'certifications', 'education', 'malpractice'] as const).map((key) => {
+                  const s = syncResult[key];
+                  if (s.created + s.updated + s.skipped === 0) return null;
+                  return (
+                    <p key={key} className="capitalize">
+                      {key}: {s.created} new, {s.updated} updated
+                      {s.skipped > 0 && <span className="text-yellow-700">, {s.skipped} skipped (manually edited)</span>}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-2 pt-2">
               {credentialStatus?.hasCredentials ? (
                 <>
                   <button
-                    onClick={handleVerify}
-                    disabled={verifyCredentials.isPending}
-                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => syncMutation.mutate()}
+                    disabled={syncMutation.isPending}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {verifyCredentials.isPending ? (
+                    {syncMutation.isPending ? (
                       <span className="flex items-center justify-center">
                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Verifying...
+                        Syncing...
                       </span>
                     ) : (
-                      'Verify'
+                      'Sync Credentials'
                     )}
+                  </button>
+                  <button
+                    onClick={handleVerify}
+                    disabled={verifyCredentials.isPending}
+                    className="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {verifyCredentials.isPending ? 'Verifying...' : 'Verify'}
                   </button>
                   <button
                     onClick={() => {
