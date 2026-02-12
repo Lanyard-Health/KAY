@@ -41,6 +41,7 @@ import terminationLetterRoutes from './routes/terminationLetter.routes.js';
 import practiceRoutes from './routes/practice.routes.js';
 import emailRoutes from './routes/email.routes.js';
 import providerDirectoryRoutes from './routes/providerDirectory.routes.js';
+import { payerIntelligenceRoutes } from './routes/payerIntelligence.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -132,6 +133,7 @@ app.use('/api/v1', terminationLetterRoutes);
 app.use('/api/v1/practices', practiceRoutes);
 app.use('/api/v1/email', emailRoutes);
 app.use('/api/v1/provider-directory', providerDirectoryRoutes);
+app.use('/api/v1/payer-intelligence', payerIntelligenceRoutes);
 
 // Error handling
 app.use(errorHandler);

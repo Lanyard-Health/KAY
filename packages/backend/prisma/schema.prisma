@@ -882,6 +882,7 @@ enum AiRecommendationType {
   follow_up_email
   strategy
   priority_alert
+  payer_intelligence
 }
 
 enum AiRecommendationStatus {

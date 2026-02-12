@@ -94,7 +94,7 @@ export function useResolveDirectoryAlert() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ alertId, providerId }: { alertId: string; providerId: string }) => {
+    mutationFn: async ({ alertId }: { alertId: string; providerId: string }) => {
       const response = await api.post(`/provider-directory/alerts/${alertId}/resolve`, {});
       return response.data;
     },
