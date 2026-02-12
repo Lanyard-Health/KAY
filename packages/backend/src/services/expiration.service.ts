@@ -209,7 +209,7 @@ export class ExpirationService {
       prisma.license.count({ where: { expirationDate: { lte: in30Days, gte: now }, status: 'active' } }),
       prisma.license.count({ where: { expirationDate: { lte: in60Days, gte: now }, status: 'active' } }),
       prisma.license.count({ where: { expirationDate: { lte: in90Days, gte: now }, status: 'active' } }),
-      prisma.license.count({ where: { expirationDate: { lt: now }, status: 'active' } }),
+      prisma.license.count({ where: { expirationDate: { lt: now }, status: { in: ['active', 'expired'] } } }),
     ]);
 
     const [
@@ -223,7 +223,7 @@ export class ExpirationService {
       prisma.boardCertification.count({ where: { expirationDate: { lte: in30Days, gte: now }, status: 'active' } }),
       prisma.boardCertification.count({ where: { expirationDate: { lte: in60Days, gte: now }, status: 'active' } }),
       prisma.boardCertification.count({ where: { expirationDate: { lte: in90Days, gte: now }, status: 'active' } }),
-      prisma.boardCertification.count({ where: { expirationDate: { lt: now }, status: 'active' } }),
+      prisma.boardCertification.count({ where: { expirationDate: { lt: now }, status: { in: ['active', 'expired'] } } }),
     ]);
 
     const [
@@ -237,7 +237,7 @@ export class ExpirationService {
       prisma.malpracticeInsurance.count({ where: { expirationDate: { lte: in30Days, gte: now }, status: 'active' } }),
       prisma.malpracticeInsurance.count({ where: { expirationDate: { lte: in60Days, gte: now }, status: 'active' } }),
       prisma.malpracticeInsurance.count({ where: { expirationDate: { lte: in90Days, gte: now }, status: 'active' } }),
-      prisma.malpracticeInsurance.count({ where: { expirationDate: { lt: now }, status: 'active' } }),
+      prisma.malpracticeInsurance.count({ where: { expirationDate: { lt: now }, status: { in: ['active', 'expired'] } } }),
     ]);
 
     const recentExpirations = await this.getUpcomingExpirations(30, undefined, true);
