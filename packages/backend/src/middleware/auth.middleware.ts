@@ -10,6 +10,10 @@ import { initPracticeScope } from './practiceScope.middleware.js';
 // Auth bypass controlled by DEV_AUTH_BYPASS env var (set to "false" when real auth is ready)
 const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
 
+if (DEV_BYPASS_ENABLED && process.env['NODE_ENV'] === 'production') {
+  throw new Error('FATAL: DEV_AUTH_BYPASS cannot be enabled in production');
+}
+
 // Development mock user
 const DEV_USER = {
   id: 'dev-user-id',
