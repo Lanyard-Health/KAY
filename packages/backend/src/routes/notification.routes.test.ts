@@ -83,37 +83,28 @@ describe('Notification Routes', () => {
       });
     });
 
-    it('caps limit at 100', async () => {
-      mockGetNotifications.mockResolvedValue({
-        notifications: [],
-        totalCount: 0,
-        unreadCount: 0,
-      });
+    it('returns 400 when limit exceeds 100', async () => {
+      const res = await request(app).get('/?limit=999');
 
-      await request(app).get('/?limit=999');
-
-      expect(mockGetNotifications).toHaveBeenCalledWith('admin-user-id', {
-        unreadOnly: false,
-        limit: 100,
-        offset: 0,
-      });
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(mockGetNotifications).not.toHaveBeenCalled();
     });
 
-    it('defaults limit to 20 when 0 is passed (falsy coercion)', async () => {
-      mockGetNotifications.mockResolvedValue({
-        notifications: [],
-        totalCount: 0,
-        unreadCount: 0,
-      });
+    it('returns 400 when limit=0 (below minimum)', async () => {
+      const res = await request(app).get('/?limit=0');
 
-      await request(app).get('/?limit=0');
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(mockGetNotifications).not.toHaveBeenCalled();
+    });
 
-      // parseInt('0') || 20 = 0 || 20 = 20 (0 is falsy)
-      expect(mockGetNotifications).toHaveBeenCalledWith('admin-user-id', {
-        unreadOnly: false,
-        limit: 20,
-        offset: 0,
-      });
+    it('returns 400 for non-numeric limit', async () => {
+      const res = await request(app).get('/?limit=abc');
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(mockGetNotifications).not.toHaveBeenCalled();
     });
 
     it('uses provider user id', async () => {

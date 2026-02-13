@@ -18,6 +18,7 @@ import {
   XCircleIcon,
   ExclamationTriangleIcon,
   CalendarDaysIcon,
+  ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
 
 interface Payer {
@@ -50,6 +51,7 @@ interface Enrollment {
   notes: string | null;
   payer: Payer;
   provider: Provider;
+  workflowProgress?: { total: number; completed: number };
 }
 
 const STATUS_OPTIONS = [
@@ -699,6 +701,13 @@ export default function EnrollmentsList() {
                               <span className="flex items-center gap-1 text-orange-600 font-medium">
                                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
                                 Follow-up
+                              </span>
+                            )}
+
+                            {enrollment.workflowProgress && enrollment.workflowProgress.total > 0 && (
+                              <span className="text-gray-500 flex items-center gap-1">
+                                <ClipboardDocumentCheckIcon className="h-3.5 w-3.5" />
+                                {enrollment.workflowProgress.completed}/{enrollment.workflowProgress.total}
                               </span>
                             )}
 

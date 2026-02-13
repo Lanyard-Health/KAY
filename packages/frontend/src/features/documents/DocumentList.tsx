@@ -208,8 +208,21 @@ export default function DocumentList() {
           <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>
       ) : isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600"></div>
+        <div className="bg-white shadow rounded-lg overflow-hidden animate-pulse">
+          <div className="bg-gray-50 px-6 py-3 flex gap-8">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-3 w-20 bg-gray-200 rounded" />
+            ))}
+          </div>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="px-6 py-4 flex gap-8 border-t border-gray-100">
+              <div className="h-4 w-40 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+              <div className="h-4 w-20 bg-gray-200 rounded" />
+              <div className="h-4 w-16 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+            </div>
+          ))}
         </div>
       ) : documents?.length === 0 ? (
         <div className="text-center py-12">

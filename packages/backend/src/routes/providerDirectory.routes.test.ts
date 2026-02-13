@@ -171,12 +171,20 @@ describe('Provider Directory Routes', () => {
       expect(mockGetSnapshots).toHaveBeenCalledWith('provider-1', undefined, 50, 10);
     });
 
-    it('caps limit at 100', async () => {
-      mockGetSnapshots.mockResolvedValue([]);
+    it('returns 400 when limit exceeds 100', async () => {
+      const res = await request(app).get('/provider-1/snapshots?limit=999');
 
-      await request(app).get('/provider-1/snapshots?limit=999');
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(mockGetSnapshots).not.toHaveBeenCalled();
+    });
 
-      expect(mockGetSnapshots).toHaveBeenCalledWith('provider-1', undefined, 100, 0);
+    it('returns 400 for non-numeric limit', async () => {
+      const res = await request(app).get('/provider-1/snapshots?limit=abc');
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(mockGetSnapshots).not.toHaveBeenCalled();
     });
 
     it('filters by payerId when provided', async () => {

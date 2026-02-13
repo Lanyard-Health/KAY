@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { verifyDirectorySchema, resolveAlertSchema, directoryStatusQuerySchema } from '@credential-management/shared';
@@ -11,6 +12,7 @@ import {
   resolveAlert,
   getConfiguredPayers,
 } from '../services/providerDirectory.service.js';
+import { parseQuery, limitOffsetSchema } from '../utils/queryValidation.js';
 
 const router = Router();
 
@@ -82,12 +84,15 @@ router.get(
     try {
       const providerId = req.params['providerId']!;
       const parsed = directoryStatusQuerySchema.parse(req.query);
-      const take = Math.min(Number(req.query['limit']) || 20, 100);
-      const skip = Number(req.query['offset']) || 0;
+      const { limit: take, offset: skip } = parseQuery(req.query as Record<string, unknown>, limitOffsetSchema);
 
       const snapshots = await getSnapshots(providerId, parsed.payerId, take, skip);
       res.json({ success: true, data: snapshots });
     } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: { message: 'Invalid query parameters', details: error.issues } });
+        return;
+      }
       next(error);
     }
   }
