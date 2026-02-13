@@ -12,10 +12,14 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "db:migrate": "turbo run db:migrate --filter=backend",
-    "db:generate": "turbo run db:generate --filter=backend"
+    "db:generate": "turbo run db:generate --filter=backend",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test:e2e:ui": "playwright test --config=e2e/playwright.config.ts --ui",
+    "test:e2e:headed": "playwright test --config=e2e/playwright.config.ts --headed"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.58.2",
     "eslint": "^9.0.0",
     "eslint-plugin-security": "^3.0.0",
     "globals": "^15.0.0",
