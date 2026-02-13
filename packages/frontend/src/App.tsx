@@ -23,8 +23,10 @@ import PortalDashboard from './features/portal/PortalDashboard';
 import PortalProfile from './features/portal/PortalProfile';
 import PortalLicenses from './features/portal/PortalLicenses';
 import PortalLocations from './features/portal/PortalLocations';
+import PortalDocuments from './features/portal/PortalDocuments';
 import RegistrationSuccess from './features/portal/RegistrationSuccess';
 import NotificationsPage from './features/notifications/NotificationsPage';
+import OnboardingProgress from './features/admin/OnboardingProgress';
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuthStore();
@@ -88,6 +90,7 @@ export default function App() {
       >
         <Route index element={<PortalDashboard />} />
         <Route path="profile" element={<PortalProfile />} />
+        <Route path="documents" element={<PortalDocuments />} />
         <Route path="licenses" element={<PortalLicenses />} />
         <Route path="locations" element={<PortalLocations />} />
         <Route path="notifications" element={<NotificationsPage />} />
@@ -118,6 +121,7 @@ export default function App() {
         <Route path="users" element={<UsersList />} />
         <Route path="users/:userId" element={<UserDetail />} />
         <Route path="pending-providers" element={<PendingProviders />} />
+        <Route path="onboarding-progress" element={<OnboardingProgress />} />
         <Route path="notifications" element={<NotificationsPage />} />
       </Route>
 

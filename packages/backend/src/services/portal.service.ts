@@ -19,10 +19,11 @@ export interface ProviderApplicationInput {
   taxonomy?: string;
   specialties?: string[];
   practiceId?: string;
+  previousApplicationId?: string;
 }
 
 /**
- * Check if an application with this NPI already exists
+ * Check if a pending application with this NPI already exists
  */
 export async function checkExistingApplication(npi: string) {
   return prisma.providerApplication.findFirst({
@@ -30,6 +31,19 @@ export async function checkExistingApplication(npi: string) {
       npi,
       status: 'pending',
     },
+  });
+}
+
+/**
+ * Check if the NPI has a rejected application (allows re-application)
+ */
+export async function checkRejectedApplication(npi: string) {
+  return prisma.providerApplication.findFirst({
+    where: {
+      npi,
+      status: 'rejected',
+    },
+    orderBy: { submittedAt: 'desc' },
   });
 }
 
@@ -59,6 +73,40 @@ export async function submitApplication(data: ProviderApplicationInput) {
     throw new Error('A provider with this NPI already exists in our system');
   }
 
+  // Validate previousApplicationId if provided
+  let previousApplicationId: string | undefined;
+  if (data.previousApplicationId) {
+    const prevApp = await prisma.providerApplication.findUnique({
+      where: { id: data.previousApplicationId },
+    });
+    if (!prevApp || prevApp.status !== 'rejected') {
+      throw new Error('Invalid previous application reference');
+    }
+    // Ensure no other re-application already links to this one
+    const existingReapp = await prisma.providerApplication.findFirst({
+      where: { previousApplicationId: data.previousApplicationId },
+    });
+    if (existingReapp) {
+      throw new Error('A re-application has already been submitted for this application');
+    }
+    previousApplicationId = data.previousApplicationId;
+  } else {
+    // Also check by email: if email has a rejected application, auto-detect re-application
+    const rejectedByEmail = await prisma.providerApplication.findFirst({
+      where: { email: data.email, status: 'rejected' },
+      orderBy: { submittedAt: 'desc' },
+    });
+    if (rejectedByEmail) {
+      // Check no other re-app links to this one already
+      const existingReapp = await prisma.providerApplication.findFirst({
+        where: { previousApplicationId: rejectedByEmail.id },
+      });
+      if (!existingReapp) {
+        previousApplicationId = rejectedByEmail.id;
+      }
+    }
+  }
+
   // Create the application
   const application = await prisma.providerApplication.create({
     data: {
@@ -75,6 +123,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
       taxonomy: data.taxonomy,
       specialties: data.specialties || [],
       ...(data.practiceId && { practiceId: data.practiceId }),
+      ...(previousApplicationId && { previousApplicationId }),
     },
   });
 
@@ -368,6 +417,39 @@ export async function rejectApplication(id: string, reviewedBy: string, notes: s
     where: { applicationId: id, read: false },
     data: { read: true },
   });
+
+  // Send rejection email (non-blocking)
+  if (emailService.isConfigured()) {
+    const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+    emailService.sendEmail({
+      to: application.email,
+      subject: 'Application Update — Lanyard Health',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0A3D2E;">Application Update</h2>
+          <p>Dear ${application.firstName},</p>
+          <p>After reviewing your application, we are unable to approve it at this time.</p>
+          ${notes ? `
+          <div style="background-color: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #92400e; font-size: 14px;">Reviewer Notes</h3>
+            <p style="margin-bottom: 0; color: #78350f; font-size: 14px;">${notes.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+          </div>
+          ` : ''}
+          <p>If you believe this decision was made in error or if you have additional information to provide, you may submit a new application.</p>
+          <p style="margin: 24px 0;">
+            <a href="${appUrl}/register?reapply=${application.id}" style="background-color: #0A3D2E; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: 500;">
+              Submit New Application
+            </a>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+          <p style="color: #6b7280; font-size: 12px;">
+            This is an automated notification from Lanyard Health. Please do not reply to this email.
+          </p>
+        </div>
+      `,
+      notificationType: 'application_rejected' as any,
+    }).catch((err: unknown) => console.error('Failed to send rejection email:', err));
+  }
 
   return updatedApplication;
 }

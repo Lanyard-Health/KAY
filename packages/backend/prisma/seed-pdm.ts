@@ -5,6 +5,22 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding PDM test data...\n');
 
+  // Ensure payer IDs match adapter identifiers (migrate old format if needed)
+  const payerMigrations = [
+    { oldPayerId: 'AETNA001', newPayerId: 'aetna' },
+    { oldPayerId: 'BCBS001', newPayerId: 'bcbs' },
+    { oldPayerId: 'CIGNA001', newPayerId: 'cigna' },
+    { oldPayerId: 'UHC001', newPayerId: 'uhc' },
+    { oldPayerId: 'MEDICARE001', newPayerId: 'medicare' },
+  ];
+  for (const m of payerMigrations) {
+    const existing = await prisma.payer.findUnique({ where: { payerId: m.oldPayerId } });
+    if (existing) {
+      await prisma.payer.update({ where: { payerId: m.oldPayerId }, data: { payerId: m.newPayerId } });
+      console.log(`  Migrated payer ${m.oldPayerId} → ${m.newPayerId}`);
+    }
+  }
+
   // Get existing providers
   const providers = await prisma.provider.findMany({
     take: 5,
@@ -39,12 +55,13 @@ async function main() {
     });
 
     // Create payers if they don't exist
+    // payerId must match the adapter identifier in providerDirectory.service.ts
     const payerData = [
-      { name: 'Aetna', payerId: 'AETNA001', payerType: 'Commercial' },
-      { name: 'Blue Cross Blue Shield', payerId: 'BCBS001', payerType: 'Commercial' },
-      { name: 'Cigna', payerId: 'CIGNA001', payerType: 'Commercial' },
-      { name: 'UnitedHealthcare', payerId: 'UHC001', payerType: 'Commercial' },
-      { name: 'Medicare', payerId: 'MEDICARE001', payerType: 'Medicare' },
+      { name: 'Aetna', payerId: 'aetna', payerType: 'Commercial' },
+      { name: 'Blue Cross Blue Shield', payerId: 'bcbs', payerType: 'Commercial' },
+      { name: 'Cigna', payerId: 'cigna', payerType: 'Commercial' },
+      { name: 'UnitedHealthcare', payerId: 'uhc', payerType: 'Commercial' },
+      { name: 'Medicare', payerId: 'medicare', payerType: 'Medicare' },
     ];
 
     const payers = [];

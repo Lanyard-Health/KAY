@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useCurrentProvider, useProfileCompleteness } from './hooks/usePortalData';
+import OnboardingWizard from './OnboardingWizard';
 
 export default function PortalDashboard() {
   const { data: providerData, isLoading, error } = useCurrentProvider();
@@ -26,6 +27,12 @@ export default function PortalDashboard() {
   }
 
   const provider = (providerData as any)?.data?.provider;
+
+  // Show onboarding wizard if onboarding is not complete
+  if (provider && !provider.onboardingCompletedAt) {
+    return <OnboardingWizard />;
+  }
+
   const sections = (completeness as any)?.data?.sections ?? [];
   const percentage = (completeness as any)?.data?.percentage ?? 0;
   const incompleteSections = sections.filter((s: any) => !s.complete);

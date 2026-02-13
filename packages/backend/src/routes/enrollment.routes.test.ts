@@ -20,14 +20,26 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../services/enrollment-creation-hook.js', () => ({
+  onEnrollmentCreated: vi.fn(),
+}));
+
 import enrollmentRouter from './enrollment.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
+import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
+
+const mockedOnEnrollmentCreated = vi.mocked(onEnrollmentCreated);
 
 describe('Enrollment Routes', () => {
   const app = createTestApp(enrollmentRouter, adminUser);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedOnEnrollmentCreated.mockResolvedValue({
+      stepsCreated: 0,
+      templateFound: false,
+      workflowType: null,
+    });
   });
 
   describe('GET /', () => {
@@ -206,6 +218,64 @@ describe('Enrollment Routes', () => {
 
         expect(res.status).not.toBe(400);
       }
+    });
+
+    it('calls onEnrollmentCreated and includes workflow data in response', async () => {
+      prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
+      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.payerEnrollment.create.mockResolvedValue(mockEnrollment as any);
+      mockedOnEnrollmentCreated.mockResolvedValue({
+        stepsCreated: 7,
+        templateFound: true,
+        workflowType: 'medical' as any,
+      });
+
+      const res = await request(app)
+        .post('/provider/provider-1-id')
+        .send(validEnrollmentInput);
+
+      expect(res.status).toBe(201);
+      expect(mockedOnEnrollmentCreated).toHaveBeenCalledWith(
+        expect.anything(), // prisma
+        expect.objectContaining({ id: 'enrollment-1-id' }),
+        undefined // no explicit workflowType
+      );
+      expect(res.body.data.workflow).toEqual({
+        stepsCreated: 7,
+        templateFound: true,
+        workflowType: 'medical',
+      });
+    });
+
+    it('passes workflowType to onEnrollmentCreated when provided', async () => {
+      prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
+      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.payerEnrollment.create.mockResolvedValue(mockEnrollment as any);
+
+      await request(app)
+        .post('/provider/provider-1-id')
+        .send({ ...validEnrollmentInput, workflowType: 'behavioral_health' });
+
+      expect(mockedOnEnrollmentCreated).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        'behavioral_health'
+      );
+    });
+
+    it('returns 500 when onEnrollmentCreated throws (enrollment still saved)', async () => {
+      prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
+      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.payerEnrollment.create.mockResolvedValue(mockEnrollment as any);
+      mockedOnEnrollmentCreated.mockRejectedValue(new Error('__dirname is not defined'));
+
+      const res = await request(app)
+        .post('/provider/provider-1-id')
+        .send(validEnrollmentInput);
+
+      // The enrollment was created but the workflow hook failed
+      expect(prismaMock.payerEnrollment.create).toHaveBeenCalled();
+      expect(res.status).toBe(500);
     });
   });
 

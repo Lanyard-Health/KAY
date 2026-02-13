@@ -5,6 +5,7 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
+import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -57,6 +58,7 @@ const createEnrollmentSchema = z.object({
   providerNumber: z.string().max(50).optional(),
   groupNumber: z.string().max(50).optional(),
   notes: z.string().optional(),
+  workflowType: z.enum(['medical', 'behavioral_health']).optional().nullable(),
 });
 
 const updateEnrollmentSchema = createEnrollmentSchema.partial();
@@ -260,10 +262,26 @@ router.post(
           notes: validated.notes,
           createdById: req.user?.id,
         },
-        include: { payer: true },
+        include: {
+          payer: { select: { id: true, name: true, payerId: true, payerType: true, workflowKey: true } },
+          provider: { select: { providerType: true } },
+        },
       });
 
-      res.status(201).json({ success: true, data: enrollment });
+      // Auto-hydrate workflow steps if the payer has a template
+      const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
+
+      res.status(201).json({
+        success: true,
+        data: {
+          ...enrollment,
+          workflow: {
+            stepsCreated: workflow.stepsCreated,
+            templateFound: workflow.templateFound,
+            workflowType: workflow.workflowType,
+          },
+        },
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({

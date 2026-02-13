@@ -8,6 +8,7 @@ import {
   DocumentDuplicateIcon,
   ClockIcon,
   ClipboardDocumentListIcon,
+  ClipboardDocumentCheckIcon,
   TableCellsIcon,
   SparklesIcon,
   ChartBarSquareIcon,
@@ -32,6 +33,7 @@ const navigation = [
   { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
   { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
   { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
+  { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
 ];
 
 export default function Layout() {

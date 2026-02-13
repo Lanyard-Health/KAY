@@ -42,7 +42,11 @@ const router = Router();
  */
 router.post('/register', portalRegistrationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = portalRegistrationSchema.parse(req.body) as ProviderApplicationInput;
+    const parsed = portalRegistrationSchema.parse(req.body);
+    const data: ProviderApplicationInput = {
+      ...parsed,
+      previousApplicationId: req.body.previousApplicationId,
+    } as ProviderApplicationInput;
 
     // Validate practiceId exists and is active in DB
     if (data.practiceId) {
