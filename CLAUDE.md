@@ -110,6 +110,31 @@ All changes to `master` must go through a pull request with:
 - At least 1 approval
 - Security Gate CI check passing
 
+## Tech Stack
+- **Backend**: Express + Prisma + TypeScript, ESM (`"type": "module"`)
+- **Frontend**: React 18 + Vite + Tailwind CSS + Zustand + React Query
+- **Testing**: Vitest v4, vitest-mock-extended, supertest
+- **Auth**: AWS Cognito (production), DEV_AUTH_BYPASS (local dev)
+
+## Testing Conventions
+
+### Test infrastructure
+Test helpers live in `packages/backend/tests/helpers/`:
+- `setup.ts` — env defaults for test runs
+- `mock-prisma.ts` — shared deep-mocked PrismaClient (`prismaMock`)
+- `mock-express.ts` — `createMockRequest()`, `createMockResponse()`, `createMockNext()`
+- `test-app.ts` — `createTestApp(router, user)` for supertest integration tests
+- `fixtures.ts` — reusable test data (adminUser, staffUser, providerUser, etc.)
+
+### Vitest v4 gotchas
+- `vi.fn().mockImplementation()` used as a constructor **MUST** use `function()` not arrow `() =>` — vitest v4 enforces the JS spec that arrow functions cannot be called with `new`.
+- `vi.clearAllMocks()` does **NOT** reset mock implementations — use `vi.resetAllMocks()` or `mockRejectedValueOnce`/`mockResolvedValueOnce` for one-shot overrides.
+- Prisma mock pattern: `vi.mock('../utils/prisma.js', async () => { const { prismaMock } = await import('../../tests/helpers/mock-prisma.js'); return { prisma: prismaMock }; })`
+- Modules that read env vars at import time (e.g., `DEV_BYPASS_ENABLED` in `auth.middleware.ts`) require `vi.hoisted(() => { process.env['VAR'] = 'value'; })` in a separate test file to override before import.
+
+### Cross-package pitfalls
+- `ZodError instanceof` fails across package boundaries — `shared` and `backend` may bundle different zod copies. The error handler's `instanceof ZodError` check won't catch errors from shared package validation schemas. Use `.name === 'ZodError'` or re-export zod from shared.
+
 ## Architecture Notes
 
 ### Frontend Lazy Loading
