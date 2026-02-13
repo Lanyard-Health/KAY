@@ -21,47 +21,29 @@ export default function Dashboard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-full'],
     queryFn: async () => {
-      const [providersRes, expirationsRes, expirationDashRes, enrollmentsRes] = await Promise.all([
-        api.get('/providers?pageSize=100'),
+      const [statsRes, expirationsRes, expirationDashRes] = await Promise.all([
+        api.get('/dashboard/stats'),
         api.get('/expirations?days=30'),
         api.get('/expirations/dashboard'),
-        api.get('/enrollments'),
       ]);
 
-      const providers = providersRes.data.data.data || [];
+      const stats = statsRes.data.data || {};
       const expirations = expirationsRes.data.data || [];
       const expirationSummary = expirationDashRes.data.data || {};
-      const enrollments = enrollmentsRes.data.data || [];
-
-      // Calculate provider stats
-      const pendingProviders = providers.filter((p: any) => p.status === 'pending');
-      const activeProviders = providers.filter((p: any) => p.status === 'active');
-
-      // Find incomplete providers (no documents)
-      const incompleteProviders = providers.filter((p: any) =>
-        (p._count?.documents || 0) === 0
-      );
-
-      // Find enrollments needing follow-up (last follow-up > 7 days ago or no follow-up)
-      const needsFollowUp = enrollments.filter((e: any) => {
-        if (e.status === 'approved' || e.status === 'terminated') return false;
-        if (!e.lastFollowUpDate) return true;
-        return differenceInDays(new Date(), new Date(e.lastFollowUpDate)) > 7;
-      });
 
       // expirations is already a flat ExpiringCredential[] sorted by date
       const expiringItems = Array.isArray(expirations) ? expirations : [];
 
       return {
-        totalProviders: providers.length,
-        activeProviders: activeProviders.length,
-        pendingProviders: pendingProviders.length,
-        incompleteProviders,
+        totalProviders: stats.totalProviders || 0,
+        activeProviders: stats.activeProviders || 0,
+        pendingProviders: stats.pendingProviders || 0,
+        incompleteProviders: stats.incompleteProviders || [],
+        incompleteCount: stats.incompleteCount || 0,
         expiringItems,
         expirationSummary,
-        needsFollowUp,
-        enrollments,
-        providers,
+        needsFollowUp: stats.needsFollowUp || [],
+        followUpCount: stats.followUpCount || 0,
       };
     },
   });
@@ -92,9 +74,9 @@ export default function Dashboard() {
 
   // Calculate action items count
   const actionItemsCount =
-    (data?.incompleteProviders?.length || 0) +
+    (data?.incompleteCount || data?.incompleteProviders?.length || 0) +
     (data?.expiringItems?.length || 0) +
-    (data?.needsFollowUp?.length || 0);
+    (data?.followUpCount || data?.needsFollowUp?.length || 0);
 
   if (error) {
     return (
@@ -208,9 +190,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500" />
               <h3 className="font-semibold text-gray-900">Incomplete Profiles</h3>
-              {(data?.incompleteProviders?.length ?? 0) > 0 && (
+              {(data?.incompleteCount || data?.incompleteProviders?.length || 0) > 0 && (
                 <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {data?.incompleteProviders?.length}
+                  {data?.incompleteCount || data?.incompleteProviders?.length}
                 </span>
               )}
             </div>
@@ -361,9 +343,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ClipboardDocumentListIcon className="h-5 w-5 text-primary-500" />
               <h3 className="font-semibold text-gray-900">Enrollments - Follow Up Needed</h3>
-              {(data?.needsFollowUp?.length ?? 0) > 0 && (
+              {(data?.followUpCount || data?.needsFollowUp?.length || 0) > 0 && (
                 <span className="bg-primary-100 text-primary-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {data?.needsFollowUp?.length}
+                  {data?.followUpCount || data?.needsFollowUp?.length}
                 </span>
               )}
             </div>
@@ -397,7 +379,7 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
-                            {enrollment.payer?.displayName || 'Unknown Payer'}
+                            {enrollment.payer?.name || 'Unknown Payer'}
                           </p>
                           <p className="text-sm text-gray-500">
                             {enrollment.provider?.firstName} {enrollment.provider?.lastName}

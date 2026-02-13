@@ -1,32 +1,46 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/auth.store';
+
+// Eager: needed for auth shell / initial render
 import LoginPage from './features/auth/LoginPage';
 import Layout from './components/Layout';
-import Dashboard from './features/dashboard/Dashboard';
-import ProviderList from './features/providers/ProviderList';
-import ProviderDetail from './features/providers/ProviderDetail';
-import ProviderForm from './features/providers/ProviderForm';
-import DocumentList from './features/documents/DocumentList';
-import ExpirationDashboard from './features/dashboard/ExpirationDashboard';
-import EnrollmentsList from './features/enrollments/EnrollmentsList';
-import RosterPage from './features/roster/RosterPage';
-import AiAgentDashboard from './features/ai-agent/AiAgentDashboard';
-import PayerIntelligencePage from './features/payer-intelligence/PayerIntelligencePage';
-import RegisterPage from './features/portal/RegisterPage';
-import PendingProviders from './features/admin/PendingProviders';
-import PracticesList from './features/practices/PracticesList';
-import PracticeDetail from './features/practices/PracticeDetail';
-import UsersList from './features/users/UsersList';
-import UserDetail from './features/users/UserDetail';
 import PortalLayout from './features/portal/PortalLayout';
-import PortalDashboard from './features/portal/PortalDashboard';
-import PortalProfile from './features/portal/PortalProfile';
-import PortalLicenses from './features/portal/PortalLicenses';
-import PortalLocations from './features/portal/PortalLocations';
-import PortalDocuments from './features/portal/PortalDocuments';
-import RegistrationSuccess from './features/portal/RegistrationSuccess';
-import NotificationsPage from './features/notifications/NotificationsPage';
-import OnboardingProgress from './features/admin/OnboardingProgress';
+
+// Lazy: loaded on demand per-route
+const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
+const ProviderList = lazy(() => import('./features/providers/ProviderList'));
+const ProviderDetail = lazy(() => import('./features/providers/ProviderDetail'));
+const ProviderForm = lazy(() => import('./features/providers/ProviderForm'));
+const DocumentList = lazy(() => import('./features/documents/DocumentList'));
+const ExpirationDashboard = lazy(() => import('./features/dashboard/ExpirationDashboard'));
+const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsList'));
+const RosterPage = lazy(() => import('./features/roster/RosterPage'));
+const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard'));
+const PayerIntelligencePage = lazy(() => import('./features/payer-intelligence/PayerIntelligencePage'));
+const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
+const PendingProviders = lazy(() => import('./features/admin/PendingProviders'));
+const PracticesList = lazy(() => import('./features/practices/PracticesList'));
+const PracticeDetail = lazy(() => import('./features/practices/PracticeDetail'));
+const UsersList = lazy(() => import('./features/users/UsersList'));
+const UserDetail = lazy(() => import('./features/users/UserDetail'));
+const PortalDashboard = lazy(() => import('./features/portal/PortalDashboard'));
+const PortalProfile = lazy(() => import('./features/portal/PortalProfile'));
+const PortalLicenses = lazy(() => import('./features/portal/PortalLicenses'));
+const PortalLocations = lazy(() => import('./features/portal/PortalLocations'));
+const PortalDocuments = lazy(() => import('./features/portal/PortalDocuments'));
+const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuccess'));
+const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
+const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
+
+function LoadingFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+      <div style={{ width: '24px', height: '24px', border: '3px solid #e5e7eb', borderTopColor: '#0A3D2E', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  );
+}
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuthStore();
@@ -74,58 +88,60 @@ function ProviderRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/registration-success" element={<RegistrationSuccess />} />
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/registration-success" element={<RegistrationSuccess />} />
 
-      {/* Portal routes (provider role) */}
-      <Route
-        path="/portal"
-        element={
-          <ProviderRoute>
-            <PortalLayout />
-          </ProviderRoute>
-        }
-      >
-        <Route index element={<PortalDashboard />} />
-        <Route path="profile" element={<PortalProfile />} />
-        <Route path="documents" element={<PortalDocuments />} />
-        <Route path="licenses" element={<PortalLicenses />} />
-        <Route path="locations" element={<PortalLocations />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-      </Route>
+        {/* Portal routes (provider role) */}
+        <Route
+          path="/portal"
+          element={
+            <ProviderRoute>
+              <PortalLayout />
+            </ProviderRoute>
+          }
+        >
+          <Route index element={<PortalDashboard />} />
+          <Route path="profile" element={<PortalProfile />} />
+          <Route path="documents" element={<PortalDocuments />} />
+          <Route path="licenses" element={<PortalLicenses />} />
+          <Route path="locations" element={<PortalLocations />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+        </Route>
 
-      {/* Admin routes (admin/credentialing_staff) */}
-      <Route
-        path="/"
-        element={
-          <AdminRoute>
-            <Layout />
-          </AdminRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="providers" element={<ProviderList />} />
-        <Route path="providers/new" element={<ProviderForm />} />
-        <Route path="providers/:id" element={<ProviderDetail />} />
-        <Route path="providers/:id/edit" element={<ProviderForm />} />
-        <Route path="documents" element={<DocumentList />} />
-        <Route path="enrollments" element={<EnrollmentsList />} />
-        <Route path="expirations" element={<ExpirationDashboard />} />
-        <Route path="roster" element={<RosterPage />} />
-        <Route path="ai-agent" element={<AiAgentDashboard />} />
-        <Route path="payer-intelligence" element={<PayerIntelligencePage />} />
-        <Route path="practices" element={<PracticesList />} />
-        <Route path="practices/:practiceId" element={<PracticeDetail />} />
-        <Route path="users" element={<UsersList />} />
-        <Route path="users/:userId" element={<UserDetail />} />
-        <Route path="pending-providers" element={<PendingProviders />} />
-        <Route path="onboarding-progress" element={<OnboardingProgress />} />
-        <Route path="notifications" element={<NotificationsPage />} />
-      </Route>
+        {/* Admin routes (admin/credentialing_staff) */}
+        <Route
+          path="/"
+          element={
+            <AdminRoute>
+              <Layout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="providers" element={<ProviderList />} />
+          <Route path="providers/new" element={<ProviderForm />} />
+          <Route path="providers/:id" element={<ProviderDetail />} />
+          <Route path="providers/:id/edit" element={<ProviderForm />} />
+          <Route path="documents" element={<DocumentList />} />
+          <Route path="enrollments" element={<EnrollmentsList />} />
+          <Route path="expirations" element={<ExpirationDashboard />} />
+          <Route path="roster" element={<RosterPage />} />
+          <Route path="ai-agent" element={<AiAgentDashboard />} />
+          <Route path="payer-intelligence" element={<PayerIntelligencePage />} />
+          <Route path="practices" element={<PracticesList />} />
+          <Route path="practices/:practiceId" element={<PracticeDetail />} />
+          <Route path="users" element={<UsersList />} />
+          <Route path="users/:userId" element={<UserDetail />} />
+          <Route path="pending-providers" element={<PendingProviders />} />
+          <Route path="onboarding-progress" element={<OnboardingProgress />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

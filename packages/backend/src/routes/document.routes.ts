@@ -266,6 +266,33 @@ documentRoutes.get(
     try {
       const documents = await prisma.document.findMany({
         where: { providerId: req.params['providerId'] },
+        select: {
+          id: true,
+          providerId: true,
+          fileName: true,
+          originalFileName: true,
+          fileSize: true,
+          mimeType: true,
+          documentType: true,
+          description: true,
+          linkedLicenseId: true,
+          linkedBoardCertificationId: true,
+          linkedMalpracticeInsuranceId: true,
+          linkedEducationId: true,
+          linkedContinuingEducationId: true,
+          expirationDate: true,
+          isVerified: true,
+          verifiedAt: true,
+          verifiedBy: true,
+          reviewStatus: true,
+          reviewedById: true,
+          reviewedAt: true,
+          reviewNotes: true,
+          uploadedViaPortal: true,
+          createdAt: true,
+          updatedAt: true,
+          createdById: true,
+        },
         orderBy: { createdAt: 'desc' },
       });
 

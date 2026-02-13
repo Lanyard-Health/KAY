@@ -17,25 +17,26 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('../services/onboarding.service.js', () => ({
-  computeOnboardingProgress: vi.fn(),
-}));
-
 import adminOnboardingRouter from './admin-onboarding.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { computeOnboardingProgress } from '../services/onboarding.service.js';
-
-const mockedComputeProgress = vi.mocked(computeOnboardingProgress);
 
 const mockActiveProvider = {
   id: 'provider-1',
   firstName: 'Jane',
   lastName: 'Doe',
   npi: '1234567890',
+  email: 'jane@example.com',
+  phone: '555-0100',
+  dateOfBirth: new Date('1980-01-01'),
   providerType: 'psychiatrist',
   status: 'active',
   createdAt: new Date('2026-01-15'),
   onboardingCompletedAt: null,
+  _count: {
+    documents: 0,
+    licenses: 0,
+    practiceLocations: 0,
+  },
 };
 
 describe('Admin Onboarding Routes', () => {
@@ -47,18 +48,11 @@ describe('Admin Onboarding Routes', () => {
 
   describe('GET /providers', () => {
     it('returns providers with onboarding progress and summary', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([mockActiveProvider] as any);
-      mockedComputeProgress.mockResolvedValue({
-        percentage: 20,
-        steps: [
-          { key: 'profile', label: 'Profile', complete: true },
-          { key: 'documents', label: 'Documents', complete: false },
-          { key: 'licenses', label: 'Licenses', complete: false },
-          { key: 'locations', label: 'Locations', complete: false },
-          { key: 'review', label: 'Review', complete: false },
-        ],
-        isComplete: false,
-      });
+      const providerInProgress = {
+        ...mockActiveProvider,
+        _count: { documents: 1, licenses: 0, practiceLocations: 0 },
+      };
+      prismaMock.provider.findMany.mockResolvedValue([providerInProgress] as any);
 
       const res = await request(app).get('/providers');
 
@@ -66,7 +60,8 @@ describe('Admin Onboarding Routes', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.providers).toHaveLength(1);
       expect(res.body.data.providers[0].name).toBe('Jane Doe');
-      expect(res.body.data.providers[0].onboardingProgress.percentage).toBe(20);
+      // Profile complete + Documents complete = 2/5 = 40%
+      expect(res.body.data.providers[0].onboardingProgress.percentage).toBe(40);
       expect(res.body.data.summary).toEqual({
         total: 1,
         completed: 0,
@@ -80,13 +75,9 @@ describe('Admin Onboarding Routes', () => {
         ...mockActiveProvider,
         id: 'provider-2',
         onboardingCompletedAt: new Date('2026-02-01'),
+        _count: { documents: 3, licenses: 1, practiceLocations: 1 },
       };
       prismaMock.provider.findMany.mockResolvedValue([completedProvider] as any);
-      mockedComputeProgress.mockResolvedValue({
-        percentage: 100,
-        steps: [],
-        isComplete: true,
-      });
 
       const res = await request(app).get('/providers');
 
@@ -96,12 +87,14 @@ describe('Admin Onboarding Routes', () => {
     });
 
     it('correctly categorizes not-started providers (0% progress)', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([mockActiveProvider] as any);
-      mockedComputeProgress.mockResolvedValue({
-        percentage: 0,
-        steps: [],
-        isComplete: false,
-      });
+      const notStartedProvider = {
+        ...mockActiveProvider,
+        email: null,
+        phone: null,
+        dateOfBirth: null,
+        _count: { documents: 0, licenses: 0, practiceLocations: 0 },
+      };
+      prismaMock.provider.findMany.mockResolvedValue([notStartedProvider] as any);
 
       const res = await request(app).get('/providers');
 

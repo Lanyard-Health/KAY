@@ -6,6 +6,7 @@ import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
+import { invalidateCache } from '../utils/cache.js';
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -281,6 +282,8 @@ router.post(
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 
+      invalidateCache('dashboard');
+      invalidateCache('payer-analytics');
       res.status(201).json({
         success: true,
         data: {
@@ -355,6 +358,8 @@ router.put(
           .catch((err) => console.error('Termination workflow trigger failed:', err));
       }
 
+      invalidateCache('dashboard');
+      invalidateCache('payer-analytics');
       res.json({ success: true, data: enrollment });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -394,6 +399,8 @@ router.delete(
 
       await prisma.payerEnrollment.delete({ where: { id } });
 
+      invalidateCache('dashboard');
+      invalidateCache('payer-analytics');
       res.json({ success: true, data: { message: 'Enrollment deleted' } });
     } catch (error) {
       next(error);
