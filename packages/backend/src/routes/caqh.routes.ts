@@ -255,9 +255,10 @@ caqhRoutes.post(
       });
 
       try {
-        const caqhData = await caqhService.pullCredentials(provider.caqhProviderId);
+        const rawCaqhData = await caqhService.pullCredentials(provider.caqhProviderId);
+        const caqhData = caqhService.mapCaqhToInternal(rawCaqhData);
 
-        // Apply changes (this would involve complex mapping)
+        // Apply mapped data to provider records
         const changes = await applyCaqhDataToProvider(provider.id, caqhData);
 
         // Update sync log
@@ -439,8 +440,11 @@ async function applyCaqhDataToProvider(
   }
 
   // --- Malpractice Insurance ---
-  if (caqhData.malpractice?.length > 0) {
-    for (const mal of caqhData.malpractice) {
+  const malpracticeList = Array.isArray(caqhData.malpractice)
+    ? caqhData.malpractice
+    : caqhData.malpractice ? [caqhData.malpractice] : [];
+  if (malpracticeList.length > 0) {
+    for (const mal of malpracticeList) {
       const existing = await prisma.malpracticeInsurance.findFirst({
         where: { providerId, policyNumber: mal.policyNumber },
       });

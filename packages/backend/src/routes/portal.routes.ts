@@ -75,7 +75,10 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
     console.error('Error submitting application:', error);
 
     if (error instanceof Error) {
-      if (error.message.includes('already pending') || error.message.includes('already exists')) {
+      if (
+        error.message.includes('already pending') ||
+        error.message.includes('already exists')
+      ) {
         return res.status(409).json({
           success: false,
           error: error.message,
@@ -254,7 +257,7 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
       if (error.message.includes('not found')) {
         return res.status(404).json({ success: false, error: error.message });
       }
-      if (error.message.includes('already been reviewed')) {
+      if (error.message.includes('already been reviewed') || error.message.includes('already exists')) {
         return res.status(409).json({ success: false, error: error.message });
       }
     }
