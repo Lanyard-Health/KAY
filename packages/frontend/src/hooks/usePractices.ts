@@ -79,7 +79,7 @@ export function usePracticeProviders(practiceId: string) {
   return useQuery({
     queryKey: ['practice-providers', practiceId],
     queryFn: async () => {
-      const response = await api.get(`/providers?practiceId=${practiceId}&pageSize=200`);
+      const response = await api.get(`/providers?practiceId=${practiceId}&pageSize=100`);
       return response.data.data;
     },
     enabled: !!practiceId,
@@ -90,7 +90,7 @@ export function useUnassignedProviders() {
   return useQuery({
     queryKey: ['providers', 'unassigned'],
     queryFn: async () => {
-      const response = await api.get('/providers?practiceId=null&pageSize=200');
+      const response = await api.get('/providers?practiceId=null&pageSize=100');
       return response.data.data;
     },
     staleTime: 30 * 1000,
