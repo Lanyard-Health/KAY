@@ -1,45 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock PrismaClient — the portal service creates its own `new PrismaClient()`
-// Mocks MUST be declared inline inside the factory to avoid TDZ issues (vi.mock is hoisted)
-vi.mock('@prisma/client', () => {
-  const mockProviderApplication = {
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    count: vi.fn(),
-  };
-  const mockProvider = {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  };
-  const mockUser = {
-    create: vi.fn(),
-  };
-  const mockAdminNotification = {
-    create: vi.fn(),
-    findMany: vi.fn(),
-    updateMany: vi.fn(),
-    count: vi.fn(),
-  };
-
-  return {
-    PrismaClient: vi.fn().mockImplementation(function () { return {
-      providerApplication: mockProviderApplication,
-      provider: mockProvider,
-      user: mockUser,
-      adminNotification: mockAdminNotification,
-      $transaction: vi.fn((fn: any) =>
-        fn({
-          provider: mockProvider,
-          user: mockUser,
-          providerApplication: mockProviderApplication,
-        })
-      ),
-    }; }),
-  };
+// Mock prisma singleton — portal.service imports from utils/prisma.js
+vi.mock('../src/utils/prisma.js', async () => {
+  const { prismaMock } = await import('./helpers/mock-prisma.js');
+  return { prisma: prismaMock };
 });
 
 vi.mock('../src/services/email.service.js', () => ({
@@ -61,7 +25,7 @@ vi.mock('../src/services/notification.service.js', () => ({
   },
 }));
 
-import { PrismaClient } from '@prisma/client';
+import { prismaMock } from './helpers/mock-prisma.js';
 import { emailService } from '../src/services/email.service.js';
 import {
   createCognitoUser,
@@ -72,9 +36,6 @@ import {
   approveApplication,
   rejectApplication,
 } from '../src/services/portal.service.js';
-
-// Access the mock prisma instance created by the factory
-const prismaInstance = (PrismaClient as any).mock.results[0]?.value;
 
 const validInput = {
   npi: '1234567890',
@@ -112,6 +73,7 @@ const mockApplication = {
 describe('Provider Onboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$transaction.mockImplementation((fn: any) => fn(prismaMock));
     (emailService.isConfigured as any).mockReturnValue(false);
   });
 
@@ -120,15 +82,15 @@ describe('Provider Onboarding', () => {
   // ==========================================
   describe('submitApplication', () => {
     it('creates application with valid data including DOB and gender', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue(null);
-      prismaInstance.providerApplication.create.mockResolvedValue(mockApplication);
-      prismaInstance.adminNotification.create.mockResolvedValue({});
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
+      prismaMock.adminNotification.create.mockResolvedValue({});
 
       const result = await submitApplication(validInput);
 
       expect(result.id).toBe('app-1-id');
-      expect(prismaInstance.providerApplication.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerApplication.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -142,23 +104,23 @@ describe('Provider Onboarding', () => {
     });
 
     it('throws for duplicate pending NPI', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(mockApplication);
+      prismaMock.providerApplication.findFirst.mockResolvedValue(mockApplication);
 
       await expect(submitApplication(validInput)).rejects.toThrow('already pending');
     });
 
     it('throws for existing provider with same NPI', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue({ id: 'existing', npi: '1234567890' });
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue({ id: 'existing', npi: '1234567890' });
 
       await expect(submitApplication(validInput)).rejects.toThrow('already exists');
     });
 
     it('sends confirmation email to provider when email is configured', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue(null);
-      prismaInstance.providerApplication.create.mockResolvedValue(mockApplication);
-      prismaInstance.adminNotification.create.mockResolvedValue({});
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
+      prismaMock.adminNotification.create.mockResolvedValue({});
       (emailService.isConfigured as any).mockReturnValue(true);
 
       await submitApplication(validInput);
@@ -174,13 +136,13 @@ describe('Provider Onboarding', () => {
     });
 
     it('does not fail if confirmation email throws', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue(null);
-      prismaInstance.providerApplication.create.mockResolvedValue(mockApplication);
-      prismaInstance.adminNotification.create.mockResolvedValue({});
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
+      prismaMock.adminNotification.create.mockResolvedValue({});
       (emailService.isConfigured as any).mockReturnValue(true);
       // Email rejects — but submitApplication should NOT throw
-      (emailService.sendEmail as any).mockReturnValue(Promise.reject(new Error('SMTP down')));
+      (emailService.sendEmail as any).mockImplementation(() => Promise.reject(new Error('SMTP down')));
 
       const result = await submitApplication(validInput);
 
@@ -194,15 +156,15 @@ describe('Provider Onboarding', () => {
   // ==========================================
   describe('approveApplication', () => {
     it('creates Provider + User records and links application', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaInstance.provider.create.mockResolvedValue({ id: 'new-provider-id' });
-      prismaInstance.user.create.mockResolvedValue({ id: 'new-user-id' });
-      prismaInstance.providerApplication.update.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
+      prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
         providerId: 'new-provider-id',
       });
-      prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await approveApplication('app-1-id', 'admin@test.com', 'Looks good');
 
@@ -219,7 +181,7 @@ describe('Provider Onboarding', () => {
       );
 
       // Provider created with correct data
-      expect(prismaInstance.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.provider.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -233,7 +195,7 @@ describe('Provider Onboarding', () => {
       );
 
       // User created with provider link
-      expect(prismaInstance.user.create).toHaveBeenCalledWith(
+      expect(prismaMock.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             cognitoId: 'test-cognito-id',
@@ -245,7 +207,7 @@ describe('Provider Onboarding', () => {
       );
 
       // Application updated with providerId
-      expect(prismaInstance.providerApplication.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerApplication.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'app-1-id' },
           data: expect.objectContaining({
@@ -257,7 +219,7 @@ describe('Provider Onboarding', () => {
     });
 
     it('throws when application not found', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.findUnique.mockResolvedValue(null);
 
       await expect(
         approveApplication('bad-id', 'admin@test.com')
@@ -265,7 +227,7 @@ describe('Provider Onboarding', () => {
     });
 
     it('throws when application already reviewed', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
       });
@@ -276,9 +238,9 @@ describe('Provider Onboarding', () => {
     });
 
     it('deletes Cognito user if DB transaction fails', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
       // Make the transaction callback throw (simulating DB failure)
-      prismaInstance.provider.create.mockRejectedValue(new Error('DB constraint error'));
+      prismaMock.provider.create.mockRejectedValue(new Error('DB constraint error'));
 
       await expect(
         approveApplication('app-1-id', 'admin@test.com')
@@ -290,15 +252,15 @@ describe('Provider Onboarding', () => {
     });
 
     it('sends approval email when email is configured', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaInstance.provider.create.mockResolvedValue({ id: 'new-provider-id' });
-      prismaInstance.user.create.mockResolvedValue({ id: 'new-user-id' });
-      prismaInstance.providerApplication.update.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
+      prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
         providerId: 'new-provider-id',
       });
-      prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
       (emailService.isConfigured as any).mockReturnValue(true);
 
       await approveApplication('app-1-id', 'admin@test.com');
@@ -318,13 +280,13 @@ describe('Provider Onboarding', () => {
   // ==========================================
   describe('rejectApplication', () => {
     it('updates status to rejected without creating provider or user', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaInstance.providerApplication.update.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
         status: 'rejected',
         reviewNotes: 'Incomplete docs',
       });
-      prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await rejectApplication('app-1-id', 'admin@test.com', 'Incomplete docs');
 
@@ -332,12 +294,12 @@ describe('Provider Onboarding', () => {
 
       // Should NOT create provider, user, or cognito
       expect(createCognitoUser).not.toHaveBeenCalled();
-      expect(prismaInstance.provider.create).not.toHaveBeenCalled();
-      expect(prismaInstance.user.create).not.toHaveBeenCalled();
+      expect(prismaMock.provider.create).not.toHaveBeenCalled();
+      expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
 
     it('throws when application not found', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.findUnique.mockResolvedValue(null);
 
       await expect(
         rejectApplication('bad-id', 'admin@test.com', 'Notes')

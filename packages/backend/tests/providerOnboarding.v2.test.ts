@@ -2,56 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from './helpers/test-app.js';
 
-// Mock PrismaClient — portal.service creates its own `new PrismaClient()`
-vi.mock('@prisma/client', () => {
-  const mockProviderApplication = {
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    findUnique: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    count: vi.fn(),
-  };
-  const mockProvider = {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  };
-  const mockUser = {
-    create: vi.fn(),
-  };
-  const mockUserPractice = {
-    create: vi.fn(),
-  };
-  const mockAdminNotification = {
-    create: vi.fn(),
-    findMany: vi.fn(),
-    updateMany: vi.fn(),
-    count: vi.fn(),
-  };
-  const mockPractice = {
-    findUnique: vi.fn(),
-  };
-
-  return {
-    PrismaClient: vi.fn().mockImplementation(function () { return {
-      providerApplication: mockProviderApplication,
-      provider: mockProvider,
-      user: mockUser,
-      userPractice: mockUserPractice,
-      adminNotification: mockAdminNotification,
-      practice: mockPractice,
-      $transaction: vi.fn((fn: any) =>
-        fn({
-          provider: mockProvider,
-          user: mockUser,
-          userPractice: mockUserPractice,
-          providerApplication: mockProviderApplication,
-        })
-      ),
-    }; }),
-  };
-});
-
 vi.mock('../src/services/email.service.js', () => ({
   emailService: {
     isConfigured: vi.fn().mockReturnValue(false),
@@ -86,16 +36,12 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-import { PrismaClient } from '@prisma/client';
 import {
   submitApplication,
   approveApplication,
 } from '../src/services/portal.service.js';
 import portalRouter from '../src/routes/portal.routes.js';
 import { prismaMock } from './helpers/mock-prisma.js';
-
-// Access the mock prisma instance created by the factory
-const prismaInstance = (PrismaClient as any).mock.results[0]?.value;
 
 const validInput = {
   npi: '1234567890',
@@ -134,6 +80,7 @@ const mockApplication = {
 describe('Provider Onboarding — v2 (Feature 2)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$transaction.mockImplementation((fn: any) => fn(prismaMock));
   });
 
   // ==========================================
@@ -141,15 +88,15 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
   // ==========================================
   describe('submitApplication', () => {
     it('creates application with valid data', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue(null);
-      prismaInstance.providerApplication.create.mockResolvedValue(mockApplication);
-      prismaInstance.adminNotification.create.mockResolvedValue({});
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
+      prismaMock.adminNotification.create.mockResolvedValue({});
 
       const result = await submitApplication(validInput);
 
       expect(result.id).toBe('app-1-id');
-      expect(prismaInstance.providerApplication.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerApplication.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -160,17 +107,17 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
     });
 
     it('stores practiceId on application when provided', async () => {
-      prismaInstance.providerApplication.findFirst.mockResolvedValue(null);
-      prismaInstance.provider.findUnique.mockResolvedValue(null);
-      prismaInstance.providerApplication.create.mockResolvedValue({
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue({
         ...mockApplication,
         practiceId: 'practice-123',
       });
-      prismaInstance.adminNotification.create.mockResolvedValue({});
+      prismaMock.adminNotification.create.mockResolvedValue({});
 
       await submitApplication({ ...validInput, practiceId: 'practice-123' });
 
-      expect(prismaInstance.providerApplication.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerApplication.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             practiceId: 'practice-123',
@@ -185,21 +132,21 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
   // ==========================================
   describe('approveApplication', () => {
     it('creates Provider + User records in transaction', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaInstance.provider.create.mockResolvedValue({ id: 'new-provider-id' });
-      prismaInstance.user.create.mockResolvedValue({ id: 'new-user-id' });
-      prismaInstance.providerApplication.update.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
+      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
+      prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
         providerId: 'new-provider-id',
       });
-      prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await approveApplication('app-1-id', 'admin@test.com');
 
       expect(result.status).toBe('approved');
-      expect(prismaInstance.provider.create).toHaveBeenCalled();
-      expect(prismaInstance.user.create).toHaveBeenCalled();
+      expect(prismaMock.provider.create).toHaveBeenCalled();
+      expect(prismaMock.user.create).toHaveBeenCalled();
     });
 
     it('auto-assigns provider to practice and creates UserPractice when practiceId set', async () => {
@@ -208,21 +155,21 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
         practiceId: 'practice-ABC',
       };
 
-      prismaInstance.providerApplication.findUnique.mockResolvedValue(appWithPractice);
-      prismaInstance.provider.create.mockResolvedValue({ id: 'new-provider-id' });
-      prismaInstance.user.create.mockResolvedValue({ id: 'new-user-id' });
-      prismaInstance.userPractice.create.mockResolvedValue({});
-      prismaInstance.providerApplication.update.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue(appWithPractice);
+      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
+      prismaMock.userPractice.create.mockResolvedValue({});
+      prismaMock.providerApplication.update.mockResolvedValue({
         ...appWithPractice,
         status: 'approved',
         providerId: 'new-provider-id',
       });
-      prismaInstance.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
 
       await approveApplication('app-1-id', 'admin@test.com');
 
       // Provider should be created with practiceId
-      expect(prismaInstance.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.provider.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             practiceId: 'practice-ABC',
@@ -231,7 +178,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
       );
 
       // UserPractice should be created
-      expect(prismaInstance.userPractice.create).toHaveBeenCalledWith(
+      expect(prismaMock.userPractice.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             userId: 'new-user-id',
@@ -243,7 +190,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
     });
 
     it('throws when application already approved', async () => {
-      prismaInstance.providerApplication.findUnique.mockResolvedValue({
+      prismaMock.providerApplication.findUnique.mockResolvedValue({
         ...mockApplication,
         status: 'approved',
       });

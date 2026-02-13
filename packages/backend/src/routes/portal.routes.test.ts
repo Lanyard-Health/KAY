@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
 import { adminUser, providerUser } from '../../tests/helpers/fixtures.js';
