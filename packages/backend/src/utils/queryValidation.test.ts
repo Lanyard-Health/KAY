@@ -28,6 +28,11 @@ describe('queryValidation', () => {
       expect(() => paginationSchema.parse({ pageSize: '101' })).toThrow();
     });
 
+    it('accepts pageSize at the maximum boundary (100)', () => {
+      const result = paginationSchema.parse({ pageSize: '100' });
+      expect(result.pageSize).toBe(100);
+    });
+
     it('enforces minimum pageSize of 1', () => {
       expect(() => paginationSchema.parse({ pageSize: '0' })).toThrow();
     });

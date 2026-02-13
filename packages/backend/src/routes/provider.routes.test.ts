@@ -93,6 +93,43 @@ describe('Provider Routes', () => {
         expect.objectContaining({ skip: 20, take: 10 })
       );
     });
+
+    it('returns unassigned providers when practiceId=null', async () => {
+      prismaMock.provider.findMany.mockResolvedValue([mockProvider] as any);
+      prismaMock.provider.count.mockResolvedValue(1);
+
+      const res = await request(app).get('/?practiceId=null&pageSize=100');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ practiceId: null }),
+        })
+      );
+    });
+
+    it('rejects pageSize over 100', async () => {
+      const res = await request(app).get('/?pageSize=200');
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('returns providers for a specific practiceId', async () => {
+      prismaMock.provider.findMany.mockResolvedValue([mockProvider] as any);
+      prismaMock.provider.count.mockResolvedValue(1);
+
+      const res = await request(app).get('/?practiceId=practice-1-id&pageSize=100');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ practiceId: 'practice-1-id' }),
+        })
+      );
+    });
   });
 
   describe('GET /:providerId', () => {
@@ -216,6 +253,53 @@ describe('Provider Routes', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             updatedById: 'admin-user-id',
+          }),
+        })
+      );
+    });
+
+    it('assigns provider to a practice via practiceId', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.provider.update.mockResolvedValue({
+        ...mockProvider,
+        practiceId: 'practice-1-id',
+      } as any);
+
+      const res = await request(app)
+        .put('/provider-1-id')
+        .send({ practiceId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            practiceId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+          }),
+        })
+      );
+    });
+
+    it('unassigns provider from a practice via practiceId=null', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue({
+        ...mockProvider,
+        practiceId: 'practice-1-id',
+      } as any);
+      prismaMock.provider.update.mockResolvedValue({
+        ...mockProvider,
+        practiceId: null,
+      } as any);
+
+      const res = await request(app)
+        .put('/provider-1-id')
+        .send({ practiceId: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            practiceId: null,
           }),
         })
       );
