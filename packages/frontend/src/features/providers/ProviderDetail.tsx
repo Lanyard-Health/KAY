@@ -52,7 +52,7 @@ export default function ProviderDetail() {
     queryClient.invalidateQueries({ queryKey: ['checklist', id] });
   };
 
-  const { data: provider, isLoading } = useQuery({
+  const { data: provider, isLoading, error } = useQuery({
     queryKey: ['provider', id],
     queryFn: async () => {
       const response = await api.get(`/providers/${id}`);
@@ -354,6 +354,20 @@ export default function ProviderDetail() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-medium">Failed to load provider</p>
+          <p className="text-sm mt-1">Please check your connection and try again.</p>
+        </div>
+        <Link to="/providers" className="text-primary-600 hover:underline inline-block">
+          Back to providers
+        </Link>
       </div>
     );
   }
