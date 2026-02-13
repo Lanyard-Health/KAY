@@ -25,22 +25,21 @@ function createWrapper() {
   };
 }
 
-const dashboardResponse = {
-  totalProviders: 12,
-  activeProviders: 8,
-  pendingProviders: 3,
-  incompleteProviders: [{ id: '1' }],
-  expiringItems: [{ id: '2' }],
-  needsFollowUp: [{ id: '3' }],
-  enrollments: [],
-  providers: [],
-};
-
 function mockApiSuccess() {
   mockGet.mockImplementation((url: string) => {
-    if (url.includes('/providers')) {
+    if (url.includes('/dashboard/stats')) {
       return Promise.resolve({
-        data: { data: { data: Array(12).fill({ status: 'active', _count: { documents: 1 } }) } },
+        data: {
+          data: {
+            totalProviders: 12,
+            activeProviders: 8,
+            pendingProviders: 3,
+            incompleteProviders: [],
+            incompleteCount: 0,
+            needsFollowUp: [],
+            followUpCount: 0,
+          },
+        },
       });
     }
     if (url.includes('/expirations/dashboard')) {
@@ -48,9 +47,6 @@ function mockApiSuccess() {
     }
     if (url.includes('/expirations')) {
       return Promise.resolve({ data: { data: [{ id: '2' }] } });
-    }
-    if (url.includes('/enrollments')) {
-      return Promise.resolve({ data: { data: [] } });
     }
     return Promise.resolve({ data: { data: {} } });
   });

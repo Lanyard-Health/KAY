@@ -7,6 +7,7 @@ import { NotFoundError, ValidationError } from '../middleware/error.middleware.j
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
 import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
+import { invalidateCache } from '../utils/cache.js';
 
 // Fields to NEVER return in API responses
 const SENSITIVE_FIELDS = ['ssnEncrypted', 'caqhPassword', 'caqhUsername'] as const;
@@ -181,6 +182,7 @@ providerRoutes.post(
         action: 'create',
       });
 
+      invalidateCache('dashboard');
       res.status(201).json({ success: true, data: stripSensitiveFields(provider) });
     } catch (error) {
       next(error);
@@ -220,6 +222,7 @@ providerRoutes.put(
         changes: { before: existing, after: provider },
       });
 
+      invalidateCache('dashboard');
       res.json({ success: true, data: stripSensitiveFields(provider) });
     } catch (error) {
       next(error);
@@ -256,6 +259,7 @@ providerRoutes.delete(
         action: 'delete',
       });
 
+      invalidateCache('dashboard');
       res.json({ success: true, message: 'Provider deactivated' });
     } catch (error) {
       next(error);

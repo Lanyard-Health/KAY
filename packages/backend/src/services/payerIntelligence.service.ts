@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getClient, checkTokenBudget, sanitizeUserInput } from './ai.service.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
+import { getCached, setCache } from '../utils/cache.js';
 
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 
@@ -58,7 +59,13 @@ export interface PayerAIInsight {
 // Analytics (pure data, no AI)
 // ===========================
 
+const ANALYTICS_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function getPayerAnalytics(payerId?: string): Promise<PayerAnalytics[]> {
+  const cacheKey = `payer-analytics:${payerId || 'all'}`;
+  const cached = getCached<PayerAnalytics[]>(cacheKey);
+  if (cached) return cached;
+
   // Get all payers that have enrollments
   const payers = await prisma.payer.findMany({
     where: payerId ? { id: payerId } : undefined,
@@ -169,7 +176,9 @@ export async function getPayerAnalytics(payerId?: string): Promise<PayerAnalytic
 
   // Sort by total enrollments descending, limit to 50 for the "all" case
   results.sort((a, b) => b.totalEnrollments - a.totalEnrollments);
-  return payerId ? results : results.slice(0, 50);
+  const finalResults = payerId ? results : results.slice(0, 50);
+  setCache(cacheKey, finalResults, ANALYTICS_TTL);
+  return finalResults;
 }
 
 // ===========================
@@ -177,6 +186,9 @@ export async function getPayerAnalytics(payerId?: string): Promise<PayerAnalytic
 // ===========================
 
 export async function getPayerLeaderboard(): Promise<PayerLeaderboardItem[]> {
+  const cachedBoard = getCached<PayerLeaderboardItem[]>('payer-analytics:leaderboard');
+  if (cachedBoard) return cachedBoard;
+
   const analytics = await getPayerAnalytics();
 
   // Only rank payers with sufficient data
@@ -212,6 +224,7 @@ export async function getPayerLeaderboard(): Promise<PayerLeaderboardItem[]> {
   });
 
   scored.sort((a, b) => b.difficultyScore - a.difficultyScore);
+  setCache('payer-analytics:leaderboard', scored, ANALYTICS_TTL);
   return scored;
 }
 

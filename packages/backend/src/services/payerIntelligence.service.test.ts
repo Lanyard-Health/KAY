@@ -23,6 +23,7 @@ import {
   analyzePayerWithAI,
   getPayerInsights,
 } from './payerIntelligence.service.js';
+import { invalidateCache } from '../utils/cache.js';
 
 const mockPayers = [
   { id: 'payer-1', name: 'Blue Cross', payerType: 'insurance' },
@@ -36,6 +37,7 @@ const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000)
 describe('PayerIntelligence Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateCache(''); // clear all cached data between tests
   });
 
   // ==========================================

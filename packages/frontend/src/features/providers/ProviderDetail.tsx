@@ -923,20 +923,22 @@ export default function ProviderDetail() {
 
           {/* Checklist Tab */}
           <Tab.Panel>
-            <ProviderChecklist
-              providerId={id!}
-              onUploadDocument={handleUploadDocument}
-            />
+            {activeTab === 1 && (
+              <ProviderChecklist
+                providerId={id!}
+                onUploadDocument={handleUploadDocument}
+              />
+            )}
           </Tab.Panel>
 
           {/* Enrollments Tab */}
           <Tab.Panel>
-            <ProviderEnrollments providerId={id!} />
+            {activeTab === 2 && <ProviderEnrollments providerId={id!} />}
           </Tab.Panel>
 
           {/* Tasks Tab */}
           <Tab.Panel>
-            <ProviderTasks providerId={id!} />
+            {activeTab === 3 && <ProviderTasks providerId={id!} />}
           </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>

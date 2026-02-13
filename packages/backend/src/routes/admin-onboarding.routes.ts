@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { computeOnboardingProgress } from '../services/onboarding.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -8,7 +7,7 @@ const router = Router();
 
 /**
  * GET /api/v1/portal/admin/onboarding/providers
- * List approved providers with onboarding status
+ * List approved providers with onboarding status (single query with _count)
  */
 router.get('/providers', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
@@ -19,29 +18,53 @@ router.get('/providers', authenticate, authorize('admin', 'credentialing_staff')
         firstName: true,
         lastName: true,
         npi: true,
+        email: true,
+        phone: true,
+        dateOfBirth: true,
         providerType: true,
         status: true,
         createdAt: true,
         onboardingCompletedAt: true,
+        _count: {
+          select: {
+            documents: { where: { uploadedViaPortal: true } },
+            licenses: true,
+            practiceLocations: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Compute progress for each provider
-    const providersWithProgress = await Promise.all(
-      providers.map(async (p) => {
-        const progress = await computeOnboardingProgress(p.id);
-        return {
-          id: p.id,
-          name: `${p.firstName} ${p.lastName}`,
-          npi: p.npi,
-          providerType: p.providerType,
-          approvedAt: p.createdAt,
-          onboardingCompletedAt: p.onboardingCompletedAt,
-          onboardingProgress: progress,
-        };
-      })
-    );
+    // Compute progress inline from _count data
+    const providersWithProgress = providers.map((p) => {
+      const profileComplete = !!(p.firstName && p.lastName && p.email && p.phone && p.dateOfBirth && p.providerType);
+      const documentsComplete = p._count.documents > 0;
+      const licensesComplete = p._count.licenses > 0;
+      const locationsComplete = p._count.practiceLocations > 0;
+      const reviewComplete = profileComplete && documentsComplete && licensesComplete && locationsComplete;
+
+      const steps = [
+        { key: 'profile', label: 'Profile', complete: profileComplete },
+        { key: 'documents', label: 'Documents', complete: documentsComplete },
+        { key: 'licenses', label: 'Licenses', complete: licensesComplete },
+        { key: 'locations', label: 'Locations', complete: locationsComplete },
+        { key: 'review', label: 'Review', complete: reviewComplete },
+      ];
+
+      const completedCount = steps.filter(s => s.complete).length;
+      const percentage = Math.round((completedCount / steps.length) * 100);
+
+      return {
+        id: p.id,
+        name: `${p.firstName} ${p.lastName}`,
+        npi: p.npi,
+        providerType: p.providerType,
+        approvedAt: p.createdAt,
+        onboardingCompletedAt: p.onboardingCompletedAt,
+        onboardingProgress: { percentage, steps, isComplete: reviewComplete },
+      };
+    });
 
     const total = providersWithProgress.length;
     const completed = providersWithProgress.filter(p => p.onboardingCompletedAt).length;
