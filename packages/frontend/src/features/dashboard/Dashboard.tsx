@@ -18,7 +18,7 @@ import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
   // Fetch all dashboard data
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-full'],
     queryFn: async () => {
       const [providersRes, expirationsRes, expirationDashRes, enrollmentsRes] = await Promise.all([
@@ -95,6 +95,18 @@ export default function Dashboard() {
     (data?.incompleteProviders?.length || 0) +
     (data?.expiringItems?.length || 0) +
     (data?.needsFollowUp?.length || 0);
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-medium">Failed to load dashboard data</p>
+          <p className="text-sm mt-1">Please check your connection and try again.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

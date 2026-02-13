@@ -35,7 +35,7 @@ export default function DocumentList() {
   const [editingDoc, setEditingDoc] = useState<any>(null);
   const [editForm, setEditForm] = useState({ documentType: '', description: '', expirationDate: '' });
 
-  const { data: providers } = useQuery({
+  const { data: providers, error: providersError } = useQuery({
     queryKey: ['providers', 'list'],
     queryFn: async () => {
       const response = await api.get('/providers?pageSize=100');
@@ -43,7 +43,7 @@ export default function DocumentList() {
     },
   });
 
-  const { data: documents, isLoading, refetch } = useQuery({
+  const { data: documents, isLoading, error: documentsError, refetch } = useQuery({
     queryKey: ['documents', selectedProvider],
     queryFn: async () => {
       if (!selectedProvider) return [];
@@ -187,12 +187,25 @@ export default function DocumentList() {
         </div>
       </div>
 
+      {/* Error States */}
+      {providersError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-6">
+          <p className="font-medium">Failed to load providers</p>
+          <p className="text-sm mt-1">Please check your connection and try again.</p>
+        </div>
+      )}
+
       {/* Documents Grid */}
       {!selectedProvider ? (
         <div className="text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No provider selected</h3>
           <p className="mt-1 text-sm text-gray-500">Select a provider to view their documents</p>
+        </div>
+      ) : documentsError ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-medium">Failed to load documents</p>
+          <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>
       ) : isLoading ? (
         <div className="flex items-center justify-center h-64">
