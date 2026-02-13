@@ -24,11 +24,11 @@ const { mockGetUploadUrl, mockConfirmUpload, mockDeleteDocument } = vi.hoisted((
 }));
 
 vi.mock('../services/document.service.js', () => ({
-  DocumentService: vi.fn().mockImplementation(() => ({
+  DocumentService: vi.fn().mockImplementation(function () { return {
     getUploadUrl: mockGetUploadUrl,
     confirmUpload: mockConfirmUpload,
     deleteDocument: mockDeleteDocument,
-  })),
+  }; }),
 }));
 
 import portalDocumentsRouter from './portal-documents.routes.js';
@@ -41,11 +41,11 @@ describe('Portal Documents Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Re-apply constructor implementation after clearAllMocks wipes it
-    vi.mocked(DocumentService).mockImplementation(() => ({
+    vi.mocked(DocumentService).mockImplementation(function () { return {
       getUploadUrl: mockGetUploadUrl,
       confirmUpload: mockConfirmUpload,
       deleteDocument: mockDeleteDocument,
-    }) as any);
+    } as any; });
   });
 
   describe('GET /', () => {

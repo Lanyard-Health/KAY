@@ -23,12 +23,12 @@ vi.mock('../utils/logger.js', () => ({
 
 // Mock ExpirationService — all fns defined inside factory
 vi.mock('../services/expiration.service.js', () => ({
-  ExpirationService: vi.fn().mockImplementation(() => ({
+  ExpirationService: vi.fn().mockImplementation(function () { return {
     getUpcomingExpirations: vi.fn(),
     getDashboardData: vi.fn(),
     getProviderExpirations: vi.fn(),
     sendExpirationReminders: vi.fn(),
-  })),
+  }; }),
 }));
 
 import { expirationRoutes } from './expiration.routes.js';
