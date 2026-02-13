@@ -24,12 +24,12 @@ vi.mock('../utils/logger.js', () => ({
 
 // Mock CaqhService — all fns defined inside factory so hoisting works
 vi.mock('../services/caqh.service.js', () => ({
-  CaqhService: vi.fn().mockImplementation(() => ({
+  CaqhService: vi.fn().mockImplementation(function () { return {
     addToRoster: vi.fn(),
     removeFromRoster: vi.fn(),
     checkStatus: vi.fn(),
     pullCredentials: vi.fn(),
-  })),
+  }; }),
 }));
 
 // Mock CaqhCredentialsService — use vi.fn() inside factory

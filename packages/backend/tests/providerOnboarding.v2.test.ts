@@ -33,7 +33,7 @@ vi.mock('@prisma/client', () => {
   };
 
   return {
-    PrismaClient: vi.fn().mockImplementation(() => ({
+    PrismaClient: vi.fn().mockImplementation(function () { return {
       providerApplication: mockProviderApplication,
       provider: mockProvider,
       user: mockUser,
@@ -48,7 +48,7 @@ vi.mock('@prisma/client', () => {
           providerApplication: mockProviderApplication,
         })
       ),
-    })),
+    }; }),
   };
 });
 

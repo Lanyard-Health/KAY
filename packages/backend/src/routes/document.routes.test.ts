@@ -29,12 +29,12 @@ const mockGetDownloadUrl = vi.fn();
 const mockDeleteDocument = vi.fn();
 
 vi.mock('../services/document.service.js', () => ({
-  DocumentService: vi.fn().mockImplementation(() => ({
+  DocumentService: vi.fn().mockImplementation(function () { return {
     getUploadUrl: mockGetUploadUrl,
     confirmUpload: mockConfirmUpload,
     getDownloadUrl: mockGetDownloadUrl,
     deleteDocument: mockDeleteDocument,
-  })),
+  }; }),
 }));
 
 import { documentRoutes } from './document.routes.js';

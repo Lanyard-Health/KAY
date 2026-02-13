@@ -15,9 +15,9 @@ vi.mock('@aws-sdk/client-cognito-identity-provider', async () => {
   const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
   return {
     ...actual,
-    CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+    CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
       send: mockSend,
-    })),
+    }; }),
   };
 });
 
@@ -50,9 +50,9 @@ describe('cognitoUser.service', () => {
           const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
           return {
             ...actual,
-            CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+            CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
               send: mockSend,
-            })),
+            }; }),
           };
         });
         vi.doMock('../../src/utils/logger.js', () => ({
@@ -234,9 +234,9 @@ describe('cognitoUser.service', () => {
           const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
           return {
             ...actual,
-            CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+            CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
               send: mockSend,
-            })),
+            }; }),
           };
         });
         vi.doMock('../../src/utils/logger.js', () => ({
@@ -289,9 +289,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -320,9 +320,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -353,9 +353,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -388,9 +388,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -418,9 +418,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -443,9 +443,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -523,9 +523,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -548,9 +548,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -588,9 +588,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({
@@ -613,9 +613,9 @@ describe('cognitoUser.service', () => {
         const actual = await vi.importActual('@aws-sdk/client-cognito-identity-provider');
         return {
           ...actual,
-          CognitoIdentityProviderClient: vi.fn().mockImplementation(() => ({
+          CognitoIdentityProviderClient: vi.fn().mockImplementation(function () { return {
             send: mockSend,
-          })),
+          }; }),
         };
       });
       vi.doMock('../../src/utils/logger.js', () => ({

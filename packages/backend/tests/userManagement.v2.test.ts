@@ -102,7 +102,7 @@ describe('User Management — v2', () => {
     });
 
     it('returns error when Cognito throws duplicate email', async () => {
-      (createCognitoUser as any).mockRejectedValue(new Error('User already exists'));
+      (createCognitoUser as any).mockRejectedValueOnce(new Error('User already exists'));
 
       const res = await request(adminApp)
         .post('/')

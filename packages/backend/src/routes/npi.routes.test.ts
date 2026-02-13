@@ -19,10 +19,10 @@ const { mockLookupByNPI, mockSearchByName } = vi.hoisted(() => ({
 }));
 
 vi.mock('../services/npi.service.js', () => ({
-  NPIService: vi.fn().mockImplementation(() => ({
+  NPIService: vi.fn().mockImplementation(function () { return {
     lookupByNPI: mockLookupByNPI,
     searchByName: mockSearchByName,
-  })),
+  }; }),
 }));
 
 vi.mock('../utils/logger.js', () => ({

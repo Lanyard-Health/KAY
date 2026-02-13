@@ -28,13 +28,13 @@ const {
 }));
 
 vi.mock('../services/pecos.service.js', () => ({
-  PECOSService: vi.fn().mockImplementation(() => ({
+  PECOSService: vi.fn().mockImplementation(function () { return {
     lookupByNPI: mockLookupByNPI,
     isEnrolledInMedicare: mockIsEnrolledInMedicare,
     getEnrollmentStates: mockGetEnrollmentStates,
     getSpecialties: mockGetSpecialties,
     batchLookup: mockBatchLookup,
-  })),
+  }; }),
 }));
 
 vi.mock('../utils/logger.js', () => ({
