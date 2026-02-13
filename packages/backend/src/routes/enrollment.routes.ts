@@ -134,11 +134,21 @@ router.get(
               npi: true,
             },
           },
+          workflowSteps: { select: { status: true } },
         },
         orderBy: { createdAt: 'desc' },
       });
 
-      res.json({ success: true, data: enrollments });
+      const data = enrollments.map((e) => ({
+        ...e,
+        workflowProgress: {
+          total: e.workflowSteps?.length || 0,
+          completed: e.workflowSteps?.filter((s) => s.status === 'completed' || s.status === 'skipped').length || 0,
+        },
+        workflowSteps: undefined,
+      }));
+
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }

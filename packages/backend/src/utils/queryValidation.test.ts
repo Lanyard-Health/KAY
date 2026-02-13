@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   paginationSchema,
   providerListQuerySchema,
+  limitOffsetSchema,
   parseQuery,
 } from './queryValidation.js';
 
@@ -48,6 +49,32 @@ describe('queryValidation', () => {
       expect(result.search).toBeUndefined();
       expect(result.status).toBeUndefined();
       expect(result.page).toBe(1);
+    });
+  });
+
+  describe('limitOffsetSchema', () => {
+    it('applies defaults (limit=20, offset=0)', () => {
+      const result = limitOffsetSchema.parse({});
+      expect(result.limit).toBe(20);
+      expect(result.offset).toBe(0);
+    });
+
+    it('coerces string values to numbers', () => {
+      const result = limitOffsetSchema.parse({ limit: '50', offset: '10' });
+      expect(result.limit).toBe(50);
+      expect(result.offset).toBe(10);
+    });
+
+    it('enforces minimum limit of 1', () => {
+      expect(() => limitOffsetSchema.parse({ limit: '0' })).toThrow();
+    });
+
+    it('enforces maximum limit of 100', () => {
+      expect(() => limitOffsetSchema.parse({ limit: '101' })).toThrow();
+    });
+
+    it('enforces minimum offset of 0', () => {
+      expect(() => limitOffsetSchema.parse({ offset: '-1' })).toThrow();
     });
   });
 

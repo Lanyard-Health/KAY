@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, XMarkIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, XMarkIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
@@ -28,6 +28,15 @@ interface DocumentForReview {
   reviewStatus: string | null;
   reviewNotes: string | null;
   createdAt: string;
+  fileSize?: number;
+  reviewedAt?: string | null;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function OnboardingProgress() {
@@ -45,7 +54,7 @@ export default function OnboardingProgress() {
     },
   });
 
-  const { data: docsData, isLoading: docsLoading } = useQuery({
+  const { data: docsData, isLoading: docsLoading, isError: docsError } = useQuery({
     queryKey: ['admin', 'provider-documents', selectedProvider],
     queryFn: async () => {
       const response = await api.get(`/portal/admin/onboarding/providers/${selectedProvider}/documents`);
@@ -142,8 +151,21 @@ export default function OnboardingProgress() {
 
       {/* Providers Table */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-600" />
+        <div className="bg-white shadow rounded-lg overflow-hidden animate-pulse">
+          <div className="bg-gray-50 px-6 py-3 flex gap-8">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-3 w-20 bg-gray-200 rounded" />
+            ))}
+          </div>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="px-6 py-4 flex gap-8 border-t border-gray-100">
+              <div className="h-4 w-36 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+              <div className="h-4 w-20 bg-gray-200 rounded" />
+              <div className="h-4 w-16 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+            </div>
+          ))}
         </div>
       ) : filteredProviders.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
@@ -233,23 +255,63 @@ export default function OnboardingProgress() {
               </div>
 
               {docsLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-600" />
+                <div className="space-y-3 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="border rounded-lg p-4 space-y-2">
+                      <div className="h-4 w-48 bg-gray-200 rounded" />
+                      <div className="h-3 w-32 bg-gray-200 rounded" />
+                      <div className="flex gap-2 mt-2">
+                        <div className="h-7 w-20 bg-gray-200 rounded" />
+                        <div className="h-7 w-20 bg-gray-200 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : docsError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                  <p className="text-sm font-medium">Failed to load documents</p>
+                  <p className="text-xs mt-1">Please try again later.</p>
                 </div>
               ) : documents.length === 0 ? (
                 <p className="text-sm text-gray-500 py-4">No portal-uploaded documents.</p>
               ) : (
                 <div className="space-y-3">
                   {documents.map((doc) => (
-                    <div key={doc.id} className="border rounded-lg p-4">
+                    <div
+                      key={doc.id}
+                      className={clsx(
+                        'border rounded-lg p-4 transition-opacity',
+                        reviewMutation.isPending && 'opacity-50 cursor-not-allowed'
+                      )}
+                    >
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-900">{doc.originalFileName}</p>
                           <p className="text-xs text-gray-500 capitalize">
                             {doc.documentType.replace(/_/g, ' ')} — {new Date(doc.createdAt).toLocaleDateString()}
+                            {doc.fileSize ? ` — ${formatFileSize(doc.fileSize)}` : ''}
                           </p>
+                          {doc.reviewedAt && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Reviewed {new Date(doc.reviewedAt).toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/documents/${doc.id}/download-url`);
+                                window.open((res.data as any).data.url, '_blank');
+                              } catch {
+                                toast.error('Failed to get download link');
+                              }
+                            }}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            title="Download / Preview"
+                          >
+                            <ArrowDownTrayIcon className="h-5 w-5" />
+                          </button>
                           <span
                             className={clsx(
                               'px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
@@ -265,14 +327,19 @@ export default function OnboardingProgress() {
                               <button
                                 onClick={() => reviewMutation.mutate({ docId: doc.id, status: 'approved' })}
                                 disabled={reviewMutation.isPending}
-                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                className="p-1 text-green-600 hover:bg-green-50 rounded disabled:opacity-50"
                                 title="Approve"
                               >
-                                <CheckIcon className="h-5 w-5" />
+                                {reviewMutation.isPending ? (
+                                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-green-200 border-t-green-600" />
+                                ) : (
+                                  <CheckIcon className="h-5 w-5" />
+                                )}
                               </button>
                               <button
                                 onClick={() => setReviewDocId(reviewDocId === doc.id ? null : doc.id)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                disabled={reviewMutation.isPending}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
                                 title="Reject"
                               >
                                 <XMarkIcon className="h-5 w-5" />
