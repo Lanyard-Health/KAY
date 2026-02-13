@@ -454,11 +454,180 @@ jobs:
           path: packages/backend/vitest-results.json
           if-no-files-found: ignore
 
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: credentials
+          POSTGRES_PASSWORD: credentials_dev_password
+          POSTGRES_DB: credentials
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U credentials"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      localstack:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: s3
+        ports:
+          - 4566:4566
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Shared Package
+        run: npm run build --workspace=packages/shared
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: packages/backend
+
+      - name: Run Database Migrations
+        run: npx prisma migrate deploy
+        working-directory: packages/backend
+        env:
+          DATABASE_URL: postgresql://credentials:credentials_dev_password@localhost:5433/credentials
+
+      - name: Create S3 Bucket
+        run: |
+          pip install awscli-local awscli 2>/dev/null || true
+          AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+            aws --endpoint-url=http://localhost:4566 s3 mb s3://credentials-documents 2>/dev/null || true
+
+      - name: Start Backend
+        run: |
+          node --import tsx src/index.ts &
+          echo $! > /tmp/backend.pid
+        working-directory: packages/backend
+        env:
+          DATABASE_URL: postgresql://credentials:credentials_dev_password@localhost:5433/credentials
+          NODE_ENV: development
+          PORT: 3002
+          FRONTEND_URL: http://localhost:5190
+          JWT_SECRET: e2e-test-secret
+          DEV_AUTH_BYPASS: 'true'
+          USE_LOCALSTACK: 'true'
+          S3_ENDPOINT: http://localhost:4566
+          S3_BUCKET_NAME: credentials-documents
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+
+      - name: Wait for Backend
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:3002/health | grep -q '"ready":true'; then
+              echo "Backend is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend failed to start"
+          exit 1
+
+      - name: Start Frontend
+        run: |
+          npx vite --port 5190 &
+          echo $! > /tmp/frontend.pid
+        working-directory: packages/frontend
+        env:
+          VITE_DEV_AUTH_BYPASS: 'true'
+          VITE_API_URL: http://localhost:3002
+
+      - name: Wait for Frontend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:5190 > /dev/null 2>&1; then
+              echo "Frontend is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend failed to start"
+          exit 1
+
+      - name: Run Playwright Tests
+        id: tests
+        continue-on-error: true
+        run: npx playwright test --config=e2e/playwright.config.ts --reporter=json 2>&1 | tee playwright-results.json || true
+
+      - name: Parse E2E Results
+        if: always()
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let status = 'pass';
+            let summary = '';
+            try {
+              const raw = fs.readFileSync('playwright-results.json', 'utf8');
+              const results = JSON.parse(raw);
+              const suites = results.suites || [];
+              let passed = 0, failed = 0, skipped = 0;
+              function countTests(suite) {
+                for (const spec of (suite.specs || [])) {
+                  for (const test of (spec.tests || [])) {
+                    const status = test.results?.[0]?.status || test.status;
+                    if (status === 'passed' || status === 'expected') passed++;
+                    else if (status === 'skipped') skipped++;
+                    else failed++;
+                  }
+                }
+                for (const child of (suite.suites || [])) {
+                  countTests(child);
+                }
+              }
+              for (const suite of suites) countTests(suite);
+              const total = passed + failed + skipped;
+              if (failed > 0) {
+                status = 'fail';
+                summary = `### :x: E2E Tests: ${failed}/${total} failed (${passed} passed)`;
+              } else {
+                summary = `### :white_check_mark: E2E Tests: ${passed}/${total} passed`;
+              }
+            } catch (e) {
+              summary = `### :grey_question: E2E Tests: Could not parse results\n\nError: ${e.message}`;
+            }
+            core.setOutput('status', status);
+            core.setOutput('summary', summary);
+
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests]
+    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests, e2e-tests]
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -479,6 +648,8 @@ jobs:
           SEMGREP_SUMMARY: ${{ needs.semgrep.outputs.summary }}
           TESTS_STATUS: ${{ needs.backend-tests.outputs.status }}
           TESTS_SUMMARY: ${{ needs.backend-tests.outputs.summary }}
+          E2E_STATUS: ${{ needs.e2e-tests.outputs.status }}
+          E2E_SUMMARY: ${{ needs.e2e-tests.outputs.summary }}
         with:
           script: |
             const gitleaksStatus = process.env.GITLEAKS_STATUS || 'unknown';
@@ -491,9 +662,11 @@ jobs:
             const semgrepSummary = process.env.SEMGREP_SUMMARY || '### :grey_question: Semgrep: No results available';
             const testsStatus = process.env.TESTS_STATUS || 'unknown';
             const testsSummary = process.env.TESTS_SUMMARY || '### :grey_question: Tests: No results available';
+            const e2eStatus = process.env.E2E_STATUS || 'unknown';
+            const e2eSummary = process.env.E2E_SUMMARY || '### :grey_question: E2E Tests: No results available';
 
             // Detect infrastructure failure: all jobs failed to produce results
-            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus];
+            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus, e2eStatus];
             const allUnknown = allStatuses.every(s => s === 'unknown' || s === '');
 
             if (allUnknown) {
@@ -502,7 +675,7 @@ jobs:
               const infraBody = [
                 '## :construction: Security Scan Results — Infrastructure Issue',
                 '',
-                '**All 5 scan jobs failed to produce results.** This is likely caused by a transient GitHub infrastructure issue (e.g. 500/502 during checkout), not by actual security findings.',
+                '**All 6 scan jobs failed to produce results.** This is likely caused by a transient GitHub infrastructure issue (e.g. 500/502 during checkout), not by actual security findings.',
                 '',
                 ':arrow_right: **Action:** Re-run the workflow. If the problem persists, check [GitHub Status](https://www.githubstatus.com/).',
                 '',
@@ -525,6 +698,10 @@ jobs:
                 '---',
                 '',
                 testsSummary,
+                '',
+                '---',
+                '',
+                e2eSummary,
                 '',
                 '---',
                 '',
@@ -594,6 +771,10 @@ jobs:
               '---',
               '',
               testsSummary,
+              '',
+              '---',
+              '',
+              e2eSummary,
               '',
               '---',
               '',

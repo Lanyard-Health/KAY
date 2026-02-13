@@ -66,13 +66,15 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting
+// Rate limiting (skip in dev/test to avoid throttling E2E tests)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
 });
-app.use('/api', limiter);
+if (process.env.NODE_ENV === 'production') {
+  app.use('/api', limiter);
+}
 
 // Body parsing and compression
 app.use(express.json({ limit: '10mb' }));
