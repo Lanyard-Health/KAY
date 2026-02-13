@@ -42,6 +42,7 @@ export default function RegisterPage() {
   const [submitted, setSubmitted] = useState(false);
   const [searchParams] = useSearchParams();
   const practiceParam = searchParams.get('practice');
+  const reapplyParam = searchParams.get('reapply');
 
   const { data: practiceInfo } = useQuery({
     queryKey: ['practice-info', practiceParam],
@@ -120,7 +121,10 @@ export default function RegisterPage() {
 
   const mutation = useMutation({
     mutationFn: async (data: RegistrationData) => {
-      const response = await api.post('/portal/register', data);
+      const body = reapplyParam
+        ? { ...data, previousApplicationId: reapplyParam }
+        : data;
+      const response = await api.post('/portal/register', body);
       return response.data;
     },
     onSuccess: () => {
@@ -243,6 +247,13 @@ export default function RegisterPage() {
         <p className="mt-2 text-center text-sm text-white/70">
           Join our provider network by completing the form below
         </p>
+        {reapplyParam && (
+          <div className="mt-4 mx-auto max-w-lg bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-yellow-800">
+              You are submitting a new application. Previous feedback from our team has been noted.
+            </p>
+          </div>
+        )}
         {practiceInfo && (
           <div className="mt-4 mx-auto max-w-lg bg-primary-50 border border-primary-200 rounded-lg px-4 py-3 text-center">
             <p className="text-sm text-primary-800">

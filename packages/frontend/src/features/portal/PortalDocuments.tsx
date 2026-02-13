@@ -1,0 +1,176 @@
+import { useState, useRef } from 'react';
+import { TrashIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import clsx from 'clsx';
+import toast from 'react-hot-toast';
+import { usePortalDocuments, useUploadDocument, useDeleteDocument } from './hooks/usePortalData';
+
+const DOCUMENT_TYPES = [
+  { value: '', label: 'Select Document Type' },
+  { value: 'w9', label: 'W-9' },
+  { value: 'coi', label: 'Certificate of Insurance (COI)' },
+  { value: 'cp575', label: 'CP575 / EIN Letter' },
+  { value: 'malpractice_certificate', label: 'Malpractice Certificate' },
+  { value: 'license', label: 'License' },
+  { value: 'board_certification', label: 'Board Certification' },
+  { value: 'diploma', label: 'Diploma' },
+  { value: 'cv_resume', label: 'CV / Resume' },
+  { value: 'government_id', label: 'Government ID' },
+  { value: 'dea_certificate', label: 'DEA Certificate' },
+  { value: 'other', label: 'Other' },
+];
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  approved: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800',
+};
+
+export default function PortalDocuments() {
+  const { data, isLoading } = usePortalDocuments();
+  const uploadMutation = useUploadDocument();
+  const deleteMutation = useDeleteDocument();
+
+  const [documentType, setDocumentType] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const documents = (data as any)?.data ?? [];
+
+  const handleUpload = async () => {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a file');
+      return;
+    }
+    if (!documentType) {
+      toast.error('Please select a document type');
+      return;
+    }
+
+    try {
+      await uploadMutation.mutateAsync({ file, documentType });
+      toast.success('Document uploaded successfully');
+      setDocumentType('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch {
+      toast.error('Failed to upload document');
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    try {
+      await deleteMutation.mutateAsync(id);
+      toast.success('Document deleted');
+    } catch {
+      toast.error('Failed to delete document');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Documents</h1>
+
+      {/* Upload Section */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Document</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Document Type</label>
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+            >
+              {DOCUMENT_TYPES.map((dt) => (
+                <option key={dt.value} value={dt.value}>{dt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleUpload}
+              disabled={uploadMutation.isPending}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+            >
+              <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+              {uploadMutation.isPending ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Documents List */}
+      {documents.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-6 text-center">
+          <p className="text-gray-500">No documents uploaded yet.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {documents.map((doc: any) => (
+                <tr key={doc.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-900">{doc.originalFileName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 capitalize">
+                    {doc.documentType.replace(/_/g, ' ')}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {new Date(doc.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={clsx(
+                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
+                      STATUS_STYLES[doc.reviewStatus || 'pending'] || STATUS_STYLES.pending
+                    )}>
+                      {doc.reviewStatus || 'pending'}
+                    </span>
+                    {doc.reviewStatus === 'rejected' && doc.reviewNotes && (
+                      <p className="mt-1 text-xs text-red-600">{doc.reviewNotes}</p>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {doc.reviewStatus !== 'approved' && (
+                      <button
+                        onClick={() => handleDelete(doc.id, doc.originalFileName)}
+                        disabled={deleteMutation.isPending}
+                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

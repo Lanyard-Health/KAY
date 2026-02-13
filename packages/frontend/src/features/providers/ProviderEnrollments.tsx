@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -14,6 +14,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   SparklesIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { usePdmStatus } from '../../hooks/usePdmStatus';
 import { PdmStatusBadgeForEnrollment } from '../../components/PdmAttestationBadge';
@@ -25,6 +27,7 @@ import { useGenerateEmail } from '../../hooks/useAi';
 import { useSendFollowUp } from '../../hooks/useFollowUp';
 import type { GeneratedEmail } from '../../hooks/useAi';
 import toast from 'react-hot-toast';
+import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 
 interface Payer {
   id: string;
@@ -162,6 +165,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [terminationConfirm, setTerminationConfirm] = useState(false);
   const [payerSearch, setPayerSearch] = useState('');
   const [showPayerDropdown, setShowPayerDropdown] = useState(false);
+  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollments', providerId],
@@ -201,6 +205,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
       closeModal();
+      toast.success('Enrollment created');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
+      toast.error(message);
     },
   });
 
@@ -210,6 +219,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
       closeModal();
+      toast.success('Enrollment updated');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'Failed to update enrollment';
+      toast.error(message);
     },
   });
 
@@ -218,6 +232,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
       setDeleteConfirm(null);
+      toast.success('Enrollment deleted');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'Failed to delete enrollment';
+      toast.error(message);
     },
   });
 
@@ -522,6 +541,9 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                   Recredentialing
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Workflow
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   PDM Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -535,132 +557,162 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
             <tbody className="bg-white divide-y divide-gray-200">
               {enrollments.map((enrollment) => {
                 const statusConfig = getStatusConfig(enrollment.status);
+                const isWorkflowExpanded = expandedWorkflow === enrollment.id;
                 return (
-                  <tr key={enrollment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">
-                        {enrollment.payer.name}
-                      </div>
-                      {enrollment.groupNumber && (
-                        <div className="text-sm text-gray-500">
-                          Group: {enrollment.groupNumber}
+                  <React.Fragment key={enrollment.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">
+                          {enrollment.payer.name}
                         </div>
-                      )}
-                      {enrollment.payerEmail && (
-                        <div className="text-xs text-gray-400">
-                          {enrollment.payerEmail}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {enrollment.productTypes && enrollment.productTypes.length > 0 ? (
-                          enrollment.productTypes.map((type) => (
-                            <span
-                              key={type}
-                              className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
-                            >
-                              {type}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-gray-400">-</span>
+                        {enrollment.groupNumber && (
+                          <div className="text-sm text-gray-500">
+                            Group: {enrollment.groupNumber}
+                          </div>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
-                      >
-                        {statusConfig.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-900">
-                      {enrollment.providerNumber || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {enrollment.effectiveDate
-                        ? new Date(enrollment.effectiveDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {enrollment.terminationDate
-                        ? new Date(enrollment.terminationDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {enrollment.lastFollowUpDate
-                        ? new Date(enrollment.lastFollowUpDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {enrollment.recredentialingDate
-                        ? new Date(enrollment.recredentialingDate).toLocaleDateString()
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <PdmStatusBadgeForEnrollment
-                        enrollmentId={enrollment.id}
-                        statuses={pdmStatuses}
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                      {pdmStatuses.find((s) => s.enrollmentId === enrollment.id)?.lastAttestedAt
-                        ? new Date(pdmStatuses.find((s) => s.enrollmentId === enrollment.id)!.lastAttestedAt!).toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      {/* Follow-up button - only for active enrollments */}
-                      {!['approved', 'denied', 'terminated'].includes(enrollment.status) && (
-                        <button
-                          onClick={() => openFollowUpModal(enrollment)}
-                          className={`mr-3 ${
-                            enrollment.followUpEnabled
-                              ? 'text-green-600 hover:text-green-800'
-                              : 'text-gray-400 hover:text-primary-600'
-                          }`}
-                          title={enrollment.followUpEnabled ? 'Follow-up enabled' : 'Set up follow-up'}
-                        >
-                          {enrollment.followUpEnabled ? (
-                            <BellAlertIcon className="h-5 w-5" />
+                        {enrollment.payerEmail && (
+                          <div className="text-xs text-gray-400">
+                            {enrollment.payerEmail}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {enrollment.productTypes && enrollment.productTypes.length > 0 ? (
+                            enrollment.productTypes.map((type) => (
+                              <span
+                                key={type}
+                                className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800"
+                              >
+                                {type}
+                              </span>
+                            ))
                           ) : (
-                            <BellIcon className="h-5 w-5" />
+                            <span className="text-gray-400">-</span>
                           )}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEditModal(enrollment)}
-                        className="text-primary-600 hover:text-primary-800 mr-3"
-                        title="Edit"
-                      >
-                        <PencilIcon className="h-5 w-5" />
-                      </button>
-                      {deleteConfirm === enrollment.id ? (
-                        <span className="space-x-2">
-                          <button
-                            onClick={() => deleteMutation.mutate(enrollment.id)}
-                            className="text-red-600 hover:text-red-800 text-sm font-medium"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(null)}
-                            className="text-gray-600 hover:text-gray-800 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setDeleteConfirm(enrollment.id)}
-                          className="text-red-600 hover:text-red-800"
-                          title="Delete"
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
                         >
-                          <TrashIcon className="h-5 w-5" />
+                          {statusConfig.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-900">
+                        {enrollment.providerNumber || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {enrollment.effectiveDate
+                          ? new Date(enrollment.effectiveDate).toLocaleDateString()
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {enrollment.terminationDate
+                          ? new Date(enrollment.terminationDate).toLocaleDateString()
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {enrollment.lastFollowUpDate
+                          ? new Date(enrollment.lastFollowUpDate).toLocaleDateString()
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {enrollment.recredentialingDate
+                          ? new Date(enrollment.recredentialingDate).toLocaleDateString()
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => setExpandedWorkflow(isWorkflowExpanded ? null : enrollment.id)}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-800 transition-colors"
+                          title="View workflow steps"
+                        >
+                          {isWorkflowExpanded ? (
+                            <ChevronDownIcon className="w-4 h-4" />
+                          ) : (
+                            <ChevronRightIcon className="w-4 h-4" />
+                          )}
+                          Steps
                         </button>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <PdmStatusBadgeForEnrollment
+                          enrollmentId={enrollment.id}
+                          statuses={pdmStatuses}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                        {pdmStatuses.find((s) => s.enrollmentId === enrollment.id)?.lastAttestedAt
+                          ? new Date(pdmStatuses.find((s) => s.enrollmentId === enrollment.id)!.lastAttestedAt!).toLocaleDateString()
+                          : 'Never'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        {/* Follow-up button - only for active enrollments */}
+                        {!['approved', 'denied', 'terminated'].includes(enrollment.status) && (
+                          <button
+                            onClick={() => openFollowUpModal(enrollment)}
+                            className={`mr-3 ${
+                              enrollment.followUpEnabled
+                                ? 'text-green-600 hover:text-green-800'
+                                : 'text-gray-400 hover:text-primary-600'
+                            }`}
+                            title={enrollment.followUpEnabled ? 'Follow-up enabled' : 'Set up follow-up'}
+                          >
+                            {enrollment.followUpEnabled ? (
+                              <BellAlertIcon className="h-5 w-5" />
+                            ) : (
+                              <BellIcon className="h-5 w-5" />
+                            )}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEditModal(enrollment)}
+                          className="text-primary-600 hover:text-primary-800 mr-3"
+                          title="Edit"
+                        >
+                          <PencilIcon className="h-5 w-5" />
+                        </button>
+                        {deleteConfirm === enrollment.id ? (
+                          <span className="space-x-2">
+                            <button
+                              onClick={() => deleteMutation.mutate(enrollment.id)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(null)}
+                              className="text-gray-600 hover:text-gray-800 text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirm(enrollment.id)}
+                            className="text-red-600 hover:text-red-800"
+                            title="Delete"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {/* Expandable Workflow Row */}
+                    {isWorkflowExpanded && (
+                      <tr>
+                        <td colSpan={12} className="px-6 py-4 bg-slate-50">
+                          <EnrollmentWorkflowTracker
+                            enrollmentId={enrollment.id}
+                            onEnrollmentStatusChange={() => {
+                              queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

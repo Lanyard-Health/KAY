@@ -55,12 +55,14 @@ model User {
   auditLogs        AuditLog[]
   documentsCreated Document[]           @relation("DocumentCreatedBy")
   documentsReviewed Document[]          @relation("DocumentReviewedBy")
+  documentsReviewedAsReviewer Document[] @relation("DocumentReviewer")
   rosterTemplates  RosterTemplate[]
   tasksAssigned        Task[]              @relation("TaskAssignedTo")
   tasksCompleted       Task[]              @relation("TaskCompletedBy")
   termLettersReviewed  TerminationLetter[] @relation("TermLetterReviewedBy")
   practices            UserPractice[]
   inAppNotifications   InAppNotification[]
+  workflowStepsCompleted EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
 
   @@map("users")
 }
@@ -137,6 +139,53 @@ enum CaqhStatus {
   expired
 }
 
+// ==========================================
+// ENROLLMENT WORKFLOW
+// ==========================================
+
+enum WorkflowType {
+  medical
+  behavioral_health
+}
+
+enum WorkflowStepStatus {
+  not_started
+  in_progress
+  completed
+  skipped
+  blocked
+}
+
+enum WorkflowActionType {
+  form_submission
+  phone_call
+  caqh_update
+  portal_registration
+  document_upload
+  waiting_period
+  follow_up
+  verification
+  payer_review
+  payer_outreach
+  payer_internal
+  committee_review
+  contract_execution
+  contract_delivery
+  document_review
+  site_visit
+  system_processing
+  routing_decision
+  confirmation
+  account_creation
+}
+
+enum WorkflowStepOwner {
+  provider
+  credentialing_staff
+  payer
+  cvo
+}
+
 model Provider {
   id String @id @default(uuid())
 
@@ -179,6 +228,9 @@ model Provider {
 
   // Status
   status ProviderStatus @default(pending)
+
+  // Onboarding
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -716,6 +768,13 @@ model Document {
   verifiedAt DateTime? @map("verified_at")
   verifiedBy String?   @map("verified_by")
 
+  // Portal upload review
+  reviewStatus      String?   @default("pending") @map("review_status")
+  reviewedById      String?   @map("reviewed_by_id")
+  reviewedAt        DateTime? @map("reviewed_at")
+  reviewNotes       String?   @map("review_notes")
+  uploadedViaPortal Boolean   @default(false) @map("uploaded_via_portal")
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -729,7 +788,8 @@ model Document {
   education              Education?             @relation(fields: [linkedEducationId], references: [id])
   continuingEducation    ContinuingEducation?   @relation(fields: [linkedContinuingEducationId], references: [id])
   createdBy              User?                  @relation("DocumentCreatedBy", fields: [createdById], references: [id])
-  reviewedBy             User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
+  ocrReviewer            User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
+  documentReviewer       User?                  @relation("DocumentReviewer", fields: [reviewedById], references: [id])
 
   @@map("documents")
 }
@@ -805,6 +865,7 @@ model Payer {
   phone       String?
   website     String?
   notes       String?
+  workflowKey String?  @map("workflow_key")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -859,6 +920,9 @@ model PayerEnrollment {
   pdmLastAttestedBy      String?   @map("pdm_last_attested_by")
   pdmEnabled             Boolean   @default(true) @map("pdm_enabled")
 
+  // Workflow
+  workflowType      WorkflowType?          @map("workflow_type")
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -870,6 +934,7 @@ model PayerEnrollment {
   payer             Payer              @relation(fields: [payerId], references: [id])
   aiRecommendations AiRecommendation[]
   tasks             Task[]
+  workflowSteps     EnrollmentWorkflowStep[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
@@ -1121,6 +1186,11 @@ model ProviderApplication {
   practiceId  String?   @map("practice_id")
   practice    Practice? @relation(fields: [practiceId], references: [id])
 
+  // Re-application support
+  previousApplicationId String?              @unique @map("previous_application_id")
+  previousApplication   ProviderApplication? @relation("ReApplication", fields: [previousApplicationId], references: [id])
+  reApplication         ProviderApplication? @relation("ReApplication")
+
   // Link to created provider (after approval)
   providerId String?   @map("provider_id")
   provider   Provider? @relation(fields: [providerId], references: [id])
@@ -1319,4 +1389,51 @@ model ProviderDirectoryAlert {
   @@index([providerId])
   @@index([resolved])
   @@map("provider_directory_alerts")
+}
+
+// ==========================================
+// ENROLLMENT WORKFLOW STEPS
+// ==========================================
+
+model EnrollmentWorkflowStep {
+  id             String @id @default(uuid())
+  enrollmentId   String @map("enrollment_id")
+
+  // Template reference
+  templateStepId String @map("template_step_id")
+  stepOrder      Int    @map("step_order")
+
+  // Step details (copied from template at creation time)
+  name           String
+  description    String   @db.Text
+  actionType     WorkflowActionType @map("action_type")
+  url            String?
+  owner          WorkflowStepOwner
+  estimatedDays  Int      @map("estimated_days")
+
+  // Dependencies & requirements
+  dependencies   String[] @default([])
+  documentsNeeded String[] @default([])  @map("documents_needed")
+  warnings       String[] @default([])
+
+  // Progress tracking
+  status         WorkflowStepStatus @default(not_started)
+  startedAt      DateTime?  @map("started_at")
+  completedAt    DateTime?  @map("completed_at")
+  completedById  String?    @map("completed_by_id")
+  skippedReason  String?    @map("skipped_reason")
+  notes          String?
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  enrollment  PayerEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  completedBy User?           @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
+
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([enrollmentId, stepOrder])
+  @@map("enrollment_workflow_steps")
 }

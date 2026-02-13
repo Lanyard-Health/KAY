@@ -21,6 +21,7 @@ interface ProviderApplication {
   reviewedAt: string | null;
   reviewedBy: string | null;
   reviewNotes: string | null;
+  previousApplicationId: string | null;
 }
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -177,6 +178,11 @@ export default function PendingProviders() {
                       <div className="text-sm font-medium text-gray-900">
                         {app.firstName} {app.lastName}
                         {app.suffix && `, ${app.suffix}`}
+                        {app.previousApplicationId && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            Re-application
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm text-gray-500">NPI: {app.npi}</div>
                     </div>

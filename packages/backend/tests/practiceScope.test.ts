@@ -229,7 +229,7 @@ describe('Practice Scope Middleware', () => {
       );
     });
 
-    it('provider with null practiceId gets 403 for non-admin', async () => {
+    it('provider with null practiceId is accessible (no scope to enforce)', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
         params: { providerId: 'provider-unassigned' },
@@ -244,8 +244,8 @@ describe('Practice Scope Middleware', () => {
 
       await requirePracticeProvider(req, res, next);
 
-      expect(next).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
     });
 
     it('calls next when provider not found (let route handler 404)', async () => {
@@ -310,7 +310,7 @@ describe('Practice Scope Middleware', () => {
       expect(result).toBe(false);
     });
 
-    it('returns false for provider with null practiceId (non-admin)', async () => {
+    it('returns true for provider with null practiceId (no scope to enforce)', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
         user: { id: 'staff-id' } as any,
@@ -322,7 +322,7 @@ describe('Practice Scope Middleware', () => {
 
       const result = await validateProviderPracticeAccess(req, 'unassigned-provider');
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
   });
 
@@ -338,23 +338,23 @@ describe('Practice Scope Middleware', () => {
       expect(getPracticeProviderFilter(req)).toEqual({});
     });
 
-    it('returns { practiceId: { in: [...] } } for staff with practices', () => {
+    it('includes own practices and unassigned providers for staff', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1', 'p-2'] },
       } as any);
 
       expect(getPracticeProviderFilter(req)).toEqual({
-        practiceId: { in: ['p-1', 'p-2'] },
+        OR: [{ practiceId: null }, { practiceId: { in: ['p-1', 'p-2'] } }],
       });
     });
 
-    it('returns impossible match for staff with no practices', () => {
+    it('returns only unassigned providers for staff with no practices', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
       } as any);
 
       expect(getPracticeProviderFilter(req)).toEqual({
-        practiceId: '__no_practice_match__',
+        practiceId: null,
       });
     });
   });
@@ -371,23 +371,23 @@ describe('Practice Scope Middleware', () => {
       expect(getPracticeRelationFilter(req)).toEqual({});
     });
 
-    it('returns nested provider filter for staff with practices', () => {
+    it('returns nested filter including unassigned for staff with practices', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1'] },
       } as any);
 
       expect(getPracticeRelationFilter(req)).toEqual({
-        provider: { practiceId: { in: ['p-1'] } },
+        provider: { OR: [{ practiceId: null }, { practiceId: { in: ['p-1'] } }] },
       });
     });
 
-    it('returns impossible nested match for staff with no practices', () => {
+    it('returns only unassigned nested match for staff with no practices', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
       } as any);
 
       expect(getPracticeRelationFilter(req)).toEqual({
-        provider: { practiceId: '__no_practice_match__' },
+        provider: { practiceId: null },
       });
     });
   });

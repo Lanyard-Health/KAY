@@ -95,8 +95,11 @@ export async function requirePracticeProvider(
 
     const practiceIds = req.practiceScope?.practiceIds ?? [];
 
-    // practiceId null = unassigned → only super admins (already bypassed above)
-    if (!provider.practiceId || !practiceIds.includes(provider.practiceId)) {
+    // If provider has no practice assigned, allow access (no scope to enforce)
+    if (!provider.practiceId) return next();
+
+    // If provider IS assigned to a practice, staff must belong to that practice
+    if (!practiceIds.includes(provider.practiceId)) {
       logger.warn(
         `Practice access denied: user=${req.user?.id} provider=${providerId} providerPractice=${provider.practiceId}`
       );
@@ -133,8 +136,12 @@ export async function validateProviderPracticeAccess(
 
   if (!provider) return true; // Let route handler deal with 404
 
+  // No practice assigned → no scope to enforce, allow access
+  if (!provider.practiceId) return true;
+
+  // Provider IS assigned to a practice — staff must belong to that practice
   const practiceIds = req.practiceScope?.practiceIds ?? [];
-  if (!provider.practiceId || !practiceIds.includes(provider.practiceId)) {
+  if (!practiceIds.includes(provider.practiceId)) {
     logger.warn(
       `Practice access denied: user=${req.user?.id} provider=${providerId}`
     );
@@ -149,16 +156,16 @@ export async function validateProviderPracticeAccess(
  * Use in list endpoints: { ...existingWhere, ...getPracticeProviderFilter(req) }
  *
  * For super admins: returns {} (no filter).
- * For others: returns { practiceId: { in: [...] } } — naturally excludes null practiceId.
- * For users with no practices: returns impossible match so no results are returned.
+ * For others: includes providers in the user's practices OR unassigned (null practiceId).
+ * For users with no practices: only shows unassigned providers.
  */
 export function getPracticeProviderFilter(
   req: Request
 ): Record<string, unknown> {
   if (req.practiceScope?.isSuperAdmin) return {};
   const ids = req.practiceScope?.practiceIds ?? [];
-  if (ids.length === 0) return { practiceId: '__no_practice_match__' };
-  return { practiceId: { in: ids } };
+  if (ids.length === 0) return { practiceId: null };
+  return { OR: [{ practiceId: null }, { practiceId: { in: ids } }] };
 }
 
 /**
@@ -172,7 +179,7 @@ export function getPracticeRelationFilter(
   if (req.practiceScope?.isSuperAdmin) return {};
   const ids = req.practiceScope?.practiceIds ?? [];
   if (ids.length === 0) {
-    return { provider: { practiceId: '__no_practice_match__' } };
+    return { provider: { practiceId: null } };
   }
-  return { provider: { practiceId: { in: ids } } };
+  return { provider: { OR: [{ practiceId: null }, { practiceId: { in: ids } }] } };
 }

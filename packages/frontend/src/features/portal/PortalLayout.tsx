@@ -7,6 +7,7 @@ import {
   UserIcon,
   ShieldCheckIcon,
   MapPinIcon,
+  DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -17,6 +18,7 @@ import { useProfileCompleteness } from './hooks/usePortalData';
 const navigation = [
   { name: 'Dashboard', href: '/portal', icon: HomeIcon },
   { name: 'Profile', href: '/portal/profile', icon: UserIcon },
+  { name: 'Documents', href: '/portal/documents', icon: DocumentDuplicateIcon },
   { name: 'Licenses', href: '/portal/licenses', icon: ShieldCheckIcon },
   { name: 'Locations', href: '/portal/locations', icon: MapPinIcon },
 ];

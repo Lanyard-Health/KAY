@@ -80,7 +80,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
   // STAFF WITH PRACTICE ASSIGNMENT
   // ==========================================
   describe('Staff with practice assignment', () => {
-    it('only sees providers in their assigned practices', () => {
+    it('sees providers in their assigned practices and unassigned providers', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A', 'practice-B'] },
       } as any);
@@ -88,7 +88,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       const filter = getPracticeProviderFilter(req);
 
       expect(filter).toEqual({
-        practiceId: { in: ['practice-A', 'practice-B'] },
+        OR: [{ practiceId: null }, { practiceId: { in: ['practice-A', 'practice-B'] } }],
       });
     });
 
@@ -116,7 +116,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
   // STAFF WITH NO PRACTICE ASSIGNMENTS
   // ==========================================
   describe('Staff with no practice assignments', () => {
-    it('sees empty results (impossible filter)', () => {
+    it('only sees unassigned providers', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
       } as any);
@@ -124,7 +124,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       const filter = getPracticeProviderFilter(req);
 
       expect(filter).toEqual({
-        practiceId: '__no_practice_match__',
+        practiceId: null,
       });
     });
   });
@@ -133,7 +133,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
   // UNASSIGNED PROVIDERS (practiceId=null)
   // ==========================================
   describe('Unassigned providers (practiceId=null)', () => {
-    it('are invisible to non-admin users via requirePracticeProvider', async () => {
+    it('are accessible to all authenticated staff (no scope to enforce)', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
         params: { providerId: 'unassigned-provider' },
@@ -148,11 +148,11 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
 
       await requirePracticeProvider(req, res, next);
 
-      expect(next).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('validateProviderPracticeAccess returns false for null practiceId', async () => {
+    it('validateProviderPracticeAccess returns true for null practiceId', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
         user: { id: 'staff-id' } as any,
@@ -164,7 +164,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
 
       const result = await validateProviderPracticeAccess(req, 'unassigned-provider');
 
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
   });
 });

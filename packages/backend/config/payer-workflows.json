@@ -1,0 +1,1166 @@
+{
+  "schema_version": "1.0.0",
+  "last_updated": "2025-02-12",
+  "data_sources": [
+    "CAQH ProView documentation",
+    "Payer provider enrollment portals (2024-2025)",
+    "NCQA credentialing standards",
+    "CMS Medicare provider enrollment guidelines"
+  ],
+
+  "global_prerequisites": {
+    "caqh_proview": {
+      "name": "CAQH ProView Profile",
+      "url": "https://proview.caqh.org",
+      "description": "Universal credentialing data repository used by all five payers. Must be completed and attested BEFORE initiating any payer application.",
+      "required": true,
+      "priority": "CRITICAL",
+      "tasks": [
+        {
+          "id": "caqh-001",
+          "name": "Create CAQH ProView account",
+          "description": "Register at proview.caqh.org with NPI number",
+          "estimated_minutes": 15,
+          "dependencies": ["npi-001"]
+        },
+        {
+          "id": "caqh-002",
+          "name": "Complete personal information section",
+          "description": "Legal name, DOB, SSN, contact information, practice addresses",
+          "estimated_minutes": 30,
+          "dependencies": ["caqh-001"]
+        },
+        {
+          "id": "caqh-003",
+          "name": "Upload professional documents",
+          "description": "State license(s), DEA certificate, malpractice COI, board certifications, W-9",
+          "estimated_minutes": 45,
+          "dependencies": ["caqh-002"]
+        },
+        {
+          "id": "caqh-004",
+          "name": "Complete work history",
+          "description": "5-year work history with all gaps explained (gap threshold varies by payer: >30 days for Aetna, >6 months for Cigna/UHC)",
+          "estimated_minutes": 30,
+          "dependencies": ["caqh-002"]
+        },
+        {
+          "id": "caqh-005",
+          "name": "Enter Professional IDs",
+          "description": "NPI, DEA, state license numbers, Medicare PTAN (if applicable), Medicaid ID",
+          "estimated_minutes": 15,
+          "dependencies": ["caqh-002"]
+        },
+        {
+          "id": "caqh-006",
+          "name": "Authorize payer data sharing",
+          "description": "Grant data access to each payer. CRITICAL: Each payer/subsidiary requires separate authorization",
+          "estimated_minutes": 10,
+          "dependencies": ["caqh-003", "caqh-004", "caqh-005"],
+          "payer_specific_authorizations": {
+            "aetna": ["Aetna"],
+            "cigna_medical": ["Cigna Healthcare"],
+            "cigna_bh": ["Evernorth Behavioral Health"],
+            "uhc": ["UnitedHealthcare"],
+            "optum_bh": ["United Behavioral Health"],
+            "humana": ["Humana"]
+          }
+        },
+        {
+          "id": "caqh-007",
+          "name": "Attest profile",
+          "description": "Review all information for accuracy and electronically attest. Profile must remain attested throughout enrollment.",
+          "estimated_minutes": 15,
+          "dependencies": ["caqh-006"]
+        }
+      ],
+      "re_attestation_schedules": {
+        "default": { "days": 120, "label": "Every 120 days" },
+        "humana": { "days": 180, "label": "Every 180 days" },
+        "cigna_illinois": { "days": 180, "label": "Every 180 days (Illinois only)" }
+      }
+    },
+    "npi": {
+      "id": "npi-001",
+      "name": "National Provider Identifier (NPI)",
+      "url": "https://nppes.cms.hhs.gov",
+      "required": true,
+      "description": "Obtain Type 1 (individual) NPI from NPPES if not already assigned"
+    },
+    "medicare_enrollment": {
+      "id": "medicare-001",
+      "name": "Medicare Part B Enrollment (LPC/MFT)",
+      "url": "https://pecos.cms.hhs.gov",
+      "required_for": ["LPC", "LMHC", "MFT", "LMFT"],
+      "required_when": "Medicare Advantage participation needed",
+      "description": "As of January 1, 2024, LPCs and MFTs must enroll in Original Medicare via PECOS/CMS-855I and obtain a PTAN before any MA plan credentialing.",
+      "requirements": {
+        "degree": "Master's or doctoral degree",
+        "license": "Current state licensure",
+        "experience": "2 years / 3,000 hours post-master's supervised clinical experience"
+      },
+      "reimbursement_rate": "75% of psychologist rates"
+    }
+  },
+
+  "required_documents": {
+    "universal": [
+      {
+        "id": "doc-npi",
+        "name": "NPI Number",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all"
+      },
+      {
+        "id": "doc-license",
+        "name": "Active Unrestricted State License(s)",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all",
+        "validity_rules": {
+          "cigna_bh": "Must be 60+ days from expiration at application",
+          "humana": "Must be valid 45+ days into the future",
+          "optum": "Must be independent licensure — no provisional or supervisory-dependent"
+        }
+      },
+      {
+        "id": "doc-dea",
+        "name": "DEA Certificate",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": ["MD", "DO", "PMHNP", "PA"],
+        "validity_rules": {
+          "humana": "Must be valid 45+ days into the future"
+        }
+      },
+      {
+        "id": "doc-malpractice",
+        "name": "Malpractice Insurance (Certificate of Insurance)",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all",
+        "minimum_coverage": {
+          "default": "$1M/$3M",
+          "cigna_bh_non_prescribing": "$1M/$1M"
+        },
+        "validity_rules": {
+          "humana": "Must be valid 45+ days into the future"
+        }
+      },
+      {
+        "id": "doc-w9",
+        "name": "W-9 Form",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all",
+        "notes": "UHC: Legal name and TIN must match IRS records exactly"
+      },
+      {
+        "id": "doc-board-cert",
+        "name": "Board Certification",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": ["MD", "DO"],
+        "notes": "Required for physicians; status verified for all provider types"
+      },
+      {
+        "id": "doc-cv",
+        "name": "Curriculum Vitae / Work History",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all",
+        "gap_thresholds": {
+          "aetna": "Explain gaps > 30 days",
+          "cigna": "Explain gaps > 6 months",
+          "uhc": "Explain gaps > 6 months",
+          "optum": "5-year history required",
+          "humana": "Month/year format required"
+        }
+      },
+      {
+        "id": "doc-caqh",
+        "name": "CAQH ProView Profile (Complete & Attested)",
+        "required_by": ["aetna", "cigna", "uhc", "optum", "humana"],
+        "provider_types": "all"
+      }
+    ],
+    "payer_specific": [
+      {
+        "id": "doc-ptan",
+        "name": "Medicare PTAN/CCN",
+        "required_by": ["humana"],
+        "required_for_plans": ["Medicare Advantage"],
+        "also_recommended": ["uhc", "optum", "cigna"],
+        "notes": "Critical for Humana MA participation. Enter in CAQH Professional IDs section."
+      },
+      {
+        "id": "doc-peer-refs",
+        "name": "Peer References (3)",
+        "required_by": ["optum"],
+        "provider_types": "all"
+      },
+      {
+        "id": "doc-bh-profiling",
+        "name": "Behavioral Health Profiling Form",
+        "required_by": ["humana"],
+        "provider_types": ["behavioral_health"]
+      },
+      {
+        "id": "doc-collab-agreement",
+        "name": "Collaborative Practice Agreement",
+        "required_by": ["humana"],
+        "provider_types": ["APRN", "PMHNP"],
+        "notes": "Required in states that mandate collaborative agreements"
+      },
+      {
+        "id": "doc-clia",
+        "name": "CLIA Certificate",
+        "required_by": ["humana"],
+        "provider_types": ["MD", "DO"],
+        "conditional": true,
+        "notes": "Required if performing lab tests"
+      },
+      {
+        "id": "doc-hospital-privileges",
+        "name": "Hospital Privilege Letters",
+        "required_by": ["aetna", "uhc", "humana"],
+        "provider_types": ["MD", "DO"],
+        "conditional": true,
+        "notes": "If applicable / if admitting privileges held"
+      }
+    ]
+  },
+
+  "provider_types": {
+    "medical": [
+      { "code": "MD", "label": "Physician (MD)", "credentialable_by": ["aetna", "cigna", "uhc", "humana"] },
+      { "code": "DO", "label": "Physician (DO)", "credentialable_by": ["aetna", "cigna", "uhc", "humana"] },
+      { "code": "NP", "label": "Nurse Practitioner", "credentialable_by": ["aetna", "cigna", "uhc", "humana"] },
+      { "code": "PA", "label": "Physician Assistant", "credentialable_by": ["aetna", "cigna", "uhc", "humana"] }
+    ],
+    "behavioral_health": [
+      { "code": "PSYCH-MD", "label": "Psychiatrist (MD/DO)", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "PHD-PSYD", "label": "Psychologist (PhD/PsyD)", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "LCSW", "label": "Licensed Clinical Social Worker", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "LPC", "label": "Licensed Professional Counselor", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "LMHC", "label": "Licensed Mental Health Counselor", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "LMFT", "label": "Licensed Marriage & Family Therapist", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "PMHNP", "label": "Psychiatric Mental Health NP", "credentialable_by": ["aetna", "cigna_bh", "optum", "humana"] },
+      { "code": "BCBA", "label": "Board Certified Behavior Analyst", "credentialable_by": ["optum", "humana"] },
+      { "code": "BCABA", "label": "Board Certified Assistant Behavior Analyst", "credentialable_by": ["humana"] },
+      { "code": "RBT", "label": "Registered Behavior Technician", "credentialable_by": ["humana"] },
+      { "code": "CAC", "label": "Certified Addiction Counselor", "credentialable_by": ["aetna", "optum", "humana"] }
+    ]
+  },
+
+  "payers": {
+    "aetna": {
+      "id": "aetna",
+      "name": "Aetna",
+      "parent_company": "CVS Health",
+      "cvo": "3Won/ProVault (NCQA and URAC accredited)",
+      "re_credentialing_months": 36,
+      "caqh_attestation_days": 120,
+      "portal": {
+        "name": "Availity",
+        "url": "https://availity.com"
+      },
+      "contacts": {
+        "credentialing": { "phone": "1-800-353-1232", "label": "Credentialing Status" },
+        "contracting": { "phone": "1-888-632-3862", "label": "Network/Contracting" }
+      },
+      "enrollment_urls": {
+        "medical": "https://www.aetna.com/health-care-professionals/join-the-aetna-network.html",
+        "behavioral_health": "https://www.aetna.com/health-care-professionals/forms/behavioral-health-application.html"
+      },
+
+      "workflows": {
+        "medical": {
+          "label": "Aetna Medical Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 30, "max": 45, "unit": "business_days" },
+            "real_world_days": { "min": 90, "max": 120, "unit": "calendar_days" }
+          },
+          "steps": [
+            {
+              "id": "aetna-med-01",
+              "name": "Submit Request for Participation",
+              "description": "Complete the online Request for Participation form on Aetna's provider enrollment page.",
+              "action_type": "form_submission",
+              "url": "https://www.aetna.com/health-care-professionals/join-the-aetna-network.html",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "documents_needed": ["doc-npi", "doc-caqh"],
+              "warnings": ["Use the MEDICAL form — not the BH form. Using the wrong form is a common costly error."]
+            },
+            {
+              "id": "aetna-med-02",
+              "name": "Network Need Assessment",
+              "description": "Aetna evaluates geographic need for your specialty. This determines whether the panel is open or closed in your area.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 45, "max": 60 },
+              "dependencies": ["aetna-med-01"],
+              "possible_outcomes": ["panel_open", "panel_closed"],
+              "outcome_if_denied": "Denial letter received. Provider can reapply later or request reconsideration."
+            },
+            {
+              "id": "aetna-med-03",
+              "name": "Receive & Review Provider Participation Agreement",
+              "description": "If panel is open, Aetna Network Manager sends Provider Participation Agreement via email.",
+              "action_type": "document_review",
+              "owner": "provider",
+              "estimated_days": { "min": 5, "max": 10 },
+              "dependencies": ["aetna-med-02"],
+              "condition": "panel_open",
+              "warnings": ["Request detailed fee schedules before signing. Multiple sources report Aetna sometimes sends contracts without clear reimbursement details."]
+            },
+            {
+              "id": "aetna-med-04",
+              "name": "Sign and Return Contract",
+              "description": "Review fee schedule, sign Provider Participation Agreement, and return to Aetna.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 1, "max": 5 },
+              "dependencies": ["aetna-med-03"]
+            },
+            {
+              "id": "aetna-med-05",
+              "name": "Primary Source Verification (Credentialing)",
+              "description": "Aetna's CVO (3Won/ProVault) verifies licensure, DEA, education, board certification, malpractice history, NPDB, OIG/SAM exclusions, and work history.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 45 },
+              "dependencies": ["aetna-med-04"],
+              "verification_items": ["licensure", "DEA", "education", "board_certification", "malpractice_history", "NPDB", "OIG_SAM", "work_history"]
+            },
+            {
+              "id": "aetna-med-06",
+              "name": "Credentialing Committee Review",
+              "description": "Credentialing committee reviews complete file and communicates decision in writing.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 14 },
+              "dependencies": ["aetna-med-05"],
+              "possible_outcomes": ["approved", "denied", "additional_info_needed"]
+            },
+            {
+              "id": "aetna-med-07",
+              "name": "Network Effective Date Confirmed",
+              "description": "Provider receives approval letter with network effective date. Provider is now live in Aetna network.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 5, "max": 10 },
+              "dependencies": ["aetna-med-06"],
+              "condition": "approved"
+            }
+          ]
+        },
+        "behavioral_health": {
+          "label": "Aetna Behavioral Health Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 30, "max": 45, "unit": "business_days" },
+            "real_world_days": { "min": 180, "max": 365, "unit": "calendar_days" }
+          },
+          "critical_notes": [
+            "Aetna frequently delegates BH credentialing to third parties (often Optum/UBH), adding complexity.",
+            "BH providers MUST use the dedicated Behavioral Health Request for Participation form.",
+            "Aetna cut audio-only and asynchronous telehealth coverage in 2024. Live video only."
+          ],
+          "steps": [
+            {
+              "id": "aetna-bh-01",
+              "name": "Submit Behavioral Health Request for Participation",
+              "description": "Complete the dedicated BH application form (different from medical form).",
+              "action_type": "form_submission",
+              "url": "https://www.aetna.com/health-care-professionals/forms/behavioral-health-application.html",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "documents_needed": ["doc-npi", "doc-caqh", "doc-license", "doc-malpractice"],
+              "warnings": ["Do NOT use the general medical enrollment form. BH has its own form."]
+            },
+            {
+              "id": "aetna-bh-02",
+              "name": "Network Need Assessment (BH)",
+              "description": "Aetna assesses geographic and specialty need for behavioral health. This step often takes longer for BH than medical.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 45, "max": 90 },
+              "dependencies": ["aetna-bh-01"]
+            },
+            {
+              "id": "aetna-bh-03",
+              "name": "Third-Party Delegation Routing",
+              "description": "Aetna may route BH credentialing to a delegated entity (often Optum/UBH). Provider may need to interact with both Aetna and the delegated entity.",
+              "action_type": "payer_internal",
+              "owner": "payer",
+              "estimated_days": { "min": 14, "max": 30 },
+              "dependencies": ["aetna-bh-02"],
+              "conditional": true,
+              "warnings": ["This step is unique to Aetna and is the primary reason for extended BH timelines."]
+            },
+            {
+              "id": "aetna-bh-04",
+              "name": "Receive & Sign BH Participation Agreement",
+              "description": "Review and sign the behavioral health-specific participation agreement.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 5, "max": 10 },
+              "dependencies": ["aetna-bh-03"]
+            },
+            {
+              "id": "aetna-bh-05",
+              "name": "Primary Source Verification (BH Credentialing)",
+              "description": "CVO conducts full verification. May be processed by Aetna's CVO or delegated entity.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 90 },
+              "dependencies": ["aetna-bh-04"]
+            },
+            {
+              "id": "aetna-bh-06",
+              "name": "Credentialing Committee Review",
+              "description": "Committee reviews and issues written decision.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 14, "max": 30 },
+              "dependencies": ["aetna-bh-05"]
+            },
+            {
+              "id": "aetna-bh-07",
+              "name": "Network Effective Date Confirmed",
+              "description": "Approval letter with effective date issued.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 5, "max": 14 },
+              "dependencies": ["aetna-bh-06"],
+              "condition": "approved"
+            }
+          ]
+        }
+      }
+    },
+
+    "cigna": {
+      "id": "cigna",
+      "name": "Cigna / Evernorth",
+      "parent_company": "The Cigna Group",
+      "cvo": "Cigna internal (NCQA-accredited)",
+      "re_credentialing_months": 36,
+      "caqh_attestation_days": 120,
+      "portal": {
+        "medical": { "name": "CignaforHCP", "url": "https://cignaforhcp.cigna.com/app/login" },
+        "behavioral_health": { "name": "Evernorth Provider Portal", "url": "https://provider.evernorth.com/app/login" }
+      },
+      "contacts": {
+        "medical_credentialing": { "phone": "1-800-882-4462", "email": "PSSCentral@Cigna.com", "label": "Medical Credentialing" },
+        "bh_recruitment": { "phone": "1-800-926-2273", "email": "BehavioralProviderRecruitment@evernorth.com", "label": "BH Recruitment" },
+        "bh_enrollment_exception_states": { "email": "BehavioralHCPEnrollment@Evernorth.com", "states": ["MD", "OH", "WA"], "label": "BH Enrollment (MD/OH/WA only)" }
+      },
+      "enrollment_urls": {
+        "medical": "https://cignaforhcp.cigna.com/app/login",
+        "behavioral_health": "https://cignathn.my.salesforce-sites.com/cbus",
+        "credentialing_hub": "https://www.cigna.com/health-care-providers/credentialing"
+      },
+
+      "workflows": {
+        "medical": {
+          "label": "Cigna Medical Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 45, "max": 60, "unit": "calendar_days" },
+            "real_world_days": { "min": 60, "max": 90, "unit": "calendar_days" }
+          },
+          "steps": [
+            {
+              "id": "cigna-med-01",
+              "name": "Call Cigna Credentialing Line",
+              "description": "Call 1-800-882-4462, select credentialing option. Representative confirms eligibility and emails application packet.",
+              "action_type": "phone_call",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "contact": "1-800-882-4462"
+            },
+            {
+              "id": "cigna-med-02",
+              "name": "Complete & Submit Application Packet",
+              "description": "Fill out the application packet received via email and submit with required documents.",
+              "action_type": "form_submission",
+              "owner": "provider",
+              "estimated_days": { "min": 3, "max": 7 },
+              "dependencies": ["cigna-med-01"],
+              "documents_needed": ["doc-npi", "doc-license", "doc-dea", "doc-malpractice", "doc-w9", "doc-board-cert", "doc-cv", "doc-caqh"]
+            },
+            {
+              "id": "cigna-med-03",
+              "name": "Primary Source Verification",
+              "description": "Cigna credentialing team verifies all documentation through primary sources.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 45 },
+              "dependencies": ["cigna-med-02"]
+            },
+            {
+              "id": "cigna-med-04",
+              "name": "Credentialing Committee Review",
+              "description": "Committee composed of community physicians and health plan medical director reviews file.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 14 },
+              "dependencies": ["cigna-med-03"]
+            },
+            {
+              "id": "cigna-med-05",
+              "name": "Welcome Letter & Directory Listing",
+              "description": "Welcome letter issued. Provider directory updated within 10 business days of approval.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 5, "max": 10 },
+              "dependencies": ["cigna-med-04"]
+            }
+          ]
+        },
+        "behavioral_health": {
+          "label": "Cigna / Evernorth Behavioral Health Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 21, "max": 90, "unit": "business_days" },
+            "real_world_days": { "min": 60, "max": 120, "unit": "calendar_days" }
+          },
+          "critical_notes": [
+            "BH is handled by Evernorth Behavioral Health (separate from Cigna Healthcare).",
+            "CAQH must authorize BOTH 'Cigna Healthcare' AND 'Evernorth Behavioral Health'.",
+            "Exception states (MD, OH, WA): email BehavioralHCPEnrollment@Evernorth.com instead of using the online form.",
+            "BH providers must maintain 24 clinical hours per week.",
+            "Licenses and insurance must be at least 60 days from expiration at application."
+          ],
+          "steps": [
+            {
+              "id": "cigna-bh-01",
+              "name": "Authorize Evernorth in CAQH",
+              "description": "In CAQH ProView, authorize BOTH 'Cigna Healthcare' AND 'Evernorth Behavioral Health' for data sharing. This is the #1 missed step.",
+              "action_type": "caqh_update",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "warnings": ["Must authorize BOTH entities. Authorizing only 'Cigna Healthcare' will NOT cover BH."]
+            },
+            {
+              "id": "cigna-bh-02",
+              "name": "Submit Evernorth BH Provider Information Form",
+              "description": "Complete online form at Evernorth's Salesforce portal. Exception: MD, OH, WA providers email BehavioralHCPEnrollment@Evernorth.com instead.",
+              "action_type": "form_submission",
+              "url": "https://cignathn.my.salesforce-sites.com/cbus",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["cigna-bh-01"],
+              "state_exceptions": {
+                "states": ["MD", "OH", "WA"],
+                "method": "email",
+                "email": "BehavioralHCPEnrollment@Evernorth.com",
+                "response_time_business_days": 15
+              }
+            },
+            {
+              "id": "cigna-bh-03",
+              "name": "Evernorth Initial Outreach",
+              "description": "Evernorth contacts provider within 21 business days with next steps or information requests.",
+              "action_type": "payer_outreach",
+              "owner": "payer",
+              "estimated_days": 21,
+              "dependencies": ["cigna-bh-02"],
+              "warnings": ["If Evernorth requests additional information, providers have 30 days to respond or the application may be closed."]
+            },
+            {
+              "id": "cigna-bh-04",
+              "name": "Sign Contract via DocuSign",
+              "description": "Evernorth sends Individual Agreement via DocuSign for electronic signature. Multiple network types available: Open Access Plus, LocalPlus, PPO, HMO, EAP.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 1, "max": 5 },
+              "dependencies": ["cigna-bh-03"],
+              "method": "DocuSign"
+            },
+            {
+              "id": "cigna-bh-05",
+              "name": "Primary Source Verification",
+              "description": "Evernorth Credentialing Committee conducts verification. If significant discrepancies found, provider contacted within 5 days with 30 days to respond.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 60 },
+              "dependencies": ["cigna-bh-04"],
+              "discrepancy_process": {
+                "notification_days": 5,
+                "response_window_days": 30,
+                "appeal_available": true,
+                "appeal_panel_size": 3
+              }
+            },
+            {
+              "id": "cigna-bh-06",
+              "name": "Credentialing Committee Decision",
+              "description": "Evernorth Credentialing Committee approves or denies. Appeal process available through separate panel of 3+ uninvolved clinicians.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 14 },
+              "dependencies": ["cigna-bh-05"]
+            },
+            {
+              "id": "cigna-bh-07",
+              "name": "Welcome Letter & Directory Upload",
+              "description": "Welcome letter issued. Provider directory updated within 10 business days of approval.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": 10,
+              "dependencies": ["cigna-bh-06"]
+            }
+          ]
+        }
+      }
+    },
+
+    "uhc": {
+      "id": "uhc",
+      "name": "UnitedHealthcare",
+      "parent_company": "UnitedHealth Group",
+      "cvo": "UHC internal (NCQA standards)",
+      "re_credentialing_months": 36,
+      "caqh_attestation_days": 120,
+      "portal": {
+        "name": "Onboard Pro",
+        "url": "https://www.uhcprovider.com"
+      },
+      "contacts": {
+        "support": { "channel": "chat_only", "availability": "24/7", "label": "Chat via Provider Portal (NO phone support)" }
+      },
+      "enrollment_urls": {
+        "medical": "https://www.uhcprovider.com"
+      },
+      "bh_routing": "All behavioral health credentialing routes to Optum Behavioral Health. See 'optum' payer entry.",
+
+      "workflows": {
+        "medical": {
+          "label": "UnitedHealthcare Medical Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 14, "max": 45, "unit": "calendar_days" },
+            "real_world_days": { "min": 60, "max": 120, "unit": "calendar_days" }
+          },
+          "steps": [
+            {
+              "id": "uhc-med-01",
+              "name": "Create One Healthcare ID",
+              "description": "Register for a One Healthcare ID at uhcprovider.com. This is the shared SSO across UHC and Optum.",
+              "action_type": "account_creation",
+              "url": "https://www.uhcprovider.com",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"]
+            },
+            {
+              "id": "uhc-med-02",
+              "name": "Complete Onboard Pro Application",
+              "description": "Enter legal name, business name, TIN, state, and lines of business. Onboard Pro runs pre-credentialing check and auto-populates from CAQH ProView.",
+              "action_type": "form_submission",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["uhc-med-01"],
+              "documents_needed": ["doc-npi", "doc-license", "doc-dea", "doc-malpractice", "doc-w9", "doc-board-cert", "doc-cv", "doc-caqh"]
+            },
+            {
+              "id": "uhc-med-03",
+              "name": "Primary Source Verification",
+              "description": "UHC conducts verification following NCQA standards: OIG, SAM.gov, NPDB, state sanctions databases. Site visits may occur for high-risk specialties.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 14, "max": 30 },
+              "dependencies": ["uhc-med-02"],
+              "site_visit_trigger": "high_risk_specialties"
+            },
+            {
+              "id": "uhc-med-04",
+              "name": "National Credentialing Committee Review",
+              "description": "Committee reviews and decides within 30 calendar days.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": 30,
+              "dependencies": ["uhc-med-03"]
+            },
+            {
+              "id": "uhc-med-05",
+              "name": "Receive Participation Agreement",
+              "description": "Upon approval, Onboard Pro automatically triggers contracting. Participation Agreement mailed within 5 business days.",
+              "action_type": "contract_delivery",
+              "owner": "payer",
+              "estimated_days": 5,
+              "dependencies": ["uhc-med-04"],
+              "method": "mail"
+            },
+            {
+              "id": "uhc-med-06",
+              "name": "Sign and Return Agreement",
+              "description": "Review, sign, and return the Participation Agreement.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 3, "max": 7 },
+              "dependencies": ["uhc-med-05"]
+            },
+            {
+              "id": "uhc-med-07",
+              "name": "Network Activation",
+              "description": "Provider becomes active in UHC network. Status trackable via Onboard Pro real-time dashboard with projected completion dates.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 5, "max": 14 },
+              "dependencies": ["uhc-med-06"]
+            }
+          ]
+        }
+      }
+    },
+
+    "optum": {
+      "id": "optum",
+      "name": "Optum Behavioral Health",
+      "parent_company": "UnitedHealth Group",
+      "operating_entity": "United Behavioral Health (UBH)",
+      "cvo": "Verisys (formerly Aperture), NCQA-certified",
+      "re_credentialing_months": 36,
+      "caqh_attestation_days": 90,
+      "caqh_authorization_name": "United Behavioral Health",
+      "caqh_agency_id": "1354",
+      "edi_payer_id": "87726",
+      "portal": {
+        "name": "Provider Express",
+        "url": "https://www.providerexpress.com",
+        "public_url": "https://public.providerexpress.com/content/ope-provexpr/us/en.html"
+      },
+      "contacts": {
+        "credentialing": { "phone": "877-614-0484", "email": "BHSCredentialing@optum.com", "label": "BH Credentialing" }
+      },
+      "enrollment_urls": {
+        "behavioral_health": "https://www.providerexpress.com"
+      },
+
+      "workflows": {
+        "behavioral_health": {
+          "label": "Optum Behavioral Health Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 60, "max": 90, "unit": "calendar_days" },
+            "real_world_days": { "min": 90, "max": 120, "unit": "calendar_days" },
+            "data_loading_additional_days": { "min": 5, "max": 30, "unit": "business_days" }
+          },
+          "critical_notes": [
+            "CAQH must authorize 'United Behavioral Health' (Agency ID 1354) — NOT 'UnitedHealthcare'.",
+            "Enrolling in UHC does NOT enroll you in Optum, and vice versa.",
+            "After credentialing approval, data loading takes an additional 5–30 business days before provider is live.",
+            "Independent licensure required — no provisional or supervisory-dependent licenses.",
+            "All UHC/Optum/UBH entities use EDI Payer ID 87726 for BH claims."
+          ],
+          "networks": ["Commercial/Employer", "Medicare Advantage (BH)", "Medicaid/Community Plan", "EAP", "Express Access", "Autism/ABA"],
+          "steps": [
+            {
+              "id": "optum-bh-01",
+              "name": "Authorize UBH in CAQH ProView",
+              "description": "Authorize 'United Behavioral Health' (Agency ID# 1354) in CAQH data sharing. This is the #1 Optum-specific enrollment error — providers often authorize 'UnitedHealthcare' instead.",
+              "action_type": "caqh_update",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "warnings": ["Must authorize 'United Behavioral Health' — NOT 'UnitedHealthcare'. Agency ID: 1354."]
+            },
+            {
+              "id": "optum-bh-02",
+              "name": "Create One Healthcare ID",
+              "description": "Register at providerexpress.com using shared SSO (same as UHC).",
+              "action_type": "account_creation",
+              "url": "https://www.providerexpress.com",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["optum-bh-01"]
+            },
+            {
+              "id": "optum-bh-03",
+              "name": "Submit Network Participation Request Form (NPRF)",
+              "description": "Complete the NPRF online through Provider Express.",
+              "action_type": "form_submission",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["optum-bh-02"],
+              "documents_needed": ["doc-npi", "doc-license", "doc-dea", "doc-malpractice", "doc-w9", "doc-peer-refs", "doc-cv", "doc-caqh"]
+            },
+            {
+              "id": "optum-bh-04",
+              "name": "Sign Individual Agreement via DocuSign",
+              "description": "Optum sends Individual Agreement via DocuSign for electronic signature.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 3, "max": 7 },
+              "dependencies": ["optum-bh-03"],
+              "method": "DocuSign"
+            },
+            {
+              "id": "optum-bh-05",
+              "name": "Primary Source Verification (Verisys)",
+              "description": "Verisys (NCQA-certified CVO) conducts full verification including licensure, DEA, education, malpractice, NPDB, OIG/SAM, work history, and peer references.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 45, "max": 60 },
+              "dependencies": ["optum-bh-04"]
+            },
+            {
+              "id": "optum-bh-06",
+              "name": "Credentialing Committee Review",
+              "description": "Standing Credentialing Committee (operating under Quality Improvement Committee authority) reviews and decides.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 14, "max": 30 },
+              "dependencies": ["optum-bh-05"]
+            },
+            {
+              "id": "optum-bh-07",
+              "name": "Data Loading (Post-Approval)",
+              "description": "After approval, provider data is loaded into claims systems and directories. This is a known lag unique to Optum.",
+              "action_type": "system_processing",
+              "owner": "payer",
+              "estimated_days": { "min": 5, "max": 30 },
+              "dependencies": ["optum-bh-06"],
+              "warnings": ["Providers are approved but cannot bill or be found in directories until data loading completes. Track via Initial Credentialing Status Toolbar in Provider Express."]
+            },
+            {
+              "id": "optum-bh-08",
+              "name": "Live in Network",
+              "description": "Provider is active in claims systems and provider directories.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": 1,
+              "dependencies": ["optum-bh-07"]
+            }
+          ]
+        }
+      }
+    },
+
+    "humana": {
+      "id": "humana",
+      "name": "Humana",
+      "parent_company": "Humana Inc.",
+      "cvo": "Humana internal",
+      "re_credentialing_months": 36,
+      "caqh_attestation_days": 180,
+      "ma_members": 5800000,
+      "portal": {
+        "name": "Availity",
+        "url": "https://availity.com"
+      },
+      "contacts": {
+        "provider_relations": { "phone": "1-800-626-2741", "label": "Provider Relations" },
+        "dental_credentialing": { "email": "dentalcredentialing@humana.com", "label": "Dental Credentialing" }
+      },
+      "enrollment_urls": {
+        "join_network": "https://provider.humana.com/join-humana-network",
+        "credentialing_caqh": "https://provider.humana.com/join-humana-network/credentialing-caqh",
+        "quickbase": "https://humana-6853.quickbase.com"
+      },
+
+      "state_routing": {
+        "quickbase_states": {
+          "medical": ["IN", "KY", "MI", "OH", "OK", "VA", "WV"],
+          "behavioral_health": ["IN", "MI", "OH", "OK", "VA", "WV"]
+        },
+        "other_states": {
+          "medical": "Letter of Interest to regional Humana representative",
+          "behavioral_health": "Behavioral Health Provider Inquiry form (Microsoft Forms)"
+        }
+      },
+
+      "workflows": {
+        "medical": {
+          "label": "Humana Medical Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 45, "max": 90, "unit": "calendar_days" },
+            "real_world_days": { "min": 90, "max": 150, "unit": "calendar_days" }
+          },
+          "steps": [
+            {
+              "id": "humana-med-01",
+              "name": "Determine Submission Method by State",
+              "description": "Submission method depends on state. IN/KY/MI/OH/OK/VA/WV use Quickbase online form. All other states submit Letter of Interest to regional representative.",
+              "action_type": "routing_decision",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "routing_rules": {
+                "quickbase_states": ["IN", "KY", "MI", "OH", "OK", "VA", "WV"],
+                "quickbase_url": "https://humana-6853.quickbase.com",
+                "other_states_method": "Letter of Interest to regional rep"
+              }
+            },
+            {
+              "id": "humana-med-02",
+              "name": "Submit Interest / Application",
+              "description": "Submit via Quickbase form or Letter of Interest depending on state routing.",
+              "action_type": "form_submission",
+              "owner": "provider",
+              "estimated_days": { "min": 1, "max": 3 },
+              "dependencies": ["humana-med-01"],
+              "documents_needed": ["doc-npi", "doc-license", "doc-dea", "doc-malpractice", "doc-w9", "doc-board-cert", "doc-cv", "doc-caqh", "doc-ptan"]
+            },
+            {
+              "id": "humana-med-03",
+              "name": "Assigned Physician Contracting Representative",
+              "description": "Humana validates request, assigns contracting representative with tracking number, and sends follow-up email with contracting documents.",
+              "action_type": "payer_outreach",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 21 },
+              "dependencies": ["humana-med-02"]
+            },
+            {
+              "id": "humana-med-04",
+              "name": "Sign Contracting Documents",
+              "description": "Review and sign participation agreement sent via email.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 3, "max": 7 },
+              "dependencies": ["humana-med-03"]
+            },
+            {
+              "id": "humana-med-05",
+              "name": "Primary Source Verification",
+              "description": "Humana credentialing team verifies documentation, runs NPDB, OIG/SAM, and Medicare sanctions checks.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 45 },
+              "dependencies": ["humana-med-04"]
+            },
+            {
+              "id": "humana-med-06",
+              "name": "Provider Office Site Evaluation",
+              "description": "Humana conducts on-site evaluation for PCP and OB-GYN locations. This is unique to Humana among the five payers studied.",
+              "action_type": "site_visit",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 30 },
+              "dependencies": ["humana-med-05"],
+              "required_for": ["PCP", "OB-GYN"],
+              "conditional": true
+            },
+            {
+              "id": "humana-med-07",
+              "name": "Credentialing Committee Decision",
+              "description": "Committee reviews and communicates decision within 60 business days of committee meeting.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": 60,
+              "dependencies": ["humana-med-06"]
+            },
+            {
+              "id": "humana-med-08",
+              "name": "Network Effective Date + System Updates",
+              "description": "Network effective date set 30 days after all CAQH documentation is received, with another 30 days for system updates.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 60 },
+              "dependencies": ["humana-med-07"],
+              "warnings": ["30 days after CAQH complete + 30 days system updates = up to 60 days post-approval before truly live."]
+            }
+          ]
+        },
+        "behavioral_health": {
+          "label": "Humana Behavioral Health Provider Enrollment",
+          "estimated_timeline": {
+            "official_days": { "min": 45, "max": 90, "unit": "calendar_days" },
+            "real_world_days": { "min": 60, "max": 90, "unit": "calendar_days" }
+          },
+          "critical_notes": [
+            "Humana operates its own BH network through Humana Behavioral Health.",
+            "For certain Medicaid products, Humana partners with Carelon Behavioral Health (FL, IL).",
+            "Medicare PTAN is critical for MA participation — missing PTAN is the #1 cause of MA denials at Humana.",
+            "BH Profiling Form required in addition to standard documents.",
+            "Telehealth: audio-only permanently allowed, no geographic restrictions, in-person waived through 12/31/2027."
+          ],
+          "steps": [
+            {
+              "id": "humana-bh-01",
+              "name": "Determine Submission Method by State",
+              "description": "IN/MI/OH/OK/VA/WV use Quickbase form. All other states use Behavioral Health Provider Inquiry form (Microsoft Forms).",
+              "action_type": "routing_decision",
+              "owner": "provider",
+              "estimated_days": 1,
+              "dependencies": ["caqh-007"],
+              "routing_rules": {
+                "quickbase_states": ["IN", "MI", "OH", "OK", "VA", "WV"],
+                "quickbase_url": "https://humana-6853.quickbase.com",
+                "other_states_method": "Microsoft Forms (BH Provider Inquiry)",
+                "other_states_url": "https://forms.office.com"
+              }
+            },
+            {
+              "id": "humana-bh-02",
+              "name": "Submit BH Application",
+              "description": "Submit via appropriate channel. Include Behavioral Health Profiling Form.",
+              "action_type": "form_submission",
+              "owner": "provider",
+              "estimated_days": { "min": 1, "max": 3 },
+              "dependencies": ["humana-bh-01"],
+              "documents_needed": ["doc-npi", "doc-license", "doc-malpractice", "doc-w9", "doc-cv", "doc-caqh", "doc-ptan", "doc-bh-profiling"]
+            },
+            {
+              "id": "humana-bh-03",
+              "name": "Contracting Representative Assignment",
+              "description": "Humana validates request and assigns contracting representative.",
+              "action_type": "payer_outreach",
+              "owner": "payer",
+              "estimated_days": { "min": 7, "max": 21 },
+              "dependencies": ["humana-bh-02"]
+            },
+            {
+              "id": "humana-bh-04",
+              "name": "Sign BH Participation Agreement",
+              "description": "Review and sign behavioral health participation agreement.",
+              "action_type": "contract_execution",
+              "owner": "provider",
+              "estimated_days": { "min": 3, "max": 7 },
+              "dependencies": ["humana-bh-03"]
+            },
+            {
+              "id": "humana-bh-05",
+              "name": "Primary Source Verification",
+              "description": "Full credentialing verification including Medicare sanctions review.",
+              "action_type": "payer_review",
+              "owner": "payer",
+              "estimated_days": { "min": 20, "max": 40 },
+              "dependencies": ["humana-bh-04"]
+            },
+            {
+              "id": "humana-bh-06",
+              "name": "Credentialing Committee Decision",
+              "description": "Committee reviews and communicates decision.",
+              "action_type": "committee_review",
+              "owner": "payer",
+              "estimated_days": { "min": 14, "max": 30 },
+              "dependencies": ["humana-bh-05"]
+            },
+            {
+              "id": "humana-bh-07",
+              "name": "Network Activation + System Updates",
+              "description": "Network effective date confirmed. 30 days after CAQH complete + 30 days system updates.",
+              "action_type": "confirmation",
+              "owner": "payer",
+              "estimated_days": { "min": 30, "max": 60 },
+              "dependencies": ["humana-bh-06"]
+            }
+          ]
+        }
+      }
+    }
+  },
+
+  "enrollment_sequencing": {
+    "recommended_order": [
+      {
+        "priority": 1,
+        "payer": "cigna",
+        "track": "behavioral_health",
+        "rationale": "Fastest BH timelines (60-120 days), structured 21-day outreach commitment"
+      },
+      {
+        "priority": 2,
+        "payer": "optum",
+        "track": "behavioral_health",
+        "rationale": "Best status tracking, clear process. Start early to account for 5-30 day data loading lag."
+      },
+      {
+        "priority": 2,
+        "payer": "uhc",
+        "track": "medical",
+        "rationale": "Onboard Pro dashboard provides real-time tracking. Can run parallel with Optum BH."
+      },
+      {
+        "priority": 3,
+        "payer": "humana",
+        "track": "both",
+        "rationale": "Critical for Medicare Advantage patient access. Ensure Medicare PTAN is obtained first."
+      },
+      {
+        "priority": 4,
+        "payer": "aetna",
+        "track": "both",
+        "rationale": "Longest BH timelines (6-12 months). Start early but manage expectations."
+      }
+    ]
+  },
+
+  "interstate_compacts": [
+    {
+      "name": "PSYPACT",
+      "provider_types": ["Psychologist"],
+      "states_count": 43,
+      "status": "Active",
+      "notes": "Some payer platforms don't yet recognize PSYPACT for credentialing"
+    },
+    {
+      "name": "Counseling Compact",
+      "provider_types": ["LPC"],
+      "states_count": 38,
+      "status": "Applications opening 2025",
+      "notes": "Will expand multi-state practice for LPCs"
+    },
+    {
+      "name": "Social Work Compact",
+      "provider_types": ["LCSW"],
+      "states_count": 22,
+      "status": "Applications anticipated Fall 2025",
+      "notes": "Newest of the three compacts"
+    }
+  ],
+
+  "ncqa_2025_updates": {
+    "effective_date": "2025-07-01",
+    "changes": [
+      "Verification timeframes shortened from 180 to 120 days (health plan accreditation)",
+      "Certification verification shortened to 90 days",
+      "Monthly SAM.gov exclusion checks mandatory",
+      "New 'information integrity' standards replace previous must-pass elements",
+      "Annual auditing with 3-6 month follow-up required"
+    ]
+  },
+
+  "action_types": {
+    "form_submission": { "label": "Submit Form/Application", "icon": "document", "color": "#3B82F6" },
+    "phone_call": { "label": "Phone Call Required", "icon": "phone", "color": "#8B5CF6" },
+    "caqh_update": { "label": "CAQH ProView Update", "icon": "database", "color": "#F59E0B" },
+    "account_creation": { "label": "Create Account", "icon": "user-plus", "color": "#10B981" },
+    "payer_review": { "label": "Payer Review (Waiting)", "icon": "clock", "color": "#6B7280" },
+    "payer_outreach": { "label": "Payer Will Contact You", "icon": "inbox", "color": "#6B7280" },
+    "payer_internal": { "label": "Payer Internal Processing", "icon": "settings", "color": "#6B7280" },
+    "committee_review": { "label": "Committee Review", "icon": "users", "color": "#EF4444" },
+    "contract_execution": { "label": "Sign Contract", "icon": "pen-tool", "color": "#EC4899" },
+    "contract_delivery": { "label": "Contract Sent to You", "icon": "mail", "color": "#EC4899" },
+    "document_review": { "label": "Review Document", "icon": "eye", "color": "#F59E0B" },
+    "site_visit": { "label": "Site Visit", "icon": "map-pin", "color": "#EF4444" },
+    "system_processing": { "label": "System Processing", "icon": "loader", "color": "#6B7280" },
+    "routing_decision": { "label": "Determine Process Route", "icon": "git-branch", "color": "#8B5CF6" },
+    "confirmation": { "label": "Enrollment Complete", "icon": "check-circle", "color": "#10B981" }
+  },
+
+  "status_model": {
+    "enrollment_statuses": [
+      { "id": "not_started", "label": "Not Started", "color": "#D1D5DB" },
+      { "id": "prerequisites_pending", "label": "Prerequisites Pending", "color": "#FCD34D" },
+      { "id": "application_submitted", "label": "Application Submitted", "color": "#93C5FD" },
+      { "id": "under_review", "label": "Under Review", "color": "#60A5FA" },
+      { "id": "info_requested", "label": "Additional Info Requested", "color": "#F59E0B" },
+      { "id": "contract_pending", "label": "Contract Pending Signature", "color": "#C084FC" },
+      { "id": "credentialing_in_progress", "label": "Credentialing In Progress", "color": "#818CF8" },
+      { "id": "committee_review", "label": "Committee Review", "color": "#FB923C" },
+      { "id": "approved_data_loading", "label": "Approved — Data Loading", "color": "#34D399" },
+      { "id": "active", "label": "Active in Network", "color": "#10B981" },
+      { "id": "denied", "label": "Denied", "color": "#EF4444" },
+      { "id": "panel_closed", "label": "Panel Closed", "color": "#9CA3AF" },
+      { "id": "re_credentialing_due", "label": "Re-credentialing Due", "color": "#F59E0B" }
+    ],
+    "task_statuses": [
+      { "id": "pending", "label": "Pending" },
+      { "id": "in_progress", "label": "In Progress" },
+      { "id": "waiting_on_payer", "label": "Waiting on Payer" },
+      { "id": "waiting_on_provider", "label": "Waiting on Provider" },
+      { "id": "completed", "label": "Completed" },
+      { "id": "blocked", "label": "Blocked" },
+      { "id": "skipped", "label": "Skipped (Not Applicable)" }
+    ]
+  }
+}

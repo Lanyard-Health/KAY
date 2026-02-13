@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import {
   MagnifyingGlassIcon,
@@ -184,7 +185,7 @@ export default function EnrollmentsList() {
   const { data: providersData } = useQuery({
     queryKey: ['all-providers'],
     queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: { items: Provider[] } }>('/providers?pageSize=1000');
+      const response = await api.get<{ success: boolean; data: { data: Provider[]; total: number } }>('/providers?pageSize=100');
       return response.data;
     },
   });
@@ -199,7 +200,7 @@ export default function EnrollmentsList() {
   });
 
   const enrollments = (data?.data as Enrollment[] | undefined) || [];
-  const providers = (providersData?.data?.items as Provider[] | undefined) || [];
+  const providers = (providersData?.data?.data as Provider[] | undefined) || [];
   const payers = (payersData?.data as Payer[] | undefined) || [];
 
   // Filter providers based on search
@@ -311,6 +312,11 @@ export default function EnrollmentsList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       closeModal();
+      toast.success('Enrollment created');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
+      toast.error(message);
     },
   });
 
@@ -971,24 +977,53 @@ export default function EnrollmentsList() {
                     {showPayerDropdown && !formData.payerName && (
                       <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
                         {filteredPayers.length > 0 ? (
-                          filteredPayers.map((payer) => (
-                            <button
-                              key={payer.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, payerName: payer.name });
-                                setPayerSearch('');
-                                setShowPayerDropdown(false);
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                            >
-                              <div className="font-medium text-gray-900">{payer.name}</div>
-                              <div className="text-xs text-gray-500">{payer.payerType}</div>
-                            </button>
-                          ))
+                          <>
+                            {filteredPayers.map((payer) => (
+                              <button
+                                key={payer.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, payerName: payer.name });
+                                  setPayerSearch('');
+                                  setShowPayerDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">{payer.name}</div>
+                                <div className="text-xs text-gray-500">{payer.payerType}</div>
+                              </button>
+                            ))}
+                            {payerSearch.trim() && !filteredPayers.some(p => p.name.toLowerCase() === payerSearch.trim().toLowerCase()) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormData({ ...formData, payerName: payerSearch.trim() });
+                                  setPayerSearch('');
+                                  setShowPayerDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2 border-t border-gray-100 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-primary-700">+ Use &quot;{payerSearch.trim()}&quot;</div>
+                                <div className="text-xs text-gray-500">Create new payer</div>
+                              </button>
+                            )}
+                          </>
+                        ) : payerSearch.trim() ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, payerName: payerSearch.trim() });
+                              setPayerSearch('');
+                              setShowPayerDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                          >
+                            <div className="font-medium text-primary-700">+ Use &quot;{payerSearch.trim()}&quot;</div>
+                            <div className="text-xs text-gray-500">Create new payer</div>
+                          </button>
                         ) : (
                           <div className="px-4 py-3 text-sm text-gray-500">
-                            No payers found. Type to search from 3,000+ payers.
+                            Type to search payers or enter a custom name.
                           </div>
                         )}
                       </div>
@@ -1177,6 +1212,14 @@ export default function EnrollmentsList() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
+
+                {/* Validation hints */}
+                {(!selectedProvider || !formData.payerName) && (
+                  <div className="text-sm text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+                    {!selectedProvider && <div>Please select a provider above.</div>}
+                    {!formData.payerName && <div>Please select or enter a payer name.</div>}
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
