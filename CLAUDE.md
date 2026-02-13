@@ -74,13 +74,14 @@ Note: `USE_LOCALSTACK` should NOT be set in production. The backend uses `S3_END
 
 ### Quick Start
 ```bash
-cd /Users/kay/KAY
+cd /Users/kay/Documents/KAY
 ./start-dev.sh
 ```
 This script: checks Docker is running → starts containers (PostgreSQL :5433, LocalStack :4566, Redis :6379) → waits for DB health → starts backend (:3002) and frontend (:5190) → Ctrl+C stops everything.
 
 ### Manual Start
 ```bash
+cd /Users/kay/Documents/KAY
 docker compose up -d
 npm run dev --workspace=packages/backend &
 npm run dev --workspace=packages/frontend &
@@ -108,6 +109,31 @@ npm run dev --workspace=packages/frontend &
 All changes to `master` must go through a pull request with:
 - At least 1 approval
 - Security Gate CI check passing
+
+## Architecture Notes
+
+### Frontend Lazy Loading
+All page components use `React.lazy()` in `App.tsx`. When adding a new route/page:
+```tsx
+const MyNewPage = lazy(() => import('./features/myFeature/MyNewPage'));
+```
+Keep `LoginPage`, `Layout`, and `PortalLayout` as eager imports (needed for auth shell). The `<Suspense>` wrapper is already in place.
+
+### Dashboard Stats Endpoint
+`GET /api/v1/dashboard/stats` returns aggregated counts via efficient Prisma `groupBy` and `count` queries. **Do NOT** fetch `/providers` or `/enrollments` on the dashboard just to count them — that was the old N+1 pattern.
+
+### In-Memory TTL Cache
+`packages/backend/src/utils/cache.ts` provides `getCached()`, `setCache()`, and `invalidateCache(prefix)`. Currently used by:
+- Dashboard stats (60s TTL, key prefix `dashboard:`)
+- Payer intelligence (5min TTL, key prefix `payer-analytics:`)
+
+**Always invalidate** when mutating related data (see `provider.routes.ts` and `enrollment.routes.ts` for examples).
+
+### AI Agent Feature
+Full conversational AI with intent classification, context-aware data fetching, and conversation persistence. Role-restricted to admin/staff. 11 backend routes (`/api/v1/ai/*`), chat panel + dashboard tabs. Route file: `ai.routes.ts`, service: `ai.service.ts`.
+
+### Production Safety Guard
+`DEV_AUTH_BYPASS=true` with `NODE_ENV=production` will crash the server on startup (fatal error in `auth.middleware.ts`). This is intentional — dev auth bypass must never run in production.
 
 ## DEV ENVIRONMENT RULES
 - The dev bypass user must be auto-created on every backend startup when `DEV_AUTH_BYPASS=true`. Never require manual database intervention to start the dev environment.
