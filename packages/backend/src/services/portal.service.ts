@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/prisma.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
-
-const prisma = new PrismaClient();
 
 export interface ProviderApplicationInput {
   npi: string;
@@ -71,6 +69,12 @@ export async function submitApplication(data: ProviderApplicationInput) {
   const existingProvider = await checkExistingProvider(data.npi);
   if (existingProvider) {
     throw new Error('A provider with this NPI already exists in our system');
+  }
+
+  // Check for existing user with this email
+  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existingUser) {
+    throw new Error('An account with this email address already exists');
   }
 
   // Validate previousApplicationId if provided
@@ -263,6 +267,12 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
 
   if (application.status !== 'pending') {
     throw new Error('Application has already been reviewed');
+  }
+
+  // Pre-check: ensure no user with this email exists (could have been created since submission)
+  const existingUser = await prisma.user.findUnique({ where: { email: application.email } });
+  if (existingUser) {
+    throw new Error('An account with this email address already exists');
   }
 
   // 1. Create Cognito user first (outside transaction — can't roll back Cognito)

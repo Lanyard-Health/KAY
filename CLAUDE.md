@@ -97,6 +97,8 @@ npm run dev --workspace=packages/frontend &
 | Backend can't connect to DB locally | Docker containers not running | Run `docker compose up -d` and wait for health check. |
 | `{"error": "Not found"}` at backend root URL | No route for `/` | Backend root redirects to `FRONTEND_URL`. Ensure `FRONTEND_URL` env var is set. |
 | Upload works locally but not production | R2 env vars missing or wrong | Verify `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` are set on Render. |
+| Provider approval fails with 500 | Email already exists in User table | `submitApplication()` and `approveApplication()` now check email uniqueness. Check for orphaned User records with duplicate emails. |
+| No signup/approval email received | `SES_FROM_EMAIL` env var not set | Email service silently disables when `SES_FROM_EMAIL` is missing. Set it in Render env vars. Also set `ADMIN_EMAIL` for admin notifications. |
 
 ## .env Handling Rules
 - `.env` files are gitignored — NEVER commit them
@@ -135,6 +137,10 @@ Test helpers live in `packages/backend/tests/helpers/`:
 ### Cross-package pitfalls
 - `ZodError instanceof` fails across package boundaries — `shared` and `backend` may bundle different zod copies. The error handler's `instanceof ZodError` check won't catch errors from shared package validation schemas. Use `.name === 'ZodError'` or re-export zod from shared.
 
+### PrismaClient singleton
+Always import from `utils/prisma.ts` — never create `new PrismaClient()` in service files. The singleton uses `globalThis` caching for hot-reload. Services that create their own instance get a separate connection pool and bypass test mocking.
+
+
 ## Architecture Notes
 
 ### Frontend Lazy Loading
@@ -156,6 +162,12 @@ Keep `LoginPage`, `Layout`, and `PortalLayout` as eager imports (needed for auth
 
 ### AI Agent Feature
 Full conversational AI with intent classification, context-aware data fetching, and conversation persistence. Role-restricted to admin/staff. 11 backend routes (`/api/v1/ai/*`), chat panel + dashboard tabs. Route file: `ai.routes.ts`, service: `ai.service.ts`.
+
+### Portal / Provider Application Flow
+`portal.service.ts` handles the full lifecycle: submit → review → approve/reject. On approval, it creates a Cognito user, then a Provider + User + optional UserPractice in a `$transaction`. If the DB transaction fails, it rolls back the Cognito user. Both `submitApplication()` and `approveApplication()` check email uniqueness against the User table to prevent unique constraint violations.
+
+### CAQH Integration
+Two services: `caqh.service.ts` (roster management, credential pull from CAQH ProView API) and `caqh-credentials.service.ts` (encrypted credential storage/verification). Pull sync flow: `pullCredentials()` → `mapCaqhToInternal()` → `applyCaqhDataToProvider()`. The mapping step is critical — raw CAQH field names differ from internal schema names.
 
 ### Production Safety Guard
 `DEV_AUTH_BYPASS=true` with `NODE_ENV=production` will crash the server on startup (fatal error in `auth.middleware.ts`). This is intentional — dev auth bypass must never run in production.

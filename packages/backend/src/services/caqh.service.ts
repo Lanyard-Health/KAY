@@ -12,7 +12,7 @@ interface CaqhStatusResponse {
   nextAttestationDate?: string;
 }
 
-interface CaqhCredentialsResponse {
+export interface CaqhCredentialsResponse {
   provider: {
     firstName: string;
     lastName: string;
@@ -157,14 +157,14 @@ export class CaqhService {
         degree: this.mapDegreeType(edu.degree),
         graduationDate: new Date(edu.graduationDate),
       })),
-      malpracticeInsurance: caqhData.malpractice
-        ? {
+      malpractice: caqhData.malpractice
+        ? [{
             carrierName: caqhData.malpractice.carrier,
             policyNumber: caqhData.malpractice.policyNumber,
             expirationDate: new Date(caqhData.malpractice.expirationDate),
             perClaimAmount: caqhData.malpractice.coverageAmount,
-          }
-        : undefined,
+          }]
+        : [],
     };
   }
 
@@ -225,8 +225,8 @@ export class CaqhService {
         ? `${mapped.licenses[0].state} - ${mapped.licenses[0].licenseNumber}`
         : '',
       'Board Certification': mapped.certifications[0]?.boardName || 'N/A',
-      'Malpractice Insurance': mapped.malpracticeInsurance
-        ? `${mapped.malpracticeInsurance.carrierName} - ${mapped.malpracticeInsurance.policyNumber}`
+      'Malpractice Insurance': mapped.malpractice[0]
+        ? `${mapped.malpractice[0].carrierName} - ${mapped.malpractice[0].policyNumber}`
         : '',
       // Add more fields based on payer requirements
     };
