@@ -40,9 +40,9 @@ test.describe('Authentication', () => {
     await page.getByRole('button', { name: 'Login as Dev Admin' }).click();
     await page.waitForURL('/', { timeout: 15000 });
 
-    await expect(page.getByText('Lanyard Health')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Providers' })).toBeVisible();
+    await expect(page.getByText('Lanyard Health', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Providers', exact: true })).toBeVisible();
   });
 
   test('sign out redirects to login', async ({ page }) => {
@@ -50,18 +50,9 @@ test.describe('Authentication', () => {
     await page.getByRole('button', { name: 'Login as Dev Admin' }).click();
     await page.waitForURL('/', { timeout: 15000 });
 
-    // Find and click sign out
-    const signOutButton = page.getByRole('button', { name: /sign out|logout|log out/i });
-    if (await signOutButton.isVisible()) {
-      await signOutButton.click();
-    } else {
-      // May be in a user menu dropdown
-      const userMenu = page.locator('[class*="user"], [class*="avatar"], [class*="profile"]').first();
-      if (await userMenu.isVisible()) {
-        await userMenu.click();
-        await page.getByText(/sign out|logout|log out/i).click();
-      }
-    }
+    // Open user dropdown menu, then click Sign out
+    await page.getByRole('button', { name: 'Open user menu' }).click();
+    await page.getByText('Sign out').click();
 
     await page.waitForURL('/login', { timeout: 10000 });
     await expect(page.getByText('Sign in to your account')).toBeVisible();

@@ -21,7 +21,7 @@ const createUserSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().max(20).optional(),
-  role: z.enum(['admin', 'credentialing_staff', 'provider']).default('credentialing_staff'),
+  role: z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin']).default('credentialing_staff'),
   providerId: z.string().uuid().optional(),
 });
 
@@ -30,13 +30,13 @@ const updateUserSchema = z.object({
   lastName: z.string().min(1).optional(),
   email: z.string().email().optional(),
   phone: z.string().max(20).optional().nullable(),
-  role: z.enum(['admin', 'credentialing_staff', 'provider']).optional(),
+  role: z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin']).optional(),
 });
 
 // GET /api/v1/users - List all users
 userRoutes.get(
   '/',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
@@ -138,7 +138,7 @@ userRoutes.get(
 // GET /api/v1/users/:id - Get user by ID
 userRoutes.get(
   '/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await prisma.user.findUnique({
@@ -189,7 +189,7 @@ userRoutes.get(
 // POST /api/v1/users - Create user
 userRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createUserSchema.parse(req.body);
@@ -246,7 +246,7 @@ userRoutes.post(
 // PUT /api/v1/users/:id - Update user
 userRoutes.put(
   '/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = updateUserSchema.parse(req.body);
@@ -298,7 +298,7 @@ userRoutes.put(
 // PUT /api/v1/users/:id/deactivate - Deactivate user
 userRoutes.put(
   '/:id/deactivate',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Prevent self-deactivation
@@ -345,7 +345,7 @@ userRoutes.put(
 // PUT /api/v1/users/:id/activate - Activate user
 userRoutes.put(
   '/:id/activate',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Practice-scope check

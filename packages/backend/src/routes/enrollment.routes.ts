@@ -120,7 +120,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.payerEnrollment.findMany({
@@ -377,7 +377,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

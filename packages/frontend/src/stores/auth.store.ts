@@ -39,7 +39,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'credentialing_staff' | 'provider';
+  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
   providerId?: string;
 }
 
@@ -56,6 +56,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   devLogin: () => Promise<void>;
   devProviderLogin: () => Promise<void>;
+  devPracticeAdminLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 
@@ -116,6 +117,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (devSession === 'provider') {
             try {
               await get().devProviderLogin();
+              return;
+            } catch {
+              // Recovery failed — fall through to unauthenticated state
+            }
+          } else if (devSession === 'practice_admin') {
+            try {
+              await get().devPracticeAdminLogin();
               return;
             } catch {
               // Recovery failed — fall through to unauthenticated state
@@ -258,6 +266,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev provider login failed',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  // Development practice admin login bypass
+  devPracticeAdminLogin: async () => {
+    if (!DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      localStorage.setItem('dev_session', 'practice_admin');
+
+      const response = await fetchWithDevRetry(
+        `${API_BASE_URL}/users/me`,
+        {
+          Authorization: 'Bearer dev-token',
+          'X-Dev-Role': 'practice_admin',
+        },
+      );
+
+      if (response?.ok) {
+        const { data } = await response.json();
+        set({
+          user: data,
+          isAuthenticated: true,
+          token: 'dev-token',
+          isLoading: false,
+        });
+      } else {
+        throw new Error('Failed to fetch dev practice admin user');
+      }
+    } catch (error) {
+      localStorage.removeItem('dev_session');
+      set({
+        error: error instanceof Error ? error.message : 'Dev practice admin login failed',
         isLoading: false,
       });
       throw error;

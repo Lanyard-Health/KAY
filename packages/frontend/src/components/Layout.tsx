@@ -21,7 +21,7 @@ import clsx from 'clsx';
 import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
 
-const navigation = [
+const allNavigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Providers', href: '/providers', icon: UsersIcon },
   { name: 'Practices', href: '/practices', icon: BuildingOffice2Icon },
@@ -36,11 +36,21 @@ const navigation = [
   { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
 ];
 
+// Items hidden from practice_admin role
+const practiceAdminHidden = new Set([
+  'Practices', 'Users', 'AI Agent', 'Payer Intelligence',
+  'Pending Providers', 'Onboarding', 'Roster',
+]);
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+
+  const navigation = user?.role === 'practice_admin'
+    ? allNavigation.filter((item) => !practiceAdminHidden.has(item.name))
+    : allNavigation;
 
   const handleLogout = async () => {
     await logout();

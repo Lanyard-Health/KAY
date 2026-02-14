@@ -4,7 +4,7 @@ test.describe('Documents', () => {
   test('documents page loads', async ({ page }) => {
     await page.goto('/documents');
 
-    await expect(page.getByText('Documents')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
     await expect(
       page.getByText('Manage provider documents, licenses, and certificates')
     ).toBeVisible();
@@ -13,15 +13,15 @@ test.describe('Documents', () => {
   test('provider selector is present', async ({ page }) => {
     await page.goto('/documents');
 
-    const selector = page.getByText(/select provider|choose a provider/i);
-    await expect(selector).toBeVisible();
+    await expect(page.getByText('Select Provider')).toBeVisible();
+    await expect(page.locator('select').first()).toBeVisible();
   });
 
   test('selecting a provider shows document section', async ({ page }) => {
     await page.goto('/documents');
 
     // Open provider dropdown and select first option
-    const dropdown = page.locator('select, [role="combobox"], [role="listbox"]').first();
+    const dropdown = page.locator('select').first();
     if (await dropdown.isVisible({ timeout: 5000 }).catch(() => false)) {
       // Select the first non-placeholder option
       const options = dropdown.locator('option');
