@@ -18,6 +18,7 @@ enum UserRole {
   admin
   credentialing_staff
   provider
+  practice_admin
 }
 
 enum PracticeStatus {

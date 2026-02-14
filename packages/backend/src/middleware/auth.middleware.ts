@@ -178,6 +178,81 @@ export async function authenticate(
         return;
       }
 
+      if (devRole === 'practice_admin') {
+        const DEV_PRACTICE_ADMIN_COGNITO_ID = 'dev-practice-admin-cognito-id';
+        const DEV_PRACTICE_ADMIN_EMAIL = 'practiceadmin@dev.local';
+
+        let user = await prisma.user.findUnique({
+          where: { cognitoId: DEV_PRACTICE_ADMIN_COGNITO_ID },
+        });
+
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: { email: DEV_PRACTICE_ADMIN_EMAIL },
+          });
+
+          if (user) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { cognitoId: DEV_PRACTICE_ADMIN_COGNITO_ID, role: 'practice_admin' },
+            });
+          }
+        }
+
+        if (!user) {
+          // Create a practice for the dev practice admin
+          let practice = await prisma.practice.findFirst({
+            where: { email: DEV_PRACTICE_ADMIN_EMAIL },
+          });
+
+          if (!practice) {
+            practice = await prisma.practice.create({
+              data: {
+                name: 'Dev Practice',
+                email: DEV_PRACTICE_ADMIN_EMAIL,
+                phone: '555-000-0001',
+                status: 'ACTIVE',
+              },
+            });
+          }
+
+          user = await prisma.user.create({
+            data: {
+              cognitoId: DEV_PRACTICE_ADMIN_COGNITO_ID,
+              email: DEV_PRACTICE_ADMIN_EMAIL,
+              firstName: 'Dev',
+              lastName: 'PracticeAdmin',
+              role: 'practice_admin',
+              isActive: true,
+            },
+          });
+
+          await prisma.userPractice.upsert({
+            where: { userId_practiceId: { userId: user.id, practiceId: practice.id } },
+            update: {},
+            create: {
+              userId: user.id,
+              practiceId: practice.id,
+              role: 'SUPER_ADMIN',
+            },
+          });
+
+          logger.info('Created development practice admin user with linked practice');
+        }
+
+        req.user = {
+          id: user.id,
+          cognitoId: user.cognitoId,
+          email: user.email,
+          role: user.role,
+          providerId: user.providerId ?? undefined,
+        };
+
+        await initPracticeScope(req);
+        next();
+        return;
+      }
+
       // Default: dev admin login
       let user = await prisma.user.findUnique({
         where: { cognitoId: DEV_USER.cognitoId },
@@ -338,8 +413,8 @@ export function requireProviderAccess(
   const { role, providerId: userProviderId } = req.user;
   const requestedProviderId = req.params['providerId'] || req.body?.providerId;
 
-  // Admins and credentialing staff can access any provider
-  if (role === 'admin' || role === 'credentialing_staff') {
+  // Admins, credentialing staff, and practice admins can access providers (scoped by practice middleware)
+  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') {
     next();
     return;
   }

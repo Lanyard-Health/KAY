@@ -46,6 +46,7 @@ import adminOnboardingRoutes from './routes/admin-onboarding.routes.js';
 import portalRoutes from './routes/portal.routes.js';
 import taskRoutes from './routes/task.routes.js';
 import terminationLetterRoutes from './routes/terminationLetter.routes.js';
+import practiceSignupRoutes from './routes/practiceSignup.routes.js';
 import practiceRoutes from './routes/practice.routes.js';
 import emailRoutes from './routes/email.routes.js';
 import providerDirectoryRoutes from './routes/providerDirectory.routes.js';
@@ -146,6 +147,7 @@ app.use('/api/v1/portal/admin/onboarding', adminOnboardingRoutes);
 app.use('/api/v1/portal', portalRoutes);
 app.use('/api/v1', taskRoutes);
 app.use('/api/v1', terminationLetterRoutes);
+app.use('/api/v1/practices', practiceSignupRoutes);
 app.use('/api/v1/practices', practiceRoutes);
 app.use('/api/v1/email', emailRoutes);
 app.use('/api/v1/provider-directory', providerDirectoryRoutes);
@@ -249,6 +251,41 @@ app.listen(PORT, async () => {
           },
         });
         logger.info(`Created dev provider user on startup (id: ${newProvider.id})`);
+      }
+
+      // Ensure dev practice admin user exists
+      const practiceAdminUser = await prisma.user.findUnique({
+        where: { cognitoId: 'dev-practice-admin-cognito-id' },
+      });
+      if (practiceAdminUser) {
+        logger.info(`Dev practice admin user ready (id: ${practiceAdminUser.id})`);
+      } else {
+        const devPractice = await prisma.practice.create({
+          data: {
+            name: 'Dev Practice',
+            email: 'practiceadmin@dev.local',
+            phone: '555-000-0001',
+            status: 'ACTIVE',
+          },
+        });
+        const newPracticeAdmin = await prisma.user.create({
+          data: {
+            cognitoId: 'dev-practice-admin-cognito-id',
+            email: 'practiceadmin@dev.local',
+            firstName: 'Dev',
+            lastName: 'PracticeAdmin',
+            role: 'practice_admin',
+            isActive: true,
+          },
+        });
+        await prisma.userPractice.create({
+          data: {
+            userId: newPracticeAdmin.id,
+            practiceId: devPractice.id,
+            role: 'SUPER_ADMIN',
+          },
+        });
+        logger.info(`Created dev practice admin user on startup (id: ${newPracticeAdmin.id})`);
       }
 
       logger.info('DEV_AUTH_BYPASS=true — dev users validated and ready');

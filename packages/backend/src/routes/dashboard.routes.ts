@@ -8,7 +8,7 @@ import { getCached, setCache } from '../utils/cache.js';
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('admin', 'credentialing_staff'));
+router.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
 
 const CACHE_KEY = 'dashboard:stats';
 const CACHE_TTL = 60_000; // 60 seconds

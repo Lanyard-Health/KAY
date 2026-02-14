@@ -24,6 +24,7 @@ export default function LoginPage() {
     login,
     devLogin,
     devProviderLogin,
+    devPracticeAdminLogin,
     isDevMode,
     challengeName,
     handleNewPasswordChallenge,
@@ -90,6 +91,19 @@ export default function LoginPage() {
       navigate('/portal');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Dev provider login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDevPracticeAdminLogin = async () => {
+    setIsLoading(true);
+    try {
+      await devPracticeAdminLogin();
+      toast.success('Logged in as Dev Practice Admin');
+      navigate('/');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Dev practice admin login failed');
     } finally {
       setIsLoading(false);
     }
@@ -543,6 +557,13 @@ export default function LoginPage() {
               >
                 {isLoading ? 'Logging in...' : 'Login as Dev Provider'}
               </button>
+              <button
+                onClick={handleDevPracticeAdminLogin}
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-emerald-400 text-sm font-medium rounded-xl text-emerald-800 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Logging in...' : 'Login as Dev Practice Admin'}
+              </button>
             </div>
           </div>
         )}
@@ -561,12 +582,20 @@ export default function LoginPage() {
         {renderAuthForm()}
 
         {authStep === 'login' && (
-          <p className="text-center text-sm text-white/70">
-            New provider?{' '}
-            <Link to="/register" className="text-white hover:text-white/90 font-medium">
-              Register here
-            </Link>
-          </p>
+          <div className="space-y-2">
+            <p className="text-center text-sm text-white/70">
+              New provider?{' '}
+              <Link to="/register" className="text-white hover:text-white/90 font-medium">
+                Register here
+              </Link>
+            </p>
+            <p className="text-center text-sm text-white/70">
+              Manage a practice?{' '}
+              <Link to="/practice-signup" className="text-white hover:text-white/90 font-medium">
+                Sign up your practice
+              </Link>
+            </p>
+          </div>
         )}
       </div>
     </div>
