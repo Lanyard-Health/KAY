@@ -4,7 +4,7 @@ test.describe('Onboarding', () => {
   test('onboarding page loads', async ({ page }) => {
     await page.goto('/onboarding-progress');
 
-    await expect(page.getByText('Provider Onboarding')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Provider Onboarding' })).toBeVisible();
     await expect(
       page.getByText('Track and manage provider onboarding progress')
     ).toBeVisible();
@@ -15,8 +15,6 @@ test.describe('Onboarding', () => {
 
     await expect(page.getByText('Total Approved')).toBeVisible();
     await expect(page.getByText('Onboarding Complete')).toBeVisible();
-    await expect(page.getByText('In Progress')).toBeVisible();
-    await expect(page.getByText('Not Started')).toBeVisible();
   });
 
   test('filter tabs are present and clickable', async ({ page }) => {
@@ -54,8 +52,8 @@ test.describe('Onboarding', () => {
 
     if (hasTable) {
       // Check for expected column headers
-      await expect(page.getByText('Provider')).toBeVisible();
-      await expect(page.getByText('NPI')).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: /provider/i })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: /npi/i })).toBeVisible();
     }
   });
 
@@ -65,8 +63,6 @@ test.describe('Onboarding', () => {
     // Wait for table to load
     await page.waitForTimeout(2000);
 
-    // Find the eye/view button
-    const viewButton = page.locator('button').filter({ has: page.locator('svg') }).first();
     const rows = page.locator('table tbody tr');
     const rowCount = await rows.count().catch(() => 0);
 

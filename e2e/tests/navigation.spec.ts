@@ -19,8 +19,11 @@ test.describe('Sidebar Navigation', () => {
   test('all nav items are visible', async ({ page }) => {
     await page.goto('/');
 
+    // Scope to the desktop sidebar to avoid matching mobile sidebar or page content
+    const sidebar = page.locator('nav').first();
+
     for (const item of navItems) {
-      await expect(page.getByRole('link', { name: item.name })).toBeVisible();
+      await expect(sidebar.getByRole('link', { name: item.name, exact: true })).toBeVisible();
     }
   });
 
@@ -28,7 +31,9 @@ test.describe('Sidebar Navigation', () => {
     test(`navigates to ${item.name}`, async ({ page }) => {
       await page.goto('/');
 
-      await page.getByRole('link', { name: item.name }).click();
+      // Scope to sidebar to avoid matching any page content links
+      const sidebar = page.locator('nav').first();
+      await sidebar.getByRole('link', { name: item.name, exact: true }).click();
       await expect(page).toHaveURL(item.path);
     });
   }
