@@ -257,6 +257,57 @@ credentialRoutes.post(
   }
 );
 
+// PUT /api/v1/credentials/malpractice/:id
+credentialRoutes.put(
+  '/malpractice/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createMalpracticeInsuranceSchema.partial().parse(req.body);
+
+      const existing = await prisma.malpracticeInsurance.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Malpractice insurance');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice insurance');
+
+      const insurance = await prisma.malpracticeInsurance.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...data,
+          ...(data.effectiveDate && { effectiveDate: new Date(data.effectiveDate) }),
+          ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
+          ...(data.retroactiveDate && { retroactiveDate: new Date(data.retroactiveDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: insurance });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/credentials/malpractice/:id
+credentialRoutes.delete(
+  '/malpractice/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const existing = await prisma.malpracticeInsurance.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Malpractice insurance');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice insurance');
+
+      await prisma.malpracticeInsurance.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Malpractice insurance deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ==========================================
 // EDUCATION
 // ==========================================
@@ -305,6 +356,57 @@ credentialRoutes.post(
   }
 );
 
+// PUT /api/v1/credentials/education/:id
+credentialRoutes.put(
+  '/education/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createEducationSchema.partial().parse(req.body);
+
+      const existing = await prisma.education.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Education');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Education');
+
+      const education = await prisma.education.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...data,
+          ...(data.startDate && { startDate: new Date(data.startDate) }),
+          ...(data.endDate && { endDate: new Date(data.endDate) }),
+          ...(data.graduationDate && { graduationDate: new Date(data.graduationDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: education });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/credentials/education/:id
+credentialRoutes.delete(
+  '/education/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const existing = await prisma.education.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Education');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Education');
+
+      await prisma.education.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Education deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ==========================================
 // WORK HISTORY
 // ==========================================
@@ -346,6 +448,56 @@ credentialRoutes.post(
       });
 
       res.status(201).json({ success: true, data: workHistory });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/v1/credentials/work-history/:id
+credentialRoutes.put(
+  '/work-history/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createWorkHistorySchema.partial().parse(req.body);
+
+      const existing = await prisma.workHistory.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Work history');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Work history');
+
+      const workHistory = await prisma.workHistory.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...data,
+          ...(data.startDate && { startDate: new Date(data.startDate) }),
+          ...(data.endDate && { endDate: new Date(data.endDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: workHistory });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/credentials/work-history/:id
+credentialRoutes.delete(
+  '/work-history/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const existing = await prisma.workHistory.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Work history');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Work history');
+
+      await prisma.workHistory.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Work history deleted' });
     } catch (error) {
       next(error);
     }

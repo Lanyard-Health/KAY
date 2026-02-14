@@ -65,8 +65,17 @@ export const createMalpracticeInsuranceSchema = z.object({
   effectiveDate: dateStringSchema,
   expirationDate: dateStringSchema,
   hasTailCoverage: z.boolean().default(false),
+  retroactiveDate: dateStringSchema.optional(),
+  hasGapInCoverage: z.boolean().default(false),
+  gapExplanation: z.string().max(2000).optional(),
   notes: z.string().max(1000).optional(),
 });
+
+// Education type enum
+export const educationTypeSchema = z.enum([
+  'UNDERGRADUATE', 'MEDICAL_SCHOOL', 'GRADUATE_SCHOOL', 'INTERNSHIP',
+  'RESIDENCY', 'FELLOWSHIP', 'POST_DOCTORAL', 'CONTINUING_EDUCATION', 'OTHER',
+]);
 
 // Education validation
 export const createEducationSchema = z.object({
@@ -80,6 +89,9 @@ export const createEducationSchema = z.object({
   endDate: dateStringSchema.optional(),
   graduationDate: dateStringSchema.optional(),
   isCompleted: z.boolean().default(true),
+  educationType: educationTypeSchema.optional(),
+  programDirector: z.string().max(200).optional(),
+  programDirectorPhone: z.string().max(20).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -153,6 +165,124 @@ export const createContinuingEducationSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+// ==========================================
+// PAYER ENROLLMENT SCHEMAS
+// ==========================================
+
+export const supervisionTypeSchema = z.enum(['DIRECT', 'GENERAL', 'COLLABORATIVE', 'ADMINISTRATIVE']);
+export const claimStatusSchema = z.enum(['OPEN', 'SETTLED', 'DISMISSED', 'JUDGMENT_FOR_PROVIDER', 'JUDGMENT_AGAINST_PROVIDER', 'WITHDRAWN']);
+export const disclosureCategorySchema = z.enum([
+  'LICENSE_ACTION', 'HOSPITAL_PRIVILEGES', 'FELONY_CONVICTION', 'MISDEMEANOR_CONVICTION',
+  'SUBSTANCE_ABUSE', 'MALPRACTICE', 'MEDICARE_MEDICAID', 'BOARD_ACTION',
+  'INSURANCE_DENIAL', 'ABILITY_TO_PERFORM', 'OTHER',
+]);
+export const identifierTypeSchema = z.enum([
+  'MEDICARE_PTAN', 'MEDICARE_PECOS_ID', 'MEDICAID_ID', 'TRICARE_ID',
+  'RAILROAD_MEDICARE_ID', 'STATE_LICENSE_ID', 'PAYER_SPECIFIC_ID', 'UPIN', 'OTHER',
+]);
+export const bankAccountTypeSchema = z.enum(['CHECKING', 'SAVINGS']);
+export const citizenshipStatusSchema = z.enum(['US_CITIZEN', 'PERMANENT_RESIDENT', 'WORK_VISA', 'OTHER']);
+
+// Supervising physician validation
+export const createSupervisingPhysicianSchema = z.object({
+  supervisorFirstName: z.string().min(1).max(100),
+  supervisorLastName: z.string().min(1).max(100),
+  supervisorMiddleName: z.string().max(100).optional(),
+  supervisorNpi: z.string().length(10).optional(),
+  supervisorLicenseNumber: z.string().max(50).optional(),
+  supervisorLicenseState: z.string().length(2).optional(),
+  supervisorSpecialty: z.string().max(200).optional(),
+  supervisorPhone: z.string().max(20).optional(),
+  supervisorEmail: z.string().email().optional(),
+  supervisionType: supervisionTypeSchema,
+  agreementStartDate: dateStringSchema,
+  agreementEndDate: dateStringSchema.optional(),
+  stateRequirement: z.string().max(500).optional(),
+  isPrimary: z.boolean().default(false),
+  notes: z.string().max(1000).optional(),
+});
+
+// Malpractice claim validation
+export const createMalpracticeClaimSchema = z.object({
+  dateOfIncident: dateStringSchema,
+  dateOfClaim: dateStringSchema,
+  claimStatus: claimStatusSchema,
+  description: z.string().min(1).max(5000),
+  settlementAmount: z.number().nonnegative().optional(),
+  judgmentAmount: z.number().nonnegative().optional(),
+  dateResolved: dateStringSchema.optional(),
+  insuranceCarrier: z.string().max(200).optional(),
+  policyNumber: z.string().max(100).optional(),
+  courtName: z.string().max(200).optional(),
+  caseNumber: z.string().max(100).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+// Disclosure validation
+export const createDisclosureSchema = z.object({
+  category: disclosureCategorySchema,
+  questionText: z.string().min(1).max(5000),
+  answer: z.boolean().default(false),
+  explanation: z.string().max(5000).optional(),
+  dateOfOccurrence: dateStringSchema.optional(),
+  state: z.string().length(2).optional(),
+  resolutionDetails: z.string().max(5000).optional(),
+});
+
+// DEA registration validation
+export const createDeaRegistrationSchema = z.object({
+  deaNumber: z.string().min(1).max(20),
+  deaState: z.string().length(2).optional(),
+  deaSchedules: z.array(z.string().max(5)).default([]),
+  issueDate: dateStringSchema,
+  expirationDate: dateStringSchema,
+  status: credentialStatusSchema.default('active'),
+  notes: z.string().max(1000).optional(),
+});
+
+// Provider identifier validation
+export const createProviderIdentifierSchema = z.object({
+  identifierType: identifierTypeSchema,
+  identifierValue: z.string().min(1).max(100),
+  issuingEntity: z.string().max(200).optional(),
+  state: z.string().length(2).optional(),
+  effectiveDate: dateStringSchema.optional(),
+  expirationDate: dateStringSchema.optional(),
+  status: credentialStatusSchema.default('active'),
+  notes: z.string().max(1000).optional(),
+});
+
+// Banking validation
+export const createBankingSchema = z.object({
+  bankName: z.string().min(1).max(200),
+  bankAccountType: bankAccountTypeSchema,
+  routingNumber: z.string().length(9, 'Routing number must be 9 digits'),
+  accountNumber: z.string().min(4).max(17),
+  accountHolderName: z.string().min(1).max(200),
+  accountHolderTaxId: z.string().max(20).optional(),
+  eftAuthorizationDate: dateStringSchema.optional(),
+  w9OnFile: z.boolean().default(false),
+  voidedCheckOnFile: z.boolean().default(false),
+  isPrimary: z.boolean().default(false),
+  notes: z.string().max(1000).optional(),
+});
+
+// Demographics validation (upsert — all fields optional)
+export const upsertDemographicsSchema = z.object({
+  birthCity: z.string().max(100).optional(),
+  birthState: z.string().length(2).optional(),
+  birthCountry: z.string().max(100).optional(),
+  citizenshipStatus: citizenshipStatusSchema.optional(),
+  visaType: z.string().max(100).optional(),
+  visaExpirationDate: dateStringSchema.optional(),
+  previousNames: z.array(z.string().max(200)).default([]),
+  ethnicity: z.string().max(100).optional(),
+  race: z.string().max(100).optional(),
+  emergencyContactName: z.string().max(200).optional(),
+  emergencyContactPhone: z.string().max(20).optional(),
+  emergencyContactRelation: z.string().max(100).optional(),
+});
+
 // Export types
 export type CreateLicenseInput = z.infer<typeof createLicenseSchema>;
 export type CreateBoardCertificationInput = z.infer<typeof createBoardCertificationSchema>;
@@ -163,3 +293,10 @@ export type CreateHospitalAffiliationInput = z.infer<typeof createHospitalAffili
 export type CreateProfessionalReferenceInput = z.infer<typeof createProfessionalReferenceSchema>;
 export type CreateDisciplinaryActionInput = z.infer<typeof createDisciplinaryActionSchema>;
 export type CreateContinuingEducationInput = z.infer<typeof createContinuingEducationSchema>;
+export type CreateSupervisingPhysicianInput = z.infer<typeof createSupervisingPhysicianSchema>;
+export type CreateMalpracticeClaimInput = z.infer<typeof createMalpracticeClaimSchema>;
+export type CreateDisclosureInput = z.infer<typeof createDisclosureSchema>;
+export type CreateDeaRegistrationInput = z.infer<typeof createDeaRegistrationSchema>;
+export type CreateProviderIdentifierInput = z.infer<typeof createProviderIdentifierSchema>;
+export type CreateBankingInput = z.infer<typeof createBankingSchema>;
+export type UpsertDemographicsInput = z.infer<typeof upsertDemographicsSchema>;
