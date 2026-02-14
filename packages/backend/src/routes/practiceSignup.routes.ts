@@ -7,10 +7,10 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-// Rate limit: 5 requests per 15 minutes per IP
+// Rate limit: 5 requests per 15 minutes per IP (disabled in dev for E2E testing)
 const signupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'development' ? 100 : 5,
   message: { error: 'Too many signup attempts, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,

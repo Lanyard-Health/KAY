@@ -15,14 +15,32 @@ export default defineConfig({
   projects: [
     {
       name: 'auth-setup',
+      testDir: '.',
       testMatch: /auth\.setup\.ts/,
     },
     {
       name: 'admin-tests',
+      testIgnore: /practice-(signup|admin)\.spec\.ts/,
       dependencies: ['auth-setup'],
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'e2e/.auth/admin.json',
+      },
+    },
+    {
+      name: 'practice-signup-tests',
+      testMatch: /practice-signup\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
+    {
+      name: 'practice-admin-tests',
+      testMatch: /practice-admin\.spec\.ts/,
+      dependencies: ['auth-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'e2e/.auth/practice-admin.json',
       },
     },
   ],
