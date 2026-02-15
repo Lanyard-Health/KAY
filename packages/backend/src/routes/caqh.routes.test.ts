@@ -337,10 +337,11 @@ describe('CAQH Routes', () => {
     const syncResult = {
       syncId: 'sync-log-1',
       changes: {
-        licenses: { created: 1, updated: 0, skipped: 0 },
-        certifications: { created: 1, updated: 0, skipped: 0 },
-        education: { created: 1, updated: 0, skipped: 0 },
-        malpractice: { created: 1, updated: 0, skipped: 0 },
+        licenses: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        certifications: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        education: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        malpractice: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        failedRecords: [],
       },
     };
 
@@ -403,30 +404,78 @@ describe('CAQH Routes', () => {
   // SYNC HISTORY
   // ==========================================
   describe('GET /sync-history/:providerId', () => {
-    it('returns sync history', async () => {
+    it('returns paginated sync history', async () => {
       prismaMock.caqhSyncLog.findMany.mockResolvedValue([mockSyncLog] as any);
+      prismaMock.caqhSyncLog.count.mockResolvedValue(1);
 
       const res = await request(app).get('/sync-history/provider-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
+      expect(res.body.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      });
       expect(prismaMock.caqhSyncLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { providerId: 'provider-1-id' },
           orderBy: { startedAt: 'desc' },
           take: 20,
+          skip: 0,
         })
       );
+      expect(prismaMock.caqhSyncLog.count).toHaveBeenCalledWith({
+        where: { providerId: 'provider-1-id' },
+      });
     });
 
     it('returns empty array when no sync history', async () => {
       prismaMock.caqhSyncLog.findMany.mockResolvedValue([]);
+      prismaMock.caqhSyncLog.count.mockResolvedValue(0);
 
       const res = await request(app).get('/sync-history/provider-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0);
+      expect(res.body.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+      });
+    });
+  });
+
+  // ==========================================
+  // CONFIG
+  // ==========================================
+  describe('GET /config', () => {
+    it('returns CAQH configuration status', async () => {
+      caqhServiceInstance.isConfigured.mockReturnValue(false);
+      prismaMock.caqhSyncLog.findFirst.mockResolvedValue(null);
+
+      const res = await request(app).get('/config');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.configured).toBe(false);
+      expect(res.body.data.syncSchedule).toBe('0 2 * * *');
+      expect(res.body.data.lastSyncAt).toBeNull();
+    });
+
+    it('returns last sync time when available', async () => {
+      const completedAt = new Date('2024-06-01T02:00:00Z');
+      caqhServiceInstance.isConfigured.mockReturnValue(true);
+      prismaMock.caqhSyncLog.findFirst.mockResolvedValue({ completedAt } as any);
+
+      const res = await request(app).get('/config');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.configured).toBe(true);
+      expect(res.body.data.lastSyncAt).toBe(completedAt.toISOString());
     });
   });
 });

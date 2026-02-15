@@ -2,10 +2,10 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
-import { NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
+import rateLimit from 'express-rate-limit';
 
 export const caqhRoutes = Router();
 
@@ -15,6 +15,18 @@ caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();
 
+const credentialVerifyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many credential verification requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function caqhError(res: Response, code: string, message: string, status = 404) {
+  return res.status(status).json({ success: false, code, error: message });
+}
+
 // ============================================
 // CAQH CREDENTIALS VERIFICATION ROUTES
 // ============================================
@@ -23,14 +35,21 @@ const caqhService = new CaqhService();
 // NOTE: This route MUST come before /:providerId routes to prevent "test" being matched as a provider ID
 caqhRoutes.post(
   '/credentials/test',
+  credentialVerifyLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { username, password } = req.body;
 
-      if (!username || !password) {
+      if (!username || typeof username !== 'string' || username.trim().length === 0 || username.length > 256) {
         return res.status(400).json({
           success: false,
-          error: 'Username and password are required',
+          error: 'Valid username is required (1-256 characters)',
+        });
+      }
+      if (!password || typeof password !== 'string' || password.trim().length === 0 || password.length > 256) {
+        return res.status(400).json({
+          success: false,
+          error: 'Valid password is required (1-256 characters)',
         });
       }
 
@@ -49,15 +68,22 @@ caqhRoutes.post(
 // POST /api/v1/caqh/credentials/:providerId - Save CAQH credentials
 caqhRoutes.post(
   '/credentials/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
       const { username, password } = req.body;
 
-      if (!username || !password) {
+      if (!username || typeof username !== 'string' || username.trim().length === 0 || username.length > 256) {
         return res.status(400).json({
           success: false,
-          error: 'Username and password are required',
+          error: 'Valid username is required (1-256 characters)',
+        });
+      }
+      if (!password || typeof password !== 'string' || password.trim().length === 0 || password.length > 256) {
+        return res.status(400).json({
+          success: false,
+          error: 'Valid password is required (1-256 characters)',
         });
       }
 
@@ -66,7 +92,7 @@ caqhRoutes.post(
       });
 
       if (!provider) {
-        throw new NotFoundError('Provider');
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
       }
 
       await caqhCredentialsService.saveCredentials(providerId!, username, password);
@@ -84,6 +110,7 @@ caqhRoutes.post(
 // GET /api/v1/caqh/credentials/:providerId - Get credential status (not the actual password)
 caqhRoutes.get(
   '/credentials/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -93,7 +120,7 @@ caqhRoutes.get(
       });
 
       if (!provider) {
-        throw new NotFoundError('Provider');
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
       }
 
       const status = await caqhCredentialsService.getCredentialStatus(providerId!);
@@ -111,6 +138,8 @@ caqhRoutes.get(
 // POST /api/v1/caqh/credentials/:providerId/verify - Verify CAQH credentials
 caqhRoutes.post(
   '/credentials/:providerId/verify',
+  requireProviderAccess,
+  credentialVerifyLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -120,7 +149,7 @@ caqhRoutes.post(
       });
 
       if (!provider) {
-        throw new NotFoundError('Provider');
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
       }
 
       const result = await caqhCredentialsService.verifyAndUpdateProvider(providerId!);
@@ -151,7 +180,7 @@ caqhRoutes.post(
       });
 
       if (!provider) {
-        throw new NotFoundError('Provider');
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
       }
 
       const result = await caqhService.addToRoster(provider);
@@ -175,6 +204,7 @@ caqhRoutes.post(
 // DELETE /api/v1/caqh/roster/:providerId - Remove provider from roster
 caqhRoutes.delete(
   '/roster/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const provider = await prisma.provider.findUnique({
@@ -182,7 +212,10 @@ caqhRoutes.delete(
       });
 
       if (!provider || !provider.caqhProviderId) {
-        throw new NotFoundError('Provider or CAQH registration');
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
       }
 
       await caqhService.removeFromRoster(provider.caqhProviderId);
@@ -204,6 +237,7 @@ caqhRoutes.delete(
 // GET /api/v1/caqh/status/:providerId - Check CAQH status
 caqhRoutes.get(
   '/status/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const provider = await prisma.provider.findUnique({
@@ -211,7 +245,10 @@ caqhRoutes.get(
       });
 
       if (!provider || !provider.caqhProviderId) {
-        throw new NotFoundError('Provider or CAQH registration');
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
       }
 
       const status = await caqhService.checkStatus(provider.caqhProviderId);
@@ -235,6 +272,7 @@ caqhRoutes.get(
 // POST /api/v1/caqh/pull/:providerId - Pull credentials from CAQH
 caqhRoutes.post(
   '/pull/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const provider = await prisma.provider.findUnique({
@@ -242,7 +280,10 @@ caqhRoutes.post(
       });
 
       if (!provider || !provider.caqhProviderId) {
-        throw new NotFoundError('Provider or CAQH registration');
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
       }
 
       const result = await caqhService.syncProvider(provider.id, provider.caqhProviderId);
@@ -268,18 +309,61 @@ caqhRoutes.post(
   }
 );
 
-// GET /api/v1/caqh/sync-history/:providerId - Get sync history
+// GET /api/v1/caqh/sync-history/:providerId - Get sync history (paginated)
 caqhRoutes.get(
   '/sync-history/:providerId',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const syncLogs = await prisma.caqhSyncLog.findMany({
-        where: { providerId: req.params['providerId'] },
-        orderBy: { startedAt: 'desc' },
-        take: 20,
+      const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query['limit'] as string) || 20));
+      const skip = (page - 1) * limit;
+
+      const [syncLogs, total] = await Promise.all([
+        prisma.caqhSyncLog.findMany({
+          where: { providerId: req.params['providerId'] },
+          orderBy: { startedAt: 'desc' },
+          take: limit,
+          skip,
+        }),
+        prisma.caqhSyncLog.count({
+          where: { providerId: req.params['providerId'] },
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        data: syncLogs,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/config - Get CAQH integration configuration status
+caqhRoutes.get(
+  '/config',
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const configured = caqhService.isConfigured();
+      const schedule = process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *';
+
+      const lastSync = await prisma.caqhSyncLog.findFirst({
+        where: { status: 'completed' },
+        orderBy: { completedAt: 'desc' },
+        select: { completedAt: true },
       });
 
-      res.json({ success: true, data: syncLogs });
+      res.json({
+        success: true,
+        data: {
+          configured,
+          syncSchedule: schedule,
+          lastSyncAt: lastSync?.completedAt || null,
+        },
+      });
     } catch (error) {
       next(error);
     }

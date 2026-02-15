@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -10,17 +10,11 @@ import {
   getCredentialStatusColor,
   CAQH_PROVIEW_URL,
 } from '../hooks/useCaqhCredentials';
+import { useCaqhSyncHistory, useCaqhConfig, useAddToRoster, useRemoveFromRoster } from '../hooks/useCaqhSync';
 import { api } from '../services/api';
 
 interface CaqhCardProps {
   providerId: string;
-}
-
-interface SyncSummary {
-  licenses: { created: number; updated: number; skipped: number };
-  certifications: { created: number; updated: number; skipped: number };
-  education: { created: number; updated: number; skipped: number };
-  malpractice: { created: number; updated: number; skipped: number };
 }
 
 export function CaqhCard({ providerId }: CaqhCardProps) {
@@ -28,25 +22,38 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncSummary | null>(null);
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [syncHistoryPage, setSyncHistoryPage] = useState(1);
 
   const queryClient = useQueryClient();
   const { data: credentialStatusData, isLoading: isLoadingCredentials } = useCaqhCredentialStatus(providerId);
   const saveCredentials = useSaveCaqhCredentials();
   const verifyCredentials = useVerifyCaqhCredentials();
 
+  const { data: syncHistoryData } = useCaqhSyncHistory(providerId, syncHistoryPage, 5);
+  const { data: caqhConfig } = useCaqhConfig();
+  const addToRoster = useAddToRoster();
+  const removeFromRoster = useRemoveFromRoster();
+
   const syncMutation = useMutation({
     mutationFn: async () => {
       const response = await api.post(`/caqh/pull/${providerId}`);
       return response.data.data;
     },
-    onSuccess: (data) => {
-      setSyncResult(data.changes as SyncSummary);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['caqh-sync-history', providerId] });
       queryClient.invalidateQueries({ queryKey: ['provider', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['caqh-credentials', providerId] });
       toast.success('CAQH sync completed');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'CAQH sync failed');
+      const code = error.response?.data?.code;
+      const msg = code === 'CAQH_NOT_REGISTERED'
+        ? 'This provider is not registered with CAQH. Add them to the roster first.'
+        : code === 'CAQH_NOT_CONFIGURED'
+        ? 'CAQH integration is not configured. Contact your administrator.'
+        : error.response?.data?.error || 'CAQH sync failed';
+      toast.error(msg);
     },
   });
 
@@ -190,6 +197,44 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
               </div>
             )}
 
+            {/* CAQH Roster Status */}
+            {credentialStatus?.caqhProviderId && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">CAQH ID</span>
+                <span className="text-sm text-gray-900">{credentialStatus.caqhProviderId}</span>
+              </div>
+            )}
+
+            {credentialStatus?.caqhStatus && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Roster Status</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                  credentialStatus.caqhStatus === 'active' ? 'bg-green-100 text-green-800' :
+                  credentialStatus.caqhStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {credentialStatus.caqhStatus.charAt(0).toUpperCase() + credentialStatus.caqhStatus.slice(1)}
+                </span>
+              </div>
+            )}
+
+            {/* Auto-Sync Schedule */}
+            {caqhConfig?.configured && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Auto-Sync</span>
+                <span className="text-xs text-gray-600">Daily at 2:00 AM</span>
+              </div>
+            )}
+
+            {credentialStatus?.caqhLastSync && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Last Sync</span>
+                <span className="text-sm text-gray-900">
+                  {formatDistanceToNow(new Date(credentialStatus.caqhLastSync), { addSuffix: true })}
+                </span>
+              </div>
+            )}
+
             {/* Verification Result Message */}
             {verifyCredentials.data?.data && (
               <div
@@ -202,26 +247,67 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                 {verifyCredentials.data.data.message}
                 {verifyCredentials.data.data.errorType === 'mfa_required' && (
                   <span className="block mt-1 text-yellow-600">
-                    MFA is enabled - credentials are valid
+                    MFA required — credentials not fully verified
                   </span>
                 )}
               </div>
             )}
 
-            {/* Sync Result */}
-            {syncResult && (
-              <div className="text-xs p-2 rounded bg-primary-50 text-primary-700 space-y-1">
-                <p className="font-medium">Sync Complete:</p>
-                {(['licenses', 'certifications', 'education', 'malpractice'] as const).map((key) => {
-                  const s = syncResult[key];
-                  if (s.created + s.updated + s.skipped === 0) return null;
-                  return (
-                    <p key={key} className="capitalize">
-                      {key}: {s.created} new, {s.updated} updated
-                      {s.skipped > 0 && <span className="text-yellow-700">, {s.skipped} skipped (manually edited)</span>}
-                    </p>
-                  );
-                })}
+            {/* Sync History Toggle */}
+            <button
+              onClick={() => setShowSyncHistory(!showSyncHistory)}
+              className="text-xs text-primary-600 hover:text-primary-800 underline"
+            >
+              {showSyncHistory ? 'Hide Sync History' : 'View Sync History'}
+            </button>
+
+            {showSyncHistory && syncHistoryData && (
+              <div className="space-y-2 mt-2">
+                {syncHistoryData.data.length === 0 ? (
+                  <p className="text-xs text-gray-500">No sync history yet.</p>
+                ) : (
+                  <>
+                    {syncHistoryData.data.map((entry) => (
+                      <div key={entry.id} className="text-xs p-2 rounded bg-gray-50 border border-gray-100">
+                        <div className="flex justify-between">
+                          <span className={entry.status === 'completed' ? 'text-green-700' : entry.status === 'failed' ? 'text-red-700' : 'text-yellow-700'}>
+                            {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                          </span>
+                          <span className="text-gray-500">
+                            {formatDistanceToNow(new Date(entry.startedAt), { addSuffix: true })}
+                          </span>
+                        </div>
+                        {entry.durationMs && (
+                          <span className="text-gray-400">{(entry.durationMs / 1000).toFixed(1)}s</span>
+                        )}
+                        {entry.errorMessage && (
+                          <p className="text-red-600 mt-1">{entry.errorMessage}</p>
+                        )}
+                      </div>
+                    ))}
+                    {syncHistoryData.pagination.totalPages > 1 && (
+                      <div className="flex justify-between items-center pt-1">
+                        <button
+                          onClick={() => setSyncHistoryPage(Math.max(1, syncHistoryPage - 1))}
+                          disabled={syncHistoryPage === 1}
+                          className="text-xs text-primary-600 hover:text-primary-800 disabled:text-gray-400"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-xs text-gray-500">
+                          Page {syncHistoryData.pagination.page} of {syncHistoryData.pagination.totalPages}
+                        </span>
+                        <button
+                          onClick={() => setSyncHistoryPage(syncHistoryPage + 1)}
+                          disabled={syncHistoryPage >= syncHistoryData.pagination.totalPages}
+                          className="text-xs text-primary-600 hover:text-primary-800 disabled:text-gray-400"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -272,6 +358,41 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                 </button>
               )}
             </div>
+
+            {/* Roster Management */}
+            {credentialStatus?.hasCredentials && !credentialStatus?.caqhProviderId && (
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => addToRoster.mutate(providerId, {
+                    onSuccess: () => toast.success('Added to CAQH roster'),
+                    onError: () => toast.error('Failed to add to roster'),
+                  })}
+                  disabled={addToRoster.isPending}
+                  className="w-full px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50"
+                >
+                  {addToRoster.isPending ? 'Adding...' : 'Add to CAQH Roster'}
+                </button>
+              </div>
+            )}
+
+            {credentialStatus?.caqhProviderId && (
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    if (window.confirm('Remove this provider from the CAQH roster?')) {
+                      removeFromRoster.mutate(providerId, {
+                        onSuccess: () => toast.success('Removed from CAQH roster'),
+                        onError: () => toast.error('Failed to remove from roster'),
+                      });
+                    }
+                  }}
+                  disabled={removeFromRoster.isPending}
+                  className="w-full px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 disabled:opacity-50"
+                >
+                  {removeFromRoster.isPending ? 'Removing...' : 'Remove from Roster'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
