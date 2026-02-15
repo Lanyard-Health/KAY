@@ -58,7 +58,13 @@ S3_BUCKET_NAME=credentials-documents
 AWS_REGION=auto
 AWS_ACCESS_KEY_ID=<r2-access-key>
 AWS_SECRET_ACCESS_KEY=<r2-secret-key>
+
+# CAQH ProView API (optional — feature disabled if missing)
+CAQH_API_URL=https://proview.caqh.org/api
+CAQH_ORG_ID=<org-id>
+CAQH_API_KEY=<api-key>
 ```
+**Production backend URL:** `https://kay-os62.onrender.com`
 Note: `USE_LOCALSTACK` should NOT be set in production. The backend uses `S3_ENDPOINT` whenever it's defined.
 
 ## Deployment
@@ -116,7 +122,7 @@ All changes to `master` must go through a pull request with:
 - **Backend**: Express + Prisma + TypeScript, ESM (`"type": "module"`)
 - **Frontend**: React 18 + Vite + Tailwind CSS + Zustand + React Query
 - **Testing**: Vitest v4, vitest-mock-extended, supertest
-- **Auth**: AWS Cognito (production), DEV_AUTH_BYPASS (local dev)
+- **Auth**: AWS Cognito (production), DEV_AUTH_BYPASS (local dev — supports admin, credentialing_staff, provider, practice_admin roles)
 
 ## Testing Conventions
 
@@ -166,8 +172,18 @@ Full conversational AI with intent classification, context-aware data fetching, 
 ### Portal / Provider Application Flow
 `portal.service.ts` handles the full lifecycle: submit → review → approve/reject. On approval, it creates a Cognito user, then a Provider + User + optional UserPractice in a `$transaction`. If the DB transaction fails, it rolls back the Cognito user. Both `submitApplication()` and `approveApplication()` check email uniqueness against the User table to prevent unique constraint violations.
 
+### Practice Self-Signup
+Public endpoint `POST /api/v1/practices/register` (rate-limited: 5/15min). Creates Cognito user → sets permanent password → `$transaction` creates Practice + User (`practice_admin` role) + UserPractice (`SUPER_ADMIN`). Rolls back Cognito on any failure. Service: `practiceSignup.service.ts`, route: `practiceSignup.routes.ts`. The `practice_admin` role has same permissions as `credentialing_staff` and is added to authorize() calls in provider, credential, enrollment, dashboard, expiration, practiceLocation, and user routes. Sidebar filters hide admin-only nav items (Practices, Users, AI Agent, Payer Intelligence, Roster).
+
+### Payer Enrollment
+Full CRUD for payer enrollments with provider association. Models in Prisma schema, routes in `enrollment.routes.ts`. Provider profile page has tabbed sections for credentials, enrollments, documents.
+
 ### CAQH Integration
-Two services: `caqh.service.ts` (roster management, credential pull from CAQH ProView API) and `caqh-credentials.service.ts` (encrypted credential storage/verification). Pull sync flow: `pullCredentials()` → `mapCaqhToInternal()` → `applyCaqhDataToProvider()`. The mapping step is critical — raw CAQH field names differ from internal schema names.
+Two services: `caqh.service.ts` (roster management, credential pull, nightly auto-sync) and `caqh-credentials.service.ts` (encrypted credential storage/verification with Puppeteer). Pull sync flow: `pullCredentials()` → `mapCaqhToInternal()` → `applyCaqhDataToProvider()`. The mapping step uses typed `MappedCaqhData` interface with Prisma enums.
+
+**Hardening (PR #59):** Exponential backoff retry (3 attempts, read-only ops only), 30s request timeout, Puppeteer concurrency guard (max 1 browser, queue 3, 60s timeout), rate limiting on credential verification (5 req/min), per-provider access checks, per-record error tracking in sync summaries, structured logging for unknown mappings. No hardcoded fallback values — missing data is skipped and logged. MFA treated as unverified (`caqhCredentialsValid: null`).
+
+**Nightly sync (PR #58):** Scheduler runs at `0 2 * * *`, syncs all providers with valid CAQH credentials. Concurrency guard prevents overlapping runs. Notifications sent to admins when sync produces changes.
 
 ### Production Safety Guard
 `DEV_AUTH_BYPASS=true` with `NODE_ENV=production` will crash the server on startup (fatal error in `auth.middleware.ts`). This is intentional — dev auth bypass must never run in production.
