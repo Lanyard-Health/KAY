@@ -54,6 +54,8 @@ import { payerIntelligenceRoutes } from './routes/payerIntelligence.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { payerEnrollmentDataRoutes } from './routes/payerEnrollmentData.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import providerImportRoutes from './routes/providerImport.routes.js';
+import reportingRoutes from './routes/reporting.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -156,6 +158,8 @@ app.use('/api/v1/provider-directory', providerDirectoryRoutes);
 app.use('/api/v1/payer-intelligence', payerIntelligenceRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/provider-import', providerImportRoutes);
+app.use('/api/v1/reporting', reportingRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);

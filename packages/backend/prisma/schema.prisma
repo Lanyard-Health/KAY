@@ -87,6 +87,7 @@ model Practice {
   providers              Provider[]
   providerApplications   ProviderApplication[]
   practiceLocations      PracticeLocation[]
+  providerImports        ProviderImport[]
 
   @@map("practices")
 }
@@ -1681,6 +1682,36 @@ model ProviderDirectoryAlert {
   @@index([providerId])
   @@index([resolved])
   @@map("provider_directory_alerts")
+}
+
+// ==========================================
+// BULK PROVIDER IMPORT
+// ==========================================
+
+enum ImportStatus {
+  pending
+  validating
+  completed
+  failed
+}
+
+model ProviderImport {
+  id           String       @id @default(uuid())
+  practiceId   String       @map("practice_id")
+  status       ImportStatus @default(pending)
+  totalRows    Int          @map("total_rows")
+  successCount Int          @default(0) @map("success_count")
+  errorCount   Int          @default(0) @map("error_count")
+  skippedCount Int          @default(0) @map("skipped_count")
+  errorDetails Json?        @map("error_details")
+  createdBy    String       @map("created_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  completedAt  DateTime?    @map("completed_at")
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@index([practiceId])
+  @@map("provider_imports")
 }
 
 // ==========================================

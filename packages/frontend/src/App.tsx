@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
 const ProviderList = lazy(() => import('./features/providers/ProviderList'));
 const ProviderDetail = lazy(() => import('./features/providers/ProviderDetail'));
 const ProviderForm = lazy(() => import('./features/providers/ProviderForm'));
+const ProviderImportPage = lazy(() => import('./features/providers/ProviderImportPage'));
 const DocumentList = lazy(() => import('./features/documents/DocumentList'));
 const ExpirationDashboard = lazy(() => import('./features/dashboard/ExpirationDashboard'));
 const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsList'));
@@ -124,6 +125,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="providers" element={<ProviderList />} />
+          <Route path="providers/import" element={<ProviderImportPage />} />
           <Route path="providers/new" element={<ProviderForm />} />
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />
