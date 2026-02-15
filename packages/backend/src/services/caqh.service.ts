@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma.js';
+import type { LicenseType, BoardType, DegreeType, CoverageType } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 
 interface CaqhRosterResponse {
@@ -41,6 +42,44 @@ export interface CaqhCredentialsResponse {
     expirationDate: string;
     coverageAmount: number;
   };
+}
+
+export interface MappedCaqhData {
+  provider: {
+    firstName: string;
+    lastName: string;
+    npi: string;
+  };
+  licenses: Array<{
+    licenseType: LicenseType;
+    licenseNumber: string;
+    state: string;
+    expirationDate: Date;
+    issueDate?: Date;
+  }>;
+  certifications: Array<{
+    boardType: BoardType;
+    boardName: string;
+    specialty: string;
+    expirationDate?: Date;
+    initialCertificationDate?: Date;
+  }>;
+  education: Array<{
+    institutionName: string;
+    degree: DegreeType;
+    graduationDate?: Date;
+    fieldOfStudy?: string;
+    country?: string;
+  }>;
+  malpractice: Array<{
+    carrierName: string;
+    policyNumber: string;
+    expirationDate: string;
+    perClaimAmount?: number;
+    aggregateAmount?: number;
+    coverageType?: CoverageType;
+    effectiveDate?: string;
+  }>;
 }
 
 export class CaqhService {
@@ -197,7 +236,7 @@ export class CaqhService {
   }
 
   // Map CAQH data to our internal format
-  mapCaqhToInternal(caqhData: CaqhCredentialsResponse) {
+  mapCaqhToInternal(caqhData: CaqhCredentialsResponse, providerId?: string): MappedCaqhData {
     return {
       provider: {
         firstName: caqhData.provider.firstName,
@@ -205,13 +244,13 @@ export class CaqhService {
         npi: caqhData.provider.npi,
       },
       licenses: caqhData.licenses.map(license => ({
-        licenseType: this.mapLicenseType(license.type),
+        licenseType: this.mapLicenseType(license.type, providerId),
         licenseNumber: license.number,
         state: license.state,
         expirationDate: new Date(license.expirationDate),
       })),
       certifications: caqhData.certifications.map(cert => ({
-        boardType: this.mapBoardType(cert.board),
+        boardType: this.mapBoardType(cert.board, providerId),
         boardName: cert.board,
         specialty: cert.specialty,
         expirationDate: cert.expirationDate
@@ -220,22 +259,22 @@ export class CaqhService {
       })),
       education: caqhData.education.map(edu => ({
         institutionName: edu.institution,
-        degree: this.mapDegreeType(edu.degree),
+        degree: this.mapDegreeType(edu.degree, providerId),
         graduationDate: new Date(edu.graduationDate),
       })),
       malpractice: caqhData.malpractice
         ? [{
             carrierName: caqhData.malpractice.carrier,
             policyNumber: caqhData.malpractice.policyNumber,
-            expirationDate: new Date(caqhData.malpractice.expirationDate),
+            expirationDate: caqhData.malpractice.expirationDate,
             perClaimAmount: caqhData.malpractice.coverageAmount,
           }]
         : [],
     };
   }
 
-  private mapLicenseType(caqhType: string): string {
-    const mapping: Record<string, string> = {
+  private mapLicenseType(caqhType: string, providerId?: string): LicenseType {
+    const mapping: Record<string, LicenseType> = {
       'MD': 'state_medical',
       'DO': 'state_medical',
       'PSY': 'state_psychology',
@@ -245,10 +284,21 @@ export class CaqhService {
       'DEA': 'dea',
       'CDS': 'controlled_substance',
     };
-    return mapping[caqhType] || 'state_medical';
+    const result = mapping[caqhType];
+    if (!result) {
+      logger.warn({
+        event: 'caqh_unknown_mapping',
+        field: 'licenseType',
+        rawValue: caqhType,
+        defaultedTo: 'state_medical',
+        providerId,
+      });
+      return 'state_medical';
+    }
+    return result;
   }
 
-  private mapBoardType(caqhBoard: string): string {
+  private mapBoardType(caqhBoard: string, providerId?: string): BoardType {
     const boardLower = caqhBoard.toLowerCase();
 
     if (boardLower.includes('psychiatry')) return 'abpn_psychiatry';
@@ -258,10 +308,17 @@ export class CaqhService {
     if (boardLower.includes('marriage') || boardLower.includes('family')) return 'aamft';
     if (boardLower.includes('nurse')) return 'ancc_pmhnp';
 
+    logger.warn({
+      event: 'caqh_unknown_mapping',
+      field: 'boardType',
+      rawValue: caqhBoard,
+      defaultedTo: 'other',
+      providerId,
+    });
     return 'other';
   }
 
-  private mapDegreeType(caqhDegree: string): string {
+  private mapDegreeType(caqhDegree: string, providerId?: string): DegreeType {
     const degreeLower = caqhDegree.toLowerCase();
 
     if (degreeLower.includes('md')) return 'md';
@@ -272,30 +329,14 @@ export class CaqhService {
     if (degreeLower.includes('dnp')) return 'dnp';
     if (degreeLower.includes('msn')) return 'msn';
 
+    logger.warn({
+      event: 'caqh_unknown_mapping',
+      field: 'degreeType',
+      rawValue: caqhDegree,
+      defaultedTo: 'other',
+      providerId,
+    });
     return 'other';
-  }
-
-  // Get formatted data for copy-paste into forms
-  async getFormattedDataForPayer(
-    caqhProviderId: string,
-    payerFormat: string
-  ): Promise<Record<string, string>> {
-    const credentials = await this.pullCredentials(caqhProviderId);
-    const mapped = this.mapCaqhToInternal(credentials);
-
-    // Return data formatted for specific payer form fields
-    return {
-      'Full Legal Name': `${mapped.provider.firstName} ${mapped.provider.lastName}`,
-      'NPI': mapped.provider.npi,
-      'Primary License': mapped.licenses[0]
-        ? `${mapped.licenses[0].state} - ${mapped.licenses[0].licenseNumber}`
-        : '',
-      'Board Certification': mapped.certifications[0]?.boardName || 'N/A',
-      'Malpractice Insurance': mapped.malpractice[0]
-        ? `${mapped.malpractice[0].carrierName} - ${mapped.malpractice[0].policyNumber}`
-        : '',
-      // Add more fields based on payer requirements
-    };
   }
 
   /**
@@ -316,7 +357,7 @@ export class CaqhService {
 
     try {
       const rawCaqhData = await this.pullCredentials(caqhProviderId);
-      const caqhData = this.mapCaqhToInternal(rawCaqhData);
+      const caqhData = this.mapCaqhToInternal(rawCaqhData, providerId);
       const changes = await this.applyCaqhDataToProvider(providerId, caqhData);
 
       await prisma.caqhSyncLog.update({
@@ -353,7 +394,7 @@ export class CaqhService {
    */
   async applyCaqhDataToProvider(
     providerId: string,
-    caqhData: any
+    caqhData: MappedCaqhData
   ): Promise<CaqhSyncSummary> {
     const summary: CaqhSyncSummary = {
       licenses: { created: 0, updated: 0, skipped: 0 },
