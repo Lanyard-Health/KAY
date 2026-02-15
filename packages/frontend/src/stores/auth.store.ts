@@ -34,6 +34,12 @@ async function fetchWithDevRetry(
   return null;
 }
 
+interface UserPractice {
+  practiceId: string;
+  role: string;
+  practice: { id: string; name: string };
+}
+
 interface User {
   id: string;
   email: string;
@@ -41,6 +47,7 @@ interface User {
   lastName: string;
   role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
   providerId?: string;
+  practices?: UserPractice[];
 }
 
 interface AuthState {

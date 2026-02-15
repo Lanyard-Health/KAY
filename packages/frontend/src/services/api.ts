@@ -95,6 +95,82 @@ class ApiClient {
   async delete<T = any>(endpoint: string): Promise<{ data: T; status: number }> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
+
+  /**
+   * Upload a file via FormData. Omits Content-Type so the browser sets
+   * the multipart boundary automatically.
+   */
+  async upload<T = any>(
+    endpoint: string,
+    formData: FormData
+  ): Promise<{ data: T; status: number }> {
+    const token = await this.getAuthToken();
+
+    const devRole = isDevelopment && DEV_BYPASS_ENABLED
+      ? localStorage.getItem('dev_session')
+      : null;
+
+    const headers: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(data.error?.message || data.error || 'Upload failed') as Error & {
+        response?: { data: any; status: number };
+      };
+      error.response = { data, status: response.status };
+      throw error;
+    }
+
+    return { data, status: response.status };
+  }
+
+  /**
+   * Download a file as text (e.g., CSV). Returns the raw response text
+   * instead of parsing as JSON.
+   */
+  async download(endpoint: string): Promise<{ text: string; status: number; headers: Headers }> {
+    const token = await this.getAuthToken();
+
+    const devRole = isDevelopment && DEV_BYPASS_ENABLED
+      ? localStorage.getItem('dev_session')
+      : null;
+
+    const reqHeaders: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: reqHeaders,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let message = 'Download failed';
+      try {
+        const errorData = JSON.parse(errorText);
+        message = errorData.error?.message || errorData.error || message;
+      } catch { /* not JSON */ }
+      const error = new Error(message) as Error & {
+        response?: { data: any; status: number };
+      };
+      error.response = { data: errorText, status: response.status };
+      throw error;
+    }
+
+    return { text: await response.text(), status: response.status, headers: response.headers };
+  }
 }
 
 export const api = new ApiClient();

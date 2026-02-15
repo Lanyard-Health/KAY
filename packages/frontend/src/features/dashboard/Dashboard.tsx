@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -13,10 +14,36 @@ import {
   BellAlertIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
+import { useAuthStore } from '../../stores/auth.store';
+import { useGettingStarted } from '../../hooks/useReporting';
+import GettingStartedChecklist from './GettingStartedChecklist';
+import EnrollmentPipelineChart from './EnrollmentPipelineChart';
+import ExpirationForecastWidget from './ExpirationForecastWidget';
+import ProviderReadinessTable from './ProviderReadinessTable';
 import clsx from 'clsx';
 import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
+  const { user } = useAuthStore();
+  const practiceId = user?.practices?.[0]?.practiceId ?? '';
+  const isPracticeAdmin = user?.role === 'practice_admin';
+
+  // Getting Started check — only for practice_admin with a practiceId
+  const {
+    data: gettingStarted,
+    isLoading: gettingStartedLoading,
+  } = useGettingStarted(isPracticeAdmin ? practiceId : '');
+
+  const [checklistDismissed, setChecklistDismissed] = useState(false);
+
+  // Show getting-started for practice_admin who hasn't onboarded
+  const showGettingStarted =
+    isPracticeAdmin &&
+    practiceId &&
+    !checklistDismissed &&
+    gettingStarted &&
+    !gettingStarted.isOnboarded;
+
   // Fetch all dashboard data
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-full'],
@@ -46,6 +73,8 @@ export default function Dashboard() {
         followUpCount: stats.followUpCount || 0,
       };
     },
+    // Skip dashboard fetch while showing getting-started checklist
+    enabled: !showGettingStarted,
   });
 
   const quickActions = [
@@ -77,6 +106,42 @@ export default function Dashboard() {
     (data?.incompleteCount || data?.incompleteProviders?.length || 0) +
     (data?.expiringItems?.length || 0) +
     (data?.followUpCount || data?.needsFollowUp?.length || 0);
+
+  // Loading state for practice_admin while getting-started query loads
+  if (isPracticeAdmin && practiceId && gettingStartedLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-48 bg-gray-200 rounded-2xl" />
+          <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Getting Started Checklist for new practice_admin users
+  if (showGettingStarted) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
+          <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+          <p className="mt-1 text-primary-100">
+            Let's get your practice set up. Complete the steps below to unlock your full dashboard.
+          </p>
+        </div>
+        <GettingStartedChecklist
+          providerCount={gettingStarted.providerCount}
+          documentCount={gettingStarted.documentCount}
+          enrollmentCount={gettingStarted.enrollmentCount}
+          onDismiss={() => setChecklistDismissed(true)}
+        />
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -408,54 +473,22 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Getting Started Guide */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-900">Getting Started</h3>
+      {/* Reporting Widgets — practice_admin only */}
+      {isPracticeAdmin && practiceId && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-5">
+            <EnrollmentPipelineChart practiceId={practiceId} />
           </div>
-          <div className="p-5">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-semibold text-sm">
-                  1
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Add a Provider</p>
-                  <p className="text-sm text-gray-500">Enter provider information and NPI</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-semibold text-sm">
-                  2
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Upload Documents</p>
-                  <p className="text-sm text-gray-500">W-9, COI, licenses, and certifications</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-semibold text-sm">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Start Enrollments</p>
-                  <p className="text-sm text-gray-500">Enroll providers with insurance payers</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-semibold text-sm">
-                  4
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Track & Monitor</p>
-                  <p className="text-sm text-gray-500">Monitor expirations and follow up on enrollments</p>
-                </div>
-              </div>
-            </div>
+          <div className="lg:col-span-3">
+            <ExpirationForecastWidget practiceId={practiceId} />
+          </div>
+          <div className="lg:col-span-2">
+            <ProviderReadinessTable practiceId={practiceId} />
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,190 @@
+import { useState, useMemo } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import {
+  ArrowDownTrayIcon,
+  ClipboardDocumentListIcon,
+} from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
+import clsx from 'clsx';
+import { useEnrollmentPipeline } from '../../hooks/useReporting';
+import { downloadCsv } from '../../utils/downloadCsv';
+
+const STATUS_CONFIG = [
+  { key: 'not_started', label: 'Not Started', color: '#9CA3AF' },
+  { key: 'in_progress', label: 'In Progress', color: '#3B82F6' },
+  { key: 'submitted', label: 'Submitted', color: '#F59E0B' },
+  { key: 'pending_review', label: 'Pending Review', color: '#8B5CF6' },
+  { key: 'approved', label: 'Approved', color: '#22C55E' },
+  { key: 'denied', label: 'Denied', color: '#EF4444' },
+  { key: 'terminated', label: 'Terminated', color: '#6B7280' },
+];
+
+const DATE_RANGES = [
+  { label: '30 days', days: 30 },
+  { label: '60 days', days: 60 },
+  { label: '90 days', days: 90 },
+  { label: 'All time', days: null },
+] as const;
+
+interface EnrollmentPipelineChartProps {
+  practiceId: string;
+}
+
+export default function EnrollmentPipelineChart({
+  practiceId,
+}: EnrollmentPipelineChartProps) {
+  const [selectedDays, setSelectedDays] = useState<number | null>(null);
+
+  const startDate = useMemo(() => {
+    if (selectedDays === null) return undefined;
+    const d = new Date();
+    d.setDate(d.getDate() - selectedDays);
+    return d.toISOString().split('T')[0];
+  }, [selectedDays]);
+
+  const { data, isLoading } = useEnrollmentPipeline(practiceId, startDate);
+
+  const chartData = useMemo(() => {
+    if (!data?.byPayer) return [];
+    return data.byPayer.map((payer) => ({
+      payerName: payer.payerName,
+      ...STATUS_CONFIG.reduce(
+        (acc, s) => ({ ...acc, [s.key]: payer.statuses[s.key] || 0 }),
+        {} as Record<string, number>,
+      ),
+    }));
+  }, [data]);
+
+  // Only render bar segments for statuses that exist in the data
+  const activeStatuses = useMemo(() => {
+    if (!data) return [];
+    const present = new Set<string>();
+    for (const payer of data.byPayer) {
+      for (const [status, count] of Object.entries(payer.statuses)) {
+        if (count > 0) present.add(status);
+      }
+    }
+    return STATUS_CONFIG.filter((s) => present.has(s.key));
+  }, [data]);
+
+  const handleExportCsv = () => {
+    if (!data) return;
+    const headers = ['Payer', 'Status', 'Count'];
+    const rows: string[][] = [];
+    for (const payer of data.byPayer) {
+      for (const [status, count] of Object.entries(payer.statuses)) {
+        const label =
+          STATUS_CONFIG.find((s) => s.key === status)?.label || status;
+        rows.push([payer.payerName, label, String(count)]);
+      }
+    }
+    downloadCsv('enrollment-pipeline.csv', headers, rows);
+  };
+
+  const isEmpty = !isLoading && !data?.byPayer?.length;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+        <h3 className="font-semibold text-gray-900">Enrollment Pipeline</h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            {DATE_RANGES.map((range) => (
+              <button
+                key={range.label}
+                onClick={() => setSelectedDays(range.days)}
+                className={clsx(
+                  'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                  selectedDays === range.days
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900',
+                )}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
+          {!isEmpty && (
+            <button
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5">
+        {isLoading ? (
+          <div className="animate-pulse space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="h-5 bg-gray-100 rounded w-28 flex-shrink-0" />
+                <div
+                  className="h-8 bg-gray-100 rounded"
+                  style={{ width: `${70 - i * 15}%` }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : isEmpty ? (
+          <div className="text-center py-10">
+            <ClipboardDocumentListIcon className="h-12 w-12 text-gray-300 mx-auto" />
+            <p className="mt-3 text-sm text-gray-500">
+              No enrollments yet. Start your first enrollment to track your
+              pipeline.
+            </p>
+            <Link
+              to="/enrollments"
+              className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              Go to Enrollments
+            </Link>
+          </div>
+        ) : (
+          <ResponsiveContainer
+            width="100%"
+            height={Math.max(chartData.length * 50 + 40, 150)}
+          >
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" allowDecimals={false} />
+              <YAxis
+                dataKey="payerName"
+                type="category"
+                width={140}
+                tick={{ fontSize: 13 }}
+              />
+              <Tooltip />
+              <Legend />
+              {activeStatuses.map((status) => (
+                <Bar
+                  key={status.key}
+                  dataKey={status.key}
+                  stackId="a"
+                  fill={status.color}
+                  name={status.label}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -15,6 +15,7 @@ import {
   UserPlusIcon,
   BuildingOffice2Icon,
   UserGroupIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -24,6 +25,7 @@ import NotificationBell from './NotificationBell';
 const allNavigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Providers', href: '/providers', icon: UsersIcon },
+  { name: 'Import Providers', href: '/providers/import', icon: ArrowUpTrayIcon },
   { name: 'Practices', href: '/practices', icon: BuildingOffice2Icon },
   { name: 'Users', href: '/users', icon: UserGroupIcon },
   { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
@@ -42,6 +44,9 @@ const practiceAdminHidden = new Set([
   'Pending Providers', 'Onboarding', 'Roster',
 ]);
 
+// Items only visible to practice_admin role
+const practiceAdminOnly = new Set(['Import Providers']);
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
@@ -50,7 +55,7 @@ export default function Layout() {
 
   const navigation = user?.role === 'practice_admin'
     ? allNavigation.filter((item) => !practiceAdminHidden.has(item.name))
-    : allNavigation;
+    : allNavigation.filter((item) => !practiceAdminOnly.has(item.name));
 
   const handleLogout = async () => {
     await logout();

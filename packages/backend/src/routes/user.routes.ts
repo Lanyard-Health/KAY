@@ -121,6 +121,13 @@ userRoutes.get(
               npi: true,
             },
           },
+          practices: {
+            select: {
+              practiceId: true,
+              role: true,
+              practice: { select: { id: true, name: true } },
+            },
+          },
         },
       });
 
