@@ -6,6 +6,45 @@ import { encrypt, decrypt } from '../utils/crypto.js';
 
 const CAQH_PROVIEW_LOGIN_URL = 'https://proview.caqh.org/Login';
 
+// Concurrency guard — only 1 browser instance at a time, queue up to 3
+let activeBrowser = false;
+const waitQueue: Array<{ resolve: () => void; reject: (err: Error) => void }> = [];
+const MAX_QUEUE_DEPTH = 3;
+const QUEUE_TIMEOUT_MS = 60000;
+
+async function acquireBrowserLock(): Promise<void> {
+  if (!activeBrowser) {
+    activeBrowser = true;
+    return;
+  }
+
+  if (waitQueue.length >= MAX_QUEUE_DEPTH) {
+    throw new Error('Credential verification busy, try again later');
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const idx = waitQueue.findIndex((w) => w.resolve === resolve);
+      if (idx !== -1) waitQueue.splice(idx, 1);
+      reject(new Error('Credential verification timed out waiting for availability'));
+    }, QUEUE_TIMEOUT_MS);
+
+    waitQueue.push({
+      resolve: () => { clearTimeout(timer); resolve(); },
+      reject: (err: Error) => { clearTimeout(timer); reject(err); },
+    });
+  });
+}
+
+function releaseBrowserLock(): void {
+  if (waitQueue.length > 0) {
+    const next = waitQueue.shift()!;
+    next.resolve();
+  } else {
+    activeBrowser = false;
+  }
+}
+
 export interface CredentialVerificationResult {
   success: boolean;
   valid: boolean;
@@ -25,6 +64,7 @@ export class CaqhCredentialsService {
     username: string,
     password: string
   ): Promise<CredentialVerificationResult> {
+    await acquireBrowserLock();
     let page: Page | null = null;
 
     try {
@@ -144,6 +184,7 @@ export class CaqhCredentialsService {
         await this.browser.close();
         this.browser = null;
       }
+      releaseBrowserLock();
     }
   }
 
@@ -202,7 +243,7 @@ export class CaqhCredentialsService {
     await prisma.provider.update({
       where: { id: providerId },
       data: {
-        caqhCredentialsValid: result.valid,
+        caqhCredentialsValid: result.errorType === 'mfa_required' ? null : result.valid,
         caqhCredentialsLastChecked: new Date(),
       },
     });
@@ -237,6 +278,9 @@ export class CaqhCredentialsService {
     isValid: boolean | null;
     lastChecked: Date | null;
     username: string | null;
+    caqhProviderId: string | null;
+    caqhStatus: string | null;
+    caqhLastSync: Date | null;
   }> {
     const provider = await prisma.provider.findUnique({
       where: { id: providerId },
@@ -244,6 +288,9 @@ export class CaqhCredentialsService {
         caqhUsername: true,
         caqhCredentialsValid: true,
         caqhCredentialsLastChecked: true,
+        caqhProviderId: true,
+        caqhStatus: true,
+        caqhLastSync: true,
       },
     });
 
@@ -256,6 +303,9 @@ export class CaqhCredentialsService {
       isValid: provider.caqhCredentialsValid,
       lastChecked: provider.caqhCredentialsLastChecked,
       username: provider.caqhUsername,
+      caqhProviderId: provider.caqhProviderId,
+      caqhStatus: provider.caqhStatus,
+      caqhLastSync: provider.caqhLastSync,
     };
   }
 
@@ -429,8 +479,8 @@ export class CaqhCredentialsService {
         logger.info(`CAQH MFA required - matched pattern: ${pattern}`);
         return {
           success: true,
-          valid: true, // Credentials are valid if MFA is reached
-          message: 'Credentials valid - MFA required for full login',
+          valid: false,  // Changed from true — MFA means not fully verified
+          message: 'MFA required — credentials not fully verified',
           errorType: 'mfa_required',
         };
       }
