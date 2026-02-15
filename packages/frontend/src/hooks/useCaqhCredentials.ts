@@ -6,6 +6,9 @@ export interface CaqhCredentialStatus {
   isValid: boolean | null;
   lastChecked: string | null;
   username: string | null;
+  caqhProviderId: string | null;
+  caqhStatus: string | null;
+  caqhLastSync: string | null;
 }
 
 export interface CaqhVerificationResult {
