@@ -94,10 +94,11 @@ describe('SchedulerService — CAQH Sync Job', () => {
       const syncResult = {
         syncId: 'sync-1',
         changes: {
-          licenses: { created: 1, updated: 0, skipped: 0 },
-          certifications: { created: 0, updated: 0, skipped: 0 },
-          education: { created: 0, updated: 0, skipped: 0 },
-          malpractice: { created: 0, updated: 0, skipped: 0 },
+          licenses: { created: 1, updated: 0, skipped: 0, failed: 0 },
+          certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          failedRecords: [],
         },
       };
 
@@ -127,10 +128,11 @@ describe('SchedulerService — CAQH Sync Job', () => {
       caqhServiceInstance.syncProvider.mockResolvedValue({
         syncId: 'sync-1',
         changes: {
-          licenses: { created: 2, updated: 1, skipped: 0 },
-          certifications: { created: 0, updated: 0, skipped: 0 },
-          education: { created: 0, updated: 0, skipped: 0 },
-          malpractice: { created: 0, updated: 0, skipped: 0 },
+          licenses: { created: 2, updated: 1, skipped: 0, failed: 0 },
+          certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          failedRecords: [],
         },
       });
 
@@ -154,10 +156,11 @@ describe('SchedulerService — CAQH Sync Job', () => {
       caqhServiceInstance.syncProvider.mockResolvedValue({
         syncId: 'sync-1',
         changes: {
-          licenses: { created: 0, updated: 0, skipped: 0 },
-          certifications: { created: 0, updated: 0, skipped: 0 },
-          education: { created: 0, updated: 0, skipped: 0 },
-          malpractice: { created: 0, updated: 0, skipped: 0 },
+          licenses: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+          failedRecords: [],
         },
       });
 
@@ -177,10 +180,11 @@ describe('SchedulerService — CAQH Sync Job', () => {
         .mockResolvedValueOnce({
           syncId: 'sync-2',
           changes: {
-            licenses: { created: 0, updated: 0, skipped: 0 },
-            certifications: { created: 0, updated: 0, skipped: 0 },
-            education: { created: 0, updated: 0, skipped: 0 },
-            malpractice: { created: 0, updated: 0, skipped: 0 },
+            licenses: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            failedRecords: [],
           },
         });
 
@@ -213,10 +217,11 @@ describe('SchedulerService — CAQH Sync Job', () => {
         () => new Promise((resolve) => setTimeout(() => resolve({
           syncId: 'sync-1',
           changes: {
-            licenses: { created: 0, updated: 0, skipped: 0 },
-            certifications: { created: 0, updated: 0, skipped: 0 },
-            education: { created: 0, updated: 0, skipped: 0 },
-            malpractice: { created: 0, updated: 0, skipped: 0 },
+            licenses: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+            failedRecords: [],
           },
         }), 50))
       );

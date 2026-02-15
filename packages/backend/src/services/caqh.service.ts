@@ -347,6 +347,8 @@ export class CaqhService {
     syncId: string;
     changes: CaqhSyncSummary;
   }> {
+    const startTime = Date.now();
+
     const syncLog = await prisma.caqhSyncLog.create({
       data: {
         providerId,
@@ -360,13 +362,23 @@ export class CaqhService {
       const caqhData = this.mapCaqhToInternal(rawCaqhData, providerId);
       const changes = await this.applyCaqhDataToProvider(providerId, caqhData);
 
+      const durationMs = Date.now() - startTime;
+
       await prisma.caqhSyncLog.update({
         where: { id: syncLog.id },
         data: {
           status: 'completed',
           completedAt: new Date(),
           changesApplied: changes as any,
+          durationMs,
         },
+      });
+
+      logger.info({
+        event: 'caqh_sync_complete',
+        providerId,
+        durationMs,
+        changes,
       });
 
       await prisma.provider.update({
@@ -376,12 +388,15 @@ export class CaqhService {
 
       return { syncId: syncLog.id, changes };
     } catch (error) {
+      const durationMs = Date.now() - startTime;
+
       await prisma.caqhSyncLog.update({
         where: { id: syncLog.id },
         data: {
           status: 'failed',
           completedAt: new Date(),
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          durationMs,
         },
       });
       throw error;
@@ -397,47 +412,68 @@ export class CaqhService {
     caqhData: MappedCaqhData
   ): Promise<CaqhSyncSummary> {
     const summary: CaqhSyncSummary = {
-      licenses: { created: 0, updated: 0, skipped: 0 },
-      certifications: { created: 0, updated: 0, skipped: 0 },
-      education: { created: 0, updated: 0, skipped: 0 },
-      malpractice: { created: 0, updated: 0, skipped: 0 },
+      licenses: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      education: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      failedRecords: [],
     };
 
     // --- Licenses ---
     if (caqhData.licenses?.length > 0) {
       for (const lic of caqhData.licenses) {
-        const existing = await prisma.license.findFirst({
-          where: { providerId, licenseNumber: lic.licenseNumber },
-        });
+        try {
+          const existing = await prisma.license.findFirst({
+            where: { providerId, licenseNumber: lic.licenseNumber },
+          });
 
-        if (existing) {
-          if (existing.source === 'manual_entry') {
-            summary.licenses.skipped++;
-            continue;
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.licenses.skipped++;
+              continue;
+            }
+            await prisma.license.update({
+              where: { id: existing.id },
+              data: {
+                licenseType: lic.licenseType ?? existing.licenseType,
+                state: lic.state ?? existing.state,
+                expirationDate: lic.expirationDate ? new Date(lic.expirationDate) : existing.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.licenses.updated++;
+          } else {
+            const issueDate = lic.issueDate ? new Date(lic.issueDate) : null;
+            if (!issueDate) {
+              logger.warn({
+                event: 'caqh_missing_field',
+                field: 'issueDate',
+                category: 'license',
+                identifier: lic.licenseNumber,
+                providerId,
+                fallback: 'current date',
+              });
+            }
+            await prisma.license.create({
+              data: {
+                providerId,
+                licenseType: lic.licenseType,
+                licenseNumber: lic.licenseNumber,
+                state: lic.state,
+                issueDate: issueDate ?? new Date(),
+                expirationDate: new Date(lic.expirationDate),
+                source: 'caqh_sync',
+              },
+            });
+            summary.licenses.created++;
           }
-          await prisma.license.update({
-            where: { id: existing.id },
-            data: {
-              licenseType: lic.licenseType ?? existing.licenseType,
-              state: lic.state ?? existing.state,
-              expirationDate: lic.expirationDate ? new Date(lic.expirationDate) : existing.expirationDate,
-              source: 'caqh_sync',
-            },
+        } catch (error) {
+          summary.licenses.failed++;
+          summary.failedRecords.push({
+            category: 'license',
+            identifier: lic.licenseNumber,
+            error: error instanceof Error ? error.message : 'Unknown error',
           });
-          summary.licenses.updated++;
-        } else {
-          await prisma.license.create({
-            data: {
-              providerId,
-              licenseType: lic.licenseType,
-              licenseNumber: lic.licenseNumber,
-              state: lic.state,
-              issueDate: lic.issueDate ? new Date(lic.issueDate) : new Date(),
-              expirationDate: new Date(lic.expirationDate),
-              source: 'caqh_sync',
-            },
-          });
-          summary.licenses.created++;
         }
       }
     }
@@ -445,39 +481,48 @@ export class CaqhService {
     // --- Board Certifications ---
     if (caqhData.certifications?.length > 0) {
       for (const cert of caqhData.certifications) {
-        const existing = await prisma.boardCertification.findFirst({
-          where: { providerId, boardName: cert.boardName, specialty: cert.specialty },
-        });
+        try {
+          const existing = await prisma.boardCertification.findFirst({
+            where: { providerId, boardName: cert.boardName, specialty: cert.specialty },
+          });
 
-        if (existing) {
-          if (existing.source === 'manual_entry') {
-            summary.certifications.skipped++;
-            continue;
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.certifications.skipped++;
+              continue;
+            }
+            await prisma.boardCertification.update({
+              where: { id: existing.id },
+              data: {
+                boardType: cert.boardType ?? existing.boardType,
+                expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : existing.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.certifications.updated++;
+          } else {
+            await prisma.boardCertification.create({
+              data: {
+                providerId,
+                boardType: cert.boardType ?? 'other',
+                boardName: cert.boardName,
+                specialty: cert.specialty,
+                initialCertificationDate: cert.initialCertificationDate
+                  ? new Date(cert.initialCertificationDate)
+                  : new Date(),
+                expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : undefined,
+                source: 'caqh_sync',
+              },
+            });
+            summary.certifications.created++;
           }
-          await prisma.boardCertification.update({
-            where: { id: existing.id },
-            data: {
-              boardType: cert.boardType ?? existing.boardType,
-              expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : existing.expirationDate,
-              source: 'caqh_sync',
-            },
+        } catch (error) {
+          summary.certifications.failed++;
+          summary.failedRecords.push({
+            category: 'certification',
+            identifier: `${cert.boardName}/${cert.specialty}`,
+            error: error instanceof Error ? error.message : 'Unknown error',
           });
-          summary.certifications.updated++;
-        } else {
-          await prisma.boardCertification.create({
-            data: {
-              providerId,
-              boardType: cert.boardType ?? 'other',
-              boardName: cert.boardName,
-              specialty: cert.specialty,
-              initialCertificationDate: cert.initialCertificationDate
-                ? new Date(cert.initialCertificationDate)
-                : new Date(),
-              expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : undefined,
-              source: 'caqh_sync',
-            },
-          });
-          summary.certifications.created++;
         }
       }
     }
@@ -485,32 +530,43 @@ export class CaqhService {
     // --- Education ---
     if (caqhData.education?.length > 0) {
       for (const edu of caqhData.education) {
-        const existing = await prisma.education.findFirst({
-          where: { providerId, institutionName: edu.institutionName, degree: edu.degree },
-        });
+        try {
+          const existing = await prisma.education.findFirst({
+            where: { providerId, institutionName: edu.institutionName, degree: edu.degree },
+          });
 
-        if (existing) {
-          await prisma.education.update({
-            where: { id: existing.id },
-            data: {
-              graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : existing.graduationDate,
-            },
+          if (existing) {
+            await prisma.education.update({
+              where: { id: existing.id },
+              data: {
+                graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : existing.graduationDate,
+                source: 'caqh_sync' as any,
+              },
+            });
+            summary.education.updated++;
+          } else {
+            const gradDate = edu.graduationDate ? new Date(edu.graduationDate) : undefined;
+            await prisma.education.create({
+              data: {
+                providerId,
+                institutionName: edu.institutionName,
+                degree: edu.degree,
+                fieldOfStudy: edu.fieldOfStudy ?? 'Not specified',
+                country: edu.country ?? 'US',
+                startDate: gradDate ?? new Date(),
+                graduationDate: gradDate,
+                source: 'caqh_sync' as any,
+              },
+            });
+            summary.education.created++;
+          }
+        } catch (error) {
+          summary.education.failed++;
+          summary.failedRecords.push({
+            category: 'education',
+            identifier: `${edu.institutionName}/${edu.degree}`,
+            error: error instanceof Error ? error.message : 'Unknown error',
           });
-          summary.education.updated++;
-        } else {
-          const gradDate = edu.graduationDate ? new Date(edu.graduationDate) : undefined;
-          await prisma.education.create({
-            data: {
-              providerId,
-              institutionName: edu.institutionName,
-              degree: edu.degree,
-              fieldOfStudy: edu.fieldOfStudy ?? 'Unknown',
-              country: edu.country ?? 'US',
-              startDate: gradDate ?? new Date(),
-              graduationDate: gradDate,
-            },
-          });
-          summary.education.created++;
         }
       }
     }
@@ -521,35 +577,54 @@ export class CaqhService {
       : caqhData.malpractice ? [caqhData.malpractice] : [];
     if (malpracticeList.length > 0) {
       for (const mal of malpracticeList) {
-        const existing = await prisma.malpracticeInsurance.findFirst({
-          where: { providerId, policyNumber: mal.policyNumber },
-        });
-
-        if (existing) {
-          await prisma.malpracticeInsurance.update({
-            where: { id: existing.id },
-            data: {
-              carrierName: mal.carrierName ?? existing.carrierName,
-              expirationDate: mal.expirationDate ? new Date(mal.expirationDate) : existing.expirationDate,
-              perClaimAmount: mal.perClaimAmount ?? existing.perClaimAmount,
-            },
-          });
-          summary.malpractice.updated++;
-        } else {
-          const perClaim = mal.perClaimAmount ?? 1000000;
-          await prisma.malpracticeInsurance.create({
-            data: {
+        try {
+          if (!mal.perClaimAmount) {
+            logger.warn({
+              event: 'caqh_malpractice_incomplete',
               providerId,
-              carrierName: mal.carrierName,
               policyNumber: mal.policyNumber,
-              coverageType: mal.coverageType ?? 'occurrence',
-              perClaimAmount: perClaim,
-              aggregateAmount: mal.aggregateAmount ?? perClaim * 3,
-              effectiveDate: mal.effectiveDate ? new Date(mal.effectiveDate) : new Date(),
-              expirationDate: new Date(mal.expirationDate),
-            },
+              reason: 'Missing perClaimAmount',
+            });
+            summary.malpractice.skipped++;
+            continue;
+          }
+
+          const existing = await prisma.malpracticeInsurance.findFirst({
+            where: { providerId, policyNumber: mal.policyNumber },
           });
-          summary.malpractice.created++;
+
+          if (existing) {
+            await prisma.malpracticeInsurance.update({
+              where: { id: existing.id },
+              data: {
+                carrierName: mal.carrierName ?? existing.carrierName,
+                expirationDate: mal.expirationDate ? new Date(mal.expirationDate) : existing.expirationDate,
+                perClaimAmount: mal.perClaimAmount ?? existing.perClaimAmount,
+              },
+            });
+            summary.malpractice.updated++;
+          } else {
+            await prisma.malpracticeInsurance.create({
+              data: {
+                providerId,
+                carrierName: mal.carrierName,
+                policyNumber: mal.policyNumber,
+                coverageType: mal.coverageType ?? 'occurrence',
+                perClaimAmount: mal.perClaimAmount,
+                aggregateAmount: mal.aggregateAmount ?? mal.perClaimAmount,
+                effectiveDate: mal.effectiveDate ? new Date(mal.effectiveDate) : new Date(),
+                expirationDate: new Date(mal.expirationDate),
+              },
+            });
+            summary.malpractice.created++;
+          }
+        } catch (error) {
+          summary.malpractice.failed++;
+          summary.failedRecords.push({
+            category: 'malpractice',
+            identifier: mal.policyNumber,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
         }
       }
     }
@@ -566,8 +641,9 @@ export class CaqhService {
 }
 
 export interface CaqhSyncSummary {
-  licenses: { created: number; updated: number; skipped: number };
-  certifications: { created: number; updated: number; skipped: number };
-  education: { created: number; updated: number; skipped: number };
-  malpractice: { created: number; updated: number; skipped: number };
+  licenses: { created: number; updated: number; skipped: number; failed: number };
+  certifications: { created: number; updated: number; skipped: number; failed: number };
+  education: { created: number; updated: number; skipped: number; failed: number };
+  malpractice: { created: number; updated: number; skipped: number; failed: number };
+  failedRecords: Array<{ category: string; identifier: string; error: string }>;
 }

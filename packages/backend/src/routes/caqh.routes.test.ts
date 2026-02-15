@@ -337,10 +337,11 @@ describe('CAQH Routes', () => {
     const syncResult = {
       syncId: 'sync-log-1',
       changes: {
-        licenses: { created: 1, updated: 0, skipped: 0 },
-        certifications: { created: 1, updated: 0, skipped: 0 },
-        education: { created: 1, updated: 0, skipped: 0 },
-        malpractice: { created: 1, updated: 0, skipped: 0 },
+        licenses: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        certifications: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        education: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        malpractice: { created: 1, updated: 0, skipped: 0, failed: 0 },
+        failedRecords: [],
       },
     };
 
