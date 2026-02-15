@@ -273,6 +273,7 @@ model Provider {
   demographics           ProviderDemographics?
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
+  @@unique([caqhProviderId], name: "unique_caqh_provider_id")
   @@map("providers")
 }
 
@@ -551,6 +552,7 @@ model Education {
   educationType        EducationType? @map("education_type")
   programDirector      String?        @map("program_director")
   programDirectorPhone String?        @map("program_director_phone")
+  source               CredentialSource   @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1368,6 +1370,8 @@ model CaqhSyncLog {
   completedAt  DateTime?         @map("completed_at")
   errorMessage String?           @map("error_message")
   changesApplied Json?           @map("changes_applied")
+  retryCount     Int       @default(0) @map("retry_count")
+  durationMs     Int?      @map("duration_ms")
 
   @@index([providerId])
   @@map("caqh_sync_logs")
