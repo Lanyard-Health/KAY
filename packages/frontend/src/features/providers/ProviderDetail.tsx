@@ -767,7 +767,7 @@ export default function ProviderDetail() {
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Date of Birth</dt>
                       <dd className="mt-1 text-sm text-gray-900">
-                        {format(new Date(provider.dateOfBirth), 'MMMM d, yyyy')}
+                        {provider.dateOfBirth ? format(new Date(provider.dateOfBirth), 'MMMM d, yyyy') : '—'}
                       </dd>
                     </div>
                     <div>
