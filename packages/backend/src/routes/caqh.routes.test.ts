@@ -32,6 +32,9 @@ vi.mock('../services/caqh.service.js', () => ({
       checkStatus: vi.fn(),
       pullCredentials: vi.fn(),
       mapCaqhToInternal: vi.fn(),
+      syncProvider: vi.fn(),
+      applyCaqhDataToProvider: vi.fn(),
+      isConfigured: vi.fn().mockReturnValue(false),
     };
   }),
 }));
@@ -328,248 +331,60 @@ describe('CAQH Routes', () => {
   });
 
   // ==========================================
-  // PULL CREDENTIALS
+  // PULL CREDENTIALS (now delegates to syncProvider)
   // ==========================================
   describe('POST /pull/:providerId', () => {
-    const rawCaqhData = {
-      provider: { firstName: 'Jane', lastName: 'Doe', npi: '1234567890' },
-      licenses: [{ type: 'MD', number: 'MD-12345', state: 'CA', expirationDate: '2025-06-01' }],
-      certifications: [{ board: 'American Board of Psychiatry', specialty: 'Psychiatry', expirationDate: '2026-01-01' }],
-      education: [{ institution: 'Harvard Medical School', degree: 'MD', graduationDate: '2010-06-15' }],
-      malpractice: { carrier: 'ACME Insurance', policyNumber: 'POL-999', expirationDate: '2025-12-31', coverageAmount: 1000000 },
+    const syncResult = {
+      syncId: 'sync-log-1',
+      changes: {
+        licenses: { created: 1, updated: 0, skipped: 0 },
+        certifications: { created: 1, updated: 0, skipped: 0 },
+        education: { created: 1, updated: 0, skipped: 0 },
+        malpractice: { created: 1, updated: 0, skipped: 0 },
+      },
     };
 
-    const mappedCaqhData = {
-      provider: { firstName: 'Jane', lastName: 'Doe', npi: '1234567890' },
-      licenses: [{ licenseType: 'state_medical', licenseNumber: 'MD-12345', state: 'CA', expirationDate: new Date('2025-06-01') }],
-      certifications: [{ boardType: 'abpn_psychiatry', boardName: 'American Board of Psychiatry', specialty: 'Psychiatry', expirationDate: new Date('2026-01-01') }],
-      education: [{ institutionName: 'Harvard Medical School', degree: 'md', graduationDate: new Date('2010-06-15') }],
-      malpractice: [{ carrierName: 'ACME Insurance', policyNumber: 'POL-999', expirationDate: new Date('2025-12-31'), perClaimAmount: 1000000 }],
-    };
-
-    it('calls mapCaqhToInternal before applying data', async () => {
+    it('calls syncProvider with correct arguments', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockResolvedValue(rawCaqhData);
-      caqhServiceInstance.mapCaqhToInternal.mockReturnValue(mappedCaqhData);
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
-      // Stub Prisma methods used by applyCaqhDataToProvider
-      prismaMock.license.findFirst.mockResolvedValue(null);
-      prismaMock.license.create.mockResolvedValue({} as any);
-      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
-      prismaMock.boardCertification.create.mockResolvedValue({} as any);
-      prismaMock.education.findFirst.mockResolvedValue(null);
-      prismaMock.education.create.mockResolvedValue({} as any);
-      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
-      prismaMock.malpracticeInsurance.create.mockResolvedValue({} as any);
+      caqhServiceInstance.syncProvider.mockResolvedValue(syncResult);
 
       const res = await request(app).post('/pull/provider-1-id');
 
       expect(res.status).toBe(200);
-      expect(caqhServiceInstance.pullCredentials).toHaveBeenCalledWith('caqh-123');
-      expect(caqhServiceInstance.mapCaqhToInternal).toHaveBeenCalledWith(rawCaqhData);
+      expect(caqhServiceInstance.syncProvider).toHaveBeenCalledWith('provider-1-id', 'caqh-123');
     });
 
-    it('persists mapped data using correct field names', async () => {
+    it('returns sync result with changes summary', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockResolvedValue(rawCaqhData);
-      caqhServiceInstance.mapCaqhToInternal.mockReturnValue(mappedCaqhData);
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
-      // No existing records
-      prismaMock.license.findFirst.mockResolvedValue(null);
-      prismaMock.license.create.mockResolvedValue({} as any);
-      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
-      prismaMock.boardCertification.create.mockResolvedValue({} as any);
-      prismaMock.education.findFirst.mockResolvedValue(null);
-      prismaMock.education.create.mockResolvedValue({} as any);
-      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
-      prismaMock.malpracticeInsurance.create.mockResolvedValue({} as any);
-
-      await request(app).post('/pull/provider-1-id');
-
-      // Verify license created with MAPPED field names (licenseType, licenseNumber)
-      expect(prismaMock.license.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: 'provider-1-id',
-            licenseType: 'state_medical',
-            licenseNumber: 'MD-12345',
-            state: 'CA',
-            source: 'caqh_sync',
-          }),
-        })
-      );
-
-      // Verify board certification created with mapped fields (boardType, boardName)
-      expect(prismaMock.boardCertification.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: 'provider-1-id',
-            boardType: 'abpn_psychiatry',
-            boardName: 'American Board of Psychiatry',
-            specialty: 'Psychiatry',
-            source: 'caqh_sync',
-          }),
-        })
-      );
-
-      // Verify education created with mapped fields (institutionName)
-      expect(prismaMock.education.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: 'provider-1-id',
-            institutionName: 'Harvard Medical School',
-            degree: 'md',
-          }),
-        })
-      );
-
-      // Verify malpractice created with mapped fields (carrierName, perClaimAmount)
-      expect(prismaMock.malpracticeInsurance.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: 'provider-1-id',
-            carrierName: 'ACME Insurance',
-            policyNumber: 'POL-999',
-            perClaimAmount: 1000000,
-          }),
-        })
-      );
-    });
-
-    it('normalizes single malpractice object to array', async () => {
-      const mappedWithSingleMalpractice = {
-        ...mappedCaqhData,
-        // Simulate a case where malpractice is a single object instead of an array
-        malpractice: { carrierName: 'Solo Carrier', policyNumber: 'SOLO-1', expirationDate: new Date('2025-12-31'), perClaimAmount: 500000 } as any,
-      };
-
-      prismaMock.provider.findUnique.mockResolvedValue({
-        ...mockProvider,
-        caqhProviderId: 'caqh-123',
-      } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockResolvedValue(rawCaqhData);
-      caqhServiceInstance.mapCaqhToInternal.mockReturnValue(mappedWithSingleMalpractice);
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
-      prismaMock.license.findFirst.mockResolvedValue(null);
-      prismaMock.license.create.mockResolvedValue({} as any);
-      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
-      prismaMock.boardCertification.create.mockResolvedValue({} as any);
-      prismaMock.education.findFirst.mockResolvedValue(null);
-      prismaMock.education.create.mockResolvedValue({} as any);
-      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
-      prismaMock.malpracticeInsurance.create.mockResolvedValue({} as any);
-
-      const res = await request(app).post('/pull/provider-1-id');
-
-      expect(res.status).toBe(200);
-      // Should still create the malpractice record despite being a single object
-      expect(prismaMock.malpracticeInsurance.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            carrierName: 'Solo Carrier',
-            policyNumber: 'SOLO-1',
-          }),
-        })
-      );
-    });
-
-    it('returns sync summary with correct counts', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
-        ...mockProvider,
-        caqhProviderId: 'caqh-123',
-      } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockResolvedValue(rawCaqhData);
-      caqhServiceInstance.mapCaqhToInternal.mockReturnValue(mappedCaqhData);
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
-      // All new records (no existing)
-      prismaMock.license.findFirst.mockResolvedValue(null);
-      prismaMock.license.create.mockResolvedValue({} as any);
-      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
-      prismaMock.boardCertification.create.mockResolvedValue({} as any);
-      prismaMock.education.findFirst.mockResolvedValue(null);
-      prismaMock.education.create.mockResolvedValue({} as any);
-      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
-      prismaMock.malpracticeInsurance.create.mockResolvedValue({} as any);
-
-      const res = await request(app).post('/pull/provider-1-id');
-
-      expect(res.status).toBe(200);
-      const { changes } = res.body.data;
-      expect(changes.licenses.created).toBe(1);
-      expect(changes.certifications.created).toBe(1);
-      expect(changes.education.created).toBe(1);
-      expect(changes.malpractice.created).toBe(1);
-    });
-
-    it('creates sync log on success', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
-        ...mockProvider,
-        caqhProviderId: 'caqh-123',
-      } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockResolvedValue(rawCaqhData);
-      caqhServiceInstance.mapCaqhToInternal.mockReturnValue(mappedCaqhData);
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
-      prismaMock.license.findFirst.mockResolvedValue(null);
-      prismaMock.license.create.mockResolvedValue({} as any);
-      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
-      prismaMock.boardCertification.create.mockResolvedValue({} as any);
-      prismaMock.education.findFirst.mockResolvedValue(null);
-      prismaMock.education.create.mockResolvedValue({} as any);
-      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
-      prismaMock.malpracticeInsurance.create.mockResolvedValue({} as any);
+      caqhServiceInstance.syncProvider.mockResolvedValue(syncResult);
 
       const res = await request(app).post('/pull/provider-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.syncId).toBe('sync-log-1');
-      expect(prismaMock.caqhSyncLog.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: 'provider-1-id',
-            direction: 'pull',
-            status: 'in_progress',
-          }),
-        })
-      );
+      expect(res.body.data.changes.licenses.created).toBe(1);
+      expect(res.body.data.changes.certifications.created).toBe(1);
+      expect(res.body.data.changes.education.created).toBe(1);
+      expect(res.body.data.changes.malpractice.created).toBe(1);
     });
 
-    it('updates sync log on failure', async () => {
+    it('returns 500 when syncProvider throws', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
-      prismaMock.caqhSyncLog.create.mockResolvedValue(mockSyncLog as any);
-      caqhServiceInstance.pullCredentials.mockRejectedValue(new Error('CAQH API error: 500'));
-      prismaMock.caqhSyncLog.update.mockResolvedValue(mockSyncLog as any);
+      caqhServiceInstance.syncProvider.mockRejectedValue(new Error('CAQH API error: 500'));
 
       const res = await request(app).post('/pull/provider-1-id');
 
       expect(res.status).toBe(500);
-      expect(prismaMock.caqhSyncLog.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            status: 'failed',
-            errorMessage: 'CAQH API error: 500',
-          }),
-        })
-      );
     });
 
     it('returns 404 when provider has no CAQH registration', async () => {

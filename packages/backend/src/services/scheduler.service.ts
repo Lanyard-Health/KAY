@@ -5,6 +5,8 @@ import { isConfigured, generateExpirationAlerts } from './ai.service.js';
 import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDirectory.service.js';
 import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
+import { CaqhService } from './caqh.service.js';
+import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
 class SchedulerService {
@@ -13,11 +15,14 @@ class SchedulerService {
   private expirationEmailJob: cron.ScheduledTask | null = null;
   private directoryCheckJob: cron.ScheduledTask | null = null;
   private notificationCleanupJob: cron.ScheduledTask | null = null;
+  private caqhSyncJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isExpirationJobRunning = false;
   private isExpirationEmailJobRunning = false;
   private isDirectoryJobRunning = false;
+  private isCaqhSyncJobRunning = false;
   private expirationService = new ExpirationService();
+  private caqhService = new CaqhService();
 
   /**
    * Initialize all scheduled jobs
@@ -63,6 +68,17 @@ class SchedulerService {
       logger.info(`[Scheduler] Directory check job scheduled: ${directorySchedule}`);
     } else {
       logger.info('[Scheduler] No directory adapters configured, directory check job not scheduled.');
+    }
+
+    // Schedule daily CAQH credential sync (2am)
+    if (this.caqhService.isConfigured()) {
+      const caqhSchedule = process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *';
+      this.caqhSyncJob = cron.schedule(caqhSchedule, () => {
+        this.runCaqhSyncJob();
+      });
+      logger.info(`[Scheduler] CAQH sync job scheduled: ${caqhSchedule}`);
+    } else {
+      logger.info('[Scheduler] CAQH not configured, sync job not scheduled.');
     }
 
     // Schedule weekly notification cleanup (Sundays at 4am)
@@ -203,6 +219,90 @@ class SchedulerService {
   }
 
   /**
+   * Run the CAQH credential sync job for all eligible providers.
+   */
+  async runCaqhSyncJob(): Promise<{
+    synced: number;
+    failed: number;
+    skipped: number;
+    results: Array<{ providerId: string; providerName: string; success: boolean; error?: string; changes?: any }>;
+  }> {
+    if (this.isCaqhSyncJobRunning) {
+      logger.info('[Scheduler] CAQH sync job already running, skipping...');
+      return { synced: 0, failed: 0, skipped: 0, results: [] };
+    }
+
+    this.isCaqhSyncJobRunning = true;
+    logger.info('[Scheduler] Starting CAQH sync job...');
+
+    const results: Array<{ providerId: string; providerName: string; success: boolean; error?: string; changes?: any }> = [];
+    let synced = 0;
+    let failed = 0;
+
+    try {
+      // Find all providers with verified CAQH credentials
+      const providers = await prisma.provider.findMany({
+        where: {
+          caqhProviderId: { not: null },
+          caqhCredentialsValid: true,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          caqhProviderId: true,
+        },
+      });
+
+      if (providers.length === 0) {
+        logger.info('[Scheduler] CAQH sync: no eligible providers found.');
+        return { synced: 0, failed: 0, skipped: 0, results: [] };
+      }
+
+      logger.info(`[Scheduler] CAQH sync: found ${providers.length} eligible providers.`);
+
+      for (const provider of providers) {
+        const providerName = `${provider.firstName} ${provider.lastName}`;
+        try {
+          const result = await this.caqhService.syncProvider(provider.id, provider.caqhProviderId!);
+          const totalChanges =
+            result.changes.licenses.created + result.changes.licenses.updated +
+            result.changes.certifications.created + result.changes.certifications.updated +
+            result.changes.education.created + result.changes.education.updated +
+            result.changes.malpractice.created + result.changes.malpractice.updated;
+
+          results.push({ providerId: provider.id, providerName, success: true, changes: result.changes });
+          synced++;
+
+          if (totalChanges > 0) {
+            await notificationService.notifyAdminUsers({
+              type: 'system_announcement',
+              title: 'CAQH Sync Update',
+              message: `CAQH sync updated ${totalChanges} credential(s) for ${providerName}.`,
+              actionUrl: `/providers/${provider.id}`,
+            });
+          }
+
+          logger.info(`[Scheduler] CAQH sync completed for ${providerName}: ${totalChanges} changes`);
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : 'Unknown error';
+          results.push({ providerId: provider.id, providerName, success: false, error: errMsg });
+          failed++;
+          logger.error(`[Scheduler] CAQH sync failed for ${providerName}: ${errMsg}`);
+        }
+      }
+
+      logger.info(`[Scheduler] CAQH sync job completed: ${synced} synced, ${failed} failed`);
+      return { synced, failed, skipped: 0, results };
+    } catch (error) {
+      logger.error('[Scheduler] CAQH sync job error:', error);
+      throw error;
+    } finally {
+      this.isCaqhSyncJobRunning = false;
+    }
+  }
+
+  /**
    * Stop all scheduled jobs
    */
   stop(): void {
@@ -226,6 +326,11 @@ class SchedulerService {
       this.directoryCheckJob = null;
       logger.info('[Scheduler] Directory check job stopped');
     }
+    if (this.caqhSyncJob) {
+      this.caqhSyncJob.stop();
+      this.caqhSyncJob = null;
+      logger.info('[Scheduler] CAQH sync job stopped');
+    }
     if (this.notificationCleanupJob) {
       this.notificationCleanupJob.stop();
       this.notificationCleanupJob = null;
@@ -244,10 +349,13 @@ class SchedulerService {
     expirationEmailJobRunning: boolean;
     directoryCheckConfigured: boolean;
     directoryCheckJobRunning: boolean;
+    caqhSyncConfigured: boolean;
+    caqhSyncJobRunning: boolean;
     followUpSchedule: string;
     expirationAlertSchedule: string;
     expirationEmailSchedule: string;
     directoryCheckSchedule: string;
+    caqhSyncSchedule: string;
   } {
     return {
       emailConfigured: emailService.isConfigured(),
@@ -257,10 +365,13 @@ class SchedulerService {
       expirationEmailJobRunning: this.isExpirationEmailJobRunning,
       directoryCheckConfigured: getConfiguredPayers().length > 0,
       directoryCheckJobRunning: this.isDirectoryJobRunning,
+      caqhSyncConfigured: this.caqhService.isConfigured(),
+      caqhSyncJobRunning: this.isCaqhSyncJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
       expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
       directoryCheckSchedule: process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0',
+      caqhSyncSchedule: process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *',
     };
   }
 }
