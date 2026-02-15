@@ -309,19 +309,61 @@ caqhRoutes.post(
   }
 );
 
-// GET /api/v1/caqh/sync-history/:providerId - Get sync history
+// GET /api/v1/caqh/sync-history/:providerId - Get sync history (paginated)
 caqhRoutes.get(
   '/sync-history/:providerId',
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const syncLogs = await prisma.caqhSyncLog.findMany({
-        where: { providerId: req.params['providerId'] },
-        orderBy: { startedAt: 'desc' },
-        take: 20,
+      const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query['limit'] as string) || 20));
+      const skip = (page - 1) * limit;
+
+      const [syncLogs, total] = await Promise.all([
+        prisma.caqhSyncLog.findMany({
+          where: { providerId: req.params['providerId'] },
+          orderBy: { startedAt: 'desc' },
+          take: limit,
+          skip,
+        }),
+        prisma.caqhSyncLog.count({
+          where: { providerId: req.params['providerId'] },
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        data: syncLogs,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/config - Get CAQH integration configuration status
+caqhRoutes.get(
+  '/config',
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const configured = caqhService.isConfigured();
+      const schedule = process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *';
+
+      const lastSync = await prisma.caqhSyncLog.findFirst({
+        where: { status: 'completed' },
+        orderBy: { completedAt: 'desc' },
+        select: { completedAt: true },
       });
 
-      res.json({ success: true, data: syncLogs });
+      res.json({
+        success: true,
+        data: {
+          configured,
+          syncSchedule: schedule,
+          lastSyncAt: lastSync?.completedAt || null,
+        },
+      });
     } catch (error) {
       next(error);
     }
