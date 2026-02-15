@@ -22,6 +22,17 @@ export const staffUser = {
   providerId: undefined,
 };
 
+export const practiceAdminUser = {
+  id: 'practice-admin-user-id',
+  cognitoId: 'practice-admin-cognito-id',
+  email: 'practiceadmin@test.com',
+  firstName: 'Practice',
+  lastName: 'Admin',
+  role: 'practice_admin' as const,
+  isActive: true,
+  providerId: undefined,
+};
+
 export const providerUser = {
   id: 'provider-user-id',
   cognitoId: 'provider-cognito-id',

@@ -145,7 +145,7 @@ providerRoutes.get(
       const cleaned = stripSensitiveFields(provider);
 
       // Only include dateOfBirth for admin/staff or the provider themselves
-      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'credentialing_staff';
+      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'credentialing_staff' || req.user?.role === 'practice_admin';
       const isSelf = req.user?.providerId === provider.id;
       if (!isAdminOrStaff && !isSelf) {
         delete cleaned.dateOfBirth;
