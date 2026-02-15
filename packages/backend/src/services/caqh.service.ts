@@ -49,34 +49,99 @@ export class CaqhService {
   private apiKey: string;
 
   constructor() {
-    this.baseUrl = process.env['CAQH_API_URL'] || 'https://proview-demo.caqh.org/api';
+    this.baseUrl = process.env['CAQH_API_URL'] || '';
     this.orgId = process.env['CAQH_ORG_ID'] || '';
     this.apiKey = process.env['CAQH_API_KEY'] || '';
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retryable = true
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const maxRetries = retryable ? 3 : 1;
+    let lastError: Error | null = null;
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Organization-Id': this.orgId,
-        ...options.headers,
-      },
-    });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(`CAQH API error: ${response.status} - ${errorText}`);
-      throw new Error(`CAQH API error: ${response.status}`);
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Organization-Id': this.orgId,
+            ...options.headers,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+
+          // Don't retry 4xx client errors
+          if (response.status >= 400 && response.status < 500) {
+            logger.error(`CAQH API client error: ${response.status} - ${errorText}`);
+            throw new Error(`CAQH API error: ${response.status}`);
+          }
+
+          // Retry 5xx server errors
+          logger.warn({
+            event: 'caqh_api_retry',
+            attempt,
+            maxRetries,
+            status: response.status,
+            endpoint,
+          });
+          lastError = new Error(`CAQH API error: ${response.status}`);
+          if (attempt < maxRetries) {
+            await this.sleep(1000 * Math.pow(2, attempt - 1));
+            continue;
+          }
+          throw lastError;
+        }
+
+        const text = await response.text();
+        if (!text) return {} as T;
+        try {
+          return JSON.parse(text) as T;
+        } catch {
+          logger.error({ event: 'caqh_json_parse_error', endpoint, responseText: text.substring(0, 200) });
+          throw new Error('CAQH API returned invalid JSON');
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          lastError = new Error('CAQH API request timed out');
+        } else if (error instanceof Error && error.message.startsWith('CAQH API')) {
+          lastError = error;
+        } else {
+          lastError = error instanceof Error ? error : new Error('Unknown CAQH error');
+        }
+
+        if (attempt < maxRetries && retryable) {
+          logger.warn({
+            event: 'caqh_api_retry',
+            attempt,
+            maxRetries,
+            error: lastError.message,
+            endpoint,
+          });
+          await this.sleep(1000 * Math.pow(2, attempt - 1));
+          continue;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
-    return response.json() as Promise<T>;
+    throw lastError || new Error('CAQH API request failed');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async addToRoster(provider: {
@@ -97,7 +162,7 @@ export class CaqhService {
         last_name: provider.lastName,
         date_of_birth: provider.dateOfBirth.toISOString().split('T')[0],
       }),
-    });
+    }, false);
 
     return response;
   }
@@ -107,7 +172,7 @@ export class CaqhService {
 
     await this.request(`/roster/${caqhProviderId}`, {
       method: 'DELETE',
-    });
+    }, false);
   }
 
   async checkStatus(caqhProviderId: string): Promise<CaqhStatusResponse> {
@@ -455,7 +520,7 @@ export class CaqhService {
    * Check if the CAQH API is configured.
    */
   isConfigured(): boolean {
-    return !!(this.orgId && this.apiKey);
+    return !!(this.baseUrl && this.orgId && this.apiKey);
   }
 }
 
