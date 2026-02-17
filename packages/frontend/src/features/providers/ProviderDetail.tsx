@@ -1,29 +1,30 @@
-import { useState, Fragment, useCallback } from 'react';
+import { useState, Fragment, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
 import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import PracticeLocationModal from './PracticeLocationModal';
-import LicenseModal from './LicenseModal';
-import CertificationModal from './CertificationModal';
 import { useDeleteLicense, useDeleteCertification } from '../../hooks/useCredentials';
-import EducationModal from './EducationModal';
-import WorkHistoryModal from './WorkHistoryModal';
-import MalpracticeInsuranceModal from './MalpracticeInsuranceModal';
-import SupervisingPhysicianModal from './SupervisingPhysicianModal';
-import MalpracticeClaimModal from './MalpracticeClaimModal';
-import DisclosureModal from './DisclosureModal';
-import DeaRegistrationModal from './DeaRegistrationModal';
-import ProviderIdentifierModal from './ProviderIdentifierModal';
-import BankingModal from './BankingModal';
 import DemographicsForm from './DemographicsForm';
+
+// Lazy-loaded modals — only fetched when opened
+const PracticeLocationModal = lazy(() => import('./PracticeLocationModal'));
+const LicenseModal = lazy(() => import('./LicenseModal'));
+const CertificationModal = lazy(() => import('./CertificationModal'));
+const EducationModal = lazy(() => import('./EducationModal'));
+const WorkHistoryModal = lazy(() => import('./WorkHistoryModal'));
+const MalpracticeInsuranceModal = lazy(() => import('./MalpracticeInsuranceModal'));
+const SupervisingPhysicianModal = lazy(() => import('./SupervisingPhysicianModal'));
+const MalpracticeClaimModal = lazy(() => import('./MalpracticeClaimModal'));
+const DisclosureModal = lazy(() => import('./DisclosureModal'));
+const DeaRegistrationModal = lazy(() => import('./DeaRegistrationModal'));
+const ProviderIdentifierModal = lazy(() => import('./ProviderIdentifierModal'));
+const BankingModal = lazy(() => import('./BankingModal'));
 import {
   useListEducation, useDeleteEducation,
   useListWorkHistory, useDeleteWorkHistory,
@@ -429,9 +430,11 @@ export default function ProviderDetail() {
     toast.success('CSV exported successfully');
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!provider) return;
 
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -1569,6 +1572,8 @@ export default function ProviderDetail() {
         </Tab.Panels>
       </Tab.Group>
 
+      {/* Lazy-loaded modals */}
+      <Suspense fallback={null}>
       {/* Practice Location Modal */}
       <PracticeLocationModal
         isOpen={locationModalOpen}
@@ -1700,6 +1705,8 @@ export default function ProviderDetail() {
         providerId={id!}
         banking={editingBanking}
       />
+
+      </Suspense>
 
       {/* Document Upload Modal */}
       <DocumentUploadModal
