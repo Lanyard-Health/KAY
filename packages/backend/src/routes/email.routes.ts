@@ -11,7 +11,7 @@ const router = Router();
 router.get(
   '/test',
   authenticate,
-  authorize('admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const to = req.query['to'] as string;
@@ -59,7 +59,7 @@ router.get(
 router.get(
   '/config',
   authenticate,
-  authorize('admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (_req: Request, res: Response) => {
     res.json({
       success: true,

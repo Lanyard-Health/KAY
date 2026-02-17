@@ -300,6 +300,52 @@ app.listen(PORT, async () => {
     }
   }
 
+  // Auto-seed core payers if the table is empty (works on fresh DBs and production)
+  try {
+    const payerCount = await prisma.payer.count();
+    if (payerCount === 0) {
+      logger.info('Payer table empty — seeding core payers...');
+      const corePayers = [
+        { name: 'Aetna', payerId: 'AETNA', payerType: 'Medical', workflowKey: 'aetna' },
+        { name: 'Cigna', payerId: 'CIGNA', payerType: 'Medical', workflowKey: 'cigna' },
+        { name: 'UnitedHealthcare', payerId: 'UHC', payerType: 'Medical', workflowKey: 'uhc' },
+        { name: 'Blue Cross Blue Shield', payerId: 'BCBS', payerType: 'Medical', workflowKey: 'bcbs' },
+        { name: 'Humana', payerId: 'HUMANA', payerType: 'Medical', workflowKey: 'humana' },
+        { name: 'Kaiser Permanente', payerId: 'KAISER', payerType: 'Medical' },
+        { name: 'Molina Healthcare', payerId: 'MOLINA', payerType: 'Medical, Medicaid' },
+        { name: 'Centene', payerId: 'CENTENE', payerType: 'Medical, Medicaid' },
+        { name: 'Anthem', payerId: 'ANTHEM', payerType: 'Medical' },
+        { name: 'Medicare', payerId: 'MEDICARE', payerType: 'Government' },
+        { name: 'Medicaid', payerId: 'MEDICAID', payerType: 'Government' },
+        { name: 'Tricare', payerId: 'TRICARE', payerType: 'Government' },
+        { name: 'Magellan Health', payerId: 'MAGELLAN', payerType: 'Behavioral Health' },
+        { name: 'Optum', payerId: 'OPTUM', payerType: 'Behavioral Health' },
+        { name: 'Beacon Health Options', payerId: 'BEACON', payerType: 'Behavioral Health' },
+        { name: 'Carelon Behavioral Health', payerId: 'CARELON', payerType: 'Behavioral Health' },
+        { name: 'Evernorth (Express Scripts)', payerId: 'EVERNORTH', payerType: 'Pharmacy' },
+        { name: 'CVS Health / Aetna', payerId: 'CVS-AETNA', payerType: 'Medical, Pharmacy' },
+        { name: 'Highmark', payerId: 'HIGHMARK', payerType: 'Medical' },
+        { name: 'Health Net', payerId: 'HEALTHNET', payerType: 'Medical' },
+        { name: 'WellCare', payerId: 'WELLCARE', payerType: 'Medical, Medicaid' },
+        { name: 'Amerigroup', payerId: 'AMERIGROUP', payerType: 'Medicaid' },
+        { name: 'Oscar Health', payerId: 'OSCAR', payerType: 'Medical' },
+        { name: 'Devoted Health', payerId: 'DEVOTED', payerType: 'Medicare Advantage' },
+        { name: 'Bright Health', payerId: 'BRIGHTHEALTH', payerType: 'Medical' },
+      ];
+
+      for (const p of corePayers) {
+        await prisma.payer.upsert({
+          where: { payerId: p.payerId },
+          update: {},
+          create: p,
+        });
+      }
+      logger.info(`Seeded ${corePayers.length} core payers`);
+    }
+  } catch (err) {
+    logger.warn('Payer auto-seed failed (non-fatal):', err);
+  }
+
   serverReady = true;
   logger.info(`Server fully ready — accepting API requests on port ${PORT}`);
 });

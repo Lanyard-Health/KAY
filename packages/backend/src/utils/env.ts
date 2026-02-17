@@ -7,10 +7,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3002),
 
   // Auth
-  JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
+  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   DEV_AUTH_BYPASS: z.string().optional(),
 
-  // Encryption
+  // Encryption (required in production for CAQH credential storage)
   ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be a 64-character hex string').optional(),
 
   // AI (optional — feature degrades gracefully)
@@ -43,6 +43,11 @@ export function validateEnv(): Env {
       .map(([key, msgs]) => `  ${key}: ${msgs?.join(', ')}`)
       .join('\n');
     throw new Error(`Environment validation failed:\n${messages}`);
+  }
+
+  // Warn if ENCRYPTION_KEY missing in production (needed for CAQH credential storage)
+  if (result.data.NODE_ENV === 'production' && !result.data.ENCRYPTION_KEY) {
+    console.warn('WARNING: ENCRYPTION_KEY not set — CAQH credential encryption will be unavailable');
   }
 
   return result.data;

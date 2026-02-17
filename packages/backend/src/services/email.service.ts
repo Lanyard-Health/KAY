@@ -76,10 +76,15 @@ class EmailService {
     return { success: true };
   }
 
+  /** Strip CRLF sequences to prevent email header injection */
+  private sanitizeHeader(value: string): string {
+    return value.replace(/[\r\n]/g, '');
+  }
+
   private buildMimeMessage(params: SendEmailParams): string {
     const boundary = `boundary_${Date.now().toString(36)}`;
-    const to = params.to;
-    const subject = params.subject;
+    const to = this.sanitizeHeader(params.to);
+    const subject = this.sanitizeHeader(params.subject);
     const text = params.text || params.html.replace(/<[^>]*>/g, '');
 
     const hasAttachments = params.attachments && params.attachments.length > 0;
@@ -114,9 +119,10 @@ class EmailService {
           : Buffer.from(att.content as string);
         lines.push('');
         lines.push(`--${boundary}`);
-        lines.push(`Content-Type: ${att.contentType || 'application/octet-stream'}; name="${att.filename}"`);
+        const safeFilename = this.sanitizeHeader(att.filename).replace(/"/g, '\\"');
+        lines.push(`Content-Type: ${att.contentType || 'application/octet-stream'}; name="${safeFilename}"`);
         lines.push('Content-Transfer-Encoding: base64');
-        lines.push(`Content-Disposition: attachment; filename="${att.filename}"`);
+        lines.push(`Content-Disposition: attachment; filename="${safeFilename}"`);
         lines.push('');
         lines.push(contentBytes.toString('base64'));
       }
