@@ -48,7 +48,7 @@ describe('Payer Enrollment Data Routes', () => {
       id: 'banking-1-id',
       providerId,
       bankName: 'Test Bank',
-      bankAccountType: 'checking',
+      bankAccountType: 'CHECKING',
       routingNumberEncrypted: 'encrypted:021000021',
       accountNumberEncrypted: 'encrypted:123456789',
       accountNumberLast4: '6789',
@@ -67,7 +67,7 @@ describe('Payer Enrollment Data Routes', () => {
 
     const validBanking = {
       bankName: 'Test Bank',
-      bankAccountType: 'checking',
+      bankAccountType: 'CHECKING',
       routingNumber: '021000021',
       accountNumber: '123456789',
       accountHolderName: 'Jane Doe',
@@ -203,15 +203,16 @@ describe('Payer Enrollment Data Routes', () => {
       providerId,
       ethnicity: 'not_hispanic',
       race: 'white',
-      primaryLanguage: 'English',
-      secondaryLanguage: null,
-      interpreterNeeded: false,
-      disability: null,
-      citizenshipStatus: 'us_citizen',
-      countryOfCitizenship: 'US',
+      citizenshipStatus: 'US_CITIZEN',
       visaType: null,
       visaExpirationDate: null,
-      militaryStatus: 'none',
+      birthCity: null,
+      birthState: null,
+      birthCountry: null,
+      previousNames: [],
+      emergencyContactName: null,
+      emergencyContactPhone: null,
+      emergencyContactRelation: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -248,9 +249,7 @@ describe('Payer Enrollment Data Routes', () => {
       const validDemographics = {
         ethnicity: 'not_hispanic',
         race: 'white',
-        primaryLanguage: 'English',
-        citizenshipStatus: 'us_citizen',
-        countryOfCitizenship: 'US',
+        citizenshipStatus: 'US_CITIZEN',
       };
 
       it('upserts demographics and returns the record', async () => {

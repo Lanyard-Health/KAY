@@ -10,11 +10,13 @@ const AI_DAILY_TOKEN_BUDGET = parseInt(process.env['AI_DAILY_TOKEN_BUDGET'] || '
 let client: Anthropic | null = null;
 
 export function sanitizeUserInput(input: string, maxLength = 500): string {
-  return input
-    .replace(/\b(ignore|disregard|forget)\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, '[redacted]')
-    .replace(/\b(system|assistant)\s*:/gi, '[redacted]')
+  // Bound input length BEFORE running regexes to prevent ReDoS on adversarial strings
+  const bounded = input.slice(0, maxLength);
+  return bounded
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded input (max 500 chars) limits backtracking; non-capturing groups reduce paths
+    .replace(/\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior)\s+(?:instructions?|prompts?|rules?)\b/gi, '[redacted]')
+    .replace(/\b(?:system|assistant)\s*:/gi, '[redacted]')
     .replace(/```/g, '')
-    .slice(0, maxLength)
     .trim();
 }
 

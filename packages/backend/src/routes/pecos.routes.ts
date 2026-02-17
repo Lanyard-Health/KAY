@@ -154,6 +154,7 @@ pecosRoutes.post(
       // Convert Map to object for JSON response
       const resultsObject: Record<string, any> = {};
       results.forEach((value, key) => {
+        // eslint-disable-next-line security/detect-object-injection -- key is a validated 10-digit NPI (regex-checked above)
         resultsObject[key] = value;
       });
 

@@ -231,6 +231,7 @@ function validateRow(record: Record<string, string>, rowNumber: number): Validat
   const data: Record<string, string> = {};
   for (const key of Object.keys(record)) {
     if (ALL_VALID_HEADERS.has(key)) {
+      // eslint-disable-next-line security/detect-object-injection -- key passes allowlist check against hardcoded Set of known CSV headers
       data[key] = record[key]?.trim() ?? '';
     }
   }
@@ -345,6 +346,7 @@ export function validateNpiLuhn(npi: string): boolean {
   // Standard Luhn algorithm
   let sum = 0;
   for (let i = prefixed.length - 1; i >= 0; i--) {
+    // eslint-disable-next-line security/detect-object-injection -- i is a bounded integer loop index for string character access
     let digit = parseInt(prefixed[i]!, 10);
     // Double every second digit from the right (0-indexed: even positions from right)
     if ((prefixed.length - 1 - i) % 2 === 1) {

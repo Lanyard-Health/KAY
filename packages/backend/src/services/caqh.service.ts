@@ -284,7 +284,8 @@ export class CaqhService {
       'DEA': 'dea',
       'CDS': 'controlled_substance',
     };
-    const result = mapping[caqhType];
+    // eslint-disable-next-line security/detect-object-injection -- guarded by Object.hasOwn; caqhType is from CAQH API, not user HTTP input
+    const result = Object.hasOwn(mapping, caqhType) ? mapping[caqhType] : undefined;
     if (!result) {
       logger.warn({
         event: 'caqh_unknown_mapping',

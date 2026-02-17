@@ -215,6 +215,7 @@ export class PECOSService {
       );
 
       batch.forEach((npi, index) => {
+        // eslint-disable-next-line security/detect-object-injection -- index is a forEach integer index
         results.set(npi, batchResults[index]!);
       });
     }

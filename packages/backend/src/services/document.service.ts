@@ -373,6 +373,7 @@ export class DocumentService {
           const confidence = (block.Confidence || 0) / 100;
 
           if (keyText && valueText) {
+            // eslint-disable-next-line security/detect-object-injection -- keyText is a Textract OCR label, stored as JSON blob
             extractedFields[keyText] = {
               value: valueText,
               confidence,

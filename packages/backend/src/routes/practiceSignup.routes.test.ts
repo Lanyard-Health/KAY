@@ -23,10 +23,10 @@ app.use(errorHandler);
 
 const validPayload = {
   practiceName: 'Test Medical Group',
-  adminFirstName: 'Jane',
-  adminLastName: 'Doe',
-  adminEmail: 'jane.doe@example.com',
-  adminPassword: 'SecureP@ss1234',
+  firstName: 'Jane',
+  lastName: 'Doe',
+  email: 'jane.doe@example.com',
+  password: 'SecureP@ss1234',
   phone: '555-123-4567',
 };
 
@@ -47,9 +47,9 @@ describe('Practice Signup Routes', () => {
       expect(mockedRegisterPractice).toHaveBeenCalledWith(
         expect.objectContaining({
           practiceName: validPayload.practiceName,
-          adminEmail: validPayload.adminEmail,
-          adminFirstName: validPayload.adminFirstName,
-          adminLastName: validPayload.adminLastName,
+          email: validPayload.email,
+          firstName: validPayload.firstName,
+          lastName: validPayload.lastName,
           phone: validPayload.phone,
         })
       );

@@ -34,6 +34,7 @@ const createPracticeLocationSchema = z.object({
   addressLine2: z.string().max(200).optional(),
   city: z.string().min(1).max(100),
   state: z.string().min(2).max(2),
+  // eslint-disable-next-line security/detect-unsafe-regex -- safe pattern: no nested quantifiers or backtracking ambiguity
   zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code'),
   county: z.string().max(100).optional(),
   country: z.string().max(2).optional().default('US'),
