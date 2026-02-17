@@ -1,5 +1,6 @@
 import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import { prisma } from '../utils/prisma.js';
+import { logger } from '../utils/logger.js';
 
 interface Attachment {
   filename: string;
@@ -31,12 +32,12 @@ class EmailService {
     const secretAccessKey = process.env['AWS_SECRET_ACCESS_KEY'];
 
     if (!fromEmail) {
-      console.warn('Email service not configured. Set SES_FROM_EMAIL env var to enable email sending.');
+      logger.warn('Email service not configured. Set SES_FROM_EMAIL env var to enable email sending.');
       return;
     }
 
     if (!accessKeyId || !secretAccessKey) {
-      console.warn('Email service not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars.');
+      logger.warn('Email service not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env vars.');
       return;
     }
 
@@ -52,7 +53,7 @@ class EmailService {
 
     this.fromEmail = fromEmail;
     this.configured = true;
-    console.log(`Email service configured with SES (region: ${region}, from: ${fromEmail})`);
+    logger.info(`Email service configured with SES (region: ${region}, from: ${fromEmail})`);
   }
 
   isConfigured(): boolean {
@@ -149,7 +150,7 @@ class EmailService {
 
   async sendEmail(params: SendEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
     if (!this.sesClient) {
-      console.warn(`Email skipped (not configured): to=${params.to}, subject="${params.subject}"`);
+      logger.warn(`Email skipped (not configured): to=${params.to}, subject="${params.subject}"`);
       return { success: false, error: 'Email service not configured' };
     }
 
@@ -182,7 +183,7 @@ class EmailService {
       return { success: true, messageId };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Email send failed: to=${params.to}, error=${message}`);
+      logger.error(`Email send failed: to=${params.to}, error=${message}`);
 
       // Log failed notification
       await prisma.notification.create({

@@ -10,6 +10,7 @@ import { PrismaClient, WorkflowType, WorkflowStepStatus } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,7 +169,7 @@ export async function hydrateWorkflowSteps(
   const payerTemplate = data.payers[payerWorkflowKey];
 
   if (!payerTemplate) {
-    console.warn(
+    logger.warn(
       `No workflow template found for payer key "${payerWorkflowKey}". ` +
       `Available keys: ${Object.keys(data.payers).join(', ')}`
     );
@@ -182,14 +183,14 @@ export async function hydrateWorkflowSteps(
     const fallbackWorkflow = payerTemplate.workflows[fallbackType];
 
     if (!fallbackWorkflow) {
-      console.warn(
+      logger.warn(
         `No "${workflowType}" or fallback workflow found for payer "${payerWorkflowKey}". ` +
         `Available: ${Object.keys(payerTemplate.workflows).join(', ')}`
       );
       return { stepsCreated: 0, templateFound: false };
     }
 
-    console.info(
+    logger.info(
       `Using "${fallbackType}" workflow as fallback for "${payerWorkflowKey}" ` +
       `(requested "${workflowType}" not available)`
     );

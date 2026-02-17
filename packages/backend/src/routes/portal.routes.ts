@@ -72,7 +72,7 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    console.error('Error submitting application:', error);
+    logger.error('Error submitting application:', error);
 
     if (error instanceof Error) {
       if (
@@ -122,7 +122,7 @@ router.get('/status/:npi', portalLookupLimit, async (req: Request, res: Response
       data: status,
     });
   } catch (error) {
-    console.error('Error fetching application status:', error);
+    logger.error('Error fetching application status:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch application status',
@@ -196,7 +196,7 @@ router.get('/admin/applications', authenticate, authorize('admin', 'credentialin
       },
     });
   } catch (error) {
-    console.error('Error fetching applications:', error);
+    logger.error('Error fetching applications:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch applications',
@@ -225,7 +225,7 @@ router.get('/admin/applications/:id', authenticate, authorize('admin', 'credenti
       data: application,
     });
   } catch (error) {
-    console.error('Error fetching application:', error);
+    logger.error('Error fetching application:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch application',
@@ -251,7 +251,7 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
       data: application,
     });
   } catch (error) {
-    console.error('Error approving application:', error);
+    logger.error('Error approving application:', error);
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
@@ -294,7 +294,7 @@ router.post('/admin/applications/:id/reject', authenticate, authorize('admin', '
       data: application,
     });
   } catch (error) {
-    console.error('Error rejecting application:', error);
+    logger.error('Error rejecting application:', error);
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
@@ -333,7 +333,7 @@ router.get('/admin/notifications', authenticate, authorize('admin', 'credentiali
       },
     });
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    logger.error('Error fetching notifications:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch notifications',
@@ -356,7 +356,7 @@ router.post('/admin/notifications/mark-read', authenticate, authorize('admin', '
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    console.error('Error marking notifications as read:', error);
+    logger.error('Error marking notifications as read:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to mark notifications as read',

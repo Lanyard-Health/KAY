@@ -7,6 +7,7 @@ import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPra
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { invalidateCache } from '../utils/cache.js';
+import { logger } from '../utils/logger.js';
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -354,7 +355,7 @@ router.put(
         enrollment.terminationDate
       ) {
         triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
-          .catch((err) => console.error('Termination workflow trigger failed:', err));
+          .catch((err) => logger.error('Termination workflow trigger failed:', err));
       }
 
       invalidateCache('dashboard');

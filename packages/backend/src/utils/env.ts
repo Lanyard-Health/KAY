@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logger } from './logger.js';
 
 const envSchema = z.object({
   // Required
@@ -47,7 +48,7 @@ export function validateEnv(): Env {
 
   // Warn if ENCRYPTION_KEY missing in production (needed for CAQH credential storage)
   if (result.data.NODE_ENV === 'production' && !result.data.ENCRYPTION_KEY) {
-    console.warn('WARNING: ENCRYPTION_KEY not set — CAQH credential encryption will be unavailable');
+    logger.warn('WARNING: ENCRYPTION_KEY not set — CAQH credential encryption will be unavailable');
   }
 
   return result.data;
