@@ -313,6 +313,7 @@ export default function EnrollmentsList() {
       api.post(`/enrollments/provider/${data.providerId}`, data.formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
       toast.success('Enrollment created');
     },

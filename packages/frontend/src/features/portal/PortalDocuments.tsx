@@ -3,6 +3,7 @@ import { TrashIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { usePortalDocuments, useUploadDocument, useDeleteDocument } from './hooks/usePortalData';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const DOCUMENT_TYPES = [
   { value: '', label: 'Select Document Type' },
@@ -32,6 +33,7 @@ export default function PortalDocuments() {
 
   const [documentType, setDocumentType] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({ isOpen: false, id: '', name: '' });
 
   const documents = (data as any)?.data ?? [];
 
@@ -56,14 +58,8 @@ export default function PortalDocuments() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}"?`)) return;
-    try {
-      await deleteMutation.mutateAsync(id);
-      toast.success('Document deleted');
-    } catch {
-      toast.error('Failed to delete document');
-    }
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirm({ isOpen: true, id, name });
   };
 
   if (isLoading) {
@@ -171,6 +167,24 @@ export default function PortalDocuments() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: '', name: '' })}
+        onConfirm={async () => {
+          try {
+            await deleteMutation.mutateAsync(deleteConfirm.id);
+            toast.success('Document deleted');
+          } catch {
+            toast.error('Failed to delete document');
+          }
+          setDeleteConfirm({ isOpen: false, id: '', name: '' });
+        }}
+        title="Delete Document"
+        message={`Delete "${deleteConfirm.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

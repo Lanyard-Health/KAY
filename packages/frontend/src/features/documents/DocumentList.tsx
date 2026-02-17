@@ -103,6 +103,7 @@ export default function DocumentList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', selectedProvider] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       toast.success('Document deleted');
     },
     onError: () => {
@@ -116,6 +117,7 @@ export default function DocumentList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', selectedProvider] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       toast.success('Document updated');
       setEditingDoc(null);
     },

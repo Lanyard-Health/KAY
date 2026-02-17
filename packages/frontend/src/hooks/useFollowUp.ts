@@ -70,6 +70,7 @@ export function useUpdateFollowUpSettings() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['follow-up-settings', variables.enrollmentId] });
       queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       toast.success('Follow-up settings saved');
     },
     onError: (error: any) => {
@@ -111,6 +112,7 @@ export function useSendFollowUp() {
       queryClient.invalidateQueries({ queryKey: ['follow-up-settings', variables.enrollmentId] });
       queryClient.invalidateQueries({ queryKey: ['follow-up-history', variables.enrollmentId] });
       queryClient.invalidateQueries({ queryKey: ['enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       toast.success('Follow-up email sent');
     },
     onError: (error: any) => {

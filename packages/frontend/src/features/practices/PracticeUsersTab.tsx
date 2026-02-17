@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { usePracticeUsers, useRemoveUser, useAssignUser } from '../../hooks/usePractices';
 import type { PracticeUserAssignment } from '../../hooks/usePractices';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import AssignUserModal from './AssignUserModal';
 import UserFormModal from '../users/UserFormModal';
 
@@ -25,19 +26,10 @@ export default function PracticeUsersTab({ practiceId }: PracticeUsersTabProps) 
   const assignUserMutation = useAssignUser();
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<{ isOpen: boolean; assignment: PracticeUserAssignment | null }>({ isOpen: false, assignment: null });
 
   const handleRemove = (assignment: PracticeUserAssignment) => {
-    if (!window.confirm(`Remove ${assignment.user.firstName} ${assignment.user.lastName} from this practice?`)) {
-      return;
-    }
-
-    removeMutation.mutate(
-      { practiceId, userId: assignment.userId },
-      {
-        onSuccess: () => toast.success('User removed from practice'),
-        onError: () => toast.error('Failed to remove user'),
-      }
-    );
+    setRemoveConfirm({ isOpen: true, assignment });
   };
 
   if (isLoading) {
@@ -174,7 +166,6 @@ export default function PracticeUsersTab({ practiceId }: PracticeUsersTabProps) 
         onClose={() => setCreateUserModalOpen(false)}
         onCreated={(created) => {
           if (created?.id) {
-            // Auto-assign the newly created user to this practice
             assignUserMutation.mutate(
               { practiceId, userId: created.id, role: 'PRACTICE_STAFF' },
               {
@@ -184,6 +175,27 @@ export default function PracticeUsersTab({ practiceId }: PracticeUsersTabProps) 
             );
           }
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={removeConfirm.isOpen}
+        onClose={() => setRemoveConfirm({ isOpen: false, assignment: null })}
+        onConfirm={() => {
+          if (removeConfirm.assignment) {
+            removeMutation.mutate(
+              { practiceId, userId: removeConfirm.assignment.userId },
+              {
+                onSuccess: () => toast.success('User removed from practice'),
+                onError: () => toast.error('Failed to remove user'),
+              }
+            );
+          }
+          setRemoveConfirm({ isOpen: false, assignment: null });
+        }}
+        title="Remove User"
+        message={`Remove ${removeConfirm.assignment?.user.firstName} ${removeConfirm.assignment?.user.lastName} from this practice?`}
+        confirmLabel="Remove"
+        variant="warning"
       />
     </div>
   );

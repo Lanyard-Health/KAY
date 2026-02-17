@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import ConfirmDialog from './ConfirmDialog';
 import {
   useCaqhCredentialStatus,
   useSaveCaqhCredentials,
@@ -24,6 +25,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showSyncHistory, setShowSyncHistory] = useState(false);
   const [syncHistoryPage, setSyncHistoryPage] = useState(1);
+  const [removeRosterConfirm, setRemoveRosterConfirm] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: credentialStatusData, isLoading: isLoadingCredentials } = useCaqhCredentialStatus(providerId);
@@ -378,14 +380,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
             {credentialStatus?.caqhProviderId && (
               <div className="pt-2 border-t border-gray-100">
                 <button
-                  onClick={() => {
-                    if (window.confirm('Remove this provider from the CAQH roster?')) {
-                      removeFromRoster.mutate(providerId, {
-                        onSuccess: () => toast.success('Removed from CAQH roster'),
-                        onError: () => toast.error('Failed to remove from roster'),
-                      });
-                    }
-                  }}
+                  onClick={() => setRemoveRosterConfirm(true)}
                   disabled={removeFromRoster.isPending}
                   className="w-full px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 disabled:opacity-50"
                 >
@@ -396,6 +391,23 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={removeRosterConfirm}
+        onClose={() => setRemoveRosterConfirm(false)}
+        onConfirm={() => {
+          removeFromRoster.mutate(providerId, {
+            onSuccess: () => toast.success('Removed from CAQH roster'),
+            onError: () => toast.error('Failed to remove from roster'),
+          });
+          setRemoveRosterConfirm(false);
+        }}
+        title="Remove from Roster"
+        message="Remove this provider from the CAQH roster? You can add them back later."
+        confirmLabel="Remove"
+        variant="danger"
+        isLoading={removeFromRoster.isPending}
+      />
     </div>
   );
 }
