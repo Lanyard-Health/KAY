@@ -16,6 +16,7 @@ const ProviderImportPage = lazy(() => import('./features/providers/ProviderImpor
 const DocumentList = lazy(() => import('./features/documents/DocumentList'));
 const ExpirationDashboard = lazy(() => import('./features/dashboard/ExpirationDashboard'));
 const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsList'));
+const EnrollmentDetail = lazy(() => import('./features/enrollments/EnrollmentDetail'));
 const RosterPage = lazy(() => import('./features/roster/RosterPage'));
 const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard'));
 const PayerIntelligencePage = lazy(() => import('./features/payer-intelligence/PayerIntelligencePage'));
@@ -131,6 +132,7 @@ export default function App() {
           <Route path="providers/:id/edit" element={<ProviderForm />} />
           <Route path="documents" element={<DocumentList />} />
           <Route path="enrollments" element={<EnrollmentsList />} />
+          <Route path="enrollments/:id" element={<EnrollmentDetail />} />
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<RosterPage />} />
           <Route path="ai-agent" element={<AiAgentDashboard />} />
