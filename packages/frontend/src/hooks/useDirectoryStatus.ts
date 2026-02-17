@@ -54,7 +54,6 @@ export function useDirectoryStatus(providerId: string) {
       return response.data;
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -48,7 +48,6 @@ export function usePdmStatus(providerId: string) {
       return response.data;
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -64,7 +63,6 @@ export function usePdmAlerts(providerId: string, warningDays?: number) {
       return response.data;
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

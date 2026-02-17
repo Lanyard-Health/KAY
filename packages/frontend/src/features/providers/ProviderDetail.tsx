@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ErrorBoundary from '../../components/ErrorBoundary';
+import RefreshIndicator from '../../components/RefreshIndicator';
 import { useDeleteLicense, useDeleteCertification } from '../../hooks/useCredentials';
 import DemographicsForm from './DemographicsForm';
 
@@ -171,7 +172,7 @@ export default function ProviderDetail() {
     queryClient.invalidateQueries({ queryKey: ['checklist', id] });
   };
 
-  const { data: provider, isLoading, error } = useQuery({
+  const { data: provider, isLoading, isFetching, error } = useQuery({
     queryKey: ['provider', id],
     queryFn: async () => {
       const response = await api.get(`/providers/${id}`);
@@ -690,10 +691,13 @@ export default function ProviderDetail() {
             </span>
           </div>
           <div className="ml-4">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {provider.firstName} {provider.lastName}
-              {provider.suffix && `, ${provider.suffix}`}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {provider.firstName} {provider.lastName}
+                {provider.suffix && `, ${provider.suffix}`}
+              </h1>
+              <RefreshIndicator isFetching={isFetching && !isLoading} />
+            </div>
             <p className="text-sm text-gray-500">
               NPI: {provider.npi} | {provider.providerType.replace('_', ' ')}
             </p>

@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
 
-const STALE_TIME = 5 * 60 * 1000; // 5 minutes
-
 // ==========================================
 // Types
 // ==========================================
@@ -80,7 +78,6 @@ export function useEnrollmentPipeline(
       const response = await api.get(`/reporting/enrollment-pipeline?${params}`);
       return response.data.data as EnrollmentPipelineResult;
     },
-    staleTime: STALE_TIME,
     enabled: !!practiceId,
   });
 }
@@ -95,7 +92,6 @@ export function useExpirationForecast(practiceId: string, days?: number) {
       const response = await api.get(`/reporting/expiration-forecast?${params}`);
       return response.data.data as ExpirationForecastResult;
     },
-    staleTime: STALE_TIME,
     enabled: !!practiceId,
   });
 }
@@ -109,7 +105,6 @@ export function useProviderReadiness(practiceId: string) {
       );
       return response.data.data as ProviderReadinessResult;
     },
-    staleTime: STALE_TIME,
     enabled: !!practiceId,
   });
 }
@@ -123,7 +118,6 @@ export function useGettingStarted(practiceId: string) {
       );
       return response.data.data as GettingStartedResult;
     },
-    staleTime: STALE_TIME,
     enabled: !!practiceId,
   });
 }

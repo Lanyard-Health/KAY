@@ -53,7 +53,6 @@ export function useRosterTemplates() {
       const response = await api.get<TemplateListResponse>('/roster');
       return response.data.data;
     },
-    staleTime: 5 * 60 * 1000,
   });
 }
 

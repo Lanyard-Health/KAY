@@ -17,6 +17,7 @@ import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { useGettingStarted } from '../../hooks/useReporting';
 import ErrorBoundary from '../../components/ErrorBoundary';
+import RefreshIndicator from '../../components/RefreshIndicator';
 import clsx from 'clsx';
 import { format, differenceInDays } from 'date-fns';
 
@@ -48,7 +49,7 @@ export default function Dashboard() {
     !gettingStarted.isOnboarded;
 
   // Fetch all dashboard data
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['dashboard-full'],
     queryFn: async () => {
       const [statsRes, expirationsRes, expirationDashRes] = await Promise.all([
@@ -164,7 +165,10 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
-        <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+          <RefreshIndicator isFetching={isFetching && !isLoading} />
+        </div>
         <p className="mt-1 text-primary-100">
           {actionItemsCount > 0
             ? `You have ${actionItemsCount} item${actionItemsCount !== 1 ? 's' : ''} that need${actionItemsCount === 1 ? 's' : ''} attention`
