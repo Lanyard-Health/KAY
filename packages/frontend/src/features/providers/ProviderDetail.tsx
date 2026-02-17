@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { api } from '../../services/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import PracticeLocationModal from './PracticeLocationModal';
 import LicenseModal from './LicenseModal';
 import CertificationModal from './CertificationModal';
@@ -133,6 +134,22 @@ export default function ProviderDetail() {
   const [bankingModalOpen, setBankingModalOpen] = useState(false);
   const [editingBanking, setEditingBanking] = useState<any>(null);
 
+  // Confirm dialog state (replaces window.confirm)
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+  const showConfirm = useCallback((title: string, message: string, onConfirm: () => void) => {
+    setConfirmState({ isOpen: true, title, message, onConfirm });
+  }, []);
+
+  const closeConfirm = useCallback(() => {
+    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
   const handleUploadDocument = (documentType: string) => {
     setUploadDocumentType(documentType);
     setUploadModalOpen(true);
@@ -218,9 +235,10 @@ export default function ProviderDetail() {
   };
 
   const handleDeleteLocation = (locationId: string) => {
-    if (window.confirm('Are you sure you want to delete this location?')) {
+    showConfirm('Delete Location', 'Are you sure you want to delete this practice location?', () => {
       deleteLocationMutation.mutate(locationId);
-    }
+      closeConfirm();
+    });
   };
 
   // License handlers
@@ -235,9 +253,10 @@ export default function ProviderDetail() {
   };
 
   const handleDeleteLicense = (licenseId: string) => {
-    if (window.confirm('Are you sure you want to delete this license?')) {
+    showConfirm('Delete License', 'Are you sure you want to delete this license?', () => {
       deleteLicenseMutation.mutate({ licenseId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Certification handlers
@@ -252,90 +271,100 @@ export default function ProviderDetail() {
   };
 
   const handleDeleteCert = (certId: string) => {
-    if (window.confirm('Are you sure you want to delete this certification?')) {
+    showConfirm('Delete Certification', 'Are you sure you want to delete this certification?', () => {
       deleteCertMutation.mutate({ certificationId: certId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Education handlers
   const handleAddEducation = () => { setEditingEducation(null); setEducationModalOpen(true); };
   const handleEditEducation = (edu: any) => { setEditingEducation(edu); setEducationModalOpen(true); };
   const handleDeleteEducation = (eduId: string) => {
-    if (window.confirm('Delete this education record?')) {
+    showConfirm('Delete Education', 'Are you sure you want to delete this education record?', () => {
       deleteEducationMutation.mutate({ id: eduId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Work history handlers
   const handleAddWorkHistory = () => { setEditingWorkHistory(null); setWorkHistoryModalOpen(true); };
   const handleEditWorkHistory = (wh: any) => { setEditingWorkHistory(wh); setWorkHistoryModalOpen(true); };
   const handleDeleteWorkHistory = (whId: string) => {
-    if (window.confirm('Delete this work history record?')) {
+    showConfirm('Delete Work History', 'Are you sure you want to delete this work history record?', () => {
       deleteWorkHistoryMutation.mutate({ id: whId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Malpractice insurance handlers
   const handleAddMalpracticeInsurance = () => { setEditingMalpracticeInsurance(null); setMalpracticeInsuranceModalOpen(true); };
   const handleEditMalpracticeInsurance = (ins: any) => { setEditingMalpracticeInsurance(ins); setMalpracticeInsuranceModalOpen(true); };
   const handleDeleteMalpracticeInsurance = (insId: string) => {
-    if (window.confirm('Delete this malpractice insurance record?')) {
+    showConfirm('Delete Malpractice Insurance', 'Are you sure you want to delete this malpractice insurance record?', () => {
       deleteMalpracticeInsuranceMutation.mutate({ id: insId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Supervising physician handlers
   const handleAddSupervisingPhysician = () => { setEditingSupervisingPhysician(null); setSupervisingPhysicianModalOpen(true); };
   const handleEditSupervisingPhysician = (sp: any) => { setEditingSupervisingPhysician(sp); setSupervisingPhysicianModalOpen(true); };
   const handleDeleteSupervisingPhysician = (spId: string) => {
-    if (window.confirm('Delete this supervising physician record?')) {
+    showConfirm('Delete Supervising Physician', 'Are you sure you want to delete this supervising physician record?', () => {
       deleteSupervisingPhysicianMutation.mutate({ id: spId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Malpractice claim handlers
   const handleAddMalpracticeClaim = () => { setEditingMalpracticeClaim(null); setMalpracticeClaimModalOpen(true); };
   const handleEditMalpracticeClaim = (mc: any) => { setEditingMalpracticeClaim(mc); setMalpracticeClaimModalOpen(true); };
   const handleDeleteMalpracticeClaim = (mcId: string) => {
-    if (window.confirm('Delete this malpractice claim record?')) {
+    showConfirm('Delete Malpractice Claim', 'Are you sure you want to delete this malpractice claim record?', () => {
       deleteMalpracticeClaimMutation.mutate({ id: mcId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Disclosure handlers
   const handleAddDisclosure = () => { setEditingDisclosure(null); setDisclosureModalOpen(true); };
   const handleEditDisclosure = (d: any) => { setEditingDisclosure(d); setDisclosureModalOpen(true); };
   const handleDeleteDisclosure = (dId: string) => {
-    if (window.confirm('Delete this disclosure?')) {
+    showConfirm('Delete Disclosure', 'Are you sure you want to delete this disclosure?', () => {
       deleteDisclosureMutation.mutate({ id: dId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // DEA registration handlers
   const handleAddDeaRegistration = () => { setEditingDeaRegistration(null); setDeaRegistrationModalOpen(true); };
   const handleEditDeaRegistration = (dea: any) => { setEditingDeaRegistration(dea); setDeaRegistrationModalOpen(true); };
   const handleDeleteDeaRegistration = (deaId: string) => {
-    if (window.confirm('Delete this DEA registration?')) {
+    showConfirm('Delete DEA Registration', 'Are you sure you want to delete this DEA registration?', () => {
       deleteDeaRegistrationMutation.mutate({ id: deaId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Provider identifier handlers
   const handleAddProviderIdentifier = () => { setEditingProviderIdentifier(null); setProviderIdentifierModalOpen(true); };
   const handleEditProviderIdentifier = (pi: any) => { setEditingProviderIdentifier(pi); setProviderIdentifierModalOpen(true); };
   const handleDeleteProviderIdentifier = (piId: string) => {
-    if (window.confirm('Delete this identifier?')) {
+    showConfirm('Delete Identifier', 'Are you sure you want to delete this provider identifier?', () => {
       deleteProviderIdentifierMutation.mutate({ id: piId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   // Banking handlers
   const handleAddBanking = () => { setEditingBanking(null); setBankingModalOpen(true); };
   const handleEditBanking = (b: any) => { setEditingBanking(b); setBankingModalOpen(true); };
   const handleDeleteBanking = (bId: string) => {
-    if (window.confirm('Delete this banking record?')) {
+    showConfirm('Delete Banking Info', 'Are you sure you want to delete this banking record?', () => {
       deleteBankingMutation.mutate({ id: bId, providerId: id! });
-    }
+      closeConfirm();
+    });
   };
 
   const exportToCSV = () => {
@@ -1683,6 +1712,17 @@ export default function ProviderDetail() {
         providerName={provider ? `${provider.firstName} ${provider.lastName}` : undefined}
         defaultDocumentType={uploadDocumentType}
         onUploadComplete={handleUploadComplete}
+      />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel="Delete"
+        variant="danger"
       />
     </div>
   );

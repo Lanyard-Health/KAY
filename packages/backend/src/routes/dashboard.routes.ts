@@ -40,16 +40,21 @@ router.get('/stats', async (_req: Request, res: Response) => {
       if (row.status === 'pending') pendingProviders = row._count;
     }
 
-    // Incomplete providers: active/pending providers with zero documents, top 5
+    // Incomplete providers: active/pending providers missing documents, licenses, or certs
     const incompleteProviders = await prisma.provider.findMany({
       where: {
         status: { in: ['active', 'pending'] },
-        documents: { none: {} },
+        OR: [
+          { documents: { none: {} } },
+          { licenses: { none: {} } },
+          { boardCertifications: { none: {} } },
+        ],
       },
       select: {
         id: true,
         firstName: true,
         lastName: true,
+        _count: { select: { documents: true, licenses: true, boardCertifications: true } },
       },
       take: 5,
       orderBy: { createdAt: 'desc' },
@@ -58,7 +63,11 @@ router.get('/stats', async (_req: Request, res: Response) => {
     const incompleteCount = await prisma.provider.count({
       where: {
         status: { in: ['active', 'pending'] },
-        documents: { none: {} },
+        OR: [
+          { documents: { none: {} } },
+          { licenses: { none: {} } },
+          { boardCertifications: { none: {} } },
+        ],
       },
     });
 
