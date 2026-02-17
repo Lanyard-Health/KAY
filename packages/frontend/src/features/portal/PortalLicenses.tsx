@@ -281,6 +281,7 @@ export default function PortalLicenses() {
             const isExpiringSoon = days > 0 && days <= 30;
             const isExpired = days <= 0;
             const status = isExpired ? 'expired' : license.status;
+            // eslint-disable-next-line security/detect-object-injection -- status is derived from license data, not user input
             const styles = STATUS_STYLES[status] || STATUS_STYLES.active;
 
             return (
@@ -300,7 +301,7 @@ export default function PortalLicenses() {
                         </h3>
                         <span className={clsx(
                           'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                          STATUS_BADGE[status] || STATUS_BADGE.active,
+                          STATUS_BADGE[status] || STATUS_BADGE.active, // eslint-disable-line security/detect-object-injection
                         )}>
                           {status}
                         </span>

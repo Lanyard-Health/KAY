@@ -32,6 +32,7 @@ export function PdmAttestationBadge({
 }: PdmAttestationBadgeProps) {
   const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-sm';
 
+  // eslint-disable-next-line security/detect-object-injection -- status is a typed prop from a closed union
   const label = statusLabels[status];
   const daysText =
     showDays && daysUntilDue !== null && daysUntilDue !== undefined
@@ -44,7 +45,7 @@ export function PdmAttestationBadge({
         className={clsx(
           'inline-flex items-center rounded-full font-medium',
           sizeClasses,
-          statusStyles[status]
+          statusStyles[status] // eslint-disable-line security/detect-object-injection -- status is a typed prop
         )}
       >
         {label}

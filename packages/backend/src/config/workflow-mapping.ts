@@ -55,6 +55,7 @@ export function resolveWorkflowType(
   // Explicit user choice takes priority
   if (explicitChoice) return explicitChoice;
 
+  // eslint-disable-next-line security/detect-object-injection -- providerType is a Prisma enum; lookup map is a closed Record<ProviderType, WorkflowType>
   const defaultType = PROVIDER_TYPE_TO_WORKFLOW[providerType];
 
   // If the payer doesn't have a BH workflow, fall back to medical

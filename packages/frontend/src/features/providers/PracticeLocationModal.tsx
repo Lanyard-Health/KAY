@@ -268,7 +268,7 @@ export default function PracticeLocationModal({
                       <div>
                         <label className="label">ZIP Code *</label>
                         <input
-                          {...register('zipCode', { required: 'Required', pattern: { value: /^\d{5}(-\d{4})?$/, message: 'Invalid ZIP' } })}
+                          {...register('zipCode', { required: 'Required', pattern: { value: /^\d{5}(-\d{4})?$/, message: 'Invalid ZIP' } })} // eslint-disable-line security/detect-unsafe-regex
                           className="input"
                           placeholder="12345"
                         />

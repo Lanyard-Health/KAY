@@ -20,6 +20,7 @@ export default function FieldPicker({ selectedKeys, onAddField }: FieldPickerPro
     const grouped: Record<string, typeof ROSTER_FIELDS> = {};
 
     for (const cat of ROSTER_CATEGORIES) {
+      // eslint-disable-next-line security/detect-object-injection -- cat is from ROSTER_CATEGORIES constant array
       grouped[cat] = [];
     }
 
@@ -74,6 +75,7 @@ export default function FieldPicker({ selectedKeys, onAddField }: FieldPickerPro
       {/* Category list */}
       <div className="flex-1 overflow-y-auto -mx-1">
         {ROSTER_CATEGORIES.map((category) => {
+          // eslint-disable-next-line security/detect-object-injection -- category is from ROSTER_CATEGORIES constant array
           const fields = filteredByCategory[category] || [];
           if (search && fields.length === 0) return null;
           const isExpanded = effectiveExpanded.has(category);

@@ -156,6 +156,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
   // Find the "Up Next" item - first incomplete item that needs action
   const getUpNextIndex = (): number => {
     for (let i = 0; i < CHECKLIST_ITEMS.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection -- i is a bounded loop index
       const status = getItemStatus(CHECKLIST_ITEMS[i].key);
       if (status !== 'approved' && status !== 'pending_review') {
         return i;
@@ -231,6 +232,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
         <div className="p-6">
           {CHECKLIST_ITEMS.map((item, index) => {
             const status = getItemStatus(item.key);
+            // eslint-disable-next-line security/detect-object-injection -- status is from getItemStatus which returns a typed string
             const statusConfig = STATUS_CONFIG[status];
             const document = getItemDocument(item.key);
             const notes = (checklist as unknown as Record<string, unknown>)[`${item.key}Notes`] as string | null;

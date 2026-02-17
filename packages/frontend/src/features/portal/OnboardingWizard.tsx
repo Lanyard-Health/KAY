@@ -105,7 +105,7 @@ export default function OnboardingWizard() {
                 {index < STEPS.length - 1 && (
                   <div className={clsx(
                     'flex-1 h-0.5 mx-4',
-                    isStepComplete(STEPS[index]!.key) ? 'bg-primary-600' : 'bg-gray-200'
+                    isStepComplete(STEPS[index]!.key) ? 'bg-primary-600' : 'bg-gray-200' // eslint-disable-line security/detect-object-injection -- index is a map() integer
                   )} />
                 )}
               </li>
