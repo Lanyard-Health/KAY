@@ -73,7 +73,16 @@ function CollapsibleSection({
     <div className="card">
       <div
         className="card-header flex items-center justify-between cursor-pointer select-none"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          }
+        }}
       >
         <div className="flex items-center gap-2">
           {isOpen ? (
@@ -870,12 +879,14 @@ export default function ProviderDetail() {
                               <button
                                 onClick={() => handleEditLocation(location)}
                                 className="text-primary-600 hover:text-primary-900"
+                                aria-label="Edit location"
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteLocation(location.id)}
                                 className="text-red-600 hover:text-red-900"
+                                aria-label="Delete location"
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
@@ -925,12 +936,14 @@ export default function ProviderDetail() {
                                 <button
                                   onClick={() => handleEditLicense(license)}
                                   className="text-primary-600 hover:text-primary-900"
+                                  aria-label="Edit license"
                                 >
                                   <PencilIcon className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteLicense(license.id)}
                                   className="text-red-600 hover:text-red-900"
+                                  aria-label="Delete license"
                                 >
                                   <TrashIcon className="h-4 w-4" />
                                 </button>
@@ -980,12 +993,14 @@ export default function ProviderDetail() {
                                 <button
                                   onClick={() => handleEditCert(cert)}
                                   className="text-primary-600 hover:text-primary-900"
+                                  aria-label="Edit certification"
                                 >
                                   <PencilIcon className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteCert(cert.id)}
                                   className="text-red-600 hover:text-red-900"
+                                  aria-label="Delete certification"
                                 >
                                   <TrashIcon className="h-4 w-4" />
                                 </button>
@@ -1031,10 +1046,10 @@ export default function ProviderDetail() {
                               </p>
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditDeaRegistration(dea)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditDeaRegistration(dea)} className="text-primary-600 hover:text-primary-900" aria-label="Edit DEA registration">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteDeaRegistration(dea.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteDeaRegistration(dea.id)} className="text-red-600 hover:text-red-900" aria-label="Delete DEA registration">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1072,10 +1087,10 @@ export default function ProviderDetail() {
                               </p>
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditEducation(edu)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditEducation(edu)} className="text-primary-600 hover:text-primary-900" aria-label="Edit education">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteEducation(edu.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteEducation(edu.id)} className="text-red-600 hover:text-red-900" aria-label="Delete education">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1117,10 +1132,10 @@ export default function ProviderDetail() {
                               </p>
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditWorkHistory(wh)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditWorkHistory(wh)} className="text-primary-600 hover:text-primary-900" aria-label="Edit work history">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteWorkHistory(wh.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteWorkHistory(wh.id)} className="text-red-600 hover:text-red-900" aria-label="Delete work history">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1166,10 +1181,10 @@ export default function ProviderDetail() {
                               </p>
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditSupervisingPhysician(sp)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditSupervisingPhysician(sp)} className="text-primary-600 hover:text-primary-900" aria-label="Edit supervising physician">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteSupervisingPhysician(sp.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteSupervisingPhysician(sp.id)} className="text-red-600 hover:text-red-900" aria-label="Delete supervising physician">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1209,10 +1224,10 @@ export default function ProviderDetail() {
                               )}
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditMalpracticeInsurance(ins)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditMalpracticeInsurance(ins)} className="text-primary-600 hover:text-primary-900" aria-label="Edit malpractice insurance">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteMalpracticeInsurance(ins.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteMalpracticeInsurance(ins.id)} className="text-red-600 hover:text-red-900" aria-label="Delete malpractice insurance">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1262,10 +1277,10 @@ export default function ProviderDetail() {
                               )}
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditMalpracticeClaim(mc)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditMalpracticeClaim(mc)} className="text-primary-600 hover:text-primary-900" aria-label="Edit malpractice claim">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="text-red-600 hover:text-red-900" aria-label="Delete malpractice claim">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1310,10 +1325,10 @@ export default function ProviderDetail() {
                               )}
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditDisclosure(d)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditDisclosure(d)} className="text-primary-600 hover:text-primary-900" aria-label="Edit disclosure">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteDisclosure(d.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteDisclosure(d.id)} className="text-red-600 hover:text-red-900" aria-label="Delete disclosure">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1354,10 +1369,10 @@ export default function ProviderDetail() {
                               )}
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditProviderIdentifier(pi)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditProviderIdentifier(pi)} className="text-primary-600 hover:text-primary-900" aria-label="Edit identifier">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteProviderIdentifier(pi.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteProviderIdentifier(pi.id)} className="text-red-600 hover:text-red-900" aria-label="Delete identifier">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>
@@ -1399,10 +1414,10 @@ export default function ProviderDetail() {
                               </p>
                             </div>
                             <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditBanking(b)} className="text-primary-600 hover:text-primary-900">
+                              <button onClick={() => handleEditBanking(b)} className="text-primary-600 hover:text-primary-900" aria-label="Edit banking info">
                                 <PencilIcon className="h-4 w-4" />
                               </button>
-                              <button onClick={() => handleDeleteBanking(b.id)} className="text-red-600 hover:text-red-900">
+                              <button onClick={() => handleDeleteBanking(b.id)} className="text-red-600 hover:text-red-900" aria-label="Delete banking info">
                                 <TrashIcon className="h-4 w-4" />
                               </button>
                             </div>

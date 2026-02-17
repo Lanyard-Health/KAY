@@ -1,11 +1,19 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { emailService } from '../services/email.service.js';
 import { followUpService } from '../services/followup.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+
+// Rate limit email-sending endpoints to prevent abuse
+const emailSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many email requests, please try again later.',
+});
 
 const followUpRoutes = Router();
 
@@ -80,7 +88,7 @@ followUpRoutes.get('/status', authorize('admin', 'credentialing_staff'), async (
 });
 
 // Send test email to verify SMTP configuration
-followUpRoutes.post('/test-email', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/test-email', emailSendLimiter, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email } = req.body;
 
@@ -166,6 +174,7 @@ followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credenti
 // Send follow-up email with optional attachment
 followUpRoutes.post(
   '/enrollment/:id/send',
+  emailSendLimiter,
   authorize('admin', 'credentialing_staff'),
   checkEnrollmentPracticeAccess,
   upload.single('attachment'),

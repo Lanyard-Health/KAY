@@ -1,6 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { emailService } from '../services/email.service.js';
+
+const emailTestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many test email requests, please try again later.',
+});
 
 const router = Router();
 
@@ -10,6 +17,7 @@ const router = Router();
  */
 router.get(
   '/test',
+  emailTestLimiter,
   authenticate,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
