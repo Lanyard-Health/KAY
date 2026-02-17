@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
 import toast from 'react-hot-toast';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const DOCUMENT_TYPES = [
   { value: 'license', label: 'License' },
@@ -34,6 +35,7 @@ export default function DocumentList() {
   const [previewDoc, setPreviewDoc] = useState<{ doc: any; url: string } | null>(null);
   const [editingDoc, setEditingDoc] = useState<any>(null);
   const [editForm, setEditForm] = useState({ documentType: '', description: '', expirationDate: '' });
+  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; doc: any }>({ isOpen: false, doc: null });
 
   const { data: providers, error: providersError } = useQuery({
     queryKey: ['providers', 'list'],
@@ -123,9 +125,7 @@ export default function DocumentList() {
   });
 
   const handleDelete = (doc: any) => {
-    if (window.confirm(`Are you sure you want to delete "${doc.originalFileName}"?`)) {
-      deleteMutation.mutate(doc.id);
-    }
+    setConfirmDelete({ isOpen: true, doc });
   };
 
   const handleEdit = (doc: any) => {
@@ -526,6 +526,20 @@ export default function DocumentList() {
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDelete.isOpen}
+        onClose={() => setConfirmDelete({ isOpen: false, doc: null })}
+        onConfirm={() => {
+          if (confirmDelete.doc) deleteMutation.mutate(confirmDelete.doc.id);
+          setConfirmDelete({ isOpen: false, doc: null });
+        }}
+        title="Delete Document"
+        message={`Are you sure you want to delete "${confirmDelete.doc?.originalFileName}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -1208,6 +1208,29 @@ export default function EnrollmentsList() {
                       />
                     </div>
                   </div>
+
+                  {/* Date validation warnings */}
+                  {(() => {
+                    const warnings: string[] = [];
+                    const { applicationDate, effectiveDate, dateContractReceived, dateContractSigned } = formData;
+                    if (applicationDate && effectiveDate && effectiveDate < applicationDate) {
+                      warnings.push('Effective date is before submission date');
+                    }
+                    if (dateContractReceived && dateContractSigned && dateContractSigned < dateContractReceived) {
+                      warnings.push('Contract signed before it was received');
+                    }
+                    if (applicationDate && dateContractReceived && dateContractReceived < applicationDate) {
+                      warnings.push('Contract received before submission date');
+                    }
+                    if (warnings.length === 0) return null;
+                    return (
+                      <div className="mt-2 text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2 space-y-1">
+                        {warnings.map((w) => (
+                          <div key={w}>{w}</div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Notes */}

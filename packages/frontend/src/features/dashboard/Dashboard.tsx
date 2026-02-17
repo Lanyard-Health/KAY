@@ -295,7 +295,13 @@ export default function Dashboard() {
                           <p className="font-medium text-gray-900">
                             {provider.firstName} {provider.lastName}
                           </p>
-                          <p className="text-sm text-gray-500">No documents uploaded</p>
+                          <p className="text-sm text-gray-500">
+                            Missing: {[
+                              !provider._count?.documents && 'Documents',
+                              !provider._count?.licenses && 'Licenses',
+                              !provider._count?.boardCertifications && 'Certifications',
+                            ].filter(Boolean).join(', ') || 'Review needed'}
+                          </p>
                         </div>
                       </div>
                       <ArrowRightIcon className="h-5 w-5 text-gray-400" />
@@ -435,7 +441,7 @@ export default function Dashboard() {
                 {data?.needsFollowUp?.slice(0, 5).map((enrollment: any) => (
                   <li key={enrollment.id}>
                     <Link
-                      to="/enrollments"
+                      to={`/enrollments/${enrollment.id}`}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100/80 transition-colors"
                     >
                       <div className="flex items-center gap-3">
