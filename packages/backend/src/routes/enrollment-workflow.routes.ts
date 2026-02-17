@@ -20,6 +20,7 @@ import {
   getActionTypeConfig,
 } from '../services/workflow-hydration.service.js';
 import { resolveWorkflowType } from '../config/workflow-mapping.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.get('/:id/workflow', authenticate, async (req: Request, res: Response) =>
       actionTypeConfig: getActionTypeConfig(),
     });
   } catch (error) {
-    console.error('Error fetching workflow:', error);
+    logger.error('Error fetching workflow:', error);
     return res.status(500).json({ error: 'Failed to fetch workflow' });
   }
 });
@@ -139,7 +140,7 @@ router.put(
 
       return res.json({ steps: updatedSteps, progress });
     } catch (error) {
-      console.error('Error updating workflow step:', error);
+      logger.error('Error updating workflow step:', error);
       return res.status(500).json({ error: 'Failed to update workflow step' });
     }
   }
@@ -208,7 +209,7 @@ router.post(
         ...result,
       });
     } catch (error) {
-      console.error('Error hydrating workflow:', error);
+      logger.error('Error hydrating workflow:', error);
       return res.status(500).json({ error: 'Failed to hydrate workflow' });
     }
   }
@@ -234,7 +235,7 @@ router.get(
 
       return res.json({ payerWorkflowKey, workflows });
     } catch (error) {
-      console.error('Error fetching templates:', error);
+      logger.error('Error fetching templates:', error);
       return res.status(500).json({ error: 'Failed to fetch templates' });
     }
   }

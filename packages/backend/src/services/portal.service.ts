@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
+import { logger } from '../utils/logger.js';
 
 export interface ProviderApplicationInput {
   npi: string;
@@ -147,7 +148,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
     message: `${data.firstName} ${data.lastName} (NPI: ${data.npi}) submitted a new application.`,
     actionUrl: '/pending-providers',
     metadata: { applicationId: application.id, npi: data.npi },
-  }).catch((err: unknown) => console.error('Failed to create in-app notifications:', err));
+  }).catch((err: unknown) => logger.error('Failed to create in-app notifications:', err));
 
   // Send email notification to admin (non-blocking)
   const adminEmail = process.env['ADMIN_EMAIL'];
@@ -181,7 +182,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
           </p>
         </div>
       `,
-    }).catch((err: unknown) => console.error('Failed to send admin notification email:', err));
+    }).catch((err: unknown) => logger.error('Failed to send admin notification email:', err));
   }
 
   // Send confirmation email to provider (non-blocking)
@@ -211,7 +212,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
         </div>
       `,
       notificationType: 'application_submitted',
-    }).catch((err: unknown) => console.error('Failed to send provider confirmation email:', err));
+    }).catch((err: unknown) => logger.error('Failed to send provider confirmation email:', err));
   }
 
   return application;
@@ -354,7 +355,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
       title: 'Application Approved',
       message: 'Your provider application has been approved. Welcome to Lanyard Health!',
       actionUrl: '/portal',
-    }).catch((err: unknown) => console.error('Failed to create approval notification:', err));
+    }).catch((err: unknown) => logger.error('Failed to create approval notification:', err));
 
     // 3. Send approval email to provider (non-blocking)
     if (emailService.isConfigured()) {
@@ -385,7 +386,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
           </div>
         `,
         notificationType: 'application_approved',
-      }).catch((err: unknown) => console.error('Failed to send approval email:', err));
+      }).catch((err: unknown) => logger.error('Failed to send approval email:', err));
     }
 
     return updatedApplication;
@@ -462,7 +463,7 @@ export async function rejectApplication(id: string, reviewedBy: string, notes: s
         </div>
       `,
       notificationType: 'application_rejected' as any,
-    }).catch((err: unknown) => console.error('Failed to send rejection email:', err));
+    }).catch((err: unknown) => logger.error('Failed to send rejection email:', err));
   }
 
   return updatedApplication;
