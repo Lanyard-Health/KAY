@@ -199,7 +199,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   logger.info(`Backend running on port ${PORT}`);
   logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
   logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
@@ -378,5 +378,33 @@ app.listen(PORT, async () => {
   serverReady = true;
   logger.info(`Server fully ready — accepting API requests on port ${PORT}`);
 });
+
+// Graceful shutdown
+function shutdown(signal: string) {
+  logger.info(`${signal} received — shutting down gracefully...`);
+  serverReady = false; // Stop accepting new API requests via readiness gate
+
+  schedulerService.stop();
+
+  server.close(async () => {
+    logger.info('HTTP server closed');
+    try {
+      await prisma.$disconnect();
+      logger.info('Database connections closed');
+    } catch (err) {
+      logger.error('Error disconnecting from database:', err);
+    }
+    process.exit(0);
+  });
+
+  // Force exit if graceful shutdown takes too long
+  setTimeout(() => {
+    logger.error('Graceful shutdown timed out — forcing exit');
+    process.exit(1);
+  }, 15_000);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;

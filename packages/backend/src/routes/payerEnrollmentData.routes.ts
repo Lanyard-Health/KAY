@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
+import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   createSupervisingPhysicianSchema,
@@ -457,13 +458,17 @@ payerEnrollmentDataRoutes.get(
         orderBy: { isPrimary: 'desc' },
       });
 
-      // Mask sensitive fields — never return raw routing/account numbers
-      const masked = records.map((r) => ({
-        ...r,
-        routingNumberEncrypted: '****' + r.routingNumberEncrypted.slice(-4),
-        accountNumberEncrypted: '****' + r.accountNumberLast4,
-        accountHolderTaxId: r.accountHolderTaxId ? '****' + r.accountHolderTaxId.slice(-4) : null,
-      }));
+      // Mask sensitive fields — decrypt then show only last 4 digits
+      const masked = records.map((r) => {
+        const routingPlain = decryptSafe(r.routingNumberEncrypted);
+        const taxIdPlain = r.accountHolderTaxId ? decryptSafe(r.accountHolderTaxId) : null;
+        return {
+          ...r,
+          routingNumberEncrypted: '****' + routingPlain.slice(-4),
+          accountNumberEncrypted: '****' + r.accountNumberLast4,
+          accountHolderTaxId: taxIdPlain ? '****' + taxIdPlain.slice(-4) : null,
+        };
+      });
 
       res.json({ success: true, data: masked });
     } catch (error) {
@@ -483,11 +488,11 @@ payerEnrollmentDataRoutes.post(
           providerId: req.params['providerId']!,
           bankName: data.bankName,
           bankAccountType: data.bankAccountType,
-          routingNumberEncrypted: data.routingNumber, // TODO: encrypt with same pattern as ssnEncrypted
-          accountNumberEncrypted: data.accountNumber, // TODO: encrypt
+          routingNumberEncrypted: encryptSafe(data.routingNumber),
+          accountNumberEncrypted: encryptSafe(data.accountNumber),
           accountNumberLast4: data.accountNumber.slice(-4),
           accountHolderName: data.accountHolderName,
-          ...(data.accountHolderTaxId && { accountHolderTaxId: data.accountHolderTaxId }),
+          ...(data.accountHolderTaxId && { accountHolderTaxId: encryptSafe(data.accountHolderTaxId) }),
           ...(data.eftAuthorizationDate && { eftAuthorizationDate: new Date(data.eftAuthorizationDate) }),
           w9OnFile: data.w9OnFile ?? false,
           voidedCheckOnFile: data.voidedCheckOnFile ?? false,
@@ -526,13 +531,13 @@ payerEnrollmentDataRoutes.put(
       const updateData: Record<string, unknown> = { updatedById: req.user?.id };
       if (data.bankName) updateData['bankName'] = data.bankName;
       if (data.bankAccountType) updateData['bankAccountType'] = data.bankAccountType;
-      if (data.routingNumber) updateData['routingNumberEncrypted'] = data.routingNumber;
+      if (data.routingNumber) updateData['routingNumberEncrypted'] = encryptSafe(data.routingNumber);
       if (data.accountNumber) {
-        updateData['accountNumberEncrypted'] = data.accountNumber;
+        updateData['accountNumberEncrypted'] = encryptSafe(data.accountNumber);
         updateData['accountNumberLast4'] = data.accountNumber.slice(-4);
       }
       if (data.accountHolderName) updateData['accountHolderName'] = data.accountHolderName;
-      if (data.accountHolderTaxId) updateData['accountHolderTaxId'] = data.accountHolderTaxId;
+      if (data.accountHolderTaxId) updateData['accountHolderTaxId'] = encryptSafe(data.accountHolderTaxId);
       if (data.eftAuthorizationDate) updateData['eftAuthorizationDate'] = new Date(data.eftAuthorizationDate);
       if (data.w9OnFile !== undefined) updateData['w9OnFile'] = data.w9OnFile;
       if (data.voidedCheckOnFile !== undefined) updateData['voidedCheckOnFile'] = data.voidedCheckOnFile;

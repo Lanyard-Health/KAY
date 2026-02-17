@@ -275,6 +275,10 @@ model Provider {
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
+  @@index([status])
+  @@index([practiceId])
+  @@index([email])
+  @@index([status, practiceId])
   @@map("providers")
 }
 

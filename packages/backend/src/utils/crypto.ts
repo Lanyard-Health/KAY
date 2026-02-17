@@ -37,6 +37,37 @@ export function encrypt(plaintext: string): string {
  * Decrypt a string encrypted with encrypt().
  * Expects format: iv:authTag:ciphertext (all hex-encoded)
  */
+/**
+ * Returns true if ENCRYPTION_KEY is configured.
+ */
+export function isEncryptionAvailable(): boolean {
+  return !!process.env['ENCRYPTION_KEY'];
+}
+
+/**
+ * Encrypt if ENCRYPTION_KEY is available, otherwise return plaintext.
+ * Use for fields that should be encrypted in production but work without in dev.
+ */
+export function encryptSafe(plaintext: string): string {
+  if (!isEncryptionAvailable()) return plaintext;
+  return encrypt(plaintext);
+}
+
+/**
+ * Decrypt if value looks encrypted (iv:tag:cipher format), otherwise return as-is.
+ * Handles both encrypted and legacy plaintext values.
+ */
+export function decryptSafe(value: string): string {
+  // Encrypted format: 32-char hex : 32-char hex : hex ciphertext
+  const parts = value.split(':');
+  if (parts.length !== 3) return value; // plaintext
+  try {
+    return decrypt(value);
+  } catch {
+    return value; // legacy plaintext that happens to contain colons
+  }
+}
+
 export function decrypt(encryptedText: string): string {
   const key = getEncryptionKey();
   const parts = encryptedText.split(':');

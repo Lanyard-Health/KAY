@@ -638,7 +638,7 @@ export async function executeImport(
   const importId = importRecord.id;
 
   try {
-    // Single transaction with 30s timeout for up to 500 rows
+    // Single transaction with 2-minute timeout for up to 500 rows
     await prisma.$transaction(async (tx) => {
       for (const row of rows) {
         const provider = await tx.provider.create({
@@ -684,7 +684,7 @@ export async function executeImport(
           });
         }
       }
-    }, { timeout: 30000 });
+    }, { timeout: 120_000 });
 
     const durationMs = Date.now() - startTime;
 
