@@ -213,6 +213,145 @@ export function useCreateLicense() {
   });
 }
 
+export function useUpdateLicense() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: {
+      id: string;
+      state?: string;
+      licenseNumber?: string;
+      licenseType?: string;
+      expirationDate?: string;
+      issueDate?: string;
+    }) => {
+      const response = await api.put(`/portal/onboarding/licenses/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'licenses'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'onboarding', 'progress'] });
+    },
+  });
+}
+
+export function useDeleteLicense() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/portal/onboarding/licenses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'licenses'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'onboarding', 'progress'] });
+    },
+  });
+}
+
+export interface PracticeLocation {
+  id: string;
+  providerId: string;
+  locationName: string;
+  locationType: string;
+  isPrimary: boolean;
+  isActive: boolean;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  zipCode: string;
+  county: string | null;
+  phone: string;
+  fax: string | null;
+  email: string | null;
+  wheelchairAccessible: boolean;
+  publicTransitAccess: boolean;
+  parkingAvailable: boolean;
+  acceptingNewPatients: boolean;
+  notes: string | null;
+}
+
+export function usePortalLocations(providerId: string | undefined) {
+  return useQuery({
+    queryKey: ['portal', 'locations', providerId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: PracticeLocation[] }>(
+        `/practiceLocation/provider/${providerId}`
+      );
+      return response.data;
+    },
+    enabled: !!providerId,
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useCreateLocation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ providerId, ...data }: {
+      providerId: string;
+      locationName: string;
+      locationType: string;
+      isPrimary?: boolean;
+      addressLine1: string;
+      addressLine2?: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      phone: string;
+      fax?: string;
+      email?: string;
+      wheelchairAccessible?: boolean;
+      publicTransitAccess?: boolean;
+      parkingAvailable?: boolean;
+      acceptingNewPatients?: boolean;
+      notes?: string;
+    }) => {
+      const response = await api.post(`/practiceLocation/provider/${providerId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'locations'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'me'] });
+    },
+  });
+}
+
+export function useUpdateLocation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: {
+      id: string;
+      locationName?: string;
+      locationType?: string;
+      isPrimary?: boolean;
+      addressLine1?: string;
+      addressLine2?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      phone?: string;
+      fax?: string;
+      email?: string;
+      wheelchairAccessible?: boolean;
+      publicTransitAccess?: boolean;
+      parkingAvailable?: boolean;
+      acceptingNewPatients?: boolean;
+      notes?: string;
+    }) => {
+      const response = await api.put(`/practiceLocation/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portal', 'locations'] });
+      queryClient.invalidateQueries({ queryKey: ['portal', 'me'] });
+    },
+  });
+}
+
 export function useCompleteOnboarding() {
   const queryClient = useQueryClient();
 

@@ -8,19 +8,38 @@ export default function PortalDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-600" />
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <div className="h-8 w-64 bg-gray-200 rounded animate-pulse" />
+          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mt-2" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white rounded-lg shadow p-6 animate-pulse">
+            <div className="h-5 w-40 bg-gray-200 rounded mb-4" />
+            <div className="h-32 w-32 mx-auto bg-gray-200 rounded-full" />
+          </div>
+          <div className="bg-white rounded-lg shadow p-6 lg:col-span-2 animate-pulse">
+            <div className="h-5 w-32 bg-gray-200 rounded mb-4" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-gray-100 rounded-lg" />)}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-sm text-red-600">
-            {error instanceof Error ? error.message : 'Failed to load dashboard'}
-          </p>
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <svg className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h3 className="text-sm font-medium text-red-800">Failed to load dashboard</h3>
+            <p className="text-sm text-red-600 mt-1">Please try refreshing the page.</p>
+          </div>
         </div>
       </div>
     );

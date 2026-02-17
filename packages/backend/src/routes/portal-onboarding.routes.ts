@@ -151,4 +151,98 @@ router.get('/licenses', authenticate, authorize('provider'), async (req: Request
   }
 });
 
+/**
+ * PUT /api/v1/portal/onboarding/licenses/:id
+ * Update a license owned by the current provider
+ */
+router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+    if (!providerId) {
+      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+    }
+
+    const existing = await prisma.license.findUnique({
+      where: { id: req.params['id'] },
+      select: { providerId: true },
+    });
+
+    if (!existing || existing.providerId !== providerId) {
+      return res.status(404).json({ success: false, error: 'License not found' });
+    }
+
+    const { state, licenseNumber, licenseType, expirationDate, issueDate } = req.body;
+
+    const updateData: Record<string, unknown> = {};
+    if (licenseNumber !== undefined) {
+      if (typeof licenseNumber !== 'string' || !licenseNumber.trim()) {
+        return res.status(400).json({ success: false, error: 'licenseNumber must be a non-empty string' });
+      }
+      updateData['licenseNumber'] = licenseNumber;
+    }
+    if (licenseType !== undefined) {
+      if (!VALID_LICENSE_TYPES.includes(licenseType)) {
+        return res.status(400).json({ success: false, error: 'Invalid licenseType' });
+      }
+      updateData['licenseType'] = licenseType;
+    }
+    if (state !== undefined) updateData['state'] = state || null;
+    if (expirationDate !== undefined) {
+      const expDate = new Date(expirationDate);
+      if (isNaN(expDate.getTime())) {
+        return res.status(400).json({ success: false, error: 'Invalid expirationDate' });
+      }
+      updateData['expirationDate'] = expDate;
+    }
+    if (issueDate !== undefined) {
+      const issueDateVal = new Date(issueDate);
+      if (isNaN(issueDateVal.getTime())) {
+        return res.status(400).json({ success: false, error: 'Invalid issueDate' });
+      }
+      updateData['issueDate'] = issueDateVal;
+    }
+
+    updateData['updatedById'] = req.user!.id;
+
+    const license = await prisma.license.update({
+      where: { id: req.params['id'] },
+      data: updateData,
+    });
+
+    res.json({ success: true, data: license });
+  } catch (error) {
+    logger.error('Error updating license:', error);
+    res.status(500).json({ success: false, error: 'Failed to update license' });
+  }
+});
+
+/**
+ * DELETE /api/v1/portal/onboarding/licenses/:id
+ * Delete a license owned by the current provider
+ */
+router.delete('/licenses/:id', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+    if (!providerId) {
+      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+    }
+
+    const existing = await prisma.license.findUnique({
+      where: { id: req.params['id'] },
+      select: { providerId: true },
+    });
+
+    if (!existing || existing.providerId !== providerId) {
+      return res.status(404).json({ success: false, error: 'License not found' });
+    }
+
+    await prisma.license.delete({ where: { id: req.params['id'] } });
+
+    res.json({ success: true, message: 'License deleted' });
+  } catch (error) {
+    logger.error('Error deleting license:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete license' });
+  }
+});
+
 export default router;
