@@ -10,6 +10,7 @@ import {
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
+import RefreshIndicator from '../../components/RefreshIndicator';
 import clsx from 'clsx';
 
 interface Provider {
@@ -95,7 +96,7 @@ export default function ProviderList() {
   const status = searchParams.get('status') || '';
   const page = parseInt(searchParams.get('page') || '1');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['providers', { search, status, page }],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -135,7 +136,10 @@ export default function ProviderList() {
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Providers</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Providers</h1>
+            <RefreshIndicator isFetching={isFetching && !isLoading} />
+          </div>
           <p className="mt-1 text-sm text-gray-500">
             Manage healthcare provider credentials and information
           </p>

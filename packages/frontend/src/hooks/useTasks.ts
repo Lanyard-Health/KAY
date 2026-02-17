@@ -57,7 +57,6 @@ export function useUsers() {
       const response = await api.get('/users');
       return response.data;
     },
-    staleTime: 5 * 60 * 1000, // cache for 5 minutes
   });
 }
 

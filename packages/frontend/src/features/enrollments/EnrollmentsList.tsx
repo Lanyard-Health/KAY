@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
+import RefreshIndicator from '../../components/RefreshIndicator';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -175,7 +176,7 @@ export default function EnrollmentsList() {
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
 
   // Fetch all enrollments
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['all-enrollments'],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: Enrollment[] }>('/enrollments');
@@ -360,7 +361,10 @@ export default function EnrollmentsList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Enrollment Pipeline</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Enrollment Pipeline</h1>
+            <RefreshIndicator isFetching={isFetching && !isLoading} />
+          </div>
           <p className="text-sm text-gray-500">
             Track and manage all payer enrollments across providers
           </p>

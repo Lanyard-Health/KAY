@@ -40,7 +40,6 @@ export function useCaqhCredentialStatus(providerId: string) {
       return response.data;
     },
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

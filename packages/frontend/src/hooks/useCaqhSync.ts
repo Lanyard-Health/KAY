@@ -52,7 +52,6 @@ export function useCaqhConfig() {
       const response = await api.get<{ success: boolean; data: CaqhConfig }>('/caqh/config');
       return response.data.data;
     },
-    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -464,7 +464,7 @@ function StepUpload({
           )}
         >
           <input
-            ref={fileInputRef}
+            ref={fileInputRef as React.RefObject<HTMLInputElement>}
             type="file"
             accept=".csv,text/csv"
             onChange={onInputChange}
@@ -924,7 +924,7 @@ function StepConfirm({
 function StepImportResult({
   immediateResult,
   polledStatus,
-  isPolling,
+  isPolling: _isPolling,
   pollError,
   onStartOver,
 }: {

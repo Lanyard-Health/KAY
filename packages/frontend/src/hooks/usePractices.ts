@@ -49,7 +49,6 @@ export function usePractices() {
       const response = await api.get('/practices');
       return response.data.data as Practice[];
     },
-    staleTime: 5 * 60 * 1000,
   });
 }
 
