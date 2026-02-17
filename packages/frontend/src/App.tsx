@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/auth.store';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Eager: needed for auth shell / initial render
 import LoginPage from './features/auth/LoginPage';
@@ -91,6 +92,7 @@ function ProviderRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -149,5 +151,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </ErrorBoundary>
   );
 }

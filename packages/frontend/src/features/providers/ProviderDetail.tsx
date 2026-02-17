@@ -9,6 +9,7 @@ import { api } from '../../services/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { useDeleteLicense, useDeleteCertification } from '../../hooks/useCredentials';
 import DemographicsForm from './DemographicsForm';
 
@@ -1573,6 +1574,7 @@ export default function ProviderDetail() {
       </Tab.Group>
 
       {/* Lazy-loaded modals */}
+      <ErrorBoundary>
       <Suspense fallback={null}>
       {/* Practice Location Modal */}
       <PracticeLocationModal
@@ -1707,6 +1709,7 @@ export default function ProviderDetail() {
       />
 
       </Suspense>
+      </ErrorBoundary>
 
       {/* Document Upload Modal */}
       <DocumentUploadModal

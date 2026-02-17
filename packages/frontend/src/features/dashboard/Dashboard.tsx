@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -16,12 +16,15 @@ import {
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { useGettingStarted } from '../../hooks/useReporting';
-import GettingStartedChecklist from './GettingStartedChecklist';
-import EnrollmentPipelineChart from './EnrollmentPipelineChart';
-import ExpirationForecastWidget from './ExpirationForecastWidget';
-import ProviderReadinessTable from './ProviderReadinessTable';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import clsx from 'clsx';
 import { format, differenceInDays } from 'date-fns';
+
+// Lazy-loaded widgets — Recharts (EnrollmentPipelineChart) is ~150KB
+const GettingStartedChecklist = lazy(() => import('./GettingStartedChecklist'));
+const EnrollmentPipelineChart = lazy(() => import('./EnrollmentPipelineChart'));
+const ExpirationForecastWidget = lazy(() => import('./ExpirationForecastWidget'));
+const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -133,12 +136,14 @@ export default function Dashboard() {
             Let's get your practice set up. Complete the steps below to unlock your full dashboard.
           </p>
         </div>
-        <GettingStartedChecklist
-          providerCount={gettingStarted.providerCount}
-          documentCount={gettingStarted.documentCount}
-          enrollmentCount={gettingStarted.enrollmentCount}
-          onDismiss={() => setChecklistDismissed(true)}
-        />
+        <Suspense fallback={<div className="animate-pulse h-48 bg-gray-200 rounded-2xl" />}>
+          <GettingStartedChecklist
+            providerCount={gettingStarted.providerCount}
+            documentCount={gettingStarted.documentCount}
+            enrollmentCount={gettingStarted.enrollmentCount}
+            onDismiss={() => setChecklistDismissed(true)}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -483,17 +488,30 @@ export default function Dashboard() {
 
       {/* Reporting Widgets — practice_admin only */}
       {isPracticeAdmin && practiceId && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-5">
-            <EnrollmentPipelineChart practiceId={practiceId} />
+        <ErrorBoundary>
+        <Suspense fallback={
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {[5, 3, 2].map((span) => (
+              <div key={span} className={`lg:col-span-${span} bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 animate-pulse`}>
+                <div className="h-4 w-32 bg-gray-200 rounded mb-4" />
+                <div className="h-48 bg-gray-100 rounded" />
+              </div>
+            ))}
           </div>
-          <div className="lg:col-span-3">
-            <ExpirationForecastWidget practiceId={practiceId} />
+        }>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-5">
+              <EnrollmentPipelineChart practiceId={practiceId} />
+            </div>
+            <div className="lg:col-span-3">
+              <ExpirationForecastWidget practiceId={practiceId} />
+            </div>
+            <div className="lg:col-span-2">
+              <ProviderReadinessTable practiceId={practiceId} />
+            </div>
           </div>
-          <div className="lg:col-span-2">
-            <ProviderReadinessTable practiceId={practiceId} />
-          </div>
-        </div>
+        </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );
