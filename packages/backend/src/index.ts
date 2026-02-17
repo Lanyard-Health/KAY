@@ -64,10 +64,39 @@ const PORT = process.env['PORT'] || 3002;
 let serverReady = false;
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
+
+const allowedOrigins = [
+  process.env['FRONTEND_URL'],
+  ...(process.env['NODE_ENV'] !== 'production' ? ['http://localhost:5190'] : []),
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: process.env['FRONTEND_URL'] || 'http://localhost:5190',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 600, // Cache preflight for 10 minutes
 }));
 
 // Rate limiting (skip in dev/test to avoid throttling E2E tests)
