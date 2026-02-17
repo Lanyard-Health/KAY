@@ -142,7 +142,9 @@ describe('Enrollment Routes', () => {
 
     it('returns 409 when duplicate enrollment exists', async () => {
       prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      const prismaError = new Error('Unique constraint failed') as any;
+      prismaError.code = 'P2002';
+      prismaMock.payerEnrollment.create.mockRejectedValue(prismaError);
 
       const res = await request(app)
         .post('/provider/provider-1-id')

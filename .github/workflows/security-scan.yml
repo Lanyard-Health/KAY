@@ -525,7 +525,7 @@ jobs:
           NODE_ENV: development
           PORT: 3002
           FRONTEND_URL: http://localhost:5190
-          JWT_SECRET: e2e-test-secret
+          JWT_SECRET: e2e-test-secret-key
           DEV_AUTH_BYPASS: 'true'
           USE_LOCALSTACK: 'true'
           S3_ENDPOINT: http://localhost:4566
