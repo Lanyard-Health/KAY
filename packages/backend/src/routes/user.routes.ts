@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
@@ -11,6 +12,13 @@ import {
   enableCognitoUser,
   updateCognitoUser,
 } from '../services/cognitoUser.service.js';
+
+// Rate limit account mutations (Cognito interactions are expensive)
+const accountMutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many account operations, please try again later.',
+});
 
 export const userRoutes = Router();
 
@@ -196,6 +204,7 @@ userRoutes.get(
 // POST /api/v1/users - Create user
 userRoutes.post(
   '/',
+  accountMutationLimiter,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -253,6 +262,7 @@ userRoutes.post(
 // PUT /api/v1/users/:id - Update user
 userRoutes.put(
   '/:id',
+  accountMutationLimiter,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -305,6 +315,7 @@ userRoutes.put(
 // PUT /api/v1/users/:id/deactivate - Deactivate user
 userRoutes.put(
   '/:id/deactivate',
+  accountMutationLimiter,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -352,6 +363,7 @@ userRoutes.put(
 // PUT /api/v1/users/:id/activate - Activate user
 userRoutes.put(
   '/:id/activate',
+  accountMutationLimiter,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
