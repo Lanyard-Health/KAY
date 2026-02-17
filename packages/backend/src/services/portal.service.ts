@@ -389,9 +389,13 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
     }
 
     return updatedApplication;
-  } catch (err) {
+  } catch (err: any) {
     // Roll back Cognito user if DB transaction failed
     await deleteCognitoUser(application.email).catch(() => {});
+    // Surface a clear message for duplicate email race condition (P2002)
+    if (err?.code === 'P2002') {
+      throw new Error('An account with this email address already exists');
+    }
     throw err;
   }
 }

@@ -623,7 +623,7 @@ export default function EnrollmentsList() {
                       return (
                         <Link
                           key={enrollment.id}
-                          to={`/providers/${enrollment.providerId}?tab=enrollments`}
+                          to={`/enrollments/${enrollment.id}`}
                           className="block bg-white rounded-xl shadow-sm border border-gray-200/60 hover:shadow-md hover:border-primary-300 transition-all duration-200 overflow-hidden"
                         >
                           {/* Card Header with Provider */}
@@ -833,7 +833,7 @@ export default function EnrollmentsList() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Link
-                        to={`/providers/${enrollment.providerId}?tab=enrollments`}
+                        to={`/enrollments/${enrollment.id}`}
                         className="text-primary-600 hover:text-primary-800 text-sm font-medium"
                       >
                         View

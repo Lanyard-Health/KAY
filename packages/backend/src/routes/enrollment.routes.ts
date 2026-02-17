@@ -189,7 +189,12 @@ router.get(
 
       const enrollment = await prisma.payerEnrollment.findUnique({
         where: { id },
-        include: { payer: true },
+        include: {
+          payer: true,
+          provider: {
+            select: { id: true, firstName: true, lastName: true, npi: true, providerType: true },
+          },
+        },
       });
 
       if (!enrollment) {
@@ -238,46 +243,40 @@ router.post(
         });
       }
 
-      // Check if enrollment already exists
-      const existingEnrollment = await prisma.payerEnrollment.findUnique({
-        where: {
-          providerId_payerId: {
+      let enrollment;
+      try {
+        enrollment = await prisma.payerEnrollment.create({
+          data: {
             providerId: providerId!,
             payerId: payer.id,
+            status: validated.status || 'not_started',
+            productTypes: validated.productTypes || [],
+            applicationDate: validated.applicationDate ? new Date(validated.applicationDate) : null,
+            effectiveDate: validated.effectiveDate ? new Date(validated.effectiveDate) : null,
+            terminationDate: validated.terminationDate ? new Date(validated.terminationDate) : null,
+            dateContractReceived: validated.dateContractReceived ? new Date(validated.dateContractReceived) : null,
+            dateContractSigned: validated.dateContractSigned ? new Date(validated.dateContractSigned) : null,
+            lastFollowUpDate: validated.lastFollowUpDate ? new Date(validated.lastFollowUpDate) : null,
+            recredentialingDate: validated.recredentialingDate ? new Date(validated.recredentialingDate) : null,
+            providerNumber: validated.providerNumber,
+            groupNumber: validated.groupNumber,
+            notes: validated.notes,
+            createdById: req.user?.id,
           },
-        },
-      });
-
-      if (existingEnrollment) {
-        return res.status(409).json({
-          success: false,
-          error: { message: 'Enrollment already exists for this payer' },
+          include: {
+            payer: { select: { id: true, name: true, payerId: true, payerType: true, workflowKey: true } },
+            provider: { select: { providerType: true } },
+          },
         });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            error: { message: 'Enrollment already exists for this payer' },
+          });
+        }
+        throw err;
       }
-
-      const enrollment = await prisma.payerEnrollment.create({
-        data: {
-          providerId: providerId!,
-          payerId: payer.id,
-          status: validated.status || 'not_started',
-          productTypes: validated.productTypes || [],
-          applicationDate: validated.applicationDate ? new Date(validated.applicationDate) : null,
-          effectiveDate: validated.effectiveDate ? new Date(validated.effectiveDate) : null,
-          terminationDate: validated.terminationDate ? new Date(validated.terminationDate) : null,
-          dateContractReceived: validated.dateContractReceived ? new Date(validated.dateContractReceived) : null,
-          dateContractSigned: validated.dateContractSigned ? new Date(validated.dateContractSigned) : null,
-          lastFollowUpDate: validated.lastFollowUpDate ? new Date(validated.lastFollowUpDate) : null,
-          recredentialingDate: validated.recredentialingDate ? new Date(validated.recredentialingDate) : null,
-          providerNumber: validated.providerNumber,
-          groupNumber: validated.groupNumber,
-          notes: validated.notes,
-          createdById: req.user?.id,
-        },
-        include: {
-          payer: { select: { id: true, name: true, payerId: true, payerType: true, workflowKey: true } },
-          provider: { select: { providerType: true } },
-        },
-      });
 
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
