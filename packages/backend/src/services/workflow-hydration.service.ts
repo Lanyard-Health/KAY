@@ -132,10 +132,12 @@ const OWNER_MAP: Record<string, string> = {
 };
 
 function mapActionType(jsonType: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- jsonType comes from static payer-workflows.json config, not user input
   return ACTION_TYPE_MAP[jsonType] || 'form_submission';
 }
 
 function mapOwner(jsonOwner: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- jsonOwner comes from static payer-workflows.json config, not user input
   return OWNER_MAP[jsonOwner] || 'credentialing_staff';
 }
 
@@ -166,6 +168,7 @@ export async function hydrateWorkflowSteps(
   }
 
   const data = loadWorkflowTemplates();
+  // eslint-disable-next-line security/detect-object-injection -- payerWorkflowKey is a DB-stored identifier; data.payers is from static JSON config
   const payerTemplate = data.payers[payerWorkflowKey];
 
   if (!payerTemplate) {
@@ -176,10 +179,12 @@ export async function hydrateWorkflowSteps(
     return { stepsCreated: 0, templateFound: false };
   }
 
+  // eslint-disable-next-line security/detect-object-injection -- workflowType is a Prisma enum (WorkflowType)
   const workflow = payerTemplate.workflows[workflowType];
 
   if (!workflow) {
     const fallbackType = workflowType === 'behavioral_health' ? 'medical' : 'behavioral_health';
+    // eslint-disable-next-line security/detect-object-injection -- fallbackType is derived from a Prisma enum ternary
     const fallbackWorkflow = payerTemplate.workflows[fallbackType];
 
     if (!fallbackWorkflow) {
@@ -425,6 +430,7 @@ export function getAvailableWorkflows(
   payerWorkflowKey: string
 ): { type: string; label: string; stepCount: number; timeline: any }[] | null {
   const data = loadWorkflowTemplates();
+  // eslint-disable-next-line security/detect-object-injection -- payerWorkflowKey is a DB-stored payer identifier; data.payers is static JSON config
   const payer = data.payers[payerWorkflowKey];
   if (!payer) return null;
 

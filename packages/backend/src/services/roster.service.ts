@@ -39,8 +39,11 @@ export function buildIncludeClause(fields: RosterField[]): Record<string, any> {
     if (ROSTER_RELATIONS.includes(relation as any)) {
       // For payerEnrollments.payer.name, we need { payerEnrollments: { include: { payer: true } } }
       if (relation === 'payerEnrollments' && parts[1] === 'payer') {
+        // eslint-disable-next-line security/detect-object-injection -- relation is guarded by ROSTER_RELATIONS allowlist
         include[relation] = { include: { payer: true } };
+        // eslint-disable-next-line security/detect-object-injection -- relation is guarded by ROSTER_RELATIONS allowlist
       } else if (!include[relation]) {
+        // eslint-disable-next-line security/detect-object-injection -- relation is guarded by ROSTER_RELATIONS allowlist
         include[relation] = true;
       }
     }
@@ -171,6 +174,7 @@ export function flattenToRows(
     let maxItems = 0;
 
     for (const rel of usedRelations) {
+      // eslint-disable-next-line security/detect-object-injection -- rel is from usedRelations, built from ROSTER_FIELD_MAP whitelist
       const items = provider[rel];
       if (Array.isArray(items) && items.length > maxItems) {
         maxItems = items.length;
@@ -196,10 +200,12 @@ export function flattenToRows(
 
           if (relation === primaryRelation) {
             // Primary relation: one item per row
+            // eslint-disable-next-line security/detect-object-injection -- relation derives from ROSTER_FIELD_MAP whitelist
             const item = provider[relation]?.[i];
             row.push(formatCellValue(item ? getNestedValue(item, fieldPath) : null, field.dataType));
           } else {
             // Non-primary relations: join all values
+            // eslint-disable-next-line security/detect-object-injection -- relation derives from ROSTER_FIELD_MAP whitelist
             const items = provider[relation];
             if (Array.isArray(items) && items.length > 0) {
               const values = items

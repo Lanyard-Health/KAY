@@ -40,6 +40,7 @@ export default function ConfirmDialog({
   variant = 'danger',
   isLoading = false,
 }: ConfirmDialogProps) {
+  // eslint-disable-next-line security/detect-object-injection -- variant is typed as 'danger' | 'warning' | 'info' union literal
   const styles = variantStyles[variant];
 
   return (

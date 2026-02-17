@@ -199,6 +199,7 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // eslint-disable-next-line security/detect-object-injection -- name is from e.target.name (form field names are compile-time constants)
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }

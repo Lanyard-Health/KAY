@@ -76,7 +76,7 @@ export default function PayerAnalyticsCards({ analytics }: PayerAnalyticsCardsPr
               return (
                 <div
                   key={status}
-                  className={`${STATUS_COLORS[status] || 'bg-gray-400'}`}
+                  className={`${STATUS_COLORS[status] || 'bg-gray-400'}`} // eslint-disable-line security/detect-object-injection -- status from Object.entries iteration
                   style={{ width: `${pct}%` }}
                   title={`${status}: ${count} (${Math.round(pct)}%)`}
                 />
@@ -86,7 +86,7 @@ export default function PayerAnalyticsCards({ analytics }: PayerAnalyticsCardsPr
           <div className="flex flex-wrap gap-3 mt-2">
             {Object.entries(analytics.statusDistribution).map(([status, count]) => (
               <div key={status} className="flex items-center gap-1.5 text-xs text-gray-600">
-                <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status] || 'bg-gray-400'}`} />
+                <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status] || 'bg-gray-400'}`} /> {/* eslint-disable-line security/detect-object-injection -- status from Object.entries */}
                 {status.replace(/_/g, ' ')}: {count}
               </div>
             ))}
