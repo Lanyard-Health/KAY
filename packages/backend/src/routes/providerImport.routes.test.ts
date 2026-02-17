@@ -146,7 +146,7 @@ describe('Provider Import Routes', () => {
       const res = await request(app).get('/non-existent-id/status');
 
       expect(res.status).toBe(404);
-      expect(res.body.error.message).toContain('not found');
+      expect(res.body.error).toContain('not found');
       expect(vi.mocked(getImportStatus)).toHaveBeenCalledWith(
         'non-existent-id',
         'practice-1-id',
