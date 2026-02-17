@@ -10,6 +10,7 @@ import {
   useAssignProvider,
   useUnassignProvider,
 } from '../../hooks/usePractices';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface PracticeProvidersTabProps {
   practiceId: string;
@@ -19,21 +20,12 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
   const { data: providersData, isLoading } = usePracticeProviders(practiceId);
   const unassignMutation = useUnassignProvider();
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<{ isOpen: boolean; provider: any }>({ isOpen: false, provider: null });
 
   const providers = providersData?.data ?? providersData ?? [];
 
   const handleUnassign = (provider: any) => {
-    if (!window.confirm(`Remove ${provider.firstName} ${provider.lastName} from this practice?`)) {
-      return;
-    }
-
-    unassignMutation.mutate(
-      { providerId: provider.id, practiceId },
-      {
-        onSuccess: () => toast.success('Provider removed from practice'),
-        onError: () => toast.error('Failed to remove provider'),
-      }
-    );
+    setRemoveConfirm({ isOpen: true, provider });
   };
 
   if (isLoading) {
@@ -149,6 +141,27 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
         isOpen={assignModalOpen}
         onClose={() => setAssignModalOpen(false)}
         practiceId={practiceId}
+      />
+
+      <ConfirmDialog
+        isOpen={removeConfirm.isOpen}
+        onClose={() => setRemoveConfirm({ isOpen: false, provider: null })}
+        onConfirm={() => {
+          if (removeConfirm.provider) {
+            unassignMutation.mutate(
+              { providerId: removeConfirm.provider.id, practiceId },
+              {
+                onSuccess: () => toast.success('Provider removed from practice'),
+                onError: () => toast.error('Failed to remove provider'),
+              }
+            );
+          }
+          setRemoveConfirm({ isOpen: false, provider: null });
+        }}
+        title="Remove Provider"
+        message={`Remove ${removeConfirm.provider?.firstName} ${removeConfirm.provider?.lastName} from this practice?`}
+        confirmLabel="Remove"
+        variant="warning"
       />
     </div>
   );

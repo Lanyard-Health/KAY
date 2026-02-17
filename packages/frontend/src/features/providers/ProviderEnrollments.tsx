@@ -204,6 +204,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       api.post(`/enrollments/provider/${providerId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
       toast.success('Enrollment created');
     },
@@ -218,6 +220,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       api.put(`/enrollments/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
       toast.success('Enrollment updated');
     },
@@ -231,6 +235,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     mutationFn: (id: string) => api.delete(`/enrollments/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['enrollments', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       setDeleteConfirm(null);
       toast.success('Enrollment deleted');
     },

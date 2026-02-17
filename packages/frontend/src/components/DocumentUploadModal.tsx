@@ -196,6 +196,7 @@ export default function DocumentUploadModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       toast.success('Document uploaded successfully!');
       if (onUploadComplete) {
         onUploadComplete();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeftIcon, PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useUserDetail, useDeactivateUser, useActivateUser } from '../../hooks/useUserManagement';
 import { useRemoveUser } from '../../hooks/usePractices';
 import { useQueryClient } from '@tanstack/react-query';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import UserFormModal from './UserFormModal';
 import AddUserToPracticeModal from './AddUserToPracticeModal';
 
@@ -31,43 +32,76 @@ export default function UserDetail() {
   const removeFromPracticeMutation = useRemoveUser();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addPracticeModalOpen, setAddPracticeModalOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: 'danger' | 'warning' | 'info';
+    confirmLabel: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', variant: 'danger', confirmLabel: 'Confirm', onConfirm: () => {} });
+
+  const closeConfirm = useCallback(() => {
+    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   const handleDeactivate = () => {
-    if (!window.confirm(`Deactivate ${user!.firstName} ${user!.lastName}? They will no longer be able to log in.`)) {
-      return;
-    }
-    deactivateMutation.mutate(userId!, {
-      onSuccess: () => toast.success('User deactivated'),
-      onError: (error: any) => {
-        toast.error(error?.response?.data?.error?.message || 'Failed to deactivate user');
+    setConfirmState({
+      isOpen: true,
+      title: 'Deactivate User',
+      message: `Deactivate ${user!.firstName} ${user!.lastName}? They will no longer be able to log in.`,
+      variant: 'danger',
+      confirmLabel: 'Deactivate',
+      onConfirm: () => {
+        deactivateMutation.mutate(userId!, {
+          onSuccess: () => toast.success('User deactivated'),
+          onError: (error: any) => {
+            toast.error(error?.response?.data?.error?.message || 'Failed to deactivate user');
+          },
+        });
+        closeConfirm();
       },
     });
   };
 
   const handleActivate = () => {
-    if (!window.confirm(`Reactivate ${user!.firstName} ${user!.lastName}?`)) {
-      return;
-    }
-    activateMutation.mutate(userId!, {
-      onSuccess: () => toast.success('User activated'),
-      onError: () => toast.error('Failed to activate user'),
+    setConfirmState({
+      isOpen: true,
+      title: 'Reactivate User',
+      message: `Reactivate ${user!.firstName} ${user!.lastName}? They will be able to log in again.`,
+      variant: 'info',
+      confirmLabel: 'Reactivate',
+      onConfirm: () => {
+        activateMutation.mutate(userId!, {
+          onSuccess: () => toast.success('User activated'),
+          onError: () => toast.error('Failed to activate user'),
+        });
+        closeConfirm();
+      },
     });
   };
 
   const handleRemoveFromPractice = (practiceId: string, practiceName: string) => {
-    if (!window.confirm(`Remove this user from ${practiceName}?`)) {
-      return;
-    }
-    removeFromPracticeMutation.mutate(
-      { practiceId, userId: userId! },
-      {
-        onSuccess: () => {
-          toast.success(`Removed from ${practiceName}`);
-          queryClient.invalidateQueries({ queryKey: ['user-detail', userId] });
-        },
-        onError: () => toast.error('Failed to remove from practice'),
-      }
-    );
+    setConfirmState({
+      isOpen: true,
+      title: 'Remove from Practice',
+      message: `Remove this user from ${practiceName}?`,
+      variant: 'warning',
+      confirmLabel: 'Remove',
+      onConfirm: () => {
+        removeFromPracticeMutation.mutate(
+          { practiceId, userId: userId! },
+          {
+            onSuccess: () => {
+              toast.success(`Removed from ${practiceName}`);
+              queryClient.invalidateQueries({ queryKey: ['user-detail', userId] });
+            },
+            onError: () => toast.error('Failed to remove from practice'),
+          }
+        );
+        closeConfirm();
+      },
+    });
   };
 
   if (isLoading) {
@@ -294,6 +328,16 @@ export default function UserDetail() {
         }}
         userId={userId!}
         existingPracticeIds={user.practices.map((p) => p.practiceId)}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        variant={confirmState.variant}
       />
     </div>
   );

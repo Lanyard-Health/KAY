@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, XMarkIcon, EyeIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface ProviderApplication {
   id: string;
@@ -32,6 +33,7 @@ export default function PendingProviders() {
   const [selectedApp, setSelectedApp] = useState<ProviderApplication | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [approveConfirm, setApproveConfirm] = useState<{ isOpen: boolean; app: ProviderApplication | null }>({ isOpen: false, app: null });
 
   const { data, isLoading } = useQuery({
     queryKey: ['applications', statusFilter],
@@ -74,9 +76,7 @@ export default function PendingProviders() {
   });
 
   const handleApprove = (app: ProviderApplication) => {
-    if (window.confirm(`Approve application for ${app.firstName} ${app.lastName}?`)) {
-      approveMutation.mutate(app.id);
-    }
+    setApproveConfirm({ isOpen: true, app });
   };
 
   const handleRejectClick = (app: ProviderApplication) => {
@@ -280,6 +280,20 @@ export default function PendingProviders() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={approveConfirm.isOpen}
+        onClose={() => setApproveConfirm({ isOpen: false, app: null })}
+        onConfirm={() => {
+          if (approveConfirm.app) approveMutation.mutate(approveConfirm.app.id);
+          setApproveConfirm({ isOpen: false, app: null });
+        }}
+        title="Approve Application"
+        message={`Approve application for ${approveConfirm.app?.firstName} ${approveConfirm.app?.lastName}? This will create their provider account.`}
+        confirmLabel="Approve"
+        variant="info"
+        isLoading={approveMutation.isPending}
+      />
     </div>
   );
 }
