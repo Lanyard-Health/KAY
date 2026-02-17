@@ -75,10 +75,19 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const payers = await prisma.payer.findMany({
-        orderBy: { name: 'asc' },
-      });
-      res.json({ success: true, data: payers });
+      const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(req.query['pageSize'] as string) || 200));
+      const skip = (page - 1) * pageSize;
+
+      const [payers, total] = await Promise.all([
+        prisma.payer.findMany({
+          orderBy: { name: 'asc' },
+          skip,
+          take: pageSize,
+        }),
+        prisma.payer.count(),
+      ]);
+      res.json({ success: true, data: payers, pagination: { page, pageSize, total } });
     } catch (error) {
       next(error);
     }

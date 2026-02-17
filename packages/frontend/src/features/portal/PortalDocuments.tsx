@@ -64,8 +64,19 @@ export default function PortalDocuments() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-primary-600" />
+      <div className="max-w-4xl mx-auto">
+        <div className="h-8 w-36 bg-gray-200 rounded animate-pulse mb-6" />
+        <div className="bg-white rounded-lg shadow p-6 mb-6 animate-pulse">
+          <div className="h-5 w-40 bg-gray-200 rounded mb-4" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-gray-100 rounded" />)}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow animate-pulse">
+          <div className="p-6 space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-gray-100 rounded" />)}
+          </div>
+        </div>
       </div>
     );
   }

@@ -106,6 +106,7 @@ export async function getEnrollmentPipeline(
     const payerDbId = enrollment.payer.id;
 
     // Total counts
+    // eslint-disable-next-line security/detect-object-injection -- status is a Prisma enum value from the database
     total[status] = (total[status] ?? 0) + 1;
 
     // Per-payer counts
@@ -118,6 +119,7 @@ export async function getEnrollmentPipeline(
       };
       payerMap.set(payerDbId, payerEntry);
     }
+    // eslint-disable-next-line security/detect-object-injection -- status is a Prisma enum value from the database
     payerEntry.statuses[status] = (payerEntry.statuses[status] ?? 0) + 1;
   }
 

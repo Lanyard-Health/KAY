@@ -16,6 +16,7 @@ function stripSensitiveFields(provider: any): any {
   if (!provider) return provider;
   const cleaned = { ...provider };
   for (const field of SENSITIVE_FIELDS) {
+    // eslint-disable-next-line security/detect-object-injection -- field is from a hardcoded const array of literal strings
     delete cleaned[field];
   }
   return cleaned;
