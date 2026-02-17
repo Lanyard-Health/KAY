@@ -118,7 +118,7 @@ router.post('/enrollment/:id/analyze', aiMutationLimit, async (req: Request, res
 /**
  * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -135,7 +135,7 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff'), aiM
 /**
  * POST /api/v1/ai/expiration-alerts/generate (admin/staff only)
  */
-router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -154,7 +154,7 @@ router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_sta
 /**
  * GET /api/v1/ai/recommendations (admin/staff only)
  */
-router.get('/recommendations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { type, status, enrollmentId } = recommendationsQuerySchema.parse(req.query);
     const recommendations = await getRecommendations({
@@ -172,7 +172,7 @@ router.get('/recommendations', authorize('admin', 'credentialing_staff'), async 
 /**
  * PATCH /api/v1/ai/recommendations/:id (admin/staff only)
  */
-router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { status } = updateRecommendationSchema.parse(req.body);
@@ -217,7 +217,7 @@ router.get('/usage', async (_req: Request, res: Response) => {
 /**
  * POST /api/v1/ai/chat — Send a chat message
  */
-router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -241,7 +241,7 @@ router.post('/chat', authorize('admin', 'credentialing_staff'), aiMutationLimit,
 /**
  * GET /api/v1/ai/chat/conversations — List user's conversations
  */
-router.get('/chat/conversations', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/chat/conversations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { limit, offset } = chatConversationsQuerySchema.parse(req.query);
     const conversations = await getUserConversations(req.user!.id, limit, offset);
@@ -255,7 +255,7 @@ router.get('/chat/conversations', authorize('admin', 'credentialing_staff'), asy
 /**
  * GET /api/v1/ai/chat/conversations/:id/messages — Get conversation messages
  */
-router.get('/chat/conversations/:id/messages', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/chat/conversations/:id/messages', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await getConversationMessages(id!, req.user!.id);

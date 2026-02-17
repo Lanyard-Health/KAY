@@ -8,7 +8,7 @@ import { auditQuerySchema, paginationSchema, parseQuery } from '../utils/queryVa
 export const auditRoutes = Router();
 
 auditRoutes.use(authenticate);
-auditRoutes.use(authorize('admin'));
+auditRoutes.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
 
 // GET /api/v1/audit - Query audit logs
 auditRoutes.get(

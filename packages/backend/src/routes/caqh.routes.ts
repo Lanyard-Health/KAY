@@ -171,6 +171,7 @@ caqhRoutes.post(
 // POST /api/v1/caqh/roster - Add provider to CAQH roster
 caqhRoutes.post(
   '/roster',
+  requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.body;
