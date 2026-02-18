@@ -64,6 +64,7 @@ model User {
   practices            UserPractice[]
   inAppNotifications   InAppNotification[]
   workflowStepsCompleted EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
+  aetnaEnrollmentRuns    AetnaEnrollmentRun[]
 
   @@map("users")
 }
@@ -188,6 +189,17 @@ enum WorkflowStepOwner {
   cvo
 }
 
+enum AetnaRunStatus {
+  pending
+  filling
+  awaiting_review
+  submitting
+  completed
+  failed
+  rejected
+  timed_out
+}
+
 model Provider {
   id String @id @default(uuid())
 
@@ -215,6 +227,11 @@ model Provider {
   taxonomy     String?
   specialties  String[]     @default([])
   languages    String[]     @default([])
+
+  // Aetna enrollment automation
+  acceptingMedicare Boolean @default(false) @map("accepting_medicare")
+  acceptingMedicaid Boolean @default(false) @map("accepting_medicaid")
+  ePrescribing      Boolean @default(false) @map("e_prescribing")
 
   // CAQH Integration
   caqhProviderId       String?     @map("caqh_provider_id")
@@ -634,6 +651,14 @@ model HospitalAffiliation {
   city              String?
   state             String?
   notes             String?
+
+  // Facility details (for Aetna enrollment)
+  facilityNpi          String? @map("facility_npi")
+  facilityPhone        String? @map("facility_phone")
+  facilityAddressLine1 String? @map("facility_address_line1")
+  facilityCity         String? @map("facility_city")
+  facilityState        String? @map("facility_state")
+  facilityZipCode      String? @map("facility_zip_code")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1230,6 +1255,7 @@ model PayerEnrollment {
   aiRecommendations AiRecommendation[]
   tasks             Task[]
   workflowSteps     EnrollmentWorkflowStep[]
+  aetnaRuns         AetnaEnrollmentRun[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
@@ -1763,4 +1789,38 @@ model EnrollmentWorkflowStep {
   @@index([status])
   @@index([enrollmentId, stepOrder])
   @@map("enrollment_workflow_steps")
+}
+
+// ==========================================
+// AETNA ENROLLMENT AUTOMATION
+// ==========================================
+
+model AetnaEnrollmentRun {
+  id                String         @id @default(uuid())
+  payerEnrollmentId String         @map("payer_enrollment_id")
+  payerEnrollment   PayerEnrollment @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
+
+  status            AetnaRunStatus @default(pending)
+  aetnaRequestId    String?        @map("aetna_request_id")
+
+  formPayload       Json           @map("form_payload")
+  automationLog     String?        @map("automation_log") @db.Text
+  errorMessage      String?        @map("error_message")
+  errorPage         Int?           @map("error_page")
+
+  screenshotDocIds  String[]       @map("screenshot_doc_ids")
+  confirmationPdfId String?        @map("confirmation_pdf_id")
+
+  startedAt         DateTime?      @map("started_at")
+  reviewExpiresAt   DateTime?      @map("review_expires_at")
+  submittedAt       DateTime?      @map("submitted_at")
+  completedAt       DateTime?      @map("completed_at")
+
+  initiatedById     String         @map("initiated_by_id")
+  initiatedBy       User           @relation(fields: [initiatedById], references: [id])
+
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@map("aetna_enrollment_runs")
 }

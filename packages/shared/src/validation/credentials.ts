@@ -126,6 +126,13 @@ export const createHospitalAffiliationSchema = z.object({
   city: z.string().max(100).optional(),
   state: z.string().length(2).optional(),
   notes: z.string().max(1000).optional(),
+  // Facility details (for Aetna enrollment)
+  facilityNpi: z.string().max(10).optional(),
+  facilityPhone: z.string().max(20).optional(),
+  facilityAddressLine1: z.string().max(200).optional(),
+  facilityCity: z.string().max(100).optional(),
+  facilityState: z.string().length(2).optional(),
+  facilityZipCode: z.string().max(10).optional(),
 });
 
 // Professional reference validation
