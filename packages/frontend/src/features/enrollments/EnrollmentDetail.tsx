@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -11,6 +12,8 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
+import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
+import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
@@ -29,6 +32,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollment', id],
@@ -193,6 +197,21 @@ export default function EnrollmentDetail() {
           <EnrollmentWorkflowTracker enrollmentId={enrollment.id} />
         </div>
       </div>
+
+      {/* Aetna Enrollment Automation */}
+      <AetnaReadinessPanel
+        enrollmentId={enrollment.id}
+        payerName={enrollment.payer?.name || ''}
+        onRunStarted={(runId) => setActiveRunId(runId)}
+      />
+
+      {activeRunId && (
+        <AetnaReviewPanel
+          enrollmentId={enrollment.id}
+          runId={activeRunId}
+          onClose={() => setActiveRunId(null)}
+        />
+      )}
     </div>
   );
 }
