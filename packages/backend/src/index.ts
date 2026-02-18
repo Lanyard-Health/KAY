@@ -56,6 +56,7 @@ import { payerEnrollmentDataRoutes } from './routes/payerEnrollmentData.routes.j
 import dashboardRoutes from './routes/dashboard.routes.js';
 import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
+import { aetnaRoutes } from './routes/aetna.routes.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -189,6 +190,7 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/provider-import', providerImportRoutes);
 app.use('/api/v1/reporting', reportingRoutes);
+app.use('/api/v1/enrollments/:enrollmentId/aetna', aetnaRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
