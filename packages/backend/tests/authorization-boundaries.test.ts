@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 
+// Mock aws-jwt-verify FIRST — provider.routes imports auth.middleware which imports
+// CognitoJwtVerifier at module level. Without this mock, vitest hangs resolving the module.
+vi.mock('aws-jwt-verify', () => ({
+  CognitoJwtVerifier: {
+    create: () => ({ verify: vi.fn() }),
+  },
+}));
+
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
   return { prisma: prismaMock };
@@ -22,12 +30,27 @@ vi.mock('../src/utils/queryValidation.js', async (importOriginal) => {
   return actual;
 });
 
-// Mock authenticate to just pass through — we inject user manually
-vi.mock('../src/middleware/auth.middleware.js', async (importOriginal) => {
-  const actual = await importOriginal<any>();
+// Mock authenticate to pass through — we inject user manually.
+// Use async factory to import error classes (ESM-safe). error.middleware has no heavy deps.
+vi.mock('../src/middleware/auth.middleware.js', async () => {
+  const { ForbiddenError, UnauthorizedError } = await import('../src/middleware/error.middleware.js');
+  const staffRoles = ['admin', 'credentialing_staff', 'practice_admin'];
   return {
-    ...actual,
     authenticate: (_req: any, _res: any, next: any) => next(),
+    authorize: (...allowedRoles: string[]) => (req: any, _res: any, next: any) => {
+      if (!req.user) return next(new UnauthorizedError('Not authenticated'));
+      if (!allowedRoles.includes(req.user.role)) return next(new ForbiddenError('Insufficient permissions'));
+      next();
+    },
+    requireProviderAccess: (req: any, _res: any, next: any) => {
+      if (!req.user) return next(new UnauthorizedError('Not authenticated'));
+      const { role, providerId: userProviderId } = req.user;
+      const requestedProviderId = req.params?.providerId || req.body?.providerId;
+      if (staffRoles.includes(role)) return next();
+      if (role === 'provider' && userProviderId === requestedProviderId) return next();
+      next(new ForbiddenError('Access denied to this provider'));
+    },
+    requirePermission: () => (_req: any, _res: any, next: any) => next(),
   };
 });
 
