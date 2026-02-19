@@ -173,8 +173,10 @@ describe('medicareVerification.service', () => {
         return { found: false };
       });
 
-      // Allow upsert to return a value for successful calls
-      prismaMock.medicareVerification.upsert.mockResolvedValue({} as any);
+      // Return status matching what upsertVerification would produce
+      prismaMock.medicareVerification.upsert.mockImplementation(async (args: any) => {
+        return { status: args.create?.status ?? args.update?.status ?? 'UNVERIFIED' } as any;
+      });
 
       const result = await verifyProviderBatch(['p1', 'p2', 'p3', 'p4']);
 

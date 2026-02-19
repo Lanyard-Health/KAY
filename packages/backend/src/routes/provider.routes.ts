@@ -51,11 +51,11 @@ providerRoutes.get(
           ],
         }),
         ...(status && { status: status as 'active' | 'inactive' | 'pending' }),
-        ...(req.query['medicareStatus'] === 'UNVERIFIED'
-          ? { medicareVerification: null }
-          : req.query['medicareStatus']
-            ? { medicareVerification: { status: req.query['medicareStatus'] as string } }
-            : {}),
+        ...(['ENROLLED', 'NOT_ENROLLED', 'UNVERIFIED'].includes(req.query['medicareStatus'] as string)
+          ? req.query['medicareStatus'] === 'UNVERIFIED'
+            ? { OR: [{ medicareVerification: null }, { medicareVerification: { status: 'UNVERIFIED' } }] }
+            : { medicareVerification: { status: req.query['medicareStatus'] as string } }
+          : {}),
       };
 
       const [providers, total] = await Promise.all([

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { PECOSService } from '../services/pecos.service.js';
 import { verifyProvider, verifyProviderBatch } from '../services/medicareVerification.service.js';
 
@@ -169,6 +169,7 @@ pecosRoutes.post(
 // POST /api/v1/pecos/verify/:providerId
 pecosRoutes.post(
   '/verify/:providerId',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = req.params;
@@ -186,6 +187,7 @@ pecosRoutes.post(
 // POST /api/v1/pecos/verify-batch
 pecosRoutes.post(
   '/verify-batch',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerIds } = req.body;
@@ -194,6 +196,13 @@ pecosRoutes.post(
         return res.status(400).json({
           success: false,
           error: { message: 'providerIds must be a non-empty array.' },
+        });
+      }
+
+      if (providerIds.some((id: unknown) => typeof id !== 'string')) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'All providerIds must be strings.' },
         });
       }
 
