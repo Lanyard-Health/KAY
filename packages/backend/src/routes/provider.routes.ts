@@ -51,6 +51,11 @@ providerRoutes.get(
           ],
         }),
         ...(status && { status: status as 'active' | 'inactive' | 'pending' }),
+        ...(req.query['medicareStatus'] === 'UNVERIFIED'
+          ? { medicareVerification: null }
+          : req.query['medicareStatus']
+            ? { medicareVerification: { status: req.query['medicareStatus'] as string } }
+            : {}),
       };
 
       const [providers, total] = await Promise.all([
@@ -82,6 +87,12 @@ providerRoutes.get(
                 licenses: true,
                 boardCertifications: true,
                 documents: true,
+              },
+            },
+            medicareVerification: {
+              select: {
+                status: true,
+                verifiedAt: true,
               },
             },
           },
@@ -135,6 +146,7 @@ providerRoutes.get(
               createdAt: true,
             },
           },
+          medicareVerification: true,
           practice: { select: { id: true, name: true, status: true } },
         },
       });
