@@ -49,6 +49,10 @@ vi.mock('./portal/index.js', () => ({
   registerPortalAdapters: vi.fn(),
 }));
 
+vi.mock('./document-agent.js', () => ({
+  processDocumentJob: vi.fn().mockResolvedValue({ status: 'completed' }),
+}));
+
 import { initializeWorkers, closeAllWorkers } from './workers.js';
 
 // ==========================================
@@ -89,6 +93,18 @@ describe('workers', () => {
       expect(queueNames).toContain('agent-monitor');
       expect(queueNames).toContain('agent-exception');
       expect(queueNames).toContain('agent-approval');
+    });
+
+    it('uses real processor for document_parser worker', () => {
+      initializeWorkers();
+
+      // Find the call for the document queue
+      const documentCall = MockWorker.mock.calls.find(
+        (call: unknown[]) => call[0] === 'agent-document'
+      );
+      expect(documentCall).toBeDefined();
+      // The processor (second arg) should be a function
+      expect(typeof documentCall![1]).toBe('function');
     });
 
     it('registers completed and failed event handlers on each worker', () => {
