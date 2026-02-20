@@ -289,6 +289,7 @@ model Provider {
   providerIdentifiers    ProviderIdentifier[]
   banking                ProviderBanking[]
   demographics           ProviderDemographics?
+  medicareVerification   MedicareVerification?
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
@@ -1823,4 +1824,36 @@ model AetnaEnrollmentRun {
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
   @@map("aetna_enrollment_runs")
+}
+
+// ==========================================
+// MEDICARE VERIFICATION (PECOS)
+// ==========================================
+
+enum MedicareStatus {
+  ENROLLED
+  NOT_ENROLLED
+  UNVERIFIED
+}
+
+model MedicareVerification {
+  id         String   @id @default(uuid())
+  providerId String   @unique @map("provider_id")
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  status     MedicareStatus @default(UNVERIFIED)
+  verifiedAt DateTime?      @map("verified_at")
+
+  npi              String?
+  pacId            String?  @map("pac_id")
+  enrollmentCount  Int      @default(0) @map("enrollment_count")
+  enrollmentStates String[] @default([]) @map("enrollment_states")
+  rawData          Json?    @map("raw_data")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([verifiedAt])
+  @@map("medicare_verifications")
 }

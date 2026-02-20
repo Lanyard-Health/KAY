@@ -12,6 +12,7 @@ import {
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import clsx from 'clsx';
+import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
 
 interface Provider {
   id: string;
@@ -26,6 +27,10 @@ interface Provider {
     boardCertifications: number;
     documents: number;
   };
+  medicareVerification?: {
+    status: 'ENROLLED' | 'NOT_ENROLLED' | 'UNVERIFIED';
+    verifiedAt: string | null;
+  } | null;
 }
 
 // Circular progress component
@@ -94,14 +99,17 @@ export default function ProviderList() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const status = searchParams.get('status') || '';
+  const medicareStatus = searchParams.get('medicareStatus') || '';
   const page = parseInt(searchParams.get('page') || '1');
+  const verifyBatchMutation = useVerifyMedicareBatch();
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['providers', { search, status, page }],
+    queryKey: ['providers', { search, status, medicareStatus, page }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (status) params.set('status', status);
+      if (medicareStatus) params.set('medicareStatus', medicareStatus);
       params.set('page', String(page));
       params.set('pageSize', '20');
 
@@ -184,8 +192,36 @@ export default function ProviderList() {
               <option value="inactive">Inactive</option>
               <option value="pending">Pending</option>
             </select>
+            <select
+              className="input w-44"
+              value={medicareStatus}
+              onChange={(e) => {
+                setSearchParams((prev) => {
+                  if (e.target.value) prev.set('medicareStatus', e.target.value);
+                  else prev.delete('medicareStatus');
+                  prev.set('page', '1');
+                  return prev;
+                });
+              }}
+            >
+              <option value="">All Medicare</option>
+              <option value="ENROLLED">Enrolled</option>
+              <option value="NOT_ENROLLED">Not Enrolled</option>
+              <option value="UNVERIFIED">Unverified</option>
+            </select>
             <button type="submit" className="btn-secondary">
               Search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const ids = data?.data?.map((p: Provider) => p.id) || [];
+                if (ids.length > 0) verifyBatchMutation.mutate(ids);
+              }}
+              disabled={verifyBatchMutation.isPending || !data?.data?.length}
+              className="btn-secondary whitespace-nowrap"
+            >
+              {verifyBatchMutation.isPending ? 'Verifying...' : 'Verify All'}
             </button>
           </form>
 
@@ -292,6 +328,17 @@ export default function ProviderList() {
                       <StatusIcon className="h-3.5 w-3.5" />
                       {provider.status}
                     </span>
+                    {provider.medicareVerification ? (
+                      <span className={clsx(
+                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                        provider.medicareVerification.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
+                        provider.medicareVerification.status === 'NOT_ENROLLED' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-600',
+                      )}>
+                        {provider.medicareVerification.status === 'ENROLLED' ? 'Medicare' :
+                         provider.medicareVerification.status === 'NOT_ENROLLED' ? 'No Medicare' : 'Unverified'}
+                      </span>
+                    ) : null}
                     <span className="text-sm text-gray-500 capitalize">
                       {provider.providerType.replace('_', ' ')}
                     </span>
@@ -344,6 +391,9 @@ export default function ProviderList() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Medicare
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Progress
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -388,6 +438,17 @@ export default function ProviderList() {
                       >
                         <StatusIcon className="h-3.5 w-3.5" />
                         {provider.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={clsx(
+                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                        provider.medicareVerification?.status === 'ENROLLED' ? 'bg-green-100 text-green-800' :
+                        provider.medicareVerification?.status === 'NOT_ENROLLED' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-600',
+                      )}>
+                        {provider.medicareVerification?.status === 'ENROLLED' ? 'Enrolled' :
+                         provider.medicareVerification?.status === 'NOT_ENROLLED' ? 'Not Enrolled' : 'Unverified'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

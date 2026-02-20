@@ -2,7 +2,7 @@ import { useState, Fragment, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 // jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
@@ -46,6 +46,7 @@ import PdmComplianceCard from '../../components/PdmComplianceCard';
 import { CaqhCard } from '../../components/CaqhCard';
 import DirectoryStatusCard from '../../components/DirectoryStatusCard';
 import { usePdmAlerts } from '../../hooks/usePdmStatus';
+import { useVerifyMedicare } from '../../hooks/useMedicareVerification';
 
 const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
@@ -180,17 +181,6 @@ export default function ProviderDetail() {
     },
   });
 
-  // Fetch Medicare enrollment status
-  const { data: medicareEnrollment } = useQuery({
-    queryKey: ['medicare-enrollment', provider?.npi],
-    queryFn: async () => {
-      const response = await api.get(`/pecos/lookup/${provider.npi}`);
-      return response.data.data;
-    },
-    enabled: !!provider?.npi,
-    staleTime: 1000 * 60 * 60, // Cache for 1 hour
-  });
-
   // PDM alerts for banner
   const { data: pdmAlerts } = usePdmAlerts(id || '');
   const overdueCount = pdmAlerts?.data?.alerts?.filter((a: any) => a.status === 'overdue').length || 0;
@@ -206,6 +196,8 @@ export default function ProviderDetail() {
   const { data: deaRegistrationsList } = useListDeaRegistrations(id || '');
   const { data: providerIdentifiersList } = useListProviderIdentifiers(id || '');
   const { data: bankingList } = useListBanking(id || '');
+
+  const verifyMedicareMutation = useVerifyMedicare();
 
   // Existing delete mutations
   const deleteLocationMutation = useMutation({
@@ -1488,53 +1480,82 @@ export default function ProviderDetail() {
 
                 {/* Medicare Enrollment */}
                 <div className="card card-body">
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">Medicare Enrollment</h3>
-                  {medicareEnrollment?.found ? (
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-500">Medicare Enrollment</h3>
+                    <button
+                      onClick={() => verifyMedicareMutation.mutate(id!)}
+                      disabled={verifyMedicareMutation.isPending}
+                      className="text-xs text-primary-600 hover:text-primary-500 flex items-center gap-1"
+                      title="Re-verify with CMS"
+                    >
+                      <ArrowPathIcon className={clsx('h-3.5 w-3.5', verifyMedicareMutation.isPending && 'animate-spin')} />
+                      {verifyMedicareMutation.isPending ? 'Verifying...' : 'Verify'}
+                    </button>
+                  </div>
+
+                  {provider.medicareVerification ? (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-                          Enrolled
+                        <span className={clsx(
+                          'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                          provider.medicareVerification.status === 'ENROLLED' && 'bg-green-100 text-green-800',
+                          provider.medicareVerification.status === 'NOT_ENROLLED' && 'bg-yellow-100 text-yellow-800',
+                          provider.medicareVerification.status === 'UNVERIFIED' && 'bg-gray-100 text-gray-600',
+                        )}>
+                          {provider.medicareVerification.status === 'ENROLLED' ? 'Enrolled' :
+                           provider.medicareVerification.status === 'NOT_ENROLLED' ? 'Not Enrolled' : 'Unverified'}
                         </span>
-                        {medicareEnrollment.pacId && (
-                          <span className="text-xs text-gray-400">PAC: {medicareEnrollment.pacId}</span>
-                        )}
+                        {provider.medicareVerification.verifiedAt && (() => {
+                          const daysSince = Math.floor((Date.now() - new Date(provider.medicareVerification.verifiedAt).getTime()) / 86400000);
+                          return daysSince > 30 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                              Stale
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
-                      {medicareEnrollment.enrollments && medicareEnrollment.enrollments.length > 0 && (
+
+                      {provider.medicareVerification.rawData?.pacId && (
+                        <p className="text-xs text-gray-500 mb-2">PAC ID: {provider.medicareVerification.rawData.pacId}</p>
+                      )}
+
+                      {provider.medicareVerification.rawData?.enrollments?.length > 0 && (
                         <div className="text-xs text-gray-600 space-y-1 mb-2">
-                          {medicareEnrollment.enrollments.slice(0, 3).map((enrollment: any, idx: number) => (
+                          {provider.medicareVerification.rawData.enrollments.map((enrollment: any, idx: number) => (
                             <p key={idx} className="truncate" title={enrollment.providerTypeDesc}>
-                              &bull; {enrollment.state}: {enrollment.providerTypeDesc.replace('PRACTITIONER - ', '')}
+                              &bull; {enrollment.state}: {enrollment.providerTypeDesc?.replace('PRACTITIONER - ', '')}
+                              {enrollment.enrollmentDate && ` (${enrollment.enrollmentDate})`}
                             </p>
                           ))}
-                          {medicareEnrollment.enrollments.length > 3 && (
-                            <p className="text-gray-400">+{medicareEnrollment.enrollments.length - 3} more</p>
-                          )}
                         </div>
                       )}
-                      {medicareEnrollment.orderingPrivileges && (
-                        <div className="text-xs text-gray-500 space-y-0.5">
-                          {medicareEnrollment.orderingPrivileges.dme && <p>&#10003; DME</p>}
-                          {medicareEnrollment.orderingPrivileges.hha && <p>&#10003; Home Health</p>}
-                          {medicareEnrollment.orderingPrivileges.hospice && <p>&#10003; Hospice</p>}
+
+                      {provider.medicareVerification.rawData?.orderingPrivileges && (
+                        <div className="text-xs text-gray-500 space-y-0.5 mb-2">
+                          <p className="font-medium text-gray-600">Ordering Privileges:</p>
+                          {provider.medicareVerification.rawData.orderingPrivileges.partB && <p>&#10003; Part B</p>}
+                          {provider.medicareVerification.rawData.orderingPrivileges.dme && <p>&#10003; DME</p>}
+                          {provider.medicareVerification.rawData.orderingPrivileges.hha && <p>&#10003; Home Health</p>}
+                          {provider.medicareVerification.rawData.orderingPrivileges.pmd && <p>&#10003; PMD</p>}
+                          {provider.medicareVerification.rawData.orderingPrivileges.hospice && <p>&#10003; Hospice</p>}
                         </div>
                       )}
-                      {medicareEnrollment.verifiedAt && (
+
+                      {provider.medicareVerification.verifiedAt && (
                         <p className="text-xs text-gray-400 mt-2">
-                          Verified: {format(new Date(medicareEnrollment.verifiedAt), 'MMM d, yyyy')}
+                          Verified: {format(new Date(provider.medicareVerification.verifiedAt), 'MMM d, yyyy')}
                         </p>
                       )}
                     </div>
-                  ) : medicareEnrollment && !medicareEnrollment.found ? (
+                  ) : (
                     <div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Not Enrolled
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        Unverified
                       </span>
                       <p className="text-xs text-gray-500 mt-2">
-                        Provider not found in Medicare enrollment database
+                        Click Verify to check Medicare enrollment status.
                       </p>
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-400">Loading...</p>
                   )}
                 </div>
 
