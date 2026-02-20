@@ -142,7 +142,7 @@ agentRoutes.patch(
       const { action, reason } = parsed.data;
 
       if (action === 'cancel') {
-        const workflow = await cancelWorkflow(req.params['id']!, reason);
+        const workflow = await cancelWorkflow(req.params['id']!, reason ?? 'Cancelled by user');
         res.status(200).json(workflow);
         return;
       }

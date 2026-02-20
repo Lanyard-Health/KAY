@@ -1,12 +1,14 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
+import type { Prisma } from '@prisma/client';
+
 export interface LogAgentEventInput {
   workflowId: string;
   taskId?: string;
   agent: string;
   action: string;
-  data: Record<string, unknown>;
+  data: Prisma.InputJsonValue;
   level?: 'debug' | 'info' | 'warn' | 'error';
 }
 

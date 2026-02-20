@@ -1,17 +1,10 @@
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { logger } from './logger.js';
+
+import type { RedisOptions } from 'ioredis';
 
 const MAX_RETRIES = 10;
 const MAX_DELAY_MS = 5000;
-
-interface RedisConfig {
-  host: string;
-  port: number;
-  password?: string;
-  maxRetriesPerRequest: null;
-  enableReadyCheck: boolean;
-  retryStrategy: (times: number) => number | null;
-}
 
 let connection: Redis | null = null;
 
@@ -19,8 +12,8 @@ let connection: Redis | null = null;
  * Returns Redis connection config using environment variables with sensible defaults.
  * maxRetriesPerRequest is null as required by BullMQ.
  */
-export function getRedisConfig(): RedisConfig {
-  const config: RedisConfig = {
+export function getRedisConfig(): RedisOptions {
+  const config: RedisOptions = {
     host: process.env['REDIS_HOST'] ?? 'localhost',
     port: parseInt(process.env['REDIS_PORT'] ?? '6379', 10),
     maxRetriesPerRequest: null,
