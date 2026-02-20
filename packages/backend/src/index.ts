@@ -59,6 +59,7 @@ import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
+import { approvalRoutes } from './routes/approval.routes.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -199,6 +200,7 @@ app.use('/api/v1/reporting', reportingRoutes);
 app.use('/api/v1/enrollments/:enrollmentId/aetna', aetnaRoutes);
 
 app.use('/api/v1/agent', agentRoutes);
+app.use('/api/v1/agent/approvals', approvalRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);

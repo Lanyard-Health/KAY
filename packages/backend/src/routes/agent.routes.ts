@@ -8,6 +8,7 @@ import {
   getWorkflow,
   getWorkflowEvents,
   cancelWorkflow,
+  dispatchPortalSubmission,
 } from '../agents/coordinator.service.js';
 
 // ==========================================
@@ -27,6 +28,13 @@ const listWorkflowsSchema = z.object({
   providerId: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+});
+
+const portalSubmissionSchema = z.object({
+  providerId: z.string().uuid(),
+  payerId: z.string().uuid(),
+  enrollmentId: z.string().uuid().optional(),
+  action: z.enum(['submit_to_portal', 'check_readiness']).optional(),
 });
 
 const patchWorkflowSchema = z.object({
@@ -148,6 +156,33 @@ agentRoutes.patch(
       }
 
       res.status(400).json({ error: 'Unknown action. Supported: cancel' });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /workflows/:id/submit-to-portal — dispatch portal submission
+agentRoutes.post(
+  '/workflows/:id/submit-to-portal',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = portalSubmissionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      const task = await dispatchPortalSubmission({
+        workflowId: req.params['id']!,
+        providerId: parsed.data.providerId,
+        payerId: parsed.data.payerId,
+        enrollmentId: parsed.data.enrollmentId,
+        action: parsed.data.action,
+      });
+
+      res.status(201).json(task);
     } catch (err) {
       next(err);
     }

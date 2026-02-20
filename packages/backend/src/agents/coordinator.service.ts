@@ -27,6 +27,14 @@ export interface CreateWorkflowInput {
   requestedBy: string;
 }
 
+export interface DispatchPortalInput {
+  workflowId: string;
+  providerId: string;
+  payerId: string;
+  enrollmentId?: string;
+  action?: 'submit_to_portal' | 'check_readiness';
+}
+
 export interface ListWorkflowsFilters {
   status?: string;
   providerId?: string;
@@ -178,4 +186,54 @@ export async function cancelWorkflow(workflowId: string, reason: string) {
   logger.info('Workflow cancelled', { workflowId, reason });
 
   return workflow;
+}
+
+// ==========================================
+// dispatchPortalSubmission
+// ==========================================
+
+export async function dispatchPortalSubmission(input: DispatchPortalInput) {
+  const { workflowId, providerId, payerId, enrollmentId, action = 'submit_to_portal' } = input;
+
+  // Create task record
+  const task = await prisma.agentTask.create({
+    data: {
+      workflowId,
+      type: action,
+      agentType: 'portal',
+      stepNumber: 1,
+      status: 'queued',
+      input: { providerId, payerId, enrollmentId, action },
+    },
+  });
+
+  // Enqueue to portal queue
+  const queue = getQueue(QUEUE_NAMES.PORTAL);
+  const job = await queue.add(action, {
+    workflowId,
+    taskId: task.id,
+    providerId,
+    payerId,
+    enrollmentId,
+    action,
+  });
+
+  // Link BullMQ job ID to task
+  await prisma.agentTask.update({
+    where: { id: task.id },
+    data: { bullmqJobId: job.id ?? null },
+  });
+
+  // Log event
+  await logAgentEvent({
+    workflowId,
+    taskId: task.id,
+    agent: 'coordinator',
+    action: 'portal_submission_dispatched',
+    data: { payerId, taskId: task.id, submissionAction: action },
+  });
+
+  logger.info('Portal submission dispatched', { workflowId, taskId: task.id, payerId });
+
+  return task;
 }

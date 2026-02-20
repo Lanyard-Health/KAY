@@ -41,6 +41,7 @@ import {
   listWorkflows,
   getWorkflowEvents,
   cancelWorkflow,
+  dispatchPortalSubmission,
 } from './coordinator.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { getQueue } from './queues.js';
@@ -309,6 +310,110 @@ describe('coordinator.service', () => {
       );
 
       expect(result).toEqual(cancelledWorkflow);
+    });
+  });
+
+  // ------------------------------------------
+  // dispatchPortalSubmission
+  // ------------------------------------------
+
+  describe('dispatchPortalSubmission', () => {
+    const fakeTask = {
+      id: 'task-1',
+      workflowId: 'wf-1',
+      type: 'submit_to_portal',
+      agentType: 'portal',
+      stepNumber: 1,
+      status: 'queued',
+      input: { providerId: 'prov-1', payerId: 'payer-1', action: 'submit_to_portal' },
+      bullmqJobId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const dispatchInput = {
+      workflowId: 'wf-1',
+      providerId: 'prov-1',
+      payerId: 'payer-1',
+    };
+
+    it('creates a task, enqueues to portal queue, and logs an event', async () => {
+      prismaMock.agentTask.create.mockResolvedValueOnce(fakeTask as never);
+      prismaMock.agentTask.update.mockResolvedValueOnce({ ...fakeTask, bullmqJobId: 'job-1' } as never);
+
+      const result = await dispatchPortalSubmission(dispatchInput);
+
+      // Verifies task creation
+      expect(prismaMock.agentTask.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          workflowId: 'wf-1',
+          type: 'submit_to_portal',
+          agentType: 'portal',
+          status: 'queued',
+        }),
+      });
+
+      // Verifies job was enqueued to the portal queue
+      expect(getQueue).toHaveBeenCalledWith('agent-portal');
+      expect(mockAdd).toHaveBeenCalledWith('submit_to_portal', expect.objectContaining({
+        workflowId: 'wf-1',
+        taskId: 'task-1',
+        providerId: 'prov-1',
+        payerId: 'payer-1',
+      }));
+
+      // Verifies task was updated with BullMQ job ID
+      expect(prismaMock.agentTask.update).toHaveBeenCalledWith({
+        where: { id: 'task-1' },
+        data: { bullmqJobId: 'job-1' },
+      });
+
+      // Verifies event was logged
+      expect(logAgentEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'wf-1',
+          taskId: 'task-1',
+          agent: 'coordinator',
+          action: 'portal_submission_dispatched',
+        })
+      );
+
+      expect(result).toEqual(fakeTask);
+    });
+
+    it('uses check_readiness action when specified', async () => {
+      prismaMock.agentTask.create.mockResolvedValueOnce({
+        ...fakeTask,
+        type: 'check_readiness',
+      } as never);
+      prismaMock.agentTask.update.mockResolvedValueOnce(fakeTask as never);
+
+      await dispatchPortalSubmission({ ...dispatchInput, action: 'check_readiness' });
+
+      expect(prismaMock.agentTask.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'check_readiness' }),
+      });
+
+      expect(mockAdd).toHaveBeenCalledWith('check_readiness', expect.objectContaining({
+        action: 'check_readiness',
+      }));
+    });
+
+    it('includes enrollmentId when provided', async () => {
+      prismaMock.agentTask.create.mockResolvedValueOnce(fakeTask as never);
+      prismaMock.agentTask.update.mockResolvedValueOnce(fakeTask as never);
+
+      await dispatchPortalSubmission({ ...dispatchInput, enrollmentId: 'enr-1' });
+
+      expect(prismaMock.agentTask.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          input: expect.objectContaining({ enrollmentId: 'enr-1' }),
+        }),
+      });
+
+      expect(mockAdd).toHaveBeenCalledWith('submit_to_portal', expect.objectContaining({
+        enrollmentId: 'enr-1',
+      }));
     });
   });
 });

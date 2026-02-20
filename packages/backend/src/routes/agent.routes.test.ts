@@ -19,6 +19,7 @@ vi.mock('../agents/coordinator.service.js', () => ({
   getWorkflow: vi.fn(),
   getWorkflowEvents: vi.fn(),
   cancelWorkflow: vi.fn(),
+  dispatchPortalSubmission: vi.fn(),
 }));
 
 vi.mock('../agents/queues.js', () => ({
@@ -33,6 +34,7 @@ import {
   getWorkflow,
   getWorkflowEvents,
   cancelWorkflow,
+  dispatchPortalSubmission,
 } from '../agents/coordinator.service.js';
 
 describe('Agent Routes', () => {
@@ -193,6 +195,69 @@ describe('Agent Routes', () => {
 
       expect(res.status).toBe(200);
       expect(cancelWorkflow).toHaveBeenCalledWith('wf-1', 'Cancelled by user');
+    });
+  });
+
+  describe('POST /workflows/:id/submit-to-portal', () => {
+    it('dispatches portal submission and returns 201', async () => {
+      const mockTask = { id: 'task-1', status: 'queued', type: 'submit_to_portal' };
+      (dispatchPortalSubmission as any).mockResolvedValue(mockTask);
+
+      const res = await request(app)
+        .post('/workflows/wf-1/submit-to-portal')
+        .send({
+          providerId: '00000000-0000-0000-0000-000000000001',
+          payerId: '00000000-0000-0000-0000-000000000002',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual(mockTask);
+      expect(dispatchPortalSubmission).toHaveBeenCalledWith({
+        workflowId: 'wf-1',
+        providerId: '00000000-0000-0000-0000-000000000001',
+        payerId: '00000000-0000-0000-0000-000000000002',
+        enrollmentId: undefined,
+        action: undefined,
+      });
+    });
+
+    it('passes action when provided', async () => {
+      const mockTask = { id: 'task-2', status: 'queued' };
+      (dispatchPortalSubmission as any).mockResolvedValue(mockTask);
+
+      const res = await request(app)
+        .post('/workflows/wf-1/submit-to-portal')
+        .send({
+          providerId: '00000000-0000-0000-0000-000000000001',
+          payerId: '00000000-0000-0000-0000-000000000002',
+          action: 'check_readiness',
+        });
+
+      expect(res.status).toBe(201);
+      expect(dispatchPortalSubmission).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'check_readiness' })
+      );
+    });
+
+    it('returns 400 for invalid payerId', async () => {
+      const res = await request(app)
+        .post('/workflows/wf-1/submit-to-portal')
+        .send({
+          providerId: '00000000-0000-0000-0000-000000000001',
+          payerId: 'not-a-uuid',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Validation failed');
+    });
+
+    it('returns 400 for missing required fields', async () => {
+      const res = await request(app)
+        .post('/workflows/wf-1/submit-to-portal')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Validation failed');
     });
   });
 });
