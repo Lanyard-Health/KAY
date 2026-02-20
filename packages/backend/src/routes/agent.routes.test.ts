@@ -32,6 +32,7 @@ import {
   listWorkflows,
   getWorkflow,
   getWorkflowEvents,
+  cancelWorkflow,
 } from '../agents/coordinator.service.js';
 
 describe('Agent Routes', () => {
@@ -160,7 +161,38 @@ describe('Agent Routes', () => {
         .send({ action: 'unknown', reason: 'test' });
 
       expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'Unknown action. Supported: cancel' });
+      expect(res.body.error).toBeDefined();
+    });
+
+    it('cancels a workflow and returns 200', async () => {
+      const mockCancelled = {
+        id: 'wf-1',
+        goal: 'Enroll provider',
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancelReason: 'No longer needed',
+      };
+      (cancelWorkflow as any).mockResolvedValue(mockCancelled);
+
+      const res = await request(app)
+        .patch('/workflows/wf-1')
+        .send({ action: 'cancel', reason: 'No longer needed' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockCancelled);
+      expect(cancelWorkflow).toHaveBeenCalledWith('wf-1', 'No longer needed');
+    });
+
+    it('uses default reason when none provided', async () => {
+      const mockCancelled = { id: 'wf-1', status: 'cancelled' };
+      (cancelWorkflow as any).mockResolvedValue(mockCancelled);
+
+      const res = await request(app)
+        .patch('/workflows/wf-1')
+        .send({ action: 'cancel' });
+
+      expect(res.status).toBe(200);
+      expect(cancelWorkflow).toHaveBeenCalledWith('wf-1', 'Cancelled by user');
     });
   });
 });

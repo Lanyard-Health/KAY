@@ -4,14 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mocks — vi.hoisted so they're available in vi.mock factories
 // ==========================================
 
-const { mockOn, mockTo, mockEmit, MockServer } = vi.hoisted(() => {
+const { mockOn, mockTo, mockEmit, mockUse, MockServer } = vi.hoisted(() => {
   const mockEmit = vi.fn();
   const mockTo = vi.fn(() => ({ emit: mockEmit }));
   const mockOn = vi.fn();
+  const mockUse = vi.fn();
   const MockServer = vi.fn().mockImplementation(function () {
-    return { on: mockOn, to: mockTo };
+    return { on: mockOn, to: mockTo, use: mockUse };
   });
-  return { mockOn, mockTo, mockEmit, MockServer };
+  return { mockOn, mockTo, mockEmit, mockUse, MockServer };
 });
 
 vi.mock('socket.io', () => ({
@@ -40,7 +41,7 @@ describe('websocket', () => {
     // Re-setup mocks after clear
     mockTo.mockReturnValue({ emit: mockEmit });
     MockServer.mockImplementation(function () {
-      return { on: mockOn, to: mockTo };
+      return { on: mockOn, to: mockTo, use: mockUse };
     });
   });
 
