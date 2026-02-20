@@ -34,7 +34,7 @@ const PAGE_TITLES = [
   'Additional Questions & Final Review',
 ];
 
-export function AetnaReviewPanel({ enrollmentId, runId, onClose }: Props) {
+export function AetnaReviewPanel({ enrollmentId, runId, onClose: _onClose }: Props) {
   const { data: run, isLoading } = useAetnaRunStatus(runId, enrollmentId);
   const approveMutation = useApproveAetnaRun(enrollmentId);
   const rejectMutation = useRejectAetnaRun(enrollmentId);

@@ -435,9 +435,13 @@ jobs:
         run: npx prisma generate
         working-directory: packages/backend
 
-      - name: TypeScript Type Check
+      - name: TypeScript Type Check (Backend)
         run: npx tsc --noEmit
         working-directory: packages/backend
+
+      - name: TypeScript Type Check (Frontend)
+        run: npx tsc --noEmit
+        working-directory: packages/frontend
 
       - name: Run Tests
         id: tests
