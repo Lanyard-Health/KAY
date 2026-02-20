@@ -27,6 +27,19 @@ interface AetnaRunStatus {
   confirmationPdfUrl: string | null;
 }
 
+export function useAetnaRuns(enrollmentId: string) {
+  return useQuery({
+    queryKey: ['aetna-runs', enrollmentId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: Array<{ id: string; status: string; createdAt: string }> }>(
+        `/enrollments/${enrollmentId}/aetna/runs`
+      );
+      return res.data.data;
+    },
+    enabled: !!enrollmentId,
+  });
+}
+
 export function useAetnaReadiness(enrollmentId: string) {
   return useMutation({
     mutationFn: async () => {

@@ -10,6 +10,20 @@ interface FillResult {
   log: string[];
 }
 
+class FormFillError extends Error {
+  page: number;
+  automationLog: string;
+  screenshots: Buffer[];
+
+  constructor(message: string, page: number, log: string[], screenshots: Buffer[]) {
+    super(message);
+    this.name = 'FormFillError';
+    this.page = page;
+    this.automationLog = log.join('\n');
+    this.screenshots = screenshots;
+  }
+}
+
 function log(lines: string[], msg: string): void {
   const ts = new Date().toISOString();
   lines.push(`[${ts}] ${msg}`);
@@ -74,8 +88,14 @@ async function fillGateway(page: Page, _payload: AetnaFormPayload, lines: string
 
   const thirdDropdown = page.locator('mat-select').nth(2);
   await thirdDropdown.click();
-  // Select second option in third dropdown
-  await page.locator('mat-option').nth(1).click();
+  // Select "Physician" subcategory by text; fall back to second option if not found
+  const physicianOption = page.locator('mat-option:has-text("Physician")');
+  if (await physicianOption.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await physicianOption.click();
+  } else {
+    log(lines, 'Warning: "Physician" option not found in subcategory dropdown, selecting second option');
+    await page.locator('mat-option').nth(1).click();
+  }
   await page.waitForTimeout(1000);
   log(lines, 'Gateway selections complete');
 }
@@ -168,8 +188,9 @@ async function fillPage4(page: Page, payload: AetnaFormPayload, lines: string[])
 
   await selectDropdown(page, 'specialty', p['specialty'] as string);
 
-  // Provider classification radio — click Specialist
-  await clickRadio(page, 'Specialist-input');
+  // Provider classification radio
+  const classification = (p['providerClassification'] as string) || 'Specialist';
+  await clickRadio(page, `${classification}-input`);
   await clickCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
@@ -364,29 +385,39 @@ export async function submitFinalPage(page: Page): Promise<Buffer> {
 export async function fillAetnaForm(page: Page, payload: AetnaFormPayload): Promise<FillResult> {
   const lines: string[] = [];
   const screenshots: Buffer[] = [];
+  let currentPage = 1; // gateway = 1
 
   try {
     await fillGateway(page, payload, lines);
 
+    currentPage = 2;
     screenshots.push(await fillPage2(page, payload, lines));
 
+    currentPage = 3;
     const page3Result = await fillPage3(page, payload, lines);
     screenshots.push(page3Result.screenshot);
 
+    currentPage = 4;
     screenshots.push(await fillPage4(page, payload, lines));
+    currentPage = 5;
     screenshots.push(await fillPage5(page, payload, lines));
+    currentPage = 6;
     screenshots.push(await fillPage6(page, payload, lines));
+    currentPage = 7;
     screenshots.push(await fillPage7(page, payload, lines));
+    currentPage = 8;
     screenshots.push(await fillPage8(page, payload, lines));
+    currentPage = 9;
     screenshots.push(await fillPage9(page, payload, lines));
+    currentPage = 10;
     screenshots.push(await fillPage10(page, payload, lines));
 
     return { requestId: page3Result.requestId, screenshots, log: lines };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    log(lines, `ERROR: ${msg}`);
+    log(lines, `ERROR on page ${currentPage}: ${msg}`);
     // Take error screenshot
     try { screenshots.push(await screenshotPage(page)); } catch { /* ignore */ }
-    throw Object.assign(error as Error, { automationLog: lines.join('\n'), screenshots });
+    throw new FormFillError(msg, currentPage, lines, screenshots);
   }
 }
