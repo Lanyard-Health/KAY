@@ -68,6 +68,14 @@ export interface AetnaProviderData {
     email: string;
     phone: string;
   };
+  /** Optional overrides for Aetna-specific business fields */
+  aetnaOverrides?: {
+    existingAetnaProvider?: boolean;
+    networkJoining?: string;
+    applicableSituation?: string;
+    providerClassification?: string;
+    workingDays?: string;
+  };
 }
 
 /** Flat map of formcontrolname → value for each Aetna form page */

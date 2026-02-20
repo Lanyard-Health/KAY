@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapProviderToAetnaPayload, mapDegreeToAetna, mapTaxIdType, maskSensitivePayload } from './field-mapper.js';
+import { mapProviderToAetnaPayload, mapDegreeToAetna, mapTaxIdType, mapSpecialtyToAetna, maskSensitivePayload } from './field-mapper.js';
 import type { AetnaProviderData } from './types.js';
 
 function makeProviderData(overrides: Partial<AetnaProviderData> = {}): AetnaProviderData {
@@ -81,6 +81,14 @@ describe('aetna field-mapper', () => {
     it('maps dnp to DNP', () => expect(mapDegreeToAetna('dnp')).toBe('DNP'));
     it('maps msn to MSN', () => expect(mapDegreeToAetna('msn')).toBe('MSN'));
     it('returns uppercase for unknown degrees', () => expect(mapDegreeToAetna('xyz')).toBe('XYZ'));
+  });
+
+  describe('mapSpecialtyToAetna', () => {
+    it('maps lowercase psychiatry', () => expect(mapSpecialtyToAetna('psychiatry')).toBe('Psychiatry'));
+    it('maps family practice to Family Medicine', () => expect(mapSpecialtyToAetna('family practice')).toBe('Family Medicine'));
+    it('maps ob/gyn', () => expect(mapSpecialtyToAetna('ob/gyn')).toBe('Obstetrics & Gynecology'));
+    it('returns original for unknown specialty', () => expect(mapSpecialtyToAetna('Exotic Specialty')).toBe('Exotic Specialty'));
+    it('is case-insensitive', () => expect(mapSpecialtyToAetna('INTERNAL MEDICINE')).toBe('Internal Medicine'));
   });
 
   describe('mapTaxIdType', () => {

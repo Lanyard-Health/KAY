@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -14,6 +14,7 @@ import {
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
+import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
@@ -33,6 +34,16 @@ function formatDate(dateStr: string | null): string {
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+
+  // Auto-discover active runs on mount
+  const { data: runs } = useAetnaRuns(id!);
+  useEffect(() => {
+    if (!runs || activeRunId) return;
+    const active = runs.find(r =>
+      ['pending', 'filling', 'awaiting_review', 'submitting'].includes(r.status)
+    );
+    if (active) setActiveRunId(active.id);
+  }, [runs, activeRunId]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollment', id],

@@ -10,6 +10,64 @@ export function mapDegreeToAetna(degree: string): string {
   return DEGREE_MAP[degree.toLowerCase()] ?? degree.toUpperCase();
 }
 
+/**
+ * Maps internal specialty names to Aetna's dropdown labels.
+ * Aetna's form populates specialties based on selected degree,
+ * so these labels must match exactly.
+ */
+const SPECIALTY_MAP: Record<string, string> = {
+  // Psychiatry / Mental Health
+  'psychiatry': 'Psychiatry',
+  'child and adolescent psychiatry': 'Child & Adolescent Psychiatry',
+  'addiction psychiatry': 'Addiction Psychiatry',
+  'geriatric psychiatry': 'Geriatric Psychiatry',
+  'forensic psychiatry': 'Forensic Psychiatry',
+  'clinical psychology': 'Clinical Psychology',
+  'neuropsychology': 'Neuropsychology',
+  'counseling': 'Counseling',
+  'clinical social work': 'Clinical Social Work',
+  'marriage and family therapy': 'Marriage & Family Therapy',
+  'behavioral health': 'Behavioral Health',
+  // Primary Care
+  'family medicine': 'Family Medicine',
+  'family practice': 'Family Medicine',
+  'internal medicine': 'Internal Medicine',
+  'general practice': 'General Practice',
+  'pediatrics': 'Pediatrics',
+  'geriatric medicine': 'Geriatric Medicine',
+  // Medical specialties
+  'cardiology': 'Cardiology',
+  'dermatology': 'Dermatology',
+  'endocrinology': 'Endocrinology',
+  'gastroenterology': 'Gastroenterology',
+  'hematology': 'Hematology',
+  'infectious disease': 'Infectious Disease',
+  'nephrology': 'Nephrology',
+  'neurology': 'Neurology',
+  'obstetrics and gynecology': 'Obstetrics & Gynecology',
+  'ob/gyn': 'Obstetrics & Gynecology',
+  'oncology': 'Oncology',
+  'ophthalmology': 'Ophthalmology',
+  'orthopedic surgery': 'Orthopedic Surgery',
+  'otolaryngology': 'Otolaryngology',
+  'pathology': 'Pathology',
+  'physical medicine and rehabilitation': 'Physical Medicine & Rehabilitation',
+  'pulmonology': 'Pulmonology',
+  'radiology': 'Radiology',
+  'rheumatology': 'Rheumatology',
+  'surgery': 'General Surgery',
+  'general surgery': 'General Surgery',
+  'urology': 'Urology',
+  // Nursing
+  'nurse practitioner': 'Nurse Practitioner',
+  'psychiatric nurse practitioner': 'Psychiatric Nurse Practitioner',
+  'clinical nurse specialist': 'Clinical Nurse Specialist',
+};
+
+export function mapSpecialtyToAetna(specialty: string): string {
+  return SPECIALTY_MAP[specialty.toLowerCase()] ?? specialty;
+}
+
 export function mapTaxIdType(taxId: string): string {
   // EIN format: XX-XXXXXXX (2 digits, dash, 7 digits)
   if (/^\d{2}-\d{7}$/.test(taxId)) return 'E - Employer identification number';
@@ -31,9 +89,10 @@ function formatLicenseExpiration(date: Date): string {
 }
 
 export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPayload {
-  const { provider, practice, primaryLocation, primaryLicense, education, hospitalAffiliations, submitter } = data;
+  const { provider, practice, primaryLocation, primaryLicense, education, hospitalAffiliations, submitter, aetnaOverrides } = data;
   const loc = primaryLocation;
   const taxId = loc?.taxId ?? '';
+  const overrides = aetnaOverrides ?? {};
 
   return {
     gateway: {
@@ -59,9 +118,9 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
 
     // Page 3: Network & Tax Information
     page3: {
-      existingAetnaProvider: 'No',
-      networkJoining: 'As an individual provider joining an existing group practice',
-      applicableSituation: 'I want to be contracted in the state selected below',
+      existingAetnaProvider: overrides.existingAetnaProvider ? 'Yes' : 'No',
+      networkJoining: overrides.networkJoining ?? 'As an individual provider joining an existing group practice',
+      applicableSituation: overrides.applicableSituation ?? 'I want to be contracted in the state selected below',
       state: loc?.state ?? '',
       zipCode: loc?.zipCode ?? '',
       ext: '',
@@ -78,8 +137,8 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
     // Page 4: Degree & Specialty
     page4: {
       degreeType: education?.degree ? mapDegreeToAetna(education.degree) : '',
-      specialty: provider.specialties[0] ?? '',
-      providerClassification: 'Specialist',
+      specialty: provider.specialties[0] ? mapSpecialtyToAetna(provider.specialties[0]) : '',
+      providerClassification: overrides.providerClassification ?? 'Specialist',
       checkboxSelect: 'true',
     },
 
@@ -118,7 +177,7 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
       phoneExt: '',
       faxNumber: loc?.fax ?? '',
       languages: (loc?.languagesSpoken ?? []).join(', '),
-      workingDays: 'WEEKDAYS ONLY (MONDAY-FRIDAY)',
+      workingDays: overrides.workingDays ?? 'WEEKDAYS ONLY (MONDAY-FRIDAY)',
       otherTelehealth: '',
       checkboxAttest: 'true',
     },

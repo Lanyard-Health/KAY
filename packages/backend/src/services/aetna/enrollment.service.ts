@@ -155,8 +155,14 @@ export async function startAetnaEnrollment(enrollmentId: string, runId: string, 
     const page = await browser.newPage();
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    // Fill the form
-    const result = await fillAetnaForm(page, payload);
+    // Fill the form (with 10-minute global timeout)
+    const FILL_TIMEOUT_MS = 10 * 60 * 1000;
+    const result = await Promise.race([
+      fillAetnaForm(page, payload),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Form filling timed out after 10 minutes')), FILL_TIMEOUT_MS)
+      ),
+    ]);
 
     // Upload screenshots to R2
     const screenshotKeys: string[] = [];
@@ -200,6 +206,7 @@ export async function startAetnaEnrollment(enrollmentId: string, runId: string, 
       data: {
         status: 'failed',
         errorMessage: error.message ?? 'Unknown error',
+        errorPage: error.page ?? null,
         automationLog: error.automationLog ?? null,
         completedAt: new Date(),
       },
@@ -232,6 +239,15 @@ export async function approveAndSubmit(runId: string): Promise<void> {
         confirmationPdfId: confirmKey,
       },
     });
+
+    // Update parent enrollment status to submitted
+    const completedRun = await prisma.aetnaEnrollmentRun.findUnique({ where: { id: runId }, select: { payerEnrollmentId: true } });
+    if (completedRun) {
+      await prisma.payerEnrollment.update({
+        where: { id: completedRun.payerEnrollmentId },
+        data: { status: 'submitted', applicationDate: new Date() },
+      });
+    }
 
     logger.info(`Aetna run ${runId} submitted successfully`);
   } catch (error: any) {

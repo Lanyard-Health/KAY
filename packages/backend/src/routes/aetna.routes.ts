@@ -48,6 +48,52 @@ async function loadAndAuthorizeEnrollment(req: Request, res: Response): Promise<
   return enrollment;
 }
 
+// Shared helper: load run and verify it belongs to the enrollment
+async function loadAndAuthorizeRun(req: Request, res: Response, enrollment: any): Promise<any | null> {
+  const runId = req.params['runId']!;
+
+  const run = await prisma.aetnaEnrollmentRun.findUnique({
+    where: { id: runId },
+  });
+
+  if (!run || run.payerEnrollmentId !== enrollment.id) {
+    res.status(404).json({ success: false, error: { message: 'Run not found' } });
+    return null;
+  }
+
+  return run;
+}
+
+// GET /api/v1/enrollments/:enrollmentId/aetna/runs — list runs (most recent first)
+aetnaRoutes.get('/runs', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
+    const runs = await prisma.aetnaEnrollmentRun.findMany({
+      where: { payerEnrollmentId: enrollment.id },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        status: true,
+        aetnaRequestId: true,
+        errorMessage: true,
+        errorPage: true,
+        startedAt: true,
+        reviewExpiresAt: true,
+        submittedAt: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({ success: true, data: runs });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/v1/enrollments/:enrollmentId/aetna/readiness
 aetnaRoutes.post('/readiness', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -124,21 +170,14 @@ aetnaRoutes.get('/runs/:runId', async (req: Request, res: Response, next: NextFu
     const enrollment = await loadAndAuthorizeEnrollment(req, res);
     if (!enrollment) return;
 
-    const runId = req.params['runId']!;
-
-    const run = await prisma.aetnaEnrollmentRun.findUnique({
-      where: { id: runId },
-    });
-
-    if (!run) {
-      return res.status(404).json({ success: false, error: { message: 'Run not found' } });
-    }
+    const run = await loadAndAuthorizeRun(req, res, enrollment);
+    if (!run) return;
 
     // Generate signed URLs for screenshots
     const s3 = getS3Client();
     const bucketName = process.env['S3_BUCKET_NAME'] ?? 'credentials-documents';
     const screenshotUrls = await Promise.all(
-      run.screenshotDocIds.map(async (key) => {
+      run.screenshotDocIds.map(async (key: string) => {
         return getSignedUrl(s3, new GetObjectCommand({
           Bucket: bucketName,
           Key: key,
@@ -183,15 +222,8 @@ aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, nex
     const enrollment = await loadAndAuthorizeEnrollment(req, res);
     if (!enrollment) return;
 
-    const runId = req.params['runId']!;
-
-    const run = await prisma.aetnaEnrollmentRun.findUnique({
-      where: { id: runId },
-    });
-
-    if (!run) {
-      return res.status(404).json({ success: false, error: { message: 'Run not found' } });
-    }
+    const run = await loadAndAuthorizeRun(req, res, enrollment);
+    if (!run) return;
 
     if (run.status !== 'awaiting_review') {
       return res.status(400).json({
@@ -208,8 +240,8 @@ aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, nex
     }
 
     // Launch async submit
-    approveAndSubmit(runId).catch(err => {
-      logger.error(`Aetna run ${runId} approval failed`, err);
+    approveAndSubmit(run.id).catch(err => {
+      logger.error(`Aetna run ${run.id} approval failed`, err);
     });
 
     res.json({ success: true, data: { id: run.id, status: 'submitting' } });
@@ -224,15 +256,8 @@ aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next
     const enrollment = await loadAndAuthorizeEnrollment(req, res);
     if (!enrollment) return;
 
-    const runId = req.params['runId']!;
-
-    const run = await prisma.aetnaEnrollmentRun.findUnique({
-      where: { id: runId },
-    });
-
-    if (!run) {
-      return res.status(404).json({ success: false, error: { message: 'Run not found' } });
-    }
+    const run = await loadAndAuthorizeRun(req, res, enrollment);
+    if (!run) return;
 
     if (!['awaiting_review', 'filling', 'pending'].includes(run.status)) {
       return res.status(400).json({
@@ -241,7 +266,7 @@ aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next
       });
     }
 
-    await rejectRun(runId);
+    await rejectRun(run.id);
 
     res.json({ success: true, data: { id: run.id, status: 'rejected' } });
   } catch (error) {
@@ -255,15 +280,8 @@ aetnaRoutes.post('/runs/:runId/retry', async (req: Request, res: Response, next:
     const enrollment = await loadAndAuthorizeEnrollment(req, res);
     if (!enrollment) return;
 
-    const runId = req.params['runId']!;
-
-    const run = await prisma.aetnaEnrollmentRun.findUnique({
-      where: { id: runId },
-    });
-
-    if (!run) {
-      return res.status(404).json({ success: false, error: { message: 'Run not found' } });
-    }
+    const run = await loadAndAuthorizeRun(req, res, enrollment);
+    if (!run) return;
 
     if (!['failed', 'timed_out'].includes(run.status)) {
       return res.status(400).json({
@@ -274,7 +292,7 @@ aetnaRoutes.post('/runs/:runId/retry', async (req: Request, res: Response, next:
 
     // Reset the run
     const updated = await prisma.aetnaEnrollmentRun.update({
-      where: { id: runId },
+      where: { id: run.id },
       data: {
         status: 'pending',
         errorMessage: null,
@@ -289,8 +307,8 @@ aetnaRoutes.post('/runs/:runId/retry', async (req: Request, res: Response, next:
     });
 
     // Re-launch the form filler
-    startAetnaEnrollment(run.payerEnrollmentId, runId, run.initiatedById).catch(err => {
-      logger.error(`Aetna enrollment retry ${runId} failed`, err);
+    startAetnaEnrollment(run.payerEnrollmentId, run.id, run.initiatedById).catch(err => {
+      logger.error(`Aetna enrollment retry ${run.id} failed`, err);
     });
 
     res.json({ success: true, data: { id: updated.id, status: updated.status } });
