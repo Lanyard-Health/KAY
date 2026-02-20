@@ -278,16 +278,26 @@ describe('coordinator.service', () => {
         cancelledAt: new Date(),
         cancelReason: 'No longer needed',
       };
-      // findUnique check before cancellation
-      prismaMock.agentWorkflow.findUnique.mockResolvedValueOnce({ status: 'planning' } as never);
-      // $transaction returns [workflow, updateManyResult]
-      prismaMock.$transaction.mockResolvedValueOnce([cancelledWorkflow, { count: 2 }] as never);
+      prismaMock.agentWorkflow.update.mockResolvedValueOnce(cancelledWorkflow as never);
+      prismaMock.agentTask.updateMany.mockResolvedValueOnce({ count: 2 } as never);
 
       const result = await cancelWorkflow('wf-1', 'No longer needed');
 
-      expect(prismaMock.agentWorkflow.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.agentWorkflow.update).toHaveBeenCalledWith({
         where: { id: 'wf-1' },
-        select: { status: true },
+        data: {
+          status: 'cancelled',
+          cancelledAt: expect.any(Date),
+          cancelReason: 'No longer needed',
+        },
+      });
+
+      expect(prismaMock.agentTask.updateMany).toHaveBeenCalledWith({
+        where: {
+          workflowId: 'wf-1',
+          status: { in: ['pending', 'queued'] },
+        },
+        data: { status: 'cancelled' },
       });
 
       expect(logAgentEvent).toHaveBeenCalledWith(
