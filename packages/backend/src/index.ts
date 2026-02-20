@@ -7,6 +7,7 @@ import { validateEnv } from './utils/env.js';
 // Validate environment variables before anything else
 const env = validateEnv();
 
+import { createServer } from 'node:http';
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -58,6 +59,7 @@ import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
+import { initializeWebSocket } from './agents/websocket.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -204,7 +206,10 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-const server = app.listen(PORT, async () => {
+const server = createServer(app);
+initializeWebSocket(server);
+
+server.listen(PORT, async () => {
   logger.info(`Backend running on port ${PORT}`);
   logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
   logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
