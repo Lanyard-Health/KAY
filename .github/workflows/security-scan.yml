@@ -407,6 +407,10 @@ jobs:
         run: npx prisma generate
         working-directory: packages/backend
 
+      - name: TypeScript Type Check
+        run: npx tsc --noEmit
+        working-directory: packages/backend
+
       - name: Run Tests
         id: tests
         continue-on-error: true
