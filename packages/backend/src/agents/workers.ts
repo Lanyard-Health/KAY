@@ -91,6 +91,11 @@ function getProcessor(agentName: string) {
  * Registers payer adapters and wires real processors where available.
  */
 export function initializeWorkers(): void {
+  if (workers.length > 0) {
+    logger.warn('initializeWorkers called but workers already exist — skipping duplicate initialization');
+    return;
+  }
+
   registerPortalAdapters();
   const connection = getRedisConfig();
 
@@ -101,8 +106,6 @@ export function initializeWorkers(): void {
       {
         connection,
         concurrency: config.concurrency,
-        removeOnComplete: { count: 1000 },
-        removeOnFail: { count: 5000 },
       }
     );
 

@@ -10,6 +10,7 @@ import {
   cancelWorkflow,
   dispatchPortalSubmission,
 } from '../agents/coordinator.service.js';
+import type { ListWorkflowsFilters } from '../agents/coordinator.service.js';
 
 // ==========================================
 // Zod Schemas
@@ -38,7 +39,7 @@ const portalSubmissionSchema = z.object({
 });
 
 const patchWorkflowSchema = z.object({
-  action: z.string(),
+  action: z.enum(['cancel']),
   reason: z.string().optional(),
 });
 
@@ -90,12 +91,12 @@ agentRoutes.get(
       }
 
       // Strip undefined keys so the service only receives provided filters
-      const query: Record<string, unknown> = {};
+      const query: ListWorkflowsFilters = {};
       for (const [key, value] of Object.entries(parsed.data)) {
-        if (value !== undefined) query[key] = value;
+        if (value !== undefined) (query as Record<string, unknown>)[key] = value;
       }
 
-      const workflows = await listWorkflows(query as any);
+      const workflows = await listWorkflows(query);
       res.status(200).json(workflows);
     } catch (err) {
       next(err);
