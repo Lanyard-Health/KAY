@@ -7,6 +7,7 @@ import { validateEnv } from './utils/env.js';
 // Validate environment variables before anything else
 const env = validateEnv();
 
+import { createServer } from 'node:http';
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -57,6 +58,11 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
+import { agentRoutes } from './routes/agent.routes.js';
+import { initializeWebSocket } from './agents/websocket.js';
+import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
+import { closeAllQueues } from './agents/queues.js';
+import { closeRedisConnection } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -192,6 +198,8 @@ app.use('/api/v1/provider-import', providerImportRoutes);
 app.use('/api/v1/reporting', reportingRoutes);
 app.use('/api/v1/enrollments/:enrollmentId/aetna', aetnaRoutes);
 
+app.use('/api/v1/agent', agentRoutes);
+
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
@@ -201,7 +209,10 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-const server = app.listen(PORT, async () => {
+const server = createServer(app);
+initializeWebSocket(server);
+
+server.listen(PORT, async () => {
   logger.info(`Backend running on port ${PORT}`);
   logger.info(`Frontend proxy target: ${PORT} (Vite vite.config.ts proxy -> http://localhost:${PORT})`);
   logger.info(`CORS origin: ${process.env['FRONTEND_URL'] || 'http://localhost:5190'}`);
@@ -233,6 +244,16 @@ const server = app.listen(PORT, async () => {
 
   // Initialize scheduled jobs
   schedulerService.initialize();
+
+  // Initialize agent workers (BullMQ)
+  try {
+    initializeWorkers();
+    logger.info('Agent workers initialized');
+  } catch (err) {
+    logger.warn('Agent workers failed to initialize — agent features disabled', {
+      error: err instanceof Error ? err.message : 'unknown',
+    });
+  }
 
   // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
   if (process.env['NODE_ENV'] === 'production') {
@@ -408,10 +429,13 @@ function shutdown(signal: string) {
   server.close(async () => {
     logger.info('HTTP server closed');
     try {
+      await closeAllWorkers();
+      await closeAllQueues();
+      await closeRedisConnection();
       await prisma.$disconnect();
       logger.info('Database connections closed');
     } catch (err) {
-      logger.error('Error disconnecting from database:', err);
+      logger.error('Error during shutdown cleanup:', err);
     }
     process.exit(0);
   });

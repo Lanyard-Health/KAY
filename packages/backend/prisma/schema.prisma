@@ -65,6 +65,8 @@ model User {
   inAppNotifications   InAppNotification[]
   workflowStepsCompleted EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
   aetnaEnrollmentRuns    AetnaEnrollmentRun[]
+  requestedWorkflows     AgentWorkflow[]        @relation("WorkflowRequester")
+  approvalDecisions      PendingApproval[]      @relation("ApprovalDecider")
 
   @@map("users")
 }
@@ -290,6 +292,7 @@ model Provider {
   banking                ProviderBanking[]
   demographics           ProviderDemographics?
   medicareVerification   MedicareVerification?
+  agentWorkflows         AgentWorkflow[]
   practice               Practice?  @relation(fields: [practiceId], references: [id])
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
@@ -1196,6 +1199,8 @@ model Payer {
   enrollments          PayerEnrollment[]
   directorySnapshots   ProviderDirectorySnapshot[]
   directoryAlerts      ProviderDirectoryAlert[]
+  agentWorkflows       AgentWorkflow[]
+  adapterConfig        PayerAdapterConfig?
 
   @@map("payers")
 }
@@ -1856,4 +1861,182 @@ model MedicareVerification {
   @@index([status])
   @@index([verifiedAt])
   @@map("medicare_verifications")
+}
+
+// ==========================================
+// AUTONOMOUS AGENT SYSTEM
+// ==========================================
+
+enum AgentWorkflowStatus {
+  planning
+  active
+  paused
+  waiting_approval
+  completed
+  failed
+  cancelled
+}
+
+enum AgentTaskStatus {
+  pending
+  queued
+  in_progress
+  completed
+  failed
+  skipped
+  cancelled
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  denied
+  expired
+}
+
+model AgentWorkflow {
+  id          String              @id @default(uuid())
+  goal        String
+  goalParams  Json                @map("goal_params")
+  status      AgentWorkflowStatus @default(planning)
+  priority    String              @default("normal")
+  plan        Json?
+
+  // Relations
+  providerId   String   @map("provider_id")
+  provider     Provider @relation(fields: [providerId], references: [id])
+  payerId      String?  @map("payer_id")
+  payer        Payer?   @relation(fields: [payerId], references: [id])
+  enrollmentId String?  @map("enrollment_id")
+  requestedBy  String   @map("requested_by")
+  requester    User     @relation("WorkflowRequester", fields: [requestedBy], references: [id])
+
+  // Child relations
+  tasks     AgentTask[]
+  events    AgentEvent[]
+  approvals PendingApproval[]
+
+  // Timestamps
+  startedAt   DateTime?  @map("started_at")
+  completedAt DateTime?  @map("completed_at")
+  cancelledAt DateTime?  @map("cancelled_at")
+  cancelReason String?   @map("cancel_reason")
+
+  // Metrics
+  totalTokensUsed Int  @default(0) @map("total_tokens_used")
+  totalDurationMs Int?  @map("total_duration_ms")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([providerId])
+  @@index([requestedBy])
+  @@map("agent_workflows")
+}
+
+model AgentTask {
+  id         String          @id @default(uuid())
+  workflowId String          @map("workflow_id")
+  workflow   AgentWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  type             String
+  agentType        String          @map("agent_type")
+  status           AgentTaskStatus @default(pending)
+
+  input            Json
+  output           Json?
+  error            Json?
+
+  stepNumber       Int             @map("step_number")
+  dependsOn        String[]        @default([]) @map("depends_on")
+  requiresApproval Boolean         @default(false) @map("requires_approval")
+
+  // BullMQ tracking
+  bullmqJobId      String?         @map("bullmq_job_id")
+  queue            String?
+
+  // Retry
+  attempts         Int             @default(0)
+  maxAttempts      Int             @default(3) @map("max_attempts")
+
+  // Timing
+  queuedAt         DateTime?       @map("queued_at")
+  startedAt        DateTime?       @map("started_at")
+  completedAt      DateTime?       @map("completed_at")
+
+  // Metrics
+  tokensUsed       Int             @default(0) @map("tokens_used")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([workflowId, status])
+  @@index([agentType, status])
+  @@index([bullmqJobId])
+  @@map("agent_tasks")
+}
+
+model AgentEvent {
+  id         String        @id @default(uuid())
+  workflowId String        @map("workflow_id")
+  workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  taskId     String?       @map("task_id")
+  agent      String
+  action     String
+  data       Json
+  level      String        @default("info")
+  timestamp  DateTime      @default(now())
+
+  @@index([workflowId, timestamp])
+  @@index([agent, action])
+  @@map("agent_events")
+}
+
+model PendingApproval {
+  id         String        @id @default(uuid())
+  workflowId String        @map("workflow_id")
+  workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  taskId        String         @map("task_id")
+  type          String
+  status        ApprovalStatus @default(pending)
+  context       Json
+
+  requestedAt   DateTime       @default(now()) @map("requested_at")
+  expiresAt     DateTime       @map("expires_at")
+
+  decidedBy     String?        @map("decided_by")
+  decider       User?          @relation("ApprovalDecider", fields: [decidedBy], references: [id])
+  decidedAt     DateTime?      @map("decided_at")
+  decisionNotes String?        @map("decision_notes")
+
+  @@index([status])
+  @@index([workflowId])
+  @@map("pending_approvals")
+}
+
+model PayerAdapterConfig {
+  id               String   @id @default(uuid())
+  payerId          String   @unique @map("payer_id")
+  payer            Payer    @relation(fields: [payerId], references: [id])
+
+  adapterType      String   @map("adapter_type")
+  submissionMethod String   @map("submission_method")
+  config           Json
+  credentials      Json?
+  requiredFields   Json     @map("required_fields")
+
+  isActive         Boolean  @default(true) @map("is_active")
+  lastTestedAt     DateTime? @map("last_tested_at")
+  lastTestResult   String?  @map("last_test_result")
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payer_adapter_configs")
 }

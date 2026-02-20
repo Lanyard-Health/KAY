@@ -80,7 +80,7 @@ export interface AetnaProviderData {
 
 /** Flat map of formcontrolname → value for each Aetna form page */
 export interface AetnaFormPayload {
-  gateway: { network: string; category: string; subcategory: string };
+  gateway: { network: 'Aetna' | 'First Health'; category: string; subcategory: string };
   page2: Record<string, string | boolean>;
   page3: Record<string, string | boolean>;
   page4: Record<string, string | boolean>;

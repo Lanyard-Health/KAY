@@ -36,6 +36,10 @@ function makeMockPage(locatorOverrides: Record<string, any> = {}) {
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(Buffer.from('fake-png')),
     setViewportSize: vi.fn().mockResolvedValue(undefined),
+    selectOption: vi.fn().mockResolvedValue(undefined),
+    click: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue(undefined),
+    keyboard: { press: vi.fn().mockResolvedValue(undefined) },
     _mockLocator: mockLocator, // exposed for assertions
   } as any;
 }
@@ -43,17 +47,17 @@ function makeMockPage(locatorOverrides: Record<string, any> = {}) {
 /** Minimal valid AetnaFormPayload for testing */
 function makeTestPayload(): AetnaFormPayload {
   return {
-    gateway: { network: 'Aetna', category: 'Medical', subcategory: 'Physician' },
+    gateway: { network: 'Aetna', category: 'MED', subcategory: 'new individual provider' },
     page2: {
       lastName: 'Smith', firstName: 'John', role: 'Provider',
       email: 'john@test.com', verifyEmail: 'john@test.com',
       phoneNumber: '555-123-4567', newNpiId: '1234567890',
     },
     page3: {
-      existingAetnaProvider: 'No', networkJoining: 'Open Choice PPO',
-      applicableSituation: 'New to Aetna', state: 'CT', zipCode: '06101',
-      taxIdType: 'SSN', taxIDName: 'John Smith', taxID: '123-45-6789',
-      verifyTaxID: '123-45-6789', practLastName: 'Smith',
+      teleHealthService: 'No', networkJoining: 'As a new individual provider',
+      applicableSituation: 'I want to be contracted in the state selected below', state: 'Connecticut', zipCode: '06101',
+      mnapplicant: 'no', taxIdType: 'S - Social Security number', taxIDName: 'John Smith', taxID: '123456789',
+      verifyTaxID: '123456789', practLastName: 'Smith',
       practFirstName: 'John', npi: '1234567890',
     },
     page4: { degreeType: 'MD', specialty: 'Psychiatry', providerClassification: 'Specialist' },

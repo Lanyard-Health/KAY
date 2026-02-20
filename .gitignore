@@ -49,6 +49,9 @@ infrastructure/terraform/**/*.tfstate.*
 infrastructure/terraform/**/*.tfvars
 !infrastructure/terraform/**/*.tfvars.example
 
+# Aetna test screenshots
+packages/backend/scripts/aetna-screenshots/
+
 # Misc
 *.pem
 *.key
