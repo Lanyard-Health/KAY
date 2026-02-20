@@ -90,23 +90,8 @@ export function useSendFollowUp() {
       if (customMessage) formData.append('customMessage', customMessage);
       if (attachment) formData.append('attachment', attachment);
 
-      // Use raw fetch for FormData — api.post JSON-stringifies the body
-      const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
-      const response = await fetch(`${API_BASE}/follow-up/enrollment/${enrollmentId}/send`, {
-        method: 'POST',
-        body: formData,
-        // Let browser set Content-Type with multipart boundary
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        const error = new Error(data.error || 'Failed to send email') as Error & {
-          response?: { data: any; status: number };
-        };
-        error.response = { data, status: response.status };
-        throw error;
-      }
-      return data;
+      const result = await api.upload(`/follow-up/enrollment/${enrollmentId}/send`, formData);
+      return result.data;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['follow-up-settings', variables.enrollmentId] });

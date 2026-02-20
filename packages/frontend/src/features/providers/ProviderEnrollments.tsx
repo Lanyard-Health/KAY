@@ -343,12 +343,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         formData.append('attachment', attachment);
       }
 
-      const response = await fetch(`/api/v1/follow-up/enrollment/${followUpEnrollment.id}/send`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
+      const response = await api.upload(`/follow-up/enrollment/${followUpEnrollment.id}/send`, formData);
+      const result = response.data;
 
       if (result.success) {
         setTestEmailResult({ success: true, message: 'Follow-up email sent successfully!' });

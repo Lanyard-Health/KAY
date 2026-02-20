@@ -303,6 +303,11 @@ userRoutes.put(
       const user = await prisma.user.update({
         where: { id: req.params['id'] },
         data,
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          phone: true, role: true, isActive: true, lastLoginAt: true,
+          createdAt: true, providerId: true,
+        },
       });
 
       res.json({ success: true, data: user });
@@ -351,6 +356,11 @@ userRoutes.put(
       const user = await prisma.user.update({
         where: { id: req.params['id'] },
         data: { isActive: false },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          phone: true, role: true, isActive: true, lastLoginAt: true,
+          createdAt: true, providerId: true,
+        },
       });
 
       res.json({ success: true, data: user });
@@ -394,6 +404,11 @@ userRoutes.put(
       const user = await prisma.user.update({
         where: { id: req.params['id'] },
         data: { isActive: true },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          phone: true, role: true, isActive: true, lastLoginAt: true,
+          createdAt: true, providerId: true,
+        },
       });
 
       res.json({ success: true, data: user });

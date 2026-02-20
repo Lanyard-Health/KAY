@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import toast from 'react-hot-toast';
+import QRCode from 'qrcode';
 
 type AuthStep = 'login' | 'new-password' | 'mfa-totp' | 'mfa-setup' | 'forgot-password' | 'confirm-reset';
 
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [resetCode, setResetCode] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [qrUri, setQrUri] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
   const [secretCode, setSecretCode] = useState('');
 
   const navigate = useNavigate();
@@ -51,6 +53,15 @@ export default function LoginPage() {
       });
     }
   }, [challengeName]);
+
+  // Generate QR code client-side — never send TOTP secret to external services
+  useEffect(() => {
+    if (qrUri) {
+      QRCode.toDataURL(qrUri, { width: 200, margin: 1 }).then(setQrDataUrl).catch(() => {
+        setQrDataUrl('');
+      });
+    }
+  }, [qrUri]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,11 +311,13 @@ export default function LoginPage() {
             {qrUri ? (
               <div className="space-y-4">
                 <div className="flex justify-center p-4 bg-white rounded-lg border">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`}
-                    alt="MFA QR Code"
-                    className="w-48 h-48"
-                  />
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="MFA QR Code" className="w-48 h-48" />
+                  ) : (
+                    <div className="w-48 h-48 flex items-center justify-center text-gray-400 text-sm">
+                      Generating QR code...
+                    </div>
+                  )}
                 </div>
                 <details className="text-sm">
                   <summary className="text-gray-500 cursor-pointer hover:text-gray-700">

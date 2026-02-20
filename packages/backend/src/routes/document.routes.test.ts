@@ -45,7 +45,7 @@ const PROVIDER_UUID = '00000000-0000-4000-a000-000000000001';
 const OTHER_PROVIDER_UUID = '00000000-0000-4000-a000-000000000002';
 
 const mockDocument = {
-  id: 'doc-1-id',
+  id: 'd0000000-0000-4000-a000-000000000001',
   providerId: PROVIDER_UUID,
   fileName: 'abc123.pdf',
   originalFileName: 'license.pdf',
@@ -137,7 +137,7 @@ describe('Document Routes', () => {
 
       const res = await request(app)
         .post('/confirm-upload')
-        .send({ documentId: 'doc-1-id' });
+        .send({ documentId: 'd0000000-0000-4000-a000-000000000001' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -148,7 +148,7 @@ describe('Document Routes', () => {
 
       const res = await request(app)
         .post('/confirm-upload')
-        .send({ documentId: 'nonexistent-id' });
+        .send({ documentId: 'd0000000-0000-4000-a000-000000000099' });
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
@@ -163,7 +163,7 @@ describe('Document Routes', () => {
 
       const res = await request(providerApp)
         .post('/confirm-upload')
-        .send({ documentId: 'doc-1-id' });
+        .send({ documentId: 'd0000000-0000-4000-a000-000000000001' });
 
       expect(res.status).toBe(403);
     });
@@ -176,17 +176,17 @@ describe('Document Routes', () => {
         provider: { id: PROVIDER_UUID, firstName: 'Jane', lastName: 'Doe' },
       } as any);
 
-      const res = await request(app).get('/doc-1-id');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000001');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.id).toBe('doc-1-id');
+      expect(res.body.data.id).toBe('d0000000-0000-4000-a000-000000000001');
     });
 
     it('returns 404 when document not found', async () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
-      const res = await request(app).get('/nonexistent-id');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000099');
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
@@ -200,7 +200,7 @@ describe('Document Routes', () => {
         provider: { id: OTHER_PROVIDER_UUID, firstName: 'Other', lastName: 'Provider' },
       } as any);
 
-      const res = await request(providerApp).get('/doc-1-id');
+      const res = await request(providerApp).get('/d0000000-0000-4000-a000-000000000001');
 
       expect(res.status).toBe(403);
     });
@@ -211,7 +211,7 @@ describe('Document Routes', () => {
       prismaMock.document.findUnique.mockResolvedValue(mockDocument as any);
       mockGetDownloadUrl.mockResolvedValue('https://s3.example.com/download-url');
 
-      const res = await request(app).get('/doc-1-id/download-url');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000001/download-url');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -222,7 +222,7 @@ describe('Document Routes', () => {
     it('returns 404 when document not found', async () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
-      const res = await request(app).get('/nonexistent-id/download-url');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000099/download-url');
 
       expect(res.status).toBe(404);
     });
@@ -231,7 +231,7 @@ describe('Document Routes', () => {
   describe('GET /:id/ocr-results', () => {
     it('returns OCR data', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
-        id: 'doc-1-id',
+        id: 'd0000000-0000-4000-a000-000000000001',
         providerId: PROVIDER_UUID,
         ocrStatus: 'completed',
         ocrData: { name: { value: 'Jane Doe', confidence: 0.95 } },
@@ -239,7 +239,7 @@ describe('Document Routes', () => {
         ocrReviewedAt: null,
       } as any);
 
-      const res = await request(app).get('/doc-1-id/ocr-results');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000001/ocr-results');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -249,7 +249,7 @@ describe('Document Routes', () => {
     it('returns 404 when document not found', async () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
-      const res = await request(app).get('/nonexistent-id/ocr-results');
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000099/ocr-results');
 
       expect(res.status).toBe(404);
     });
@@ -265,7 +265,7 @@ describe('Document Routes', () => {
       } as any);
 
       const res = await request(app)
-        .put('/doc-1-id/ocr-results')
+        .put('/d0000000-0000-4000-a000-000000000001/ocr-results')
         .send({ extractedFields: { name: { value: 'Jane Doe', confidence: 0.99 } } });
 
       expect(res.status).toBe(200);
@@ -284,7 +284,7 @@ describe('Document Routes', () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .put('/nonexistent-id/ocr-results')
+        .put('/d0000000-0000-4000-a000-000000000099/ocr-results')
         .send({ extractedFields: {} });
 
       expect(res.status).toBe(404);
@@ -301,7 +301,7 @@ describe('Document Routes', () => {
       } as any);
 
       const res = await request(app)
-        .put('/doc-1-id')
+        .put('/d0000000-0000-4000-a000-000000000001')
         .send({ documentType: 'board_certification', description: 'Updated description' });
 
       expect(res.status).toBe(200);
@@ -312,7 +312,7 @@ describe('Document Routes', () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
-        .put('/nonexistent-id')
+        .put('/d0000000-0000-4000-a000-000000000099')
         .send({ documentType: 'license' });
 
       expect(res.status).toBe(404);
@@ -325,14 +325,14 @@ describe('Document Routes', () => {
       mockDeleteDocument.mockResolvedValue(undefined);
       prismaMock.document.delete.mockResolvedValue(mockDocument as any);
 
-      const res = await request(app).delete('/doc-1-id');
+      const res = await request(app).delete('/d0000000-0000-4000-a000-000000000001');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Document deleted');
       expect(mockDeleteDocument).toHaveBeenCalledWith(mockDocument.s3Key);
       expect(prismaMock.document.delete).toHaveBeenCalledWith({
-        where: { id: 'doc-1-id' },
+        where: { id: 'd0000000-0000-4000-a000-000000000001' },
       });
     });
 
@@ -341,7 +341,7 @@ describe('Document Routes', () => {
       mockDeleteDocument.mockRejectedValue(new Error('S3 error'));
       prismaMock.document.delete.mockResolvedValue(mockDocument as any);
 
-      const res = await request(app).delete('/doc-1-id');
+      const res = await request(app).delete('/d0000000-0000-4000-a000-000000000001');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -351,7 +351,7 @@ describe('Document Routes', () => {
     it('returns 404 when document not found', async () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
-      const res = await request(app).delete('/nonexistent-id');
+      const res = await request(app).delete('/d0000000-0000-4000-a000-000000000099');
 
       expect(res.status).toBe(404);
     });

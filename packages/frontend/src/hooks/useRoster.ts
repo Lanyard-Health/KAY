@@ -150,7 +150,7 @@ export async function exportRosterToExcel(
   columns: RosterColumn[],
   reportName: string
 ) {
-  const API_BASE_URL = '/api/v1';
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
   // We need to use native fetch for binary response
   const isDev = import.meta.env.DEV;
