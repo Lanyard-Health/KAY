@@ -60,6 +60,9 @@ import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
 import { initializeWebSocket } from './agents/websocket.js';
+import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
+import { closeAllQueues } from './agents/queues.js';
+import { closeRedisConnection } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -242,6 +245,16 @@ server.listen(PORT, async () => {
   // Initialize scheduled jobs
   schedulerService.initialize();
 
+  // Initialize agent workers (BullMQ)
+  try {
+    initializeWorkers();
+    logger.info('Agent workers initialized');
+  } catch (err) {
+    logger.warn('Agent workers failed to initialize — agent features disabled', {
+      error: err instanceof Error ? err.message : 'unknown',
+    });
+  }
+
   // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
   if (process.env['NODE_ENV'] === 'production') {
     const keepAliveUrl = `http://localhost:${PORT}/health`;
@@ -416,10 +429,13 @@ function shutdown(signal: string) {
   server.close(async () => {
     logger.info('HTTP server closed');
     try {
+      await closeAllWorkers();
+      await closeAllQueues();
+      await closeRedisConnection();
       await prisma.$disconnect();
       logger.info('Database connections closed');
     } catch (err) {
-      logger.error('Error disconnecting from database:', err);
+      logger.error('Error during shutdown cleanup:', err);
     }
     process.exit(0);
   });
