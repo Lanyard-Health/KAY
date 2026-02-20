@@ -20,6 +20,7 @@ vi.mock('../agents/coordinator.service.js', () => ({
   getWorkflowEvents: vi.fn(),
   cancelWorkflow: vi.fn(),
   dispatchPortalSubmission: vi.fn(),
+  dispatchDocumentParsing: vi.fn(),
 }));
 
 vi.mock('../agents/queues.js', () => ({
@@ -35,6 +36,7 @@ import {
   getWorkflowEvents,
   cancelWorkflow,
   dispatchPortalSubmission,
+  dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 
 describe('Agent Routes', () => {
@@ -254,6 +256,70 @@ describe('Agent Routes', () => {
     it('returns 400 for missing required fields', async () => {
       const res = await request(app)
         .post('/workflows/wf-1/submit-to-portal')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Validation failed');
+    });
+  });
+
+  describe('POST /workflows/:id/parse-document', () => {
+    it('dispatches document parsing and returns 201', async () => {
+      const mockTask = { id: 'task-1', status: 'queued', type: 'parse_document' };
+      (dispatchDocumentParsing as any).mockResolvedValue(mockTask);
+
+      const res = await request(app)
+        .post('/workflows/wf-1/parse-document')
+        .send({
+          documentId: '00000000-0000-0000-0000-000000000010',
+          providerId: '00000000-0000-0000-0000-000000000001',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual(mockTask);
+      expect(dispatchDocumentParsing).toHaveBeenCalledWith({
+        workflowId: 'wf-1',
+        documentId: '00000000-0000-0000-0000-000000000010',
+        providerId: '00000000-0000-0000-0000-000000000001',
+        extractionHints: undefined,
+      });
+    });
+
+    it('passes extractionHints when provided', async () => {
+      const mockTask = { id: 'task-2', status: 'queued' };
+      (dispatchDocumentParsing as any).mockResolvedValue(mockTask);
+
+      const res = await request(app)
+        .post('/workflows/wf-1/parse-document')
+        .send({
+          documentId: '00000000-0000-0000-0000-000000000010',
+          providerId: '00000000-0000-0000-0000-000000000001',
+          extractionHints: ['license_number', 'expiration_date'],
+        });
+
+      expect(res.status).toBe(201);
+      expect(dispatchDocumentParsing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extractionHints: ['license_number', 'expiration_date'],
+        })
+      );
+    });
+
+    it('returns 400 for invalid documentId', async () => {
+      const res = await request(app)
+        .post('/workflows/wf-1/parse-document')
+        .send({
+          documentId: 'not-a-uuid',
+          providerId: '00000000-0000-0000-0000-000000000001',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Validation failed');
+    });
+
+    it('returns 400 for missing required fields', async () => {
+      const res = await request(app)
+        .post('/workflows/wf-1/parse-document')
         .send({});
 
       expect(res.status).toBe(400);

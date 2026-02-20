@@ -11,6 +11,7 @@ import {
   getWorkflowEvents,
   cancelWorkflow,
   dispatchPortalSubmission,
+  dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 import type { ListWorkflowsFilters } from '../agents/coordinator.service.js';
 
@@ -38,6 +39,12 @@ const portalSubmissionSchema = z.object({
   payerId: z.string().uuid(),
   enrollmentId: z.string().uuid().optional(),
   action: z.enum(['submit_to_portal', 'check_readiness']).optional(),
+});
+
+const parseDocumentSchema = z.object({
+  documentId: z.string().uuid(),
+  providerId: z.string().uuid(),
+  extractionHints: z.array(z.string()).optional(),
 });
 
 const patchWorkflowSchema = z.object({
@@ -248,6 +255,32 @@ agentRoutes.post(
         payerId: parsed.data.payerId,
         enrollmentId: parsed.data.enrollmentId,
         action: parsed.data.action,
+      });
+
+      res.status(201).json(task);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /workflows/:id/parse-document — dispatch document parsing
+agentRoutes.post(
+  '/workflows/:id/parse-document',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = parseDocumentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      const task = await dispatchDocumentParsing({
+        workflowId: req.params['id']!,
+        documentId: parsed.data.documentId,
+        providerId: parsed.data.providerId,
+        extractionHints: parsed.data.extractionHints,
       });
 
       res.status(201).json(task);
