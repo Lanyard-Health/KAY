@@ -172,7 +172,7 @@ pecosRoutes.post(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.params;
+      const providerId = req.params['providerId']!;
       const result = await verifyProvider(providerId);
       res.json({ success: true, data: result });
     } catch (error: any) {

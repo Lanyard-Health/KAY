@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { PECOSService } from './pecos.service.js';
 import { logger } from '../utils/logger.js';
 import type { MedicareEnrollmentResult } from './pecos.service.js';
+import type { Prisma } from '@prisma/client';
 
 const pecosService = new PECOSService();
 
@@ -21,7 +22,7 @@ async function upsertVerification(
     pacId: cmsResult.pacId ?? null,
     enrollmentCount: enrollments.length,
     enrollmentStates: uniqueStates,
-    rawData: cmsResult as unknown as Record<string, unknown>,
+    rawData: cmsResult as unknown as Prisma.InputJsonValue,
   };
 
   return prisma.medicareVerification.upsert({
