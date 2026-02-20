@@ -46,9 +46,9 @@ function makeProviderData(overrides: Partial<AetnaProviderData> = {}): AetnaProv
       languagesSpoken: ['English', 'Spanish'],
       officeHours: null,
       billingAddressLine1: null,
-      billingAddressCity: null,
-      billingAddressState: null,
-      billingAddressZipCode: null,
+      billingCity: null,
+      billingState: null,
+      billingZipCode: null,
     },
     primaryLicense: {
       licenseNumber: 'MD-12345',

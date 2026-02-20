@@ -71,9 +71,9 @@ async function loadProviderData(providerId: string, userId: string): Promise<Aet
       languagesSpoken: loc.languagesSpoken,
       officeHours: loc.officeHours as Record<string, unknown> | null,
       billingAddressLine1: loc.billingAddressLine1,
-      billingAddressCity: loc.billingAddressCity,
-      billingAddressState: loc.billingAddressState,
-      billingAddressZipCode: loc.billingAddressZipCode,
+      billingCity: loc.billingCity,
+      billingState: loc.billingState,
+      billingZipCode: loc.billingZipCode,
     } : null,
     primaryLicense: license ? {
       licenseNumber: license.licenseNumber,
