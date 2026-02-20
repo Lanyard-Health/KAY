@@ -200,7 +200,7 @@ describe('Reporting Routes', () => {
     );
 
     it.each(ALL_ENDPOINTS)(
-      'credentialing_staff role → 403 on %s',
+      'credentialing_staff role → 200 on %s',
       async (path) => {
         const app = createApp({
           user: staffUser,
@@ -209,7 +209,7 @@ describe('Reporting Routes', () => {
         const res = await request(app).get(
           `${path}?practiceId=${PRACTICE_ID}`,
         );
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(200);
       },
     );
 
@@ -227,15 +227,12 @@ describe('Reporting Routes', () => {
         role: 'admin',
         email: 'admin@sys.com',
       };
-      // admin role won't pass authorize('practice_admin'), so test via
-      // practice access — super admin only bypasses verifyPracticeAccess.
-      // The route uses authorize('practice_admin'), so admin role gets 403.
-      // This confirms the route is restricted to practice_admin only.
+      // admin role is now authorized — super admin bypasses verifyPracticeAccess
       const app = createApp({ user: adminUser, practiceIds: [] });
       const res = await request(app).get(
         `/enrollment-pipeline?practiceId=${OTHER_PRACTICE_ID}`,
       );
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
   });
 
