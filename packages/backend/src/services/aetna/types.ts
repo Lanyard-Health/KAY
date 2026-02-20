@@ -45,9 +45,9 @@ export interface AetnaProviderData {
     languagesSpoken: string[];
     officeHours: Record<string, unknown> | null;
     billingAddressLine1: string | null;
-    billingAddressCity: string | null;
-    billingAddressState: string | null;
-    billingAddressZipCode: string | null;
+    billingCity: string | null;
+    billingState: string | null;
+    billingZipCode: string | null;
   } | null;
   primaryLicense: {
     licenseNumber: string;

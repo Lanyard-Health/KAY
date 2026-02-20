@@ -27,7 +27,7 @@ function getS3Client(): S3Client {
 // POST /api/v1/enrollments/:enrollmentId/aetna/readiness
 aetnaRoutes.post('/readiness', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { enrollmentId } = req.params;
+    const enrollmentId = req.params['enrollmentId']!;
 
     const enrollment = await prisma.payerEnrollment.findUnique({
       where: { id: enrollmentId },
@@ -49,7 +49,7 @@ aetnaRoutes.post('/readiness', async (req: Request, res: Response, next: NextFun
 // POST /api/v1/enrollments/:enrollmentId/aetna/start
 aetnaRoutes.post('/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { enrollmentId } = req.params;
+    const enrollmentId = req.params['enrollmentId']!;
     const userId = req.user!.id;
 
     const enrollment = await prisma.payerEnrollment.findUnique({
@@ -110,7 +110,7 @@ aetnaRoutes.post('/start', async (req: Request, res: Response, next: NextFunctio
 // GET /api/v1/enrollments/:enrollmentId/aetna/runs/:runId
 aetnaRoutes.get('/runs/:runId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = req.params;
+    const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
       where: { id: runId },
@@ -166,7 +166,7 @@ aetnaRoutes.get('/runs/:runId', async (req: Request, res: Response, next: NextFu
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/approve
 aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = req.params;
+    const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
       where: { id: runId },
@@ -204,7 +204,7 @@ aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, nex
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/reject
 aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = req.params;
+    const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
       where: { id: runId },
@@ -232,7 +232,7 @@ aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/retry
 aetnaRoutes.post('/runs/:runId/retry', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = req.params;
+    const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
       where: { id: runId },

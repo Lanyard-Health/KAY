@@ -131,9 +131,9 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
         : 'Same as primary address',
       ...(loc?.billingAddressLine1 ? {
         billingStreet: loc.billingAddressLine1,
-        billingCity: loc.billingAddressCity ?? '',
-        billingState: loc.billingAddressState ?? '',
-        billingZipCode: loc.billingAddressZipCode ?? '',
+        billingCity: loc.billingCity ?? '',
+        billingState: loc.billingState ?? '',
+        billingZipCode: loc.billingZipCode ?? '',
       } : {}),
     },
 
