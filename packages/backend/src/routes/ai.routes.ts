@@ -65,7 +65,7 @@ router.use(authenticate);
 /**
  * GET /api/v1/ai/status
  */
-router.get('/status', async (_req: Request, res: Response) => {
+router.get('/status', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const modelInfo = getModelInfo();
     const usage = await getTodayTokenUsage();
@@ -78,7 +78,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 /**
  * POST /api/v1/ai/enrollment/:id/generate-email
  */
-router.post('/enrollment/:id/generate-email', aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -99,7 +99,7 @@ router.post('/enrollment/:id/generate-email', aiMutationLimit, async (req: Reque
 /**
  * POST /api/v1/ai/enrollment/:id/analyze
  */
-router.post('/enrollment/:id/analyze', aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
@@ -192,7 +192,7 @@ router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', '
 /**
  * GET /api/v1/ai/usage
  */
-router.get('/usage', async (_req: Request, res: Response) => {
+router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const usage = await getTodayTokenUsage();
     const budget = await checkTokenBudget();

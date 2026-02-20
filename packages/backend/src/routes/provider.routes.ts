@@ -308,7 +308,16 @@ providerRoutes.get(
       }
 
       // Format data based on requested format
-      const exportData = formatProviderForExport(stripSensitiveFields(provider), format);
+      const cleaned = stripSensitiveFields(provider);
+
+      // Only include dateOfBirth for admin/staff or the provider themselves
+      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'credentialing_staff' || req.user?.role === 'practice_admin';
+      const isSelf = req.user?.providerId === provider.id;
+      if (!isAdminOrStaff && !isSelf) {
+        delete cleaned.dateOfBirth;
+      }
+
+      const exportData = formatProviderForExport(cleaned, format);
 
       setAuditContext(req, {
         resourceType: 'providers',

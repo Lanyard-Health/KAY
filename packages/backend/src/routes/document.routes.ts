@@ -65,6 +65,10 @@ documentRoutes.post(
     try {
       const { documentId } = req.body;
 
+      if (!documentId || typeof documentId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) {
+        return res.status(400).json({ success: false, error: 'Valid documentId is required' });
+      }
+
       const existing = await prisma.document.findUnique({
         where: { id: documentId },
       });
@@ -167,6 +171,10 @@ documentRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { extractedFields } = req.body;
+
+      if (!extractedFields || typeof extractedFields !== 'object') {
+        return res.status(400).json({ success: false, error: 'Valid extractedFields object is required' });
+      }
 
       const existing = await prisma.document.findUnique({
         where: { id: req.params['id'] },

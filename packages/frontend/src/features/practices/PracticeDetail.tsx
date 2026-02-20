@@ -75,16 +75,22 @@ export default function PracticeDetail() {
           <div className="mt-1 flex flex-wrap gap-x-4 text-sm text-gray-500">
             {practice.phone && <span>{practice.phone}</span>}
             {practice.email && <span>{practice.email}</span>}
-            {practice.website && (
-              <a
-                href={practice.website.startsWith('http') ? practice.website : `https://${practice.website}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-500"
-              >
-                {practice.website}
-              </a>
-            )}
+            {practice.website && (() => {
+              try {
+                const url = new URL(practice.website.startsWith('http') ? practice.website : `https://${practice.website}`);
+                if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+                return (
+                  <a
+                    href={url.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 hover:text-primary-500"
+                  >
+                    {practice.website}
+                  </a>
+                );
+              } catch { return <span className="text-gray-400">{practice.website}</span>; }
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-3 mt-4 sm:mt-0">

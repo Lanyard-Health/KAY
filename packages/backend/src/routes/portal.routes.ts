@@ -134,7 +134,7 @@ router.get('/status/:npi', portalLookupLimit, async (req: Request, res: Response
  * GET /api/v1/portal/practice/:practiceId/info
  * Get practice name for registration link (public, no auth)
  */
-router.get('/practice/:practiceId/info', async (req: Request, res: Response) => {
+router.get('/practice/:practiceId/info', portalLookupLimit, async (req: Request, res: Response) => {
   try {
     const { practiceId } = req.params;
 

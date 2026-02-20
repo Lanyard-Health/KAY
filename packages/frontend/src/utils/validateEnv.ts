@@ -18,6 +18,15 @@ export function validateEnv(): void {
     );
   }
 
+  // Safety guard: dev bypass must never be active in a production build
+  if (devBypass === 'true' && import.meta.env.PROD) {
+    console.error(
+      '[SECURITY] VITE_DEV_AUTH_BYPASS=true in a production build! ' +
+        'This is a critical misconfiguration — auth is bypassed. ' +
+        'Remove VITE_DEV_AUTH_BYPASS from your production environment.',
+    );
+  }
+
   // When not using dev bypass, Cognito vars are required
   if (devBypass !== 'true') {
     if (!cognitoPoolId || !cognitoClientId) {
