@@ -124,12 +124,12 @@ describe('aetna field-mapper', () => {
       expect(payload.page3['practLastName']).toBe('Doe');
       expect(payload.page3['practFirstName']).toBe('Jane');
       expect(payload.page3['npi']).toBe('1234567890');
-      expect(payload.page3['state']).toBe('CT');
+      expect(payload.page3['state']).toBe('Connecticut');
       expect(payload.page3['zipCode']).toBe('06101');
       expect(payload.page3['taxIdType']).toBe('E - Employer identification number');
       expect(payload.page3['taxIDName']).toBe('Test Practice');
-      expect(payload.page3['taxID']).toBe('12-3456789');
-      expect(payload.page3['verifyTaxID']).toBe('12-3456789');
+      expect(payload.page3['taxID']).toBe('123456789');
+      expect(payload.page3['verifyTaxID']).toBe('123456789');
     });
 
     it('maps page 4 degree and specialty', () => {
@@ -216,7 +216,7 @@ describe('aetna field-mapper', () => {
       const payload = mapProviderToAetnaPayload(data);
       maskSensitivePayload(payload);
 
-      expect(payload.page3['taxID']).toBe('12-3456789');
+      expect(payload.page3['taxID']).toBe('123456789');
     });
   });
 });
