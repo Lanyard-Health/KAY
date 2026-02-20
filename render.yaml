@@ -9,7 +9,7 @@ services:
     name: kay-backend
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npm run build
+    buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npx playwright install --with-deps chromium && npm run build
     startCommand: cd packages/backend && npx prisma migrate deploy && node dist/index.js
     envVars:
       - key: NODE_ENV
@@ -30,6 +30,8 @@ services:
         value: claude-sonnet-4-20250514
       - key: AI_DAILY_TOKEN_BUDGET
         value: "100000"
+      - key: AETNA_PORTAL_URL
+        value: https://extaz-oci.aetna.com/pocui/join-the-aetna-network
 
   - type: web
     name: kay-frontend

@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import type { AetnaFormPayload } from './types.js';
 import { logger } from '../../utils/logger.js';
 
-const FORM_URL = 'https://extaz-oci.aetna.com/pocui/join-the-aetna-network';
+const FORM_URL = process.env['AETNA_PORTAL_URL'] ?? 'https://extaz-oci.aetna.com/pocui/join-the-aetna-network';
 
 interface FillResult {
   requestId: string | null;

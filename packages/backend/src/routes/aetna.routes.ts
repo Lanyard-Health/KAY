@@ -7,6 +7,7 @@ import { checkAetnaReadiness } from '../services/aetna/readiness.service.js';
 import { startAetnaEnrollment, approveAndSubmit, rejectRun } from '../services/aetna/enrollment.service.js';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 
 export const aetnaRoutes = Router({ mergeParams: true });
 
@@ -24,19 +25,34 @@ function getS3Client(): S3Client {
   });
 }
 
+// Shared helper: load enrollment and verify practice access
+async function loadAndAuthorizeEnrollment(req: Request, res: Response): Promise<any | null> {
+  const enrollmentId = req.params['enrollmentId']!;
+
+  const enrollment = await prisma.payerEnrollment.findUnique({
+    where: { id: enrollmentId },
+    include: { payer: true },
+  });
+
+  if (!enrollment) {
+    res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
+    return null;
+  }
+
+  const hasAccess = await validateProviderPracticeAccess(req, enrollment.providerId);
+  if (!hasAccess) {
+    res.status(403).json({ success: false, error: { message: 'Access denied — provider not in your practice' } });
+    return null;
+  }
+
+  return enrollment;
+}
+
 // POST /api/v1/enrollments/:enrollmentId/aetna/readiness
 aetnaRoutes.post('/readiness', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const enrollmentId = req.params['enrollmentId']!;
-
-    const enrollment = await prisma.payerEnrollment.findUnique({
-      where: { id: enrollmentId },
-      include: { payer: true },
-    });
-
-    if (!enrollment) {
-      return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
-    }
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
 
     const result = await checkAetnaReadiness(enrollment.providerId);
 
@@ -49,16 +65,11 @@ aetnaRoutes.post('/readiness', async (req: Request, res: Response, next: NextFun
 // POST /api/v1/enrollments/:enrollmentId/aetna/start
 aetnaRoutes.post('/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const enrollmentId = req.params['enrollmentId']!;
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
+    const enrollmentId = enrollment.id;
     const userId = req.user!.id;
-
-    const enrollment = await prisma.payerEnrollment.findUnique({
-      where: { id: enrollmentId },
-    });
-
-    if (!enrollment) {
-      return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
-    }
 
     // Check for existing active run
     const activeRun = await prisma.aetnaEnrollmentRun.findFirst({
@@ -110,6 +121,9 @@ aetnaRoutes.post('/start', async (req: Request, res: Response, next: NextFunctio
 // GET /api/v1/enrollments/:enrollmentId/aetna/runs/:runId
 aetnaRoutes.get('/runs/:runId', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
     const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
@@ -166,6 +180,9 @@ aetnaRoutes.get('/runs/:runId', async (req: Request, res: Response, next: NextFu
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/approve
 aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
     const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
@@ -204,6 +221,9 @@ aetnaRoutes.post('/runs/:runId/approve', async (req: Request, res: Response, nex
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/reject
 aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
     const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
@@ -232,6 +252,9 @@ aetnaRoutes.post('/runs/:runId/reject', async (req: Request, res: Response, next
 // POST /api/v1/enrollments/:enrollmentId/aetna/runs/:runId/retry
 aetnaRoutes.post('/runs/:runId/retry', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const enrollment = await loadAndAuthorizeEnrollment(req, res);
+    if (!enrollment) return;
+
     const runId = req.params['runId']!;
 
     const run = await prisma.aetnaEnrollmentRun.findUnique({
