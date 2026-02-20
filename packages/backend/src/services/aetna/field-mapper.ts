@@ -68,6 +68,24 @@ export function mapSpecialtyToAetna(specialty: string): string {
   return SPECIALTY_MAP[specialty.toLowerCase()] ?? specialty;
 }
 
+const STATE_ABBR_TO_NAME: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia',
+  FL: 'Florida', GA: 'Georgia', GU: 'Guam', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky',
+  LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan',
+  MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska',
+  NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
+  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon',
+  PA: 'Pennsylvania', PR: 'Puerto Rico', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+};
+
+export function mapStateToFullName(abbr: string): string {
+  return STATE_ABBR_TO_NAME[abbr.toUpperCase()] ?? abbr;
+}
+
 export function mapTaxIdType(taxId: string): string {
   // EIN format: XX-XXXXXXX (2 digits, dash, 7 digits)
   if (/^\d{2}-\d{7}$/.test(taxId)) return 'E - Employer identification number';
@@ -97,8 +115,10 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
   return {
     gateway: {
       network: 'Aetna',
-      category: 'Medical',
-      subcategory: 'second_option',
+      category: 'MED',
+      subcategory: overrides.existingAetnaProvider
+        ? 'existing group practice'
+        : 'new individual provider',
     },
 
     // Page 2: Submitter Information
@@ -118,16 +138,17 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
 
     // Page 3: Network & Tax Information
     page3: {
-      existingAetnaProvider: overrides.existingAetnaProvider ? 'Yes' : 'No',
-      networkJoining: overrides.networkJoining ?? 'As an individual provider joining an existing group practice',
+      teleHealthService: 'No',
+      networkJoining: overrides.networkJoining ?? 'As a new individual provider',
       applicableSituation: overrides.applicableSituation ?? 'I want to be contracted in the state selected below',
-      state: loc?.state ?? '',
+      state: loc?.state ? mapStateToFullName(loc.state) : '',
       zipCode: loc?.zipCode ?? '',
       ext: '',
+      mnapplicant: 'no',
       taxIdType: taxId ? mapTaxIdType(taxId) : '',
       taxIDName: practice?.name ?? '',
-      taxID: taxId,
-      verifyTaxID: taxId,
+      taxID: taxId.replace(/\D/g, ''),
+      verifyTaxID: taxId.replace(/\D/g, ''),
       practLastName: provider.lastName,
       practFirstName: provider.firstName,
       npi: provider.npi,
