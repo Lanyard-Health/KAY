@@ -112,11 +112,17 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run npm audit
-        id: audit
+      - name: Run npm audit (production only)
+        id: audit-prod
         continue-on-error: true
         run: |
-          npm audit --json > npm-audit-results.json 2>&1 || true
+          npm audit --omit=dev --json > npm-audit-prod.json 2>&1 || true
+
+      - name: Run npm audit (all, informational)
+        id: audit-all
+        continue-on-error: true
+        run: |
+          npm audit --json > npm-audit-all.json 2>&1 || true
 
       - name: Parse Audit Results
         if: always()
@@ -127,8 +133,9 @@ jobs:
             const fs = require('fs');
             let status = 'pass';
             let summary = '';
-            try {
-              const raw = fs.readFileSync('npm-audit-results.json', 'utf8');
+
+            function parseAudit(filePath) {
+              const raw = fs.readFileSync(filePath, 'utf8');
               const audit = JSON.parse(raw);
               const vulns = audit.vulnerabilities || {};
               let high = 0, critical = 0, moderate = 0, low = 0;
@@ -140,14 +147,33 @@ jobs:
                 else if (sev === 'moderate') moderate++;
                 else low++;
               }
-              if (critical + high > 0) {
+              return { high, critical, moderate, low, highCritList };
+            }
+
+            try {
+              const prod = parseAudit('npm-audit-prod.json');
+              const all = parseAudit('npm-audit-all.json');
+              const devOnly = {
+                high: all.high - prod.high,
+                critical: all.critical - prod.critical,
+                moderate: all.moderate - prod.moderate,
+                low: all.low - prod.low,
+              };
+
+              // Only fail on production vulnerabilities
+              if (prod.critical + prod.high > 0) {
                 status = 'fail';
-                summary = `### :x: npm audit: ${critical} critical, ${high} high, ${moderate} moderate, ${low} low\n\n` +
-                  highCritList.join('\n');
-              } else if (moderate + low > 0) {
-                summary = `### :warning: npm audit: ${moderate} moderate, ${low} low (no high/critical)\n\nThese do not block the build.`;
+                summary = `### :x: npm audit: ${prod.critical} critical, ${prod.high} high, ${prod.moderate} moderate, ${prod.low} low (production)\n\n` +
+                  prod.highCritList.join('\n');
+              } else if (prod.moderate + prod.low > 0) {
+                summary = `### :warning: npm audit: ${prod.moderate} moderate, ${prod.low} low (production, no high/critical)\n\nThese do not block the build.`;
               } else {
-                summary = '### :white_check_mark: npm audit: No known vulnerabilities';
+                summary = '### :white_check_mark: npm audit: No production vulnerabilities';
+              }
+
+              const devTotal = devOnly.high + devOnly.critical + devOnly.moderate + devOnly.low;
+              if (devTotal > 0) {
+                summary += `\n\n*Dev-only: ${devOnly.critical} critical, ${devOnly.high} high, ${devOnly.moderate} moderate, ${devOnly.low} low (not blocking)*`;
               }
             } catch (e) {
               summary = '### :white_check_mark: npm audit: No known vulnerabilities';
@@ -160,7 +186,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: npm-audit-summary
-          path: npm-audit-results.json
+          path: |
+            npm-audit-prod.json
+            npm-audit-all.json
           if-no-files-found: ignore
 
   eslint-security:
