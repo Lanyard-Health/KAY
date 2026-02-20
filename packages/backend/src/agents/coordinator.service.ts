@@ -213,7 +213,6 @@ export async function cancelWorkflow(workflowId: string, reason: string) {
 export async function dispatchPortalSubmission(input: DispatchPortalInput) {
   const { workflowId, providerId, payerId, enrollmentId, action = 'submit_to_portal' } = input;
 
-  // Create task record
   const task = await prisma.agentTask.create({
     data: {
       workflowId,
@@ -225,7 +224,6 @@ export async function dispatchPortalSubmission(input: DispatchPortalInput) {
     },
   });
 
-  // Enqueue to portal queue
   const queue = getQueue(QUEUE_NAMES.PORTAL);
   const job = await queue.add(action, {
     workflowId,
@@ -236,13 +234,11 @@ export async function dispatchPortalSubmission(input: DispatchPortalInput) {
     action,
   });
 
-  // Link BullMQ job ID to task
   await prisma.agentTask.update({
     where: { id: task.id },
     data: { bullmqJobId: job.id ?? null },
   });
 
-  // Log event
   await logAgentEvent({
     workflowId,
     taskId: task.id,
@@ -252,6 +248,62 @@ export async function dispatchPortalSubmission(input: DispatchPortalInput) {
   });
 
   logger.info('Portal submission dispatched', { workflowId, taskId: task.id, payerId });
+
+  return task;
+}
+
+// ==========================================
+// Types – Document Parsing
+// ==========================================
+
+export interface DispatchDocumentInput {
+  workflowId: string;
+  documentId: string;
+  providerId: string;
+  extractionHints?: string[];
+}
+
+// ==========================================
+// dispatchDocumentParsing
+// ==========================================
+
+export async function dispatchDocumentParsing(input: DispatchDocumentInput) {
+  const { workflowId, documentId, providerId, extractionHints } = input;
+
+  const task = await prisma.agentTask.create({
+    data: {
+      workflowId,
+      type: 'parse_document',
+      agentType: 'document',
+      stepNumber: 1,
+      status: 'queued',
+      input: { documentId, providerId, extractionHints: extractionHints ?? [] },
+    },
+  });
+
+  const queue = getQueue(QUEUE_NAMES.DOCUMENT);
+  const job = await queue.add('parse_document', {
+    workflowId,
+    taskId: task.id,
+    documentId,
+    providerId,
+    extractionHints,
+  });
+
+  await prisma.agentTask.update({
+    where: { id: task.id },
+    data: { bullmqJobId: job.id ?? null },
+  });
+
+  await logAgentEvent({
+    workflowId,
+    taskId: task.id,
+    agent: 'coordinator',
+    action: 'document_parsing_dispatched',
+    data: { documentId, taskId: task.id },
+  });
+
+  logger.info('Document parsing dispatched', { workflowId, documentId, taskId: task.id });
 
   return task;
 }
