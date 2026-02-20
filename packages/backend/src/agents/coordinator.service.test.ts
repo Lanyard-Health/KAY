@@ -18,12 +18,12 @@ const mockAdd = vi.fn().mockResolvedValue({ id: 'job-1' });
 vi.mock('./queues.js', () => ({
   getQueue: vi.fn(() => ({ add: mockAdd })),
   QUEUE_NAMES: {
-    ORCHESTRATOR: 'agent:orchestrator',
-    DOCUMENT: 'agent:document',
-    PORTAL: 'agent:portal',
-    MONITOR: 'agent:monitor',
-    EXCEPTION: 'agent:exception',
-    APPROVAL: 'agent:approval',
+    ORCHESTRATOR: 'agent-orchestrator',
+    DOCUMENT: 'agent-document',
+    PORTAL: 'agent-portal',
+    MONITOR: 'agent-monitor',
+    EXCEPTION: 'agent-exception',
+    APPROVAL: 'agent-approval',
   },
 }));
 
@@ -114,7 +114,7 @@ describe('coordinator.service', () => {
       });
 
       // Verifies job was enqueued
-      expect(getQueue).toHaveBeenCalledWith('agent:orchestrator');
+      expect(getQueue).toHaveBeenCalledWith('agent-orchestrator');
       expect(mockAdd).toHaveBeenCalledWith('plan_workflow', {
         workflowId: 'wf-1',
       });

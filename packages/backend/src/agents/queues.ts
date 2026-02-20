@@ -7,12 +7,12 @@ import { logger } from '../utils/logger.js';
 // ==========================================
 
 export const QUEUE_NAMES = {
-  ORCHESTRATOR: 'agent:orchestrator',
-  DOCUMENT: 'agent:document',
-  PORTAL: 'agent:portal',
-  MONITOR: 'agent:monitor',
-  EXCEPTION: 'agent:exception',
-  APPROVAL: 'agent:approval',
+  ORCHESTRATOR: 'agent-orchestrator',
+  DOCUMENT: 'agent-document',
+  PORTAL: 'agent-portal',
+  MONITOR: 'agent-monitor',
+  EXCEPTION: 'agent-exception',
+  APPROVAL: 'agent-approval',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

@@ -14,7 +14,7 @@ const { mockOn, mockQuit, MockRedis } = vi.hoisted(() => {
 });
 
 vi.mock('ioredis', () => ({
-  default: MockRedis,
+  Redis: MockRedis,
 }));
 
 vi.mock('./logger.js', () => ({

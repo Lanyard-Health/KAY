@@ -75,12 +75,12 @@ describe('workers', () => {
       const queueNames = MockWorker.mock.calls.map(
         (call: unknown[]) => call[0]
       );
-      expect(queueNames).toContain('agent:orchestrator');
-      expect(queueNames).toContain('agent:document');
-      expect(queueNames).toContain('agent:portal');
-      expect(queueNames).toContain('agent:monitor');
-      expect(queueNames).toContain('agent:exception');
-      expect(queueNames).toContain('agent:approval');
+      expect(queueNames).toContain('agent-orchestrator');
+      expect(queueNames).toContain('agent-document');
+      expect(queueNames).toContain('agent-portal');
+      expect(queueNames).toContain('agent-monitor');
+      expect(queueNames).toContain('agent-exception');
+      expect(queueNames).toContain('agent-approval');
     });
 
     it('registers completed and failed event handlers on each worker', () => {

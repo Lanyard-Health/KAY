@@ -52,27 +52,27 @@ describe('queues', () => {
     });
 
     it('contains ORCHESTRATOR queue', () => {
-      expect(QUEUE_NAMES.ORCHESTRATOR).toBe('agent:orchestrator');
+      expect(QUEUE_NAMES.ORCHESTRATOR).toBe('agent-orchestrator');
     });
 
     it('contains DOCUMENT queue', () => {
-      expect(QUEUE_NAMES.DOCUMENT).toBe('agent:document');
+      expect(QUEUE_NAMES.DOCUMENT).toBe('agent-document');
     });
 
     it('contains PORTAL queue', () => {
-      expect(QUEUE_NAMES.PORTAL).toBe('agent:portal');
+      expect(QUEUE_NAMES.PORTAL).toBe('agent-portal');
     });
 
     it('contains MONITOR queue', () => {
-      expect(QUEUE_NAMES.MONITOR).toBe('agent:monitor');
+      expect(QUEUE_NAMES.MONITOR).toBe('agent-monitor');
     });
 
     it('contains EXCEPTION queue', () => {
-      expect(QUEUE_NAMES.EXCEPTION).toBe('agent:exception');
+      expect(QUEUE_NAMES.EXCEPTION).toBe('agent-exception');
     });
 
     it('contains APPROVAL queue', () => {
-      expect(QUEUE_NAMES.APPROVAL).toBe('agent:approval');
+      expect(QUEUE_NAMES.APPROVAL).toBe('agent-approval');
     });
   });
 
@@ -85,14 +85,14 @@ describe('queues', () => {
       const queue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
 
       expect(queue).toBeDefined();
-      expect(queue.name).toBe('agent:orchestrator');
+      expect(queue.name).toBe('agent-orchestrator');
     });
 
     it('creates the Queue with correct BullMQ options', () => {
       getQueue(QUEUE_NAMES.DOCUMENT);
 
       expect(MockQueue).toHaveBeenCalledWith(
-        'agent:document',
+        'agent-document',
         expect.objectContaining({
           connection: expect.objectContaining({
             host: 'localhost',
@@ -162,7 +162,7 @@ describe('queues', () => {
   describe('QueueName type', () => {
     it('accepts valid queue name values', () => {
       const name: QueueName = QUEUE_NAMES.ORCHESTRATOR;
-      expect(name).toBe('agent:orchestrator');
+      expect(name).toBe('agent-orchestrator');
     });
   });
 });
