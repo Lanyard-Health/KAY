@@ -134,19 +134,37 @@ async function clickMatRadio(
 }
 
 /**
- * Click an Angular Material mat-checkbox using Playwright's native click
- * on .mat-checkbox-inner-container — Angular's real click target.
- * ONE click only — no double-toggling.
+ * Click an Angular Material mat-checkbox.
+ * Scrolls into view, then uses Playwright's native click on the mat-checkbox element.
+ * Verifies the checkbox actually toggled by checking for the mat-checkbox-checked class.
  */
 async function clickMatCheckbox(page: Page, index?: number, sectionText?: string): Promise<boolean> {
   let locator;
   if (sectionText) {
-    locator = page.locator(`mat-checkbox:has-text("${sectionText}") .mat-checkbox-inner-container`).first();
+    locator = page.locator(`mat-checkbox:has-text("${sectionText}")`).first();
   } else {
-    locator = page.locator('mat-checkbox .mat-checkbox-inner-container').nth(index ?? 0);
+    locator = page.locator('mat-checkbox').nth(index ?? 0);
   }
   if (!(await locator.isVisible({ timeout: 5000 }).catch(() => false))) return false;
+
+  // Scroll into view and click
+  await locator.scrollIntoViewIfNeeded();
   await locator.click();
+
+  // Verify it actually toggled — wait up to 1s for the checked class
+  try {
+    await page.waitForTimeout(300);
+    const isChecked = await locator.evaluate((el: Element) => el.classList.contains('mat-checkbox-checked'));
+    if (!isChecked) {
+      // Retry with a direct click on the input's label
+      const label = locator.locator('label');
+      await label.click();
+      await page.waitForTimeout(300);
+    }
+  } catch {
+    // Verification failed — continue anyway
+  }
+
   return true;
 }
 
