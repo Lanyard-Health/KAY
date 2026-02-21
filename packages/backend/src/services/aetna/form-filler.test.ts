@@ -21,6 +21,7 @@ function makeMockLocator(overrides: Record<string, any> = {}) {
     textContent: vi.fn().mockResolvedValue(null),
     allTextContents: vi.fn().mockResolvedValue([]),
     check: vi.fn().mockResolvedValue(undefined),
+    scrollIntoViewIfNeeded: vi.fn().mockResolvedValue(undefined),
     press: vi.fn().mockResolvedValue(undefined),
     count: vi.fn().mockResolvedValue(0),
     setInputFiles: vi.fn().mockResolvedValue(undefined),
