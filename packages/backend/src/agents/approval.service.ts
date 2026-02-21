@@ -64,13 +64,17 @@ export async function requestApproval(input: RequestApprovalInput) {
     data: { approvalId: approval.id, type },
   });
 
-  // Push via WebSocket
+  // Push via WebSocket — strip any credential/PHI fields from broadcast context
+  const safeContext = { ...context };
+  for (const key of ['credentials', 'password', 'username', 'ssn', 'taxId', 'dateOfBirth']) {
+    if (key in safeContext) safeContext[key] = '[REDACTED]';
+  }
   emitApprovalRequest({
     approvalId: approval.id,
     workflowId,
     taskId,
     type,
-    context,
+    context: safeContext,
   });
 
   logger.info('Approval requested', { approvalId: approval.id, workflowId, type });
@@ -84,6 +88,24 @@ export async function requestApproval(input: RequestApprovalInput) {
 
 export async function decideApproval(id: string, input: DecideApprovalInput) {
   const { decision, decidedBy, notes } = input;
+
+  // Fetch the approval first to check status and expiry
+  const existing = await prisma.pendingApproval.findUnique({
+    where: { id },
+    select: { status: true, expiresAt: true },
+  });
+
+  if (!existing) {
+    throw new Error('Approval not found');
+  }
+
+  if (existing.status !== 'pending') {
+    throw new Error(`Approval has already been decided (status: ${existing.status})`);
+  }
+
+  if (existing.expiresAt && existing.expiresAt < new Date()) {
+    throw new Error('Approval has expired and can no longer be decided');
+  }
 
   // Update approval record
   const approval = await prisma.pendingApproval.update({

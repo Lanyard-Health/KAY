@@ -98,6 +98,15 @@ approvalRoutes.post(
 
       res.status(200).json(result);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('not found')) {
+        res.status(404).json({ error: msg });
+        return;
+      }
+      if (msg.includes('already been decided') || msg.includes('expired')) {
+        res.status(409).json({ error: msg });
+        return;
+      }
       next(err);
     }
   }

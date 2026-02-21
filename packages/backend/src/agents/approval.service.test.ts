@@ -123,6 +123,7 @@ describe('approval.service', () => {
         decidedBy: 'user-1',
         decidedAt: new Date(),
       };
+      prismaMock.pendingApproval.findUnique.mockResolvedValueOnce({ status: 'pending', expiresAt: fakeApproval.expiresAt } as never);
       prismaMock.pendingApproval.update.mockResolvedValueOnce(approvedRecord as never);
       prismaMock.agentWorkflow.update.mockResolvedValueOnce({} as never);
 
@@ -168,6 +169,7 @@ describe('approval.service', () => {
         decidedAt: new Date(),
         decisionNotes: 'Not ready',
       };
+      prismaMock.pendingApproval.findUnique.mockResolvedValueOnce({ status: 'pending', expiresAt: fakeApproval.expiresAt } as never);
       prismaMock.pendingApproval.update.mockResolvedValueOnce(deniedRecord as never);
       prismaMock.agentWorkflow.update.mockResolvedValueOnce({} as never);
       prismaMock.agentTask.updateMany.mockResolvedValueOnce({ count: 1 } as never);
