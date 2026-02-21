@@ -14,6 +14,11 @@ import {
   dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 import type { ListWorkflowsFilters } from '../agents/coordinator.service.js';
+import {
+  listPendingApprovals,
+  getApproval,
+  decideApproval,
+} from '../agents/approval.service.js';
 
 // ==========================================
 // Zod Schemas
@@ -50,6 +55,18 @@ const parseDocumentSchema = z.object({
 const patchWorkflowSchema = z.object({
   action: z.enum(['cancel']),
   reason: z.string().max(500).optional(),
+});
+
+const listApprovalsSchema = z.object({
+  status: z.enum(['pending', 'approved', 'denied']).optional(),
+  workflowId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+const decideApprovalSchema = z.object({
+  decision: z.enum(['approved', 'denied']),
+  notes: z.string().max(1000).optional(),
 });
 
 // ==========================================
@@ -284,6 +301,73 @@ agentRoutes.post(
       });
 
       res.status(201).json(task);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ==========================================
+// Approval routes
+// ==========================================
+
+// GET /approvals — list approvals
+agentRoutes.get(
+  '/approvals',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = listApprovalsSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      const approvals = await listPendingApprovals(parsed.data);
+      res.status(200).json(approvals);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /approvals/:id — get single approval
+agentRoutes.get(
+  '/approvals/:id',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const approval = await getApproval(req.params['id']!);
+      if (!approval) {
+        res.status(404).json({ error: 'Approval not found' });
+        return;
+      }
+      res.status(200).json(approval);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /approvals/:id/decide — approve or deny
+agentRoutes.post(
+  '/approvals/:id/decide',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = decideApprovalSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      const approval = await decideApproval(req.params['id']!, {
+        decision: parsed.data.decision,
+        decidedBy: req.user!.id,
+        notes: parsed.data.notes,
+      });
+
+      res.status(200).json(approval);
     } catch (err) {
       next(err);
     }

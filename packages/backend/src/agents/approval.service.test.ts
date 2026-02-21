@@ -30,6 +30,20 @@ vi.mock('./coordinator.service.js', () => ({
   notifyTaskCompletion: mockNotifyTaskCompletion,
 }));
 
+const mockQueueAdd = vi.fn().mockResolvedValue({ id: 'job-1' });
+
+vi.mock('./queues.js', () => ({
+  getQueue: vi.fn(() => ({ add: mockQueueAdd })),
+  QUEUE_NAMES: {
+    ORCHESTRATOR: 'agent-orchestrator',
+    DOCUMENT: 'agent-document',
+    PORTAL: 'agent-portal',
+    MONITOR: 'agent-monitor',
+    EXCEPTION: 'agent-exception',
+    APPROVAL: 'agent-approval',
+  },
+}));
+
 // ==========================================
 // Imports (after mocks)
 // ==========================================
@@ -112,6 +126,16 @@ describe('approval.service', () => {
         expect.objectContaining({
           approvalId: 'appr-1',
           workflowId: 'wf-1',
+        })
+      );
+
+      // Should enqueue approval job for expiry scheduling
+      expect(mockQueueAdd).toHaveBeenCalledWith(
+        'process_approval',
+        expect.objectContaining({
+          approvalId: 'appr-1',
+          workflowId: 'wf-1',
+          taskId: 'task-1',
         })
       );
 

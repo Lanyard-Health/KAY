@@ -3,6 +3,7 @@ import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitApprovalRequest, emitApprovalDecision } from './websocket.js';
 import { notifyTaskCompletion } from './coordinator.service.js';
+import { getQueue, QUEUE_NAMES } from './queues.js';
 
 // ==========================================
 // Types
@@ -76,6 +77,16 @@ export async function requestApproval(input: RequestApprovalInput) {
     taskId,
     type,
     context: safeContext,
+  });
+
+  // Enqueue approval job for expiry scheduling
+  const approvalQueue = getQueue(QUEUE_NAMES.APPROVAL);
+  await approvalQueue.add('process_approval', {
+    approvalId: approval.id,
+    workflowId,
+    taskId,
+    type,
+    expiresAt: approval.expiresAt.toISOString(),
   });
 
   logger.info('Approval requested', { approvalId: approval.id, workflowId, type });
