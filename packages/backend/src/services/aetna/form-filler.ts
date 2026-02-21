@@ -134,38 +134,19 @@ async function clickMatRadio(
 }
 
 /**
- * Click an Angular Material mat-checkbox.
- * Scrolls into view, then uses Playwright's native click on the mat-checkbox element.
- * Verifies the checkbox actually toggled by checking for the mat-checkbox-checked class.
+ * Check a plain HTML checkbox by formcontrolname or id.
+ * These are NOT mat-checkbox — they're regular <input type="checkbox"> elements.
  */
-async function clickMatCheckbox(page: Page, index?: number, sectionText?: string): Promise<boolean> {
-  let locator;
-  if (sectionText) {
-    locator = page.locator(`mat-checkbox:has-text("${sectionText}")`).first();
-  } else {
-    locator = page.locator('mat-checkbox').nth(index ?? 0);
+async function checkCheckbox(page: Page, formcontrolOrId: string): Promise<void> {
+  // Try formcontrolname first, then id
+  let locator = page.locator(`[formcontrolname="${formcontrolOrId}"]`);
+  if (!(await locator.isVisible({ timeout: 3000 }).catch(() => false))) {
+    locator = page.locator(`#${formcontrolOrId}`);
   }
-  if (!(await locator.isVisible({ timeout: 5000 }).catch(() => false))) return false;
-
-  // Scroll into view and click
   await locator.scrollIntoViewIfNeeded();
-  await locator.click();
-
-  // Verify it actually toggled — wait up to 1s for the checked class
-  try {
-    await page.waitForTimeout(300);
-    const isChecked = await locator.evaluate((el: Element) => el.classList.contains('mat-checkbox-checked'));
-    if (!isChecked) {
-      // Retry with a direct click on the input's label
-      const label = locator.locator('label');
-      await label.click();
-      await page.waitForTimeout(300);
-    }
-  } catch {
-    // Verification failed — continue anyway
+  if (!(await locator.isChecked())) {
+    await locator.check();
   }
-
-  return true;
 }
 
 /**
@@ -276,7 +257,7 @@ async function fillPage2(page: Page, payload: AetnaFormPayload, lines: string[])
   await clickMatRadio(page, 'Agree');
 
   // Checkbox — single Playwright click on inner container
-  await clickMatCheckbox(page, 0);
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -320,7 +301,7 @@ async function fillPage3(page: Page, payload: AetnaFormPayload, lines: string[])
   await fillInput(page, 'npi', p['npi'] as string);
 
   // Checkbox
-  await clickMatCheckbox(page, 0);
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -386,7 +367,7 @@ async function fillPage4(page: Page, payload: AetnaFormPayload, lines: string[])
   }
 
   // Checkbox
-  await clickMatCheckbox(page, 0);
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -544,8 +525,8 @@ async function fillPage7(page: Page, payload: AetnaFormPayload, lines: string[])
   // FREQUENCY dropdown (if visible)
   try { await selectMatOption(page, 'FREQUENCY', 0); } catch { /* optional */ }
 
-  // Attestation checkbox
-  await clickMatCheckbox(page, 0);
+  // Attestation checkbox (page 7 uses 'checkboxAttest', not 'checkboxSelect')
+  await checkCheckbox(page, 'checkboxAttest');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
