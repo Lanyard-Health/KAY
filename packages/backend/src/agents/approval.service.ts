@@ -193,12 +193,20 @@ export async function decideApproval(id: string, input: DecideApprovalInput) {
 // listPendingApprovals
 // ==========================================
 
-export async function listPendingApprovals(filters: ApprovalFilters = {}) {
+export async function listPendingApprovals(
+  filters: ApprovalFilters = {},
+  practiceScope: Record<string, unknown> = {}
+) {
   const { status, workflowId, limit = 20, offset = 0 } = filters;
 
   const where: Record<string, unknown> = {};
   if (status) where['status'] = status;
   if (workflowId) where['workflowId'] = workflowId;
+
+  // Apply practice-scope filter to the workflow's provider
+  if (Object.keys(practiceScope).length > 0) {
+    where['workflow'] = practiceScope;
+  }
 
   return prisma.pendingApproval.findMany({
     where,

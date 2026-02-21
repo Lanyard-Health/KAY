@@ -86,8 +86,8 @@ export default function ApprovalsTab() {
   const { data: detailResp } = useApprovalDetail(selectedId);
   const decideApproval = useDecideApproval();
 
-  const approvals: Approval[] = approvalsResp?.data ?? [];
-  const detail: Approval | undefined = detailResp?.data;
+  const approvals: Approval[] = approvalsResp ?? [];
+  const detail: Approval | null | undefined = detailResp;
 
   const handleDecision = (decision: 'approved' | 'denied') => {
     if (!selectedId) return;
@@ -388,6 +388,7 @@ export default function ApprovalsTab() {
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="Optional decision notes..."
                             rows={2}
+                            maxLength={1000}
                             className="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
                           />
                           <div className="flex gap-3">

@@ -123,7 +123,7 @@ describe('processApprovalJob', () => {
     const expiredApproval = { ...pendingApproval, expiresAt: new Date(pastDate) };
 
     prismaMock.pendingApproval.findUnique.mockResolvedValue(expiredApproval as any);
-    prismaMock.pendingApproval.update.mockResolvedValue({} as any);
+    prismaMock.pendingApproval.updateMany.mockResolvedValue({ count: 1 } as any);
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
     prismaMock.agentTask.updateMany.mockResolvedValue({ count: 2 } as any);
 
@@ -131,13 +131,14 @@ describe('processApprovalJob', () => {
 
     expect(result).toEqual({ approvalId: 'appr-1', action: 'auto_denied' });
 
-    // Verify PendingApproval updated to denied
-    expect(prismaMock.pendingApproval.update).toHaveBeenCalledWith({
-      where: { id: 'appr-1' },
-      data: {
+    // Verify PendingApproval updated to denied with race guard
+    expect(prismaMock.pendingApproval.updateMany).toHaveBeenCalledWith({
+      where: { id: 'appr-1', status: 'pending' },
+      data: expect.objectContaining({
         status: 'denied',
+        decidedAt: expect.any(Date),
         decisionNotes: 'Auto-denied: approval expired after 48h without decision',
-      },
+      }),
     });
 
     // Verify workflow failed
@@ -146,9 +147,9 @@ describe('processApprovalJob', () => {
       data: { status: 'failed' },
     });
 
-    // Verify pending tasks cancelled
+    // Verify pending+queued tasks cancelled
     expect(prismaMock.agentTask.updateMany).toHaveBeenCalledWith({
-      where: { workflowId: 'wf-1', status: 'pending' },
+      where: { workflowId: 'wf-1', status: { in: ['pending', 'queued'] } },
       data: { status: 'cancelled' },
     });
 

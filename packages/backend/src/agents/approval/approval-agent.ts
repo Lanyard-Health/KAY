@@ -34,16 +34,23 @@ export async function processApprovalJob(data: ApprovalJobData): Promise<Approva
   const expiresAtDate = new Date(expiresAt);
   const now = new Date();
 
-  // 3. If expired, auto-deny
+  // 3. If expired, auto-deny (with race-condition guard)
   if (expiresAtDate <= now) {
-    // Update approval to denied
-    await prisma.pendingApproval.update({
-      where: { id: approvalId },
+    // Use updateMany with status guard to prevent overwriting a concurrent manual decision
+    const result = await prisma.pendingApproval.updateMany({
+      where: { id: approvalId, status: 'pending' },
       data: {
         status: 'denied',
+        decidedAt: now,
         decisionNotes: 'Auto-denied: approval expired after 48h without decision',
       },
     });
+
+    // If count is 0, someone decided it between our check and this update
+    if (result.count === 0) {
+      logger.info('Approval was decided before auto-deny could execute', { approvalId });
+      return { approvalId, action: 'already_decided' };
+    }
 
     // Fail the workflow
     await prisma.agentWorkflow.update({
@@ -51,9 +58,9 @@ export async function processApprovalJob(data: ApprovalJobData): Promise<Approva
       data: { status: 'failed' },
     });
 
-    // Cancel pending tasks
+    // Cancel pending/queued tasks
     await prisma.agentTask.updateMany({
-      where: { workflowId, status: 'pending' },
+      where: { workflowId, status: { in: ['pending', 'queued'] } },
       data: { status: 'cancelled' },
     });
 

@@ -38,17 +38,24 @@ export function useApprovals(status?: string) {
     ? `/agent/approvals?status=${encodeURIComponent(status)}`
     : '/agent/approvals';
 
-  return useQuery<{ data: Approval[] }>({
+  return useQuery<Approval[]>({
     queryKey: ['approvals', status ?? 'all'],
-    queryFn: () => api.get<Approval[]>(endpoint),
+    queryFn: async () => {
+      const { data } = await api.get<Approval[]>(endpoint);
+      return data;
+    },
     refetchInterval: 30_000,
   });
 }
 
 export function useApprovalDetail(id: string | null) {
-  return useQuery<{ data: Approval }>({
+  return useQuery<Approval | null>({
     queryKey: ['approval', id],
-    queryFn: () => api.get<Approval>(`/agent/approvals/${id}`),
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await api.get<Approval>(`/agent/approvals/${id}`);
+      return data;
+    },
     enabled: !!id,
   });
 }
