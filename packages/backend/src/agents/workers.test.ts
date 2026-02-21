@@ -57,6 +57,19 @@ vi.mock('./orchestrator/orchestrator.service.js', () => ({
   processOrchestratorJob: vi.fn().mockResolvedValue({ status: 'completed' }),
 }));
 
+vi.mock('./monitor/monitor-agent.js', () => ({
+  processMonitorJob: vi.fn().mockResolvedValue({ status: 'completed' }),
+}));
+
+vi.mock('./monitor/monitor-cron.js', () => ({
+  startMonitorCron: vi.fn(),
+  stopMonitorCron: vi.fn(),
+}));
+
+vi.mock('./exception/exception-agent.js', () => ({
+  processExceptionJob: vi.fn().mockResolvedValue({ status: 'completed' }),
+}));
+
 import { initializeWorkers, closeAllWorkers } from './workers.js';
 
 // ==========================================
