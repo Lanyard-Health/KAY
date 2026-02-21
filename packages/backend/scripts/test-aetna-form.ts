@@ -34,7 +34,7 @@ const sampleProviderData: AetnaProviderData = {
     providerType: 'psychiatrist',
     specialties: ['Internal Medicine'],
     languages: ['English'],
-    caqhProviderId: 'CAQH-12345',
+    caqhProviderId: '14587321',
     acceptingMedicare: true,
     acceptingMedicaid: false,
     ePrescribing: true,
@@ -74,9 +74,7 @@ const sampleProviderData: AetnaProviderData = {
   education: {
     degree: 'MD',
   },
-  hospitalAffiliations: [
-    { facilityName: 'Hartford Hospital', privilegeType: 'admitting', status: 'active' },
-  ],
+  hospitalAffiliations: [],
   submitter: {
     firstName: 'Sarah',
     lastName: 'Johnson',

@@ -41,6 +41,14 @@ vi.mock('./websocket.js', () => ({
   emitWorkflowEvent: vi.fn(),
 }));
 
+vi.mock('./portal/portal-agent.js', () => ({
+  processPortalJob: vi.fn().mockResolvedValue({ status: 'completed' }),
+}));
+
+vi.mock('./portal/index.js', () => ({
+  registerPortalAdapters: vi.fn(),
+}));
+
 import { initializeWorkers, closeAllWorkers } from './workers.js';
 
 // ==========================================

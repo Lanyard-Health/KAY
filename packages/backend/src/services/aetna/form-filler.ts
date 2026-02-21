@@ -30,6 +30,8 @@ function log(lines: string[], msg: string): void {
   logger.info(`[aetna-filler] ${msg}`);
 }
 
+// ---- Helpers ----
+
 async function fillInput(page: Page, formcontrol: string, value: string): Promise<void> {
   const locator = page.locator(`[formcontrolname="${formcontrol}"]`);
   await locator.waitFor({ state: 'visible', timeout: 10000 });
@@ -37,17 +39,21 @@ async function fillInput(page: Page, formcontrol: string, value: string): Promis
   await locator.fill(value);
 }
 
-/** Type into a masked input field character-by-character so the Angular mask directive processes each keystroke. */
+async function fillIfEnabled(page: Page, formcontrol: string, value: string): Promise<void> {
+  const locator = page.locator(`[formcontrolname="${formcontrol}"]`);
+  await locator.waitFor({ state: 'visible', timeout: 10000 });
+  if (await locator.isDisabled()) return;
+  await locator.click({ force: true });
+  await locator.fill(value);
+}
+
 async function fillMaskedInput(page: Page, formcontrol: string, value: string): Promise<void> {
   const locator = page.locator(`[formcontrolname="${formcontrol}"]`);
   await locator.waitFor({ state: 'visible', timeout: 10000 });
   await locator.click({ force: true });
-  // Select all + delete any existing content
-  // Select all — Chromium uses Control+a even on macOS
   await page.keyboard.press('Home');
   await page.keyboard.press('Shift+End');
   await page.keyboard.press('Backspace');
-  // Type character-by-character so Angular's mask directive processes each keystroke
   for (const char of value) {
     await locator.press(char);
     await page.waitForTimeout(30);
@@ -66,18 +72,121 @@ async function selectDropdownByValue(page: Page, formcontrol: string, value: str
   await locator.selectOption({ value });
 }
 
-async function clickRadio(page: Page, id: string): Promise<void> {
-  const label = page.locator(`label[for="${id}"]`);
-  await label.waitFor({ state: 'visible', timeout: 10000 });
-  await label.click({ force: true });
+/**
+ * Click an Angular Material mat-radio-button by its visible text.
+ * Uses page.evaluate() because mat-radio-button hides the real <input>.
+ * @param sectionText - Optional keyword to scope by nearest parent containing this text
+ * @param groupIndex - Optional 0-based index of mat-radio-group on the page
+ */
+async function clickMatRadio(
+  page: Page, answer: string, sectionText?: string, groupIndex?: number,
+): Promise<boolean> {
+  return await page.evaluate(
+    (args: { answer: string; sectionText?: string; groupIndex?: number }) => {
+      let radios: Element[];
+      if (args.groupIndex !== undefined) {
+        const groups = document.querySelectorAll('mat-radio-group');
+        const group = groups[args.groupIndex];
+        if (!group) return false;
+        radios = Array.from(group.querySelectorAll('mat-radio-button'));
+      } else {
+        radios = Array.from(document.querySelectorAll('mat-radio-button'));
+      }
+
+      let target: Element | null = null;
+
+      if (!args.sectionText || args.groupIndex !== undefined) {
+        for (const radio of radios) {
+          if ((radio.textContent?.trim() ?? '').includes(args.answer)) { target = radio; break; }
+        }
+      } else {
+        let bestDistance = Infinity;
+        const keyword = args.sectionText.toLowerCase();
+        for (const radio of radios) {
+          if (!(radio.textContent?.trim() ?? '').includes(args.answer)) continue;
+          let el: HTMLElement | null = radio as HTMLElement;
+          for (let i = 1; i <= 8 && el; i++) {
+            el = el.parentElement;
+            if (!el) break;
+            if (el.textContent?.toLowerCase().includes(keyword)) {
+              if (i < bestDistance) { bestDistance = i; target = radio; }
+              break;
+            }
+          }
+        }
+      }
+
+      if (!target) return false;
+
+      const inp = target.querySelector('input[type="radio"]') as HTMLInputElement | null;
+      if (inp) {
+        inp.checked = true;
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      const inner = target.querySelector('.mat-radio-inner-circle') ?? inp ?? target;
+      (inner as HTMLElement).click();
+      (target as HTMLElement).click();
+      return true;
+    },
+    { answer, sectionText, groupIndex },
+  );
 }
 
-async function clickCheckbox(page: Page, formcontrol: string): Promise<void> {
-  const locator = page.locator(`[formcontrolname="${formcontrol}"]`);
-  await locator.waitFor({ state: 'visible', timeout: 10000 });
-  if (!(await locator.isChecked())) {
-    await locator.click({ force: true });
+/**
+ * Check a plain HTML checkbox by formcontrolname or id.
+ * These are NOT mat-checkbox — they're regular <input type="checkbox"> elements.
+ */
+async function checkCheckbox(page: Page, formcontrolOrId: string): Promise<void> {
+  // Try formcontrolname first, then id
+  let locator = page.locator(`[formcontrolname="${formcontrolOrId}"]`);
+  if (!(await locator.isVisible({ timeout: 3000 }).catch(() => false))) {
+    locator = page.locator(`#${formcontrolOrId}`);
   }
+  await locator.scrollIntoViewIfNeeded();
+  if (!(await locator.isChecked())) {
+    await locator.check();
+  }
+}
+
+/**
+ * Force-check a hidden checkbox by ID (e.g. page 6's #EmailSub).
+ */
+async function forceCheckById(page: Page, id: string): Promise<boolean> {
+  return await page.evaluate((cbId: string) => {
+    const input = document.getElementById(cbId) as HTMLInputElement | null;
+    if (!input) return false;
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const wrapper = input.closest('mat-checkbox, .mat-checkbox, label');
+    if (wrapper) (wrapper as HTMLElement).click();
+    return true;
+  }, id);
+}
+
+/**
+ * Select an option from an Angular Material mat-select dropdown.
+ */
+async function selectMatOption(page: Page, labelText: string, optionIndex: number = 0): Promise<boolean> {
+  const trigger = page.locator(`mat-select:near(:text("${labelText}"))`).first();
+  if (!(await trigger.isVisible({ timeout: 3000 }).catch(() => false))) return false;
+  await trigger.click({ force: true });
+  await page.waitForTimeout(500);
+  const options = page.locator('mat-option');
+  const count = await options.count();
+  if (count === 0) return false;
+  const targetIndex = Math.min(optionIndex, count - 1);
+  await options.nth(targetIndex).click({ force: true });
+  await page.waitForTimeout(300);
+  const backdrop = page.locator('.cdk-overlay-backdrop');
+  if (await backdrop.isVisible({ timeout: 500 }).catch(() => false)) {
+    await backdrop.click({ force: true });
+  } else {
+    await page.keyboard.press('Escape');
+  }
+  await page.waitForTimeout(300);
+  return true;
 }
 
 async function clickNextButton(page: Page): Promise<void> {
@@ -95,7 +204,7 @@ async function dismissOverlays(page: Page): Promise<void> {
 }
 
 async function screenshotPage(page: Page): Promise<Buffer> {
-  await page.waitForTimeout(500); // Let Angular finish rendering
+  await page.waitForTimeout(500);
   return await page.screenshot({ fullPage: true, type: 'png' });
 }
 
@@ -108,23 +217,19 @@ async function fillGateway(page: Page, payload: AetnaFormPayload, lines: string[
   log(lines, 'Filling gateway dropdowns');
   const gw = payload.gateway;
 
-  // First dropdown: "I AM INTERESTED IN" — Aetna / First Health
   await page.selectOption('#typeOfRFP', gw.network);
   await page.waitForTimeout(1000);
 
-  // Second dropdown: "I AM APPLYING FOR" — cascades after first selection
   const secondDropdown = page.locator('#typeOfRFP1');
   await secondDropdown.waitFor({ state: 'visible', timeout: 10000 });
   await secondDropdown.selectOption(gw.category);
   await page.waitForTimeout(1000);
 
-  // Third dropdown: provider type — cascades after second selection
   const thirdDropdown = page.locator('#typeOfRFP2');
   await thirdDropdown.waitFor({ state: 'visible', timeout: 10000 });
   await thirdDropdown.selectOption(gw.subcategory);
   await page.waitForTimeout(500);
 
-  // Click Continue to proceed to page 2
   await page.click('button.primary-button');
   await page.waitForTimeout(3000);
   log(lines, 'Gateway selections complete');
@@ -142,15 +247,17 @@ async function fillPage2(page: Page, payload: AetnaFormPayload, lines: string[])
   await fillInput(page, 'phoneNumber', p['phoneNumber'] as string);
   await fillInput(page, 'newNpiId', p['newNpiId'] as string);
 
-  // Email acknowledgement: click the link first, then select Agree
+  // Email acknowledgement
   log(lines, 'Handling email acknowledgement');
   const ackLink = page.locator('a:has-text("EMAIL ACKNOWLEDGEMENT"), a:has-text("email acknowledgement")').first();
   if (await ackLink.isVisible()) {
     await ackLink.click();
     await page.waitForTimeout(500);
   }
-  await clickRadio(page, 'agree-input');
-  await clickCheckbox(page, 'checkboxSelect');
+  await clickMatRadio(page, 'Agree');
+
+  // Checkbox — single Playwright click on inner container
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -164,29 +271,27 @@ async function fillPage3(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 3: Network & Tax Information');
   const p = payload.page3;
 
-  // Telehealth services radio
+  // Telehealth radio
   const telehealth = p['teleHealthService'] as string;
-  await clickRadio(page, telehealth === 'Yes' ? 'Yes-input' : 'No-input');
+  await clickMatRadio(page, telehealth, 'telehealth');
   await page.waitForTimeout(500);
 
-  // "I AM JOINING" — select by value (not label)
   await selectDropdownByValue(page, 'networkJoining', p['networkJoining'] as string);
   await selectDropdownByValue(page, 'applicableSituation', p['applicableSituation'] as string);
   await selectDropdownByValue(page, 'state', p['state'] as string);
   await fillInput(page, 'zipCode', p['zipCode'] as string);
   await page.waitForTimeout(500);
 
-  // Minnesota applicant radio (only visible when MN is selected)
-  const mnLabel = page.locator('label[for="mnapplicant_no-input"]');
-  if (await mnLabel.isVisible({ timeout: 1000 }).catch(() => false)) {
+  // Minnesota applicant radio (only visible when MN selected)
+  const mnRadio = page.locator('mat-radio-button:has-text("No")');
+  if (await mnRadio.first().isVisible({ timeout: 1000 }).catch(() => false)) {
     const mnAnswer = (p['mnapplicant'] as string) || 'no';
-    await clickRadio(page, mnAnswer === 'yes' ? 'mnapplicant_yes-input' : 'mnapplicant_no-input');
+    await clickMatRadio(page, mnAnswer === 'yes' ? 'Yes' : 'No', 'minnesota');
   }
 
   await selectDropdownByValue(page, 'taxIdType', p['taxIdType'] as string);
   await page.waitForTimeout(500);
   await fillInput(page, 'taxIDName', p['taxIDName'] as string);
-  // Tax ID fields use mask="000001111" — must type char-by-char
   await fillMaskedInput(page, 'taxID', p['taxID'] as string);
   await page.waitForTimeout(500);
   await fillMaskedInput(page, 'verifyTaxID', p['verifyTaxID'] as string);
@@ -194,14 +299,15 @@ async function fillPage3(page: Page, payload: AetnaFormPayload, lines: string[])
   await fillInput(page, 'practLastName', p['practLastName'] as string);
   await fillInput(page, 'practFirstName', p['practFirstName'] as string);
   await fillInput(page, 'npi', p['npi'] as string);
-  await clickCheckbox(page, 'checkboxSelect');
+
+  // Checkbox
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
   await page.waitForTimeout(3000);
 
-  // After page 3 submit, Aetna shows "Your Request ID is XXXXX" with
-  // "Continue Session" / "End Session" buttons. Capture the ID and click Continue.
+  // Capture Request ID
   let requestId: string | null = null;
   try {
     const requestIdEl = page.locator('text=/Request ID/i').first();
@@ -210,7 +316,6 @@ async function fillPage3(page: Page, payload: AetnaFormPayload, lines: string[])
     const match = text?.match(/Request ID[:\s]*is[:\s]*(\d+)/i) ?? text?.match(/Request ID[:\s]*([A-Z0-9-]+)/i);
     if (match) requestId = match[1] ?? null;
   } catch {
-    // Check if there are validation errors preventing advancement
     const submitErrors = await page.locator('.submitErr').allTextContents();
     const errorText = submitErrors.filter(e => e.trim()).join('; ');
     if (errorText) {
@@ -221,7 +326,6 @@ async function fillPage3(page: Page, payload: AetnaFormPayload, lines: string[])
 
   log(lines, `Page 3 complete. Request ID: ${requestId ?? 'not captured'}`);
 
-  // Click "Continue Session" to proceed to page 4
   const continueSession = page.locator('button:has-text("Continue Session")');
   if (await continueSession.isVisible({ timeout: 3000 }).catch(() => false)) {
     log(lines, 'Clicking "Continue Session"');
@@ -237,27 +341,48 @@ async function fillPage4(page: Page, payload: AetnaFormPayload, lines: string[])
   const p = payload.page4;
 
   await selectDropdownByValue(page, 'degreeType', p['degreeType'] as string);
-  await page.waitForTimeout(2000); // Wait for specialty dropdown to populate based on degree
-
+  await page.waitForTimeout(2000);
   await selectDropdownByValue(page, 'specialty', p['specialty'] as string);
 
-  // Provider role radio (PCP or Specialist)
+  // Provider classification radio (PCP or Specialist)
   const classification = (p['providerClassification'] as string) || 'Specialist';
-  await clickRadio(page, `${classification}-input`);
-  await clickCheckbox(page, 'checkboxSelect');
+  await clickMatRadio(page, classification);
+
+  // Acupuncture radio — try section match, fallback to last "No" radio
+  let acuClicked = await clickMatRadio(page, 'No', 'acupuncture');
+  if (!acuClicked) {
+    acuClicked = await clickMatRadio(page, 'No', 'ACUPUNCTURE');
+  }
+  if (!acuClicked) {
+    await page.evaluate(() => {
+      const radios = Array.from(document.querySelectorAll('mat-radio-button'));
+      const noRadios = radios.filter(r => (r.textContent?.trim() ?? '').includes('No'));
+      if (noRadios.length > 0) {
+        const last = noRadios[noRadios.length - 1]!;
+        const inp = last.querySelector('input[type="radio"]') as HTMLInputElement | null;
+        if (inp) { inp.checked = true; inp.dispatchEvent(new Event('change', { bubbles: true })); }
+        (last as HTMLElement).click();
+      }
+    });
+  }
+
+  // Checkbox
+  await checkCheckbox(page, 'checkboxSelect');
 
   const screenshot = await screenshotPage(page);
-
-  // Click Continue button
   await clickNextButton(page);
   await page.waitForTimeout(2000);
 
-  // Dismiss "Credentialing with CAQH" popup if it appears
-  const ackButton = page.locator('button:has-text("Acknowledge"), button:has-text("OK")').first();
-  if (await ackButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-    log(lines, 'Dismissing CAQH credentialing popup');
-    await ackButton.click({ force: true });
-    await page.waitForTimeout(1000);
+  // Dismiss CAQH credentialing popup — try up to 3 times
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ackButton = page.locator('button:has-text("Acknowledge"), button:has-text("OK")').first();
+    if (await ackButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      log(lines, 'Dismissing CAQH credentialing popup');
+      await ackButton.click({ force: true });
+      await page.waitForTimeout(1000);
+    } else {
+      break;
+    }
   }
 
   log(lines, 'Page 4 complete');
@@ -268,23 +393,31 @@ async function fillPage5(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 5: Provider Details & Credentials');
   const p = payload.page5;
 
-  await fillInput(page, 'lastName', p['lastName'] as string);
-  await fillInput(page, 'firstName', p['firstName'] as string);
-  if (p['middleInitial']) await fillInput(page, 'middleInitial', p['middleInitial'] as string);
-  await fillInput(page, 'dob', p['dob'] as string);
-  await selectDropdown(page, 'state', p['state'] as string);
-  await fillInput(page, 'medicalLicenseNumber', p['medicalLicenseNumber'] as string);
-  await fillInput(page, 'medLicenseExpDate', p['medLicenseExpDate'] as string);
-  await fillInput(page, 'caqhID', p['caqhID'] as string);
-  if (p['providerURL']) await fillInput(page, 'providerURL', p['providerURL'] as string);
+  // Use fillIfEnabled — CAQH may pre-fill and disable some fields
+  await fillIfEnabled(page, 'lastName', p['lastName'] as string);
+  await fillIfEnabled(page, 'firstName', p['firstName'] as string);
+  if (p['middleInitial']) await fillIfEnabled(page, 'middleInitial', p['middleInitial'] as string);
+  await fillIfEnabled(page, 'dob', p['dob'] as string);
+
+  // State dropdown
+  try {
+    await selectDropdown(page, 'state', p['state'] as string);
+  } catch {
+    await fillIfEnabled(page, 'state', p['state'] as string);
+  }
+
+  await fillIfEnabled(page, 'medicalLicenseNumber', p['medicalLicenseNumber'] as string);
+  await fillIfEnabled(page, 'medLicenseExpDate', p['medLicenseExpDate'] as string);
+  await fillIfEnabled(page, 'caqhID', p['caqhID'] as string);
+  if (p['providerURL']) await fillIfEnabled(page, 'providerURL', p['providerURL'] as string);
 
   // Accepting new patients radio
   const accepting = p['acceptingNewPatients'] as string;
-  await clickRadio(page, accepting === 'Yes' ? 'Yes-input' : 'mat-radio-20-input');
+  await clickMatRadio(page, accepting, 'accepting new patients');
 
   // Electronic prescribing radio
   const ePrescribing = p['electronicPrescribing'] as string;
-  await clickRadio(page, ePrescribing === 'Yes' ? 'electronicPrescribingYes-input' : 'electronicPrescribingNo-input');
+  await clickMatRadio(page, ePrescribing, 'electronic prescribing');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -297,21 +430,53 @@ async function fillPage6(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 6: Contact Preferences');
   const p = payload.page6;
 
-  // Contracting contact
-  await clickRadio(page, `${p['contractingContact']}-input`);
+  // Contracting contact — first radio group
+  const contact = p['contractingContact'] as string;
+  await clickMatRadio(page, contact, 'contact person for contracting');
 
-  // Preferred contact method
+  // Preferred contact method — hidden checkbox
   const method = p['preferredContactMethod'] as string;
-  if (method === 'Email') await page.locator('#EmailSub').check();
-  else if (method === 'Phone') await page.locator('#PhoneSub').check();
-  else if (method === 'Fax') await page.locator('#FaxSub').check();
+  if (method === 'Email') await forceCheckById(page, 'EmailSub');
+  else if (method === 'Phone') await forceCheckById(page, 'PhoneSub');
+  else if (method === 'Fax') await forceCheckById(page, 'FaxSub');
 
-  // Authorized contact
-  await clickRadio(page, `auth_${p['authorizedContact']}-input`);
+  // Authorized contact — second radio group
+  const authContact = p['authorizedContact'] as string;
+  await clickMatRadio(page, authContact, undefined, 1);
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
   await page.waitForTimeout(1000);
+
+  // Handle intermediate review/validation page that sometimes appears after page 6.
+  // It may be a "Contracting Information" page requiring a radio selection,
+  // or a "Practitioner Information" summary page.
+  try {
+    const continueBtn = page.locator('button:has-text("Continue")').first();
+    if (await continueBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Check for "Contracting Information" validation page
+      const contractingHeading = page.locator('text=/Contracting Information/i').first();
+      if (await contractingHeading.isVisible({ timeout: 1000 }).catch(() => false)) {
+        log(lines, 'Detected intermediate Contracting Information page');
+        // Select "Submitter" radio if not already selected
+        await clickMatRadio(page, 'Submitter', 'contact person for contracting');
+        await page.waitForTimeout(500);
+        await continueBtn.click({ force: true });
+        await page.waitForTimeout(2000);
+      } else {
+        // Check for "Practitioner Information" summary page
+        const practHeading = page.locator('text=/Practitioner Information/i').first();
+        if (await practHeading.isVisible({ timeout: 1000 }).catch(() => false)) {
+          log(lines, 'Detected intermediate Practitioner Information page — clicking Continue');
+          await continueBtn.click({ force: true });
+          await page.waitForTimeout(2000);
+        }
+      }
+    }
+  } catch {
+    // No intermediate page — continue
+  }
+
   log(lines, 'Page 6 complete');
   return screenshot;
 }
@@ -320,28 +485,62 @@ async function fillPage7(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 7: Primary Practice Location');
   const p = payload.page7;
 
-  await fillInput(page, 'street', p['street'] as string);
-  if (p['street2']) await fillInput(page, 'street2', p['street2'] as string);
-  await fillInput(page, 'city', p['city'] as string);
-  await fillInput(page, 'state', p['state'] as string);
-  await fillInput(page, 'zipcode', p['zipcode'] as string);
-  await fillInput(page, 'county', p['county'] as string);
-  await fillInput(page, 'phoneNumber', p['phoneNumber'] as string);
-  await fillInput(page, 'faxNumber', p['faxNumber'] as string);
+  await fillIfEnabled(page, 'street', p['street'] as string);
+  if (p['street2']) await fillIfEnabled(page, 'street2', p['street2'] as string);
+  await fillIfEnabled(page, 'city', p['city'] as string);
+  await fillIfEnabled(page, 'state', p['state'] as string);
+  await fillIfEnabled(page, 'zipcode', p['zipcode'] as string);
+  await fillIfEnabled(page, 'county', p['county'] as string);
+  await fillIfEnabled(page, 'phoneNumber', p['phoneNumber'] as string);
+  await fillIfEnabled(page, 'faxNumber', p['faxNumber'] as string);
 
-  // Languages — Material chip input
+  // Languages — Material chip input (try multiple possible IDs)
   const languages = (p['languages'] as string).split(', ').filter(Boolean);
   if (languages.length > 0) {
-    const chipInput = page.locator('#mat-chip-list-input-2');
-    for (const lang of languages) {
-      await chipInput.fill(lang);
-      await chipInput.press('Enter');
-      await page.waitForTimeout(200);
+    let chipInput = page.locator('#mat-chip-list-input-2');
+    if (!(await chipInput.isVisible({ timeout: 2000 }).catch(() => false))) {
+      chipInput = page.locator('#mat-chip-list-input-0');
+    }
+    if (!(await chipInput.isVisible({ timeout: 2000 }).catch(() => false))) {
+      chipInput = page.locator('input[placeholder*="anguage"], input[aria-label*="anguage"]').first();
+    }
+    try {
+      for (const lang of languages) {
+        await chipInput.fill(lang);
+        await chipInput.press('Enter');
+        await page.waitForTimeout(200);
+      }
+    } catch {
+      log(lines, 'Warning: Could not fill language chip input');
     }
   }
 
-  if (p['workingDays']) await selectDropdown(page, 'workingDays', p['workingDays'] as string);
-  await clickCheckbox(page, 'checkboxAttest');
+  // Working days dropdown
+  if (p['workingDays']) {
+    try {
+      await selectDropdown(page, 'workingDays', p['workingDays'] as string);
+    } catch {
+      log(lines, 'Warning: Could not select workingDays dropdown');
+    }
+  }
+
+  // Place of Service radio (formcontrolname="placeOfService")
+  await clickMatRadio(page, 'Office Based', 'place of service');
+
+  // Facility Fee radio (formcontrolname="facilityFee") — No
+  await clickMatRadio(page, 'No', 'facility fee');
+
+  // ADA accessible (formcontrolname="locationSpecific")
+  const adaClicked = await clickMatRadio(page, 'Yes', 'ada accessible');
+  if (!adaClicked) {
+    await clickMatRadio(page, 'Yes', 'ADA');
+  }
+
+  // ACCESS ACCOMMODATIONS dropdown (if visible)
+  try { await selectMatOption(page, 'ACCESS ACCOMMODATIONS', 0); } catch { /* optional */ }
+
+  // FREQUENCY dropdown (if visible)
+  try { await selectMatOption(page, 'FREQUENCY', 0); } catch { /* optional */ }
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -354,19 +553,25 @@ async function fillPage8(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 8: Mailing & Billing Addresses');
   const p = payload.page8;
 
-  // Mailing address
-  await clickRadio(page, `${p['mailingAddress']}-input`);
+  // Mailing address radio
+  const mailingText = p['mailingAddress'] as string;
+  await clickMatRadio(page, mailingText, 'mailing');
 
-  // Billing address
-  await clickRadio(page, `${p['billingAddress']}-input`);
+  // Billing address radio
+  const billingText = p['billingAddress'] as string;
+  await clickMatRadio(page, billingText, 'billing');
 
   // If new billing address, fill the additional fields
-  if (p['billingAddress'] === 'New billing address' && p['billingStreet']) {
+  if (billingText.toLowerCase().includes('new') && p['billingStreet']) {
     await fillInput(page, 'billingStreet', p['billingStreet'] as string);
     await fillInput(page, 'billingCity', p['billingCity'] as string);
     await fillInput(page, 'billingState', p['billingState'] as string);
     await fillInput(page, 'billingZipCode', p['billingZipCode'] as string);
   }
+
+  // Additional service locations radio
+  const addlLocations = (p['additionalServiceLocations'] as string) || 'No';
+  await clickMatRadio(page, addlLocations, 'additional service');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -379,11 +584,30 @@ async function fillPage9(page: Page, payload: AetnaFormPayload, lines: string[])
   log(lines, 'Filling Page 9: Hospital Privileges & Attachments');
   const p = payload.page9;
 
+  // Hospital privileges radio
   const hasPrivileges = p['hospitalPrivileges'] as string;
-  await clickRadio(page, hasPrivileges === 'Yes' ? 'privilegeYes-input' : 'privilegeNo-input');
+  await clickMatRadio(page, hasPrivileges, 'hospital privileges');
 
+  // Facility-based radio
   const facilityBased = p['facilityBased'] as string;
-  await clickRadio(page, facilityBased === 'Yes' ? 'facilityYes-input' : 'facilityNo-input');
+  await clickMatRadio(page, facilityBased, 'facility based');
+
+  // Optional mat-select dropdowns
+  try { await selectMatOption(page, 'AGE GROUP', 0); } catch { /* optional */ }
+  try { await selectMatOption(page, 'PROVIDER PRACTICE FOCUS', 0); } catch { /* optional */ }
+  try { await selectMatOption(page, 'RACE', 0); } catch { /* optional */ }
+  try { await selectMatOption(page, 'SEXUAL ORIENTATION', 0); } catch { /* optional */ }
+  try { await selectMatOption(page, 'DISABILITY', 0); } catch { /* optional */ }
+
+  // Language chip (if present on page 9)
+  try {
+    const langChip = page.locator('input[placeholder*="anguage"]').first();
+    if (await langChip.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await langChip.fill('English');
+      await langChip.press('Enter');
+      await page.waitForTimeout(200);
+    }
+  } catch { /* optional */ }
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
@@ -397,16 +621,16 @@ async function fillPage10(page: Page, payload: AetnaFormPayload, lines: string[]
   const p = payload.page10;
 
   const medicare = p['medicareCertified'] as string;
-  await clickRadio(page, medicare === 'Yes' ? 'medicareCertifiedYes-input' : 'medicareCertifiedNo-input');
+  await clickMatRadio(page, medicare, 'medicare');
 
   const medicaid = p['medicaidCertified'] as string;
-  await clickRadio(page, medicaid === 'Yes' ? 'medicadCertifiedYes-input' : 'medicadCertifiedNo-input');
+  await clickMatRadio(page, medicaid, 'medicaid');
 
   const eap = p['aetnaEAPProgram'] as string;
-  await clickRadio(page, eap === 'Yes' ? 'aetnaEAPProgramYes-input' : 'aetnaEAPProgramNo-input');
+  await clickMatRadio(page, eap, 'EAP');
 
   const asl = p['americanSignLanguage'] as string;
-  await clickRadio(page, asl === 'Yes' ? 'americanSignLangYes-input' : 'americanSignLangNo-input');
+  await clickMatRadio(page, asl, 'american sign');
 
   const screenshot = await screenshotPage(page);
 
@@ -419,11 +643,10 @@ async function fillPage10(page: Page, payload: AetnaFormPayload, lines: string[]
  * Submit the final form — called only after human approval.
  */
 export async function submitFinalPage(page: Page): Promise<Buffer> {
-  // Click the submit button inside the review popup
   const submitButton = page.locator('button:has-text("Submit Request for Participation")').first();
   await submitButton.waitFor({ state: 'visible', timeout: 10000 });
   await submitButton.click();
-  await page.waitForTimeout(3000); // Wait for confirmation
+  await page.waitForTimeout(3000);
 
   return await screenshotPage(page);
 }
@@ -436,7 +659,7 @@ export async function submitFinalPage(page: Page): Promise<Buffer> {
 export async function fillAetnaForm(page: Page, payload: AetnaFormPayload): Promise<FillResult> {
   const lines: string[] = [];
   const screenshots: Buffer[] = [];
-  let currentPage = 1; // gateway = 1
+  let currentPage = 1;
 
   try {
     await fillGateway(page, payload, lines);
@@ -476,7 +699,6 @@ export async function fillAetnaForm(page: Page, payload: AetnaFormPayload): Prom
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     log(lines, `ERROR on page ${currentPage}: ${msg}`);
-    // Take error screenshot
     try { screenshots.push(await screenshotPage(page)); } catch { /* ignore */ }
     throw new FormFillError(msg, currentPage, lines, screenshots);
   }

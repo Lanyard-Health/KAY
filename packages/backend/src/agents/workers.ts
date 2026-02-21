@@ -5,6 +5,9 @@ import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitWorkflowEvent } from './websocket.js';
 import { QUEUE_NAMES } from './queues.js';
+import { processPortalJob } from './portal/portal-agent.js';
+import type { PortalJobData } from './portal/portal-agent.js';
+import { registerPortalAdapters } from './portal/index.js';
 
 // ==========================================
 // Worker configuration
@@ -66,21 +69,35 @@ function createPlaceholderProcessor(agentName: string) {
 }
 
 // ==========================================
+// Processor selection
+// ==========================================
+
+function getProcessor(agentName: string) {
+  if (agentName === 'portal_interaction') {
+    return async (job: Job) => {
+      const data = job.data as PortalJobData;
+      return processPortalJob(data);
+    };
+  }
+  return createPlaceholderProcessor(agentName);
+}
+
+// ==========================================
 // Public API
 // ==========================================
 
 /**
  * Creates BullMQ Worker instances for all 6 agent queues.
- * Each worker uses a placeholder processor that will be replaced
- * with real agent logic in Phase 2+.
+ * Registers payer adapters and wires real processors where available.
  */
 export function initializeWorkers(): void {
+  registerPortalAdapters();
   const connection = getRedisConfig();
 
   for (const config of WORKER_CONFIGS) {
     const worker = new Worker(
       config.queueName,
-      createPlaceholderProcessor(config.agentName),
+      getProcessor(config.agentName),
       {
         connection,
         concurrency: config.concurrency,
