@@ -2,6 +2,8 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitApprovalRequest, emitApprovalDecision } from './websocket.js';
+import { notifyTaskCompletion } from './coordinator.service.js';
+import { getQueue, QUEUE_NAMES } from './queues.js';
 
 // ==========================================
 // Types
@@ -32,7 +34,7 @@ export interface ApprovalFilters {
 // requestApproval
 // ==========================================
 
-const DEFAULT_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DEFAULT_EXPIRY_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export async function requestApproval(input: RequestApprovalInput) {
   const { workflowId, taskId, type, context, expiresInMs = DEFAULT_EXPIRY_MS } = input;
@@ -75,6 +77,16 @@ export async function requestApproval(input: RequestApprovalInput) {
     taskId,
     type,
     context: safeContext,
+  });
+
+  // Enqueue approval job for expiry scheduling
+  const approvalQueue = getQueue(QUEUE_NAMES.APPROVAL);
+  await approvalQueue.add('process_approval', {
+    approvalId: approval.id,
+    workflowId,
+    taskId,
+    type,
+    expiresAt: approval.expiresAt.toISOString(),
   });
 
   logger.info('Approval requested', { approvalId: approval.id, workflowId, type });
@@ -134,6 +146,9 @@ export async function decideApproval(id: string, input: DecideApprovalInput) {
       action: 'approval_granted',
       data: { approvalId: id, decidedBy },
     });
+
+    // Notify orchestrator to resume processing
+    await notifyTaskCompletion(workflowId, approval.taskId, 'task_completed');
   } else {
     // Deny — mark workflow as failed and cancel pending tasks
     await prisma.agentWorkflow.update({
@@ -156,6 +171,9 @@ export async function decideApproval(id: string, input: DecideApprovalInput) {
       action: 'approval_denied',
       data: { approvalId: id, decidedBy, notes },
     });
+
+    // Notify orchestrator about failure
+    await notifyTaskCompletion(workflowId, approval.taskId, 'task_failed');
   }
 
   // Push via WebSocket
@@ -175,12 +193,20 @@ export async function decideApproval(id: string, input: DecideApprovalInput) {
 // listPendingApprovals
 // ==========================================
 
-export async function listPendingApprovals(filters: ApprovalFilters = {}) {
+export async function listPendingApprovals(
+  filters: ApprovalFilters = {},
+  practiceScope: Record<string, unknown> = {}
+) {
   const { status, workflowId, limit = 20, offset = 0 } = filters;
 
   const where: Record<string, unknown> = {};
   if (status) where['status'] = status;
   if (workflowId) where['workflowId'] = workflowId;
+
+  // Apply practice-scope filter to the workflow's provider
+  if (Object.keys(practiceScope).length > 0) {
+    where['workflow'] = practiceScope;
+  }
 
   return prisma.pendingApproval.findMany({
     where,

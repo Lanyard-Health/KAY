@@ -14,6 +14,11 @@ import {
   dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 import type { ListWorkflowsFilters } from '../agents/coordinator.service.js';
+import {
+  listPendingApprovals,
+  getApproval,
+  decideApproval,
+} from '../agents/approval.service.js';
 
 // ==========================================
 // Zod Schemas
@@ -50,6 +55,18 @@ const parseDocumentSchema = z.object({
 const patchWorkflowSchema = z.object({
   action: z.enum(['cancel']),
   reason: z.string().max(500).optional(),
+});
+
+const listApprovalsSchema = z.object({
+  status: z.enum(['pending', 'approved', 'denied']).optional(),
+  workflowId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+const decideApprovalSchema = z.object({
+  decision: z.enum(['approved', 'denied']),
+  notes: z.string().max(1000).optional(),
 });
 
 // ==========================================
@@ -285,6 +302,136 @@ agentRoutes.post(
 
       res.status(201).json(task);
     } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ==========================================
+// Approval routes
+// ==========================================
+
+const approvalIdSchema = z.object({ id: z.string().uuid() });
+
+/** Check whether the caller's practice(s) own the approval's workflow provider. */
+async function verifyApprovalAccess(req: Request, approvalId: string): Promise<boolean> {
+  if (req.practiceScope?.isSuperAdmin) return true;
+  const approval = await prisma.pendingApproval.findUnique({
+    where: { id: approvalId },
+    select: { workflow: { select: { providerId: true } } },
+  });
+  if (!approval) return false;
+  const provider = await prisma.provider.findFirst({
+    where: {
+      id: approval.workflow.providerId,
+      practiceId: { in: req.practiceScope?.practiceIds ?? [] },
+    },
+    select: { id: true },
+  });
+  return !!provider;
+}
+
+// GET /approvals — list approvals (practice-scoped)
+agentRoutes.get(
+  '/approvals',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = listApprovalsSchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      // Apply practice-scope filter
+      const filters = { ...parsed.data };
+      const approvals = await listPendingApprovals(filters, practiceFilter(req));
+      res.status(200).json(approvals);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /approvals/:id — get single approval
+agentRoutes.get(
+  '/approvals/:id',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const paramParsed = approvalIdSchema.safeParse(req.params);
+      if (!paramParsed.success) {
+        res.status(400).json({ error: 'Invalid approval ID' });
+        return;
+      }
+      const { id } = paramParsed.data;
+
+      const approval = await getApproval(id);
+      if (!approval) {
+        res.status(404).json({ error: 'Approval not found' });
+        return;
+      }
+
+      // Practice-scope check
+      if (!(await verifyApprovalAccess(req, id))) {
+        res.status(404).json({ error: 'Approval not found' });
+        return;
+      }
+
+      res.status(200).json(approval);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /approvals/:id/decide — approve or deny
+agentRoutes.post(
+  '/approvals/:id/decide',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const paramParsed = approvalIdSchema.safeParse(req.params);
+      if (!paramParsed.success) {
+        res.status(400).json({ error: 'Invalid approval ID' });
+        return;
+      }
+      const { id } = paramParsed.data;
+
+      const parsed = decideApprovalSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      // Practice-scope check
+      if (!(await verifyApprovalAccess(req, id))) {
+        res.status(404).json({ error: 'Approval not found' });
+        return;
+      }
+
+      const approval = await decideApproval(id, {
+        decision: parsed.data.decision,
+        decidedBy: req.user!.id,
+        notes: parsed.data.notes,
+      });
+
+      res.status(200).json(approval);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === 'Approval not found') {
+          res.status(404).json({ error: err.message });
+          return;
+        }
+        if (err.message.startsWith('Approval has already been decided')) {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+        if (err.message.startsWith('Approval has expired')) {
+          res.status(410).json({ error: err.message });
+          return;
+        }
+      }
       next(err);
     }
   }

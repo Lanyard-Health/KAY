@@ -22,6 +22,28 @@ vi.mock('./websocket.js', () => ({
   emitApprovalDecision: vi.fn(),
 }));
 
+const { mockNotifyTaskCompletion } = vi.hoisted(() => ({
+  mockNotifyTaskCompletion: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./coordinator.service.js', () => ({
+  notifyTaskCompletion: mockNotifyTaskCompletion,
+}));
+
+const mockQueueAdd = vi.fn().mockResolvedValue({ id: 'job-1' });
+
+vi.mock('./queues.js', () => ({
+  getQueue: vi.fn(() => ({ add: mockQueueAdd })),
+  QUEUE_NAMES: {
+    ORCHESTRATOR: 'agent-orchestrator',
+    DOCUMENT: 'agent-document',
+    PORTAL: 'agent-portal',
+    MONITOR: 'agent-monitor',
+    EXCEPTION: 'agent-exception',
+    APPROVAL: 'agent-approval',
+  },
+}));
+
 // ==========================================
 // Imports (after mocks)
 // ==========================================
@@ -107,6 +129,16 @@ describe('approval.service', () => {
         })
       );
 
+      // Should enqueue approval job for expiry scheduling
+      expect(mockQueueAdd).toHaveBeenCalledWith(
+        'process_approval',
+        expect.objectContaining({
+          approvalId: 'appr-1',
+          workflowId: 'wf-1',
+          taskId: 'task-1',
+        })
+      );
+
       expect(result).toEqual(fakeApproval);
     });
   });
@@ -158,6 +190,9 @@ describe('approval.service', () => {
         })
       );
 
+      // Should notify orchestrator to resume
+      expect(mockNotifyTaskCompletion).toHaveBeenCalledWith('wf-1', 'task-1', 'task_completed');
+
       expect(result).toEqual(approvedRecord);
     });
 
@@ -200,6 +235,9 @@ describe('approval.service', () => {
           action: 'approval_denied',
         })
       );
+
+      // Should notify orchestrator about failure
+      expect(mockNotifyTaskCompletion).toHaveBeenCalledWith('wf-1', 'task-1', 'task_failed');
 
       expect(result).toEqual(deniedRecord);
     });
