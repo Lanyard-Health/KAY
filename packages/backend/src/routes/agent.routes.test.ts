@@ -100,7 +100,7 @@ describe('Agent Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockList);
-      expect(listWorkflows).toHaveBeenCalledWith({});
+      expect(listWorkflows).toHaveBeenCalledWith({}, {});
     });
 
     it('passes query params to listWorkflows', async () => {
@@ -115,7 +115,7 @@ describe('Agent Routes', () => {
         status: 'active',
         limit: 10,
         offset: 5,
-      });
+      }, {});
     });
   });
 

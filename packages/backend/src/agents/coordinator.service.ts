@@ -119,10 +119,10 @@ export async function getWorkflow(workflowId: string) {
 // listWorkflows
 // ==========================================
 
-export async function listWorkflows(filters: ListWorkflowsFilters) {
+export async function listWorkflows(filters: ListWorkflowsFilters, practiceWhere: Record<string, unknown> = {}) {
   const { status, providerId, limit = 20, offset = 0 } = filters;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...practiceWhere };
   if (status) where['status'] = status;
   if (providerId) where['providerId'] = providerId;
 
@@ -155,27 +155,45 @@ export async function getWorkflowEvents(workflowId: string, limit = 100) {
 // cancelWorkflow
 // ==========================================
 
+const TERMINAL_STATUSES = ['completed', 'cancelled', 'failed'] as const;
+
 export async function cancelWorkflow(workflowId: string, reason: string) {
-  // Update workflow status
-  const workflow = await prisma.agentWorkflow.update({
+  // Check that the workflow exists and is in a cancellable state
+  const existing = await prisma.agentWorkflow.findUnique({
     where: { id: workflowId },
-    data: {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancelReason: reason,
-    },
+    select: { status: true },
   });
 
-  // Cancel all pending/queued tasks
-  await prisma.agentTask.updateMany({
-    where: {
-      workflowId,
-      status: { in: ['pending', 'queued'] },
-    },
-    data: { status: 'cancelled' },
-  });
+  if (!existing) {
+    throw new Error(`Workflow ${workflowId} not found`);
+  }
 
-  // Log cancellation event
+  if ((TERMINAL_STATUSES as readonly string[]).includes(existing.status)) {
+    throw new Error(
+      `Workflow ${workflowId} cannot be cancelled — current status is "${existing.status}"`
+    );
+  }
+
+  // Atomically update workflow and cancel pending tasks
+  const [workflow] = await prisma.$transaction([
+    prisma.agentWorkflow.update({
+      where: { id: workflowId },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancelReason: reason,
+      },
+    }),
+    prisma.agentTask.updateMany({
+      where: {
+        workflowId,
+        status: { in: ['pending', 'queued'] },
+      },
+      data: { status: 'cancelled' },
+    }),
+  ]);
+
+  // Log cancellation event (fire-and-forget — handles its own failures)
   await logAgentEvent({
     workflowId,
     agent: 'coordinator',
