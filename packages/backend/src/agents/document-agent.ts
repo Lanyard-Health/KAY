@@ -15,7 +15,7 @@ const PDF_MIME_TYPES = ['application/pdf'];
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/tiff', 'image/webp'];
 
 // PHI fields that must never be logged
-const PHI_FIELDS = ['ssn', 'socialSecurityNumber', 'taxId', 'dateOfBirth', 'dob'];
+const PHI_FIELDS = ['ssn', 'socialSecurityNumber', 'taxId', 'dateOfBirth', 'dob', 'npi'];
 
 export interface DocumentJobData {
   workflowId: string;
@@ -141,6 +141,11 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
     const document = await prisma.document.findUnique({ where: { id: documentId } });
     if (!document) {
       throw new Error(`Document not found: ${documentId}`);
+    }
+
+    // Cross-provider safety check: document must belong to the workflow's provider
+    if (document.providerId !== providerId) {
+      throw new Error(`Document ${documentId} does not belong to provider ${providerId}`);
     }
 
     await logAgentEvent({
