@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { SparklesIcon, ChatBubbleLeftRightIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ChatBubbleLeftRightIcon, ShieldExclamationIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import {
   useAiStatus,
   useAiUsage,
@@ -13,6 +13,7 @@ import {
 import type { PortfolioItem, AiRecommendation } from '../../hooks/useAi';
 import AiEmailPreviewModal from './AiEmailPreviewModal';
 import ChatPanel from './ChatPanel';
+import ApprovalsTab from './ApprovalsTab';
 
 // ===========================
 // Helpers
@@ -52,7 +53,7 @@ export default function AiAgentDashboard() {
   const [portfolioResults, setPortfolioResults] = useState<PortfolioItem[] | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'approvals'>('dashboard');
 
   const [emailModal, setEmailModal] = useState<{
     isOpen: boolean;
@@ -162,12 +163,25 @@ export default function AiAgentDashboard() {
             <ChatBubbleLeftRightIcon className="h-4 w-4" />
             Chat
           </button>
+          <button
+            onClick={() => setActiveTab('approvals')}
+            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'approvals'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            <ShieldCheckIcon className="h-4 w-4" />
+            Approvals
+          </button>
         </nav>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'chat' ? (
         <ChatPanel />
+      ) : activeTab === 'approvals' ? (
+        <ApprovalsTab />
       ) : (
       <>
       {/* Portfolio Priority List */}
