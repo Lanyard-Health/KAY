@@ -75,7 +75,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
       boardCertifications: { select: { specialty: true, status: true, expirationDate: true } },
       malpracticeInsurances: { select: { carrierName: true, status: true, expirationDate: true } },
       deaRegistrations: { select: { deaNumber: true, status: true, expirationDate: true } },
-      educations: { select: { institution: true, degree: true } },
+      educations: { select: { institutionName: true, degree: true } },
     },
   });
 
