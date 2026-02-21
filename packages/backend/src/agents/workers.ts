@@ -12,6 +12,11 @@ import { processDocumentJob } from './document-agent.js';
 import type { DocumentJobData } from './document-agent.js';
 import { processOrchestratorJob } from './orchestrator/orchestrator.service.js';
 import type { OrchestratorJobData } from './orchestrator/orchestrator.service.js';
+import { processMonitorJob } from './monitor/monitor-agent.js';
+import type { MonitorJobData } from './monitor/types.js';
+import { processExceptionJob } from './exception/exception-agent.js';
+import type { ExceptionJobData } from './exception/types.js';
+import { startMonitorCron, stopMonitorCron } from './monitor/monitor-cron.js';
 
 // ==========================================
 // Worker configuration
@@ -95,6 +100,18 @@ function getProcessor(agentName: string) {
       return processDocumentJob(data);
     };
   }
+  if (agentName === 'monitor') {
+    return async (job: Job) => {
+      const data = job.data as MonitorJobData;
+      return processMonitorJob(data);
+    };
+  }
+  if (agentName === 'exception') {
+    return async (job: Job) => {
+      const data = job.data as ExceptionJobData;
+      return processExceptionJob(data);
+    };
+  }
   return createPlaceholderProcessor(agentName);
 }
 
@@ -113,6 +130,7 @@ export function initializeWorkers(): void {
   }
 
   registerPortalAdapters();
+  startMonitorCron();
   const connection = getRedisConfig();
 
   for (const config of WORKER_CONFIGS) {
@@ -152,6 +170,7 @@ export function initializeWorkers(): void {
  * Call during graceful shutdown.
  */
 export async function closeAllWorkers(): Promise<void> {
+  stopMonitorCron();
   await Promise.all(
     workers.map(async (worker) => {
       await worker.close();
