@@ -44,7 +44,7 @@ export function useApprovals(status?: string) {
       const { data } = await api.get<Approval[]>(endpoint);
       return data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: 60_000, // Fallback polling; WebSocket handles real-time updates
   });
 }
 
