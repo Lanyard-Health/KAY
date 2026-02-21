@@ -8,6 +8,8 @@ import { QUEUE_NAMES } from './queues.js';
 import { processPortalJob } from './portal/portal-agent.js';
 import type { PortalJobData } from './portal/portal-agent.js';
 import { registerPortalAdapters } from './portal/index.js';
+import { processDocumentJob } from './document-agent.js';
+import type { DocumentJobData } from './document-agent.js';
 
 // ==========================================
 // Worker configuration
@@ -77,6 +79,12 @@ function getProcessor(agentName: string) {
     return async (job: Job) => {
       const data = job.data as PortalJobData;
       return processPortalJob(data);
+    };
+  }
+  if (agentName === 'document_parser') {
+    return async (job: Job) => {
+      const data = job.data as DocumentJobData;
+      return processDocumentJob(data);
     };
   }
   return createPlaceholderProcessor(agentName);

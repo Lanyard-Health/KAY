@@ -422,6 +422,7 @@ enum CredentialSource {
   manual_entry
   caqh_sync
   portal_import
+  agent_parsed
 }
 
 enum LicenseType {
