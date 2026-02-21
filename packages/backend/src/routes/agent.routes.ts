@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ForbiddenError } from '../middleware/error.middleware.js';
+import { prisma } from '../utils/prisma.js';
 import {
   createWorkflow,
   listWorkflows,
@@ -40,7 +42,7 @@ const portalSubmissionSchema = z.object({
 
 const patchWorkflowSchema = z.object({
   action: z.enum(['cancel']),
-  reason: z.string().optional(),
+  reason: z.string().max(500).optional(),
 });
 
 // ==========================================
@@ -48,6 +50,16 @@ const patchWorkflowSchema = z.object({
 // ==========================================
 
 export const agentRoutes = Router();
+
+/** Build a Prisma where-clause that restricts workflows to the caller's practice(s). */
+function practiceFilter(req: Request) {
+  if (req.practiceScope?.isSuperAdmin) return {};
+  return {
+    provider: {
+      practiceId: { in: req.practiceScope?.practiceIds ?? [] },
+    },
+  };
+}
 
 const auth = [
   authenticate,
@@ -64,6 +76,20 @@ agentRoutes.post(
       if (!parsed.success) {
         res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
         return;
+      }
+
+      // Verify provider belongs to caller's practice (multi-tenancy check)
+      if (!req.practiceScope?.isSuperAdmin) {
+        const provider = await prisma.provider.findFirst({
+          where: {
+            id: parsed.data.providerId,
+            practiceId: { in: req.practiceScope?.practiceIds ?? [] },
+          },
+          select: { id: true },
+        });
+        if (!provider) {
+          throw new ForbiddenError('Provider not found in your practice');
+        }
       }
 
       const workflow = await createWorkflow({
@@ -96,7 +122,7 @@ agentRoutes.get(
         if (value !== undefined) (query as Record<string, unknown>)[key] = value;
       }
 
-      const workflows = await listWorkflows(query);
+      const workflows = await listWorkflows(query, practiceFilter(req));
       res.status(200).json(workflows);
     } catch (err) {
       next(err);
@@ -115,6 +141,20 @@ agentRoutes.get(
         res.status(404).json({ error: 'Workflow not found' });
         return;
       }
+      // Practice-scope check
+      if (!req.practiceScope?.isSuperAdmin) {
+        const provider = await prisma.provider.findFirst({
+          where: {
+            id: workflow.providerId,
+            practiceId: { in: req.practiceScope?.practiceIds ?? [] },
+          },
+          select: { id: true },
+        });
+        if (!provider) {
+          res.status(404).json({ error: 'Workflow not found' });
+          return;
+        }
+      }
       res.status(200).json(workflow);
     } catch (err) {
       next(err);
@@ -128,6 +168,19 @@ agentRoutes.get(
   ...auth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Practice-scope: verify caller owns this workflow's provider
+      if (!req.practiceScope?.isSuperAdmin) {
+        const wf = await prisma.agentWorkflow.findUnique({
+          where: { id: req.params['id']! },
+          select: { providerId: true },
+        });
+        if (!wf) { res.status(404).json({ error: 'Workflow not found' }); return; }
+        const p = await prisma.provider.findFirst({
+          where: { id: wf.providerId, practiceId: { in: req.practiceScope?.practiceIds ?? [] } },
+          select: { id: true },
+        });
+        if (!p) { res.status(404).json({ error: 'Workflow not found' }); return; }
+      }
       const events = await getWorkflowEvents(req.params['id']!);
       res.status(200).json(events);
     } catch (err) {
@@ -149,6 +202,20 @@ agentRoutes.patch(
       }
 
       const { action, reason } = parsed.data;
+
+      // Practice-scope: verify caller owns this workflow's provider
+      if (!req.practiceScope?.isSuperAdmin) {
+        const wf = await prisma.agentWorkflow.findUnique({
+          where: { id: req.params['id']! },
+          select: { providerId: true },
+        });
+        if (!wf) { res.status(404).json({ error: 'Workflow not found' }); return; }
+        const p = await prisma.provider.findFirst({
+          where: { id: wf.providerId, practiceId: { in: req.practiceScope?.practiceIds ?? [] } },
+          select: { id: true },
+        });
+        if (!p) { res.status(404).json({ error: 'Workflow not found' }); return; }
+      }
 
       if (action === 'cancel') {
         const workflow = await cancelWorkflow(req.params['id']!, reason ?? 'Cancelled by user');

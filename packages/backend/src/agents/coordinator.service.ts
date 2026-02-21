@@ -119,10 +119,10 @@ export async function getWorkflow(workflowId: string) {
 // listWorkflows
 // ==========================================
 
-export async function listWorkflows(filters: ListWorkflowsFilters) {
+export async function listWorkflows(filters: ListWorkflowsFilters, practiceWhere: Record<string, unknown> = {}) {
   const { status, providerId, limit = 20, offset = 0 } = filters;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...practiceWhere };
   if (status) where['status'] = status;
   if (providerId) where['providerId'] = providerId;
 
