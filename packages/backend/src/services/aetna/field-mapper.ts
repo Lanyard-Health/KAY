@@ -205,10 +205,11 @@ export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPay
 
     // Page 8: Mailing & Billing Addresses
     page8: {
-      mailingAddress: 'Same as primary address',
+      mailingAddress: 'Same as primary service location address',
       billingAddress: loc?.billingAddressLine1
         ? 'New billing address'
-        : 'Same as primary address',
+        : 'Same as primary service location address',
+      additionalServiceLocations: 'No',
       ...(loc?.billingAddressLine1 ? {
         billingStreet: loc.billingAddressLine1,
         billingCity: loc.billingCity ?? '',

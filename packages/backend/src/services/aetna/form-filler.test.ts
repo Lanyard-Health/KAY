@@ -17,9 +17,13 @@ function makeMockLocator(overrides: Record<string, any> = {}) {
     click: vi.fn().mockResolvedValue(undefined),
     isChecked: vi.fn().mockResolvedValue(false),
     isVisible: vi.fn().mockResolvedValue(true),
+    isDisabled: vi.fn().mockResolvedValue(false),
     textContent: vi.fn().mockResolvedValue(null),
+    allTextContents: vi.fn().mockResolvedValue([]),
     check: vi.fn().mockResolvedValue(undefined),
     press: vi.fn().mockResolvedValue(undefined),
+    count: vi.fn().mockResolvedValue(0),
+    setInputFiles: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
   locator.first = vi.fn().mockReturnValue(locator);
@@ -38,7 +42,7 @@ function makeMockPage(locatorOverrides: Record<string, any> = {}) {
     setViewportSize: vi.fn().mockResolvedValue(undefined),
     selectOption: vi.fn().mockResolvedValue(undefined),
     click: vi.fn().mockResolvedValue(undefined),
-    evaluate: vi.fn().mockResolvedValue(undefined),
+    evaluate: vi.fn().mockResolvedValue(true),
     keyboard: { press: vi.fn().mockResolvedValue(undefined) },
     _mockLocator: mockLocator, // exposed for assertions
   } as any;
@@ -73,7 +77,11 @@ function makeTestPayload(): AetnaFormPayload {
       zipcode: '06101', county: 'Hartford', phoneNumber: '555-111-2222',
       faxNumber: '555-111-2223', languages: 'English', workingDays: 'Monday-Friday',
     },
-    page8: { mailingAddress: 'Same as practice', billingAddress: 'Same as practice' },
+    page8: {
+      mailingAddress: 'Same as primary service location address',
+      billingAddress: 'Same as primary service location address',
+      additionalServiceLocations: 'No',
+    },
     page9: { hospitalPrivileges: 'Yes', facilityBased: 'No' },
     page10: {
       medicareCertified: 'Yes', medicaidCertified: 'No',
