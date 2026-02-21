@@ -22,6 +22,14 @@ vi.mock('./websocket.js', () => ({
   emitApprovalDecision: vi.fn(),
 }));
 
+const { mockNotifyTaskCompletion } = vi.hoisted(() => ({
+  mockNotifyTaskCompletion: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./coordinator.service.js', () => ({
+  notifyTaskCompletion: mockNotifyTaskCompletion,
+}));
+
 // ==========================================
 // Imports (after mocks)
 // ==========================================
@@ -158,6 +166,9 @@ describe('approval.service', () => {
         })
       );
 
+      // Should notify orchestrator to resume
+      expect(mockNotifyTaskCompletion).toHaveBeenCalledWith('wf-1', 'task-1', 'task_completed');
+
       expect(result).toEqual(approvedRecord);
     });
 
@@ -200,6 +211,9 @@ describe('approval.service', () => {
           action: 'approval_denied',
         })
       );
+
+      // Should notify orchestrator about failure
+      expect(mockNotifyTaskCompletion).toHaveBeenCalledWith('wf-1', 'task-1', 'task_failed');
 
       expect(result).toEqual(deniedRecord);
     });

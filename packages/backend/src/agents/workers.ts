@@ -17,6 +17,8 @@ import type { MonitorJobData } from './monitor/types.js';
 import { processExceptionJob } from './exception/exception-agent.js';
 import type { ExceptionJobData } from './exception/types.js';
 import { startMonitorCron, stopMonitorCron } from './monitor/monitor-cron.js';
+import { processApprovalJob } from './approval/approval-agent.js';
+import type { ApprovalJobData } from './approval/types.js';
 
 // ==========================================
 // Worker configuration
@@ -110,6 +112,12 @@ function getProcessor(agentName: string) {
     return async (job: Job) => {
       const data = job.data as ExceptionJobData;
       return processExceptionJob(data);
+    };
+  }
+  if (agentName === 'approval') {
+    return async (job: Job) => {
+      const data = job.data as ApprovalJobData;
+      return processApprovalJob(data);
     };
   }
   return createPlaceholderProcessor(agentName);

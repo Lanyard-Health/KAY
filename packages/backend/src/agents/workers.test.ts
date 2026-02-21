@@ -70,6 +70,10 @@ vi.mock('./exception/exception-agent.js', () => ({
   processExceptionJob: vi.fn().mockResolvedValue({ status: 'completed' }),
 }));
 
+vi.mock('./approval/approval-agent.js', () => ({
+  processApprovalJob: vi.fn().mockResolvedValue({ action: 'scheduled_expiry' }),
+}));
+
 import { initializeWorkers, closeAllWorkers } from './workers.js';
 
 // ==========================================
