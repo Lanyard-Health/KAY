@@ -53,6 +53,10 @@ vi.mock('./document-agent.js', () => ({
   processDocumentJob: vi.fn().mockResolvedValue({ status: 'completed' }),
 }));
 
+vi.mock('./orchestrator/orchestrator.service.js', () => ({
+  processOrchestratorJob: vi.fn().mockResolvedValue({ status: 'completed' }),
+}));
+
 import { initializeWorkers, closeAllWorkers } from './workers.js';
 
 // ==========================================

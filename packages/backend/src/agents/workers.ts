@@ -10,6 +10,8 @@ import type { PortalJobData } from './portal/portal-agent.js';
 import { registerPortalAdapters } from './portal/index.js';
 import { processDocumentJob } from './document-agent.js';
 import type { DocumentJobData } from './document-agent.js';
+import { processOrchestratorJob } from './orchestrator/orchestrator.service.js';
+import type { OrchestratorJobData } from './orchestrator/orchestrator.service.js';
 
 // ==========================================
 // Worker configuration
@@ -75,6 +77,12 @@ function createPlaceholderProcessor(agentName: string) {
 // ==========================================
 
 function getProcessor(agentName: string) {
+  if (agentName === 'orchestrator') {
+    return async (job: Job) => {
+      const data = job.data as OrchestratorJobData;
+      return processOrchestratorJob(data);
+    };
+  }
   if (agentName === 'portal_interaction') {
     return async (job: Job) => {
       const data = job.data as PortalJobData;

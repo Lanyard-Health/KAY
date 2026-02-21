@@ -307,3 +307,35 @@ export async function dispatchDocumentParsing(input: DispatchDocumentInput) {
 
   return task;
 }
+
+// ==========================================
+// notifyTaskCompletion
+// ==========================================
+
+/**
+ * Enqueues a task_callback job to the orchestrator queue so the
+ * orchestrator can decide what to do next after a task completes or fails.
+ */
+export async function notifyTaskCompletion(
+  workflowId: string,
+  taskId: string,
+  event: 'task_completed' | 'task_failed'
+) {
+  const queue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
+  await queue.add('task_callback', {
+    workflowId,
+    taskId,
+    event,
+    jobType: 'task_callback',
+  });
+
+  await logAgentEvent({
+    workflowId,
+    taskId,
+    agent: 'coordinator',
+    action: 'task_callback_enqueued',
+    data: { event },
+  });
+
+  logger.info('Task callback enqueued', { workflowId, taskId, event });
+}

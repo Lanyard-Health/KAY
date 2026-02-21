@@ -43,6 +43,7 @@ import {
   cancelWorkflow,
   dispatchPortalSubmission,
   dispatchDocumentParsing,
+  notifyTaskCompletion,
 } from './coordinator.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { getQueue } from './queues.js';
@@ -493,6 +494,38 @@ describe('coordinator.service', () => {
       expect(mockAdd).toHaveBeenCalledWith('parse_document', expect.objectContaining({
         extractionHints: ['npi', 'license'],
       }));
+    });
+  });
+
+  // ------------------------------------------
+  // notifyTaskCompletion
+  // ------------------------------------------
+
+  describe('notifyTaskCompletion', () => {
+    it('enqueues task_callback job to orchestrator queue', async () => {
+      await notifyTaskCompletion('wf-1', 'task-1', 'task_completed');
+
+      expect(getQueue).toHaveBeenCalledWith('agent-orchestrator');
+      expect(mockAdd).toHaveBeenCalledWith('task_callback', {
+        workflowId: 'wf-1',
+        taskId: 'task-1',
+        event: 'task_completed',
+        jobType: 'task_callback',
+      });
+    });
+
+    it('logs the callback event', async () => {
+      await notifyTaskCompletion('wf-1', 'task-1', 'task_failed');
+
+      expect(logAgentEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'wf-1',
+          taskId: 'task-1',
+          agent: 'coordinator',
+          action: 'task_callback_enqueued',
+          data: { event: 'task_failed' },
+        })
+      );
     });
   });
 });
