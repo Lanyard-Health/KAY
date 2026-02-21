@@ -14,6 +14,8 @@ import type { PortfolioItem, AiRecommendation } from '../../hooks/useAi';
 import AiEmailPreviewModal from './AiEmailPreviewModal';
 import ChatPanel from './ChatPanel';
 import ApprovalsTab from './ApprovalsTab';
+import { useApprovals } from '../../hooks/useApprovals';
+import { useApprovalSocket } from '../../hooks/useAgentSocket';
 
 // ===========================
 // Helpers
@@ -54,6 +56,11 @@ export default function AiAgentDashboard() {
   const [portfolioSummary, setPortfolioSummary] = useState('');
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'approvals'>('dashboard');
+
+  // WebSocket for real-time approval updates
+  useApprovalSocket();
+  const { data: pendingApprovals } = useApprovals('pending');
+  const pendingCount = pendingApprovals?.length ?? 0;
 
   const [emailModal, setEmailModal] = useState<{
     isOpen: boolean;
@@ -173,6 +180,11 @@ export default function AiAgentDashboard() {
           >
             <ShieldCheckIcon className="h-4 w-4" />
             Approvals
+            {pendingCount > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem]">
+                {pendingCount}
+              </span>
+            )}
           </button>
         </nav>
       </div>
