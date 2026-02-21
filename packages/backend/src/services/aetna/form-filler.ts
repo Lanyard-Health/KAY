@@ -448,15 +448,29 @@ async function fillPage6(page: Page, payload: AetnaFormPayload, lines: string[])
   await clickNextButton(page);
   await page.waitForTimeout(1000);
 
-  // Handle intermediate review page ("Practitioner Information" summary)
+  // Handle intermediate review/validation page that sometimes appears after page 6.
+  // It may be a "Contracting Information" page requiring a radio selection,
+  // or a "Practitioner Information" summary page.
   try {
-    const reviewNext = page.locator('button:has-text("Next"), button:has-text("Continue")').first();
-    if (await reviewNext.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const heading = page.locator('text=/Practitioner Information/i').first();
-      if (await heading.isVisible({ timeout: 1000 }).catch(() => false)) {
-        log(lines, 'Detected intermediate review page — clicking Next');
-        await reviewNext.click({ force: true });
+    const continueBtn = page.locator('button:has-text("Continue")').first();
+    if (await continueBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // Check for "Contracting Information" validation page
+      const contractingHeading = page.locator('text=/Contracting Information/i').first();
+      if (await contractingHeading.isVisible({ timeout: 1000 }).catch(() => false)) {
+        log(lines, 'Detected intermediate Contracting Information page');
+        // Select "Submitter" radio if not already selected
+        await clickMatRadio(page, 'Submitter', 'contact person for contracting');
+        await page.waitForTimeout(500);
+        await continueBtn.click({ force: true });
         await page.waitForTimeout(2000);
+      } else {
+        // Check for "Practitioner Information" summary page
+        const practHeading = page.locator('text=/Practitioner Information/i').first();
+        if (await practHeading.isVisible({ timeout: 1000 }).catch(() => false)) {
+          log(lines, 'Detected intermediate Practitioner Information page — clicking Continue');
+          await continueBtn.click({ force: true });
+          await page.waitForTimeout(2000);
+        }
       }
     }
   } catch {
@@ -510,10 +524,13 @@ async function fillPage7(page: Page, payload: AetnaFormPayload, lines: string[])
     }
   }
 
-  // Facility Fee radio — No
+  // Place of Service radio (formcontrolname="placeOfService")
+  await clickMatRadio(page, 'Office Based', 'place of service');
+
+  // Facility Fee radio (formcontrolname="facilityFee") — No
   await clickMatRadio(page, 'No', 'facility fee');
 
-  // ADA accessible
+  // ADA accessible (formcontrolname="locationSpecific")
   const adaClicked = await clickMatRadio(page, 'Yes', 'ada accessible');
   if (!adaClicked) {
     await clickMatRadio(page, 'Yes', 'ADA');
@@ -524,9 +541,6 @@ async function fillPage7(page: Page, payload: AetnaFormPayload, lines: string[])
 
   // FREQUENCY dropdown (if visible)
   try { await selectMatOption(page, 'FREQUENCY', 0); } catch { /* optional */ }
-
-  // Attestation checkbox (page 7 uses 'checkboxAttest', not 'checkboxSelect')
-  await checkCheckbox(page, 'checkboxAttest');
 
   const screenshot = await screenshotPage(page);
   await clickNextButton(page);
