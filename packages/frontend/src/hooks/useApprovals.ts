@@ -85,3 +85,37 @@ export function useDecideApproval() {
     },
   });
 }
+
+export function useBulkDecideApprovals() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      ids,
+      decision,
+      notes,
+    }: {
+      ids: string[];
+      decision: 'approved' | 'denied';
+      notes?: string;
+    }) => api.post<{ succeeded: string[]; failed: { id: string; error: string }[] }>(
+      '/agent/approvals/bulk-decide',
+      { ids, decision, notes },
+    ),
+    onSuccess: (response, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      const { succeeded, failed } = response.data;
+      if (succeeded.length > 0) {
+        toast.success(
+          `${succeeded.length} approval${succeeded.length > 1 ? 's' : ''} ${variables.decision}`,
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(`${failed.length} failed: ${failed[0]?.error ?? 'Unknown error'}`);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(`Bulk decision failed: ${error.message}`);
+    },
+  });
+}

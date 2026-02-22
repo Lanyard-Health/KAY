@@ -11,6 +11,7 @@ import {
   useApprovals,
   useApprovalDetail,
   useDecideApproval,
+  useBulkDecideApprovals,
 } from '../../hooks/useApprovals';
 import type { Approval } from '../../hooks/useApprovals';
 
@@ -85,8 +86,12 @@ export default function ApprovalsTab() {
   );
   const { data: detailResp } = useApprovalDetail(selectedId);
   const decideApproval = useDecideApproval();
+  const bulkDecide = useBulkDecideApprovals();
 
   const approvals: Approval[] = approvalsResp ?? [];
+  const pendingSelected = approvals.filter(
+    (a) => selectedIds.has(a.id) && a.status === 'pending',
+  );
   const detail: Approval | null | undefined = detailResp;
 
   const handleDecision = (decision: 'approved' | 'denied') => {
@@ -141,6 +146,43 @@ export default function ApprovalsTab() {
           </button>
         ))}
       </div>
+
+      {/* Bulk Action Toolbar */}
+      {pendingSelected.length > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-2">
+          <span className="text-sm font-medium text-primary-700">
+            {pendingSelected.length} pending selected
+          </span>
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={() => {
+                bulkDecide.mutate(
+                  { ids: pendingSelected.map((a) => a.id), decision: 'approved' },
+                  { onSuccess: () => setSelectedIds(new Set()) },
+                );
+              }}
+              disabled={bulkDecide.isPending}
+              className="inline-flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              <CheckCircleIcon className="h-4 w-4" />
+              Approve All
+            </button>
+            <button
+              onClick={() => {
+                bulkDecide.mutate(
+                  { ids: pendingSelected.map((a) => a.id), decision: 'denied' },
+                  { onSuccess: () => setSelectedIds(new Set()) },
+                );
+              }}
+              disabled={bulkDecide.isPending}
+              className="inline-flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <XCircleIcon className="h-4 w-4" />
+              Deny All
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       {isLoading ? (

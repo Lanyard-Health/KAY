@@ -69,6 +69,12 @@ const decideApprovalSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+const bulkDecideSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(50),
+  decision: z.enum(['approved', 'denied']),
+  notes: z.string().max(1000).optional(),
+});
+
 // ==========================================
 // Router
 // ==========================================
@@ -347,6 +353,48 @@ agentRoutes.get(
       const filters = { ...parsed.data };
       const approvals = await listPendingApprovals(filters, practiceFilter(req));
       res.status(200).json(approvals);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /approvals/bulk-decide — approve or deny multiple approvals
+agentRoutes.post(
+  '/approvals/bulk-decide',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = bulkDecideSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      const { ids, decision, notes } = parsed.data;
+      const succeeded: string[] = [];
+      const failed: { id: string; error: string }[] = [];
+
+      for (const id of ids) {
+        try {
+          const hasAccess = await verifyApprovalAccess(req, id);
+          if (!hasAccess) {
+            failed.push({ id, error: 'Not found or access denied' });
+            continue;
+          }
+
+          await decideApproval(id, {
+            decision,
+            decidedBy: req.user!.id,
+            notes,
+          });
+          succeeded.push(id);
+        } catch (err) {
+          failed.push({ id, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      res.status(200).json({ succeeded, failed });
     } catch (err) {
       next(err);
     }
