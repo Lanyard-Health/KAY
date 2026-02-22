@@ -61,6 +61,7 @@ import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
 import { approvalRoutes } from './routes/approval.routes.js';
 import searchRoutes from './routes/search.routes.js';
+import commandCenterRoutes from './routes/command-center.routes.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -201,6 +202,7 @@ app.use('/api/v1/reporting', reportingRoutes);
 app.use('/api/v1/enrollments/:enrollmentId/aetna', aetnaRoutes);
 
 app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1/command-center', commandCenterRoutes);
 app.use('/api/v1/agent', agentRoutes);
 app.use('/api/v1/agent/approvals', approvalRoutes);
 

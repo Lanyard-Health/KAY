@@ -4,6 +4,8 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getCached, setCache } from '../utils/cache.js';
+import { getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
+import { computeHealthScore } from '../services/health-score.service.js';
 
 const router = Router();
 
@@ -17,13 +19,15 @@ const CACHE_TTL = 60_000; // 60 seconds
  * GET /api/v1/dashboard/stats
  * Lightweight aggregated stats for the dashboard
  */
-router.get('/stats', async (_req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
     const cached = getCached<Record<string, unknown>>(CACHE_KEY);
     if (cached) {
       res.json({ success: true, data: cached });
       return;
     }
+
+    const practiceFilter = getPracticeProviderFilter(req);
 
     // Provider counts by status — single groupBy query
     const statusCounts = await prisma.provider.groupBy({
@@ -103,14 +107,31 @@ router.get('/stats', async (_req: Request, res: Response) => {
       },
     });
 
+    // Active enrollment count
+    const activeEnrollments = await prisma.payerEnrollment.count({
+      where: {
+        status: { notIn: ['terminated', 'denied'] },
+        provider: practiceFilter,
+      },
+    });
+
+    // Health score + trends (cached separately at 5min TTL)
+    const healthData = await computeHealthScore(practiceFilter);
+
     const result = {
       totalProviders,
       activeProviders,
       pendingProviders,
+      activeEnrollments,
       incompleteProviders,
       incompleteCount,
       needsFollowUp,
       followUpCount,
+      credentialingHealthScore: healthData.credentialingHealthScore,
+      revenueAtRisk: healthData.revenueAtRisk,
+      aiActionsToday: healthData.aiActionsToday,
+      trendData: healthData.trendData,
+      healthBreakdown: healthData.breakdown,
     };
 
     setCache(CACHE_KEY, result, CACHE_TTL);
