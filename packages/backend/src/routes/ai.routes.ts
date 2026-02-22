@@ -24,6 +24,7 @@ import {
   getRecommendations,
   updateRecommendationStatus,
   generateExpirationAlerts,
+  getContextualRecommendations,
 } from '../services/ai.service.js';
 import {
   sendChatMessage,
@@ -157,10 +158,12 @@ router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_sta
 router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { type, status, enrollmentId } = recommendationsQuerySchema.parse(req.query);
+    const providerId = typeof req.query['providerId'] === 'string' ? req.query['providerId'] : undefined;
     const recommendations = await getRecommendations({
       ...(type && { type: type as 'follow_up_email' | 'strategy' | 'priority_alert' }),
       ...(status && { status: status as 'pending' | 'accepted' | 'dismissed' }),
       enrollmentId,
+      providerId,
     });
     res.json({ success: true, data: recommendations });
   } catch (error) {
@@ -211,6 +214,30 @@ router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin')
     });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch usage stats' });
+  }
+});
+
+/**
+ * GET /api/v1/ai/contextual-recommendations — Data-driven recommendations for a provider or enrollment
+ */
+router.get('/contextual-recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+  try {
+    const entityType = req.query['entityType'];
+    const entityId = req.query['entityId'];
+
+    if (entityType !== 'provider' && entityType !== 'enrollment') {
+      return res.status(400).json({ success: false, error: 'entityType must be "provider" or "enrollment"' });
+    }
+    if (typeof entityId !== 'string' || !entityId) {
+      return res.status(400).json({ success: false, error: 'entityId is required' });
+    }
+
+    const recommendations = await getContextualRecommendations(entityType, entityId);
+    res.json({ success: true, data: recommendations });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch contextual recommendations';
+    const status = message.includes('not found') ? 404 : 500;
+    res.status(status).json({ success: false, error: message });
   }
 });
 

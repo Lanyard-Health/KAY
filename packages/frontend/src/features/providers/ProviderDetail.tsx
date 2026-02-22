@@ -47,12 +47,19 @@ import { CaqhCard } from '../../components/CaqhCard';
 import DirectoryStatusCard from '../../components/DirectoryStatusCard';
 import { usePdmAlerts } from '../../hooks/usePdmStatus';
 import { useVerifyMedicare } from '../../hooks/useMedicareVerification';
+import AiSidebar from '../../components/AiSidebar';
+import SupervisionTracker from './SupervisionTracker';
+import MultiStateLicenseGrid from './MultiStateLicenseGrid';
+import TaxonomyAssistant from './TaxonomyAssistant';
+import { ShieldCheckIcon, MapIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
   { name: 'Overview', icon: BuildingOfficeIcon },
   { name: 'Checklist', icon: ClipboardDocumentCheckIcon },
   { name: 'Enrollments', icon: BuildingOfficeIcon },
   { name: 'Tasks', icon: ListBulletIcon },
+  { name: 'Licenses', icon: MapIcon },
+  { name: 'Supervision', icon: ShieldCheckIcon },
 ];
 
 function CollapsibleSection({
@@ -1478,6 +1485,22 @@ export default function ProviderDetail() {
                 {/* CAQH ProView */}
                 <CaqhCard providerId={id!} />
 
+                {/* Taxonomy Assistant */}
+                <TaxonomyAssistant
+                  providerId={id!}
+                  providerType={provider.providerType}
+                  currentTaxonomy={provider.taxonomy}
+                  onUpdate={async (code: string) => {
+                    try {
+                      await api.patch(`/providers/${id}`, { taxonomy: code });
+                      queryClient.invalidateQueries({ queryKey: ['provider', id] });
+                      toast.success('Taxonomy code updated');
+                    } catch {
+                      toast.error('Failed to update taxonomy');
+                    }
+                  }}
+                />
+
                 {/* Medicare Enrollment */}
                 <div className="card card-body">
                   <div className="flex items-center justify-between mb-3">
@@ -1610,8 +1633,41 @@ export default function ProviderDetail() {
           <Tab.Panel>
             {activeTab === 3 && <ProviderTasks providerId={id!} />}
           </Tab.Panel>
+
+          {/* Multi-State License Grid Tab */}
+          <Tab.Panel>
+            {activeTab === 4 && (
+              <MultiStateLicenseGrid
+                providerId={id!}
+                licenses={provider.licenses || []}
+                providerType={provider.providerType}
+                onAddLicense={() => {
+                  setEditingLicense(null);
+                  setLicenseModalOpen(true);
+                }}
+              />
+            )}
+          </Tab.Panel>
+
+          {/* Supervision Tab */}
+          <Tab.Panel>
+            {activeTab === 5 && (
+              <SupervisionTracker
+                providerId={id!}
+                providerType={provider.providerType}
+                supervisingPhysicians={supervisingPhysiciansList || []}
+                onAdd={() => {
+                  setEditingSupervisingPhysician(null);
+                  setSupervisingPhysicianModalOpen(true);
+                }}
+              />
+            )}
+          </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>
+
+      {/* AI Sidebar */}
+      <AiSidebar entityType="provider" entityId={id!} />
 
       {/* Lazy-loaded modals */}
       <ErrorBoundary>

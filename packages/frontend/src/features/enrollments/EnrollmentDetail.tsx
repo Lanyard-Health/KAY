@@ -12,6 +12,7 @@ import {
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
+import AiSidebar from '../../components/AiSidebar';
 import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
@@ -223,6 +224,9 @@ export default function EnrollmentDetail() {
           onClose={() => setActiveRunId(null)}
         />
       )}
+
+      {/* AI Sidebar */}
+      <AiSidebar entityType="enrollment" entityId={enrollment.id} />
     </div>
   );
 }
