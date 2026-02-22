@@ -13,6 +13,16 @@ Before completing ANY task, automatically perform these checks on all changed fi
 
 6. ERROR HANDLING: Never expose stack traces, internal paths, or system details in error responses.
 
+## Prisma Schema Changes — ALWAYS Generate Migrations
+**Critical**: Any change to `prisma/schema.prisma` (new columns, new models, altered fields, new enums) **MUST** include a migration file. Without it, `prisma generate` creates a client that expects columns/tables that don't exist in production, causing 500 errors on every query that touches the changed models.
+
+After modifying the schema, always run:
+```bash
+cd packages/backend
+npx prisma migrate dev --name <short_description>
+```
+This generates the migration SQL file in `prisma/migrations/`. Commit it alongside the schema change. **Never** merge a PR that changes `schema.prisma` without a corresponding migration file — CI will fail the Schema Drift Check.
+
 ## Monorepo Build Order
 This is a monorepo with three packages: `packages/shared`, `packages/backend`, `packages/frontend`.
 
@@ -105,6 +115,7 @@ npm run dev --workspace=packages/frontend &
 | Upload works locally but not production | R2 env vars missing or wrong | Verify `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` are set on Render. |
 | Provider approval fails with 500 | Email already exists in User table | `submitApplication()` and `approveApplication()` now check email uniqueness. Check for orphaned User records with duplicate emails. |
 | No signup/approval email received | `SES_FROM_EMAIL` env var not set | Email service silently disables when `SES_FROM_EMAIL` is missing. Set it in Render env vars. Also set `ADMIN_EMAIL` for admin notifications. |
+| "Failed to load enrollments" (or any model) in production | Missing Prisma migration | Schema was changed without generating a migration. Run `npx prisma migrate dev --name <desc>` locally, commit the migration file, and deploy. CI Schema Drift Check catches this. |
 
 ## .env Handling Rules
 - `.env` files are gitignored — NEVER commit them
