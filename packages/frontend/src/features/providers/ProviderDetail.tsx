@@ -2,7 +2,7 @@ import { useState, Fragment, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ListBulletIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ArrowPathIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 // jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
@@ -51,15 +51,14 @@ import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
 import TaxonomyAssistant from './TaxonomyAssistant';
+import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
 import { ShieldCheckIcon, MapIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
-  { name: 'Overview', icon: BuildingOfficeIcon },
-  { name: 'Checklist', icon: ClipboardDocumentCheckIcon },
+  { name: 'Profile', icon: UserCircleIcon },
+  { name: 'Credentials', icon: ShieldCheckIcon },
   { name: 'Enrollments', icon: BuildingOfficeIcon },
-  { name: 'Tasks', icon: ListBulletIcon },
-  { name: 'Licenses', icon: MapIcon },
-  { name: 'Supervision', icon: ShieldCheckIcon },
+  { name: 'Activity', icon: ClipboardDocumentCheckIcon },
 ];
 
 function CollapsibleSection({
@@ -646,185 +645,197 @@ export default function ProviderDetail() {
     );
   }
 
+  // Compute credential completeness score (0-100)
+  const completenessScore = (() => {
+    let score = 0;
+    if (provider.licenses?.length > 0) score += 20;
+    if (provider.boardCertifications?.length > 0) score += 15;
+    if ((educationList?.length || 0) > 0) score += 12;
+    if ((workHistoryList?.length || 0) > 0) score += 8;
+    if ((malpracticeInsuranceList?.length || 0) > 0) score += 15;
+    if ((deaRegistrationsList?.length || 0) > 0) score += 10;
+    if (provider.practiceLocations?.length > 0) score += 10;
+    if (provider.documents?.length > 0) score += 5;
+    if (provider.taxonomy) score += 5;
+    return score;
+  })();
+
+  const primaryLocation = provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0];
+  const maskedTaxId = primaryLocation?.taxId ? `****${primaryLocation.taxId.slice(-4)}` : null;
+
   return (
     <div>
       {/* PDM Alert Banner */}
       {(overdueCount > 0 || dueSoonCount > 0) && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-start">
-            <svg
-              className="h-5 w-5 text-red-600 mt-0.5 mr-3"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
+        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-center gap-3">
+          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+            <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <div>
-              <h3 className="text-sm font-medium text-red-800">PDM Attestation Required</h3>
-              <p className="mt-1 text-sm text-red-700">
-                {overdueCount > 0 && (
-                  <span className="font-semibold">{overdueCount} enrollment(s) are overdue. </span>
-                )}
-                {dueSoonCount > 0 && (
-                  <span>{dueSoonCount} enrollment(s) due soon. </span>
-                )}
-                Per CAA 2021, provider directory information must be attested every 90 days.
-              </p>
-            </div>
           </div>
+          <p className="text-sm text-amber-800">
+            <span className="font-semibold">PDM Attestation Required</span>
+            {overdueCount > 0 && <span> — {overdueCount} overdue</span>}
+            {dueSoonCount > 0 && <span> — {dueSoonCount} due soon</span>}
+          </p>
         </div>
       )}
 
-      {/* Header */}
-      <div className="sm:flex sm:items-center sm:justify-between mb-8">
-        <div className="flex items-center">
-          <div className="h-16 w-16 rounded-full bg-primary-100 flex items-center justify-center">
-            <span className="text-primary-600 text-2xl font-bold">
-              {provider.firstName[0]}{provider.lastName[0]}
-            </span>
-          </div>
-          <div className="ml-4">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">
-                {provider.firstName} {provider.lastName}
-                {provider.suffix && `, ${provider.suffix}`}
-              </h1>
-              <RefreshIndicator isFetching={isFetching && !isLoading} />
-            </div>
-            <p className="text-sm text-gray-500">
-              NPI: {provider.npi} | {provider.providerType.replace('_', ' ')}
-            </p>
-            {(() => {
-              const primaryLocation = provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0];
-              const maskedTaxId = primaryLocation?.taxId
-                ? `****${primaryLocation.taxId.slice(-4)}`
-                : '\u2014';
-              return (
-                <p className="text-sm text-gray-500">
-                  Group NPI: {primaryLocation?.groupNpi || '\u2014'} | Tax ID: {maskedTaxId}
-                </p>
-              );
-            })()}
-          </div>
-        </div>
-        <div className="mt-4 sm:mt-0 flex gap-3">
-          <Link to={`/providers/${id}/edit`} className="btn-secondary">
-            <PencilIcon className="-ml-1 mr-2 h-5 w-5" />
-            Edit
-          </Link>
-
-          {/* Export Dropdown */}
-          <Menu as="div" className="relative inline-block text-left">
-            <Menu.Button className="btn-primary inline-flex items-center">
-              <DocumentArrowDownIcon className="-ml-1 mr-2 h-5 w-5" />
-              Export Data
-              <ChevronDownIcon className="ml-2 -mr-1 h-4 w-4" />
-            </Menu.Button>
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items className="absolute right-0 z-10 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                <div className="py-1">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={exportToCSV}
-                        className={clsx(
-                          active ? 'bg-gray-100 text-gray-900' : 'text-gray-700',
-                          'block w-full text-left px-4 py-2 text-sm'
-                        )}
-                      >
-                        Export as CSV
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={exportToPDF}
-                        className={clsx(
-                          active ? 'bg-gray-100 text-gray-900' : 'text-gray-700',
-                          'block w-full text-left px-4 py-2 text-sm'
-                        )}
-                      >
-                        Export as PDF
-                      </button>
-                    )}
-                  </Menu.Item>
+      {/* Hero Header */}
+      <div className="card overflow-hidden mb-6">
+        <div className="h-20 bg-gradient-to-r from-primary-800 via-primary-600 to-emerald-500" />
+        <div className="px-6 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between -mt-8">
+            <div className="flex items-end gap-4">
+              <div className="h-16 w-16 rounded-2xl bg-white shadow-lg border-2 border-white flex items-center justify-center ring-1 ring-gray-200/60">
+                <span className="text-primary-600 text-xl font-bold tracking-tight">
+                  {provider.firstName[0]}{provider.lastName[0]}
+                </span>
+              </div>
+              <div className="pb-0.5">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                    {provider.firstName} {provider.lastName}
+                    {provider.suffix && `, ${provider.suffix}`}
+                  </h1>
+                  <RefreshIndicator isFetching={isFetching && !isLoading} />
+                  <span className={clsx(
+                    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
+                    provider.status === 'active' && 'bg-green-100 text-green-700',
+                    provider.status === 'inactive' && 'bg-gray-100 text-gray-600',
+                    provider.status === 'pending' && 'bg-amber-100 text-amber-700'
+                  )}>
+                    {provider.status}
+                  </span>
                 </div>
-              </Menu.Items>
-            </Transition>
-          </Menu>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  NPI: {provider.npi} &middot; {provider.providerType.replace('_', ' ')}
+                  {provider.taxonomy && ` \u00B7 ${provider.taxonomy}`}
+                  {primaryLocation?.groupNpi && ` \u00B7 Group: ${primaryLocation.groupNpi}`}
+                  {maskedTaxId && ` \u00B7 Tax ID: ${maskedTaxId}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 sm:mt-0">
+              <Link to={`/providers/${id}/edit`} className="btn-secondary text-sm">
+                <PencilIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
+                Edit
+              </Link>
+              <Menu as="div" className="relative">
+                <Menu.Button className="btn-primary text-sm inline-flex items-center">
+                  <DocumentArrowDownIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
+                  Export
+                  <ChevronDownIcon className="ml-1.5 -mr-0.5 h-3.5 w-3.5" />
+                </Menu.Button>
+                <Transition
+                  as={Fragment}
+                  enter="transition ease-out duration-100"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute right-0 z-10 mt-2 w-40 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-black/5 focus:outline-none">
+                    <div className="py-1">
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button onClick={exportToCSV} className={clsx(active ? 'bg-gray-50' : '', 'block w-full text-left px-4 py-2 text-sm text-gray-700')}>
+                            Export as CSV
+                          </button>
+                        )}
+                      </Menu.Item>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button onClick={exportToPDF} className={clsx(active ? 'bg-gray-50' : '', 'block w-full text-left px-4 py-2 text-sm text-gray-700')}>
+                            Export as PDF
+                          </button>
+                        )}
+                      </Menu.Item>
+                    </div>
+                  </Menu.Items>
+                </Transition>
+              </Menu>
+            </div>
+          </div>
+
+          {/* Stats Row with Completeness Gauge */}
+          <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-3">
+              <HealthScoreGauge score={completenessScore} size={52} strokeWidth={5} label="Complete" />
+              <div>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Credential Health</p>
+                <p className="text-lg font-bold text-gray-900 -mt-0.5">{completenessScore}%</p>
+              </div>
+            </div>
+            <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+            {[
+              { label: 'Licenses', value: provider.licenses?.length || 0 },
+              { label: 'Certifications', value: provider.boardCertifications?.length || 0 },
+              { label: 'Enrollments', value: provider.payerEnrollments?.length || 0 },
+              { label: 'Documents', value: provider.documents?.length || 0 },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                <p className="text-lg font-bold text-gray-900 -mt-0.5">{stat.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
-        <Tab.List className="flex space-x-4 border-b border-gray-200 mb-6">
+        <Tab.List className="flex space-x-1 bg-gray-100/80 rounded-xl p-1 mb-6">
           {TABS.map((tab) => (
             <Tab
               key={tab.name}
               className={({ selected }) =>
                 clsx(
-                  'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px focus:outline-none',
+                  'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none',
                   selected
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-white text-primary-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
                 )
               }
             >
-              <tab.icon className="h-5 w-5" />
+              <tab.icon className="h-4 w-4" />
               {tab.name}
             </Tab>
           ))}
         </Tab.List>
 
         <Tab.Panels>
-          {/* Overview Tab */}
+          {/* ===== PROFILE TAB ===== */}
           <Tab.Panel>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main Info */}
               <div className="lg:col-span-2 space-y-6">
 
-                {/* 1. Personal Information */}
-                <CollapsibleSection title="Personal Information" defaultOpen>
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Email</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{provider.email}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Phone</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{provider.phone}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Date of Birth</dt>
-                      <dd className="mt-1 text-sm text-gray-900">
-                        {provider.dateOfBirth ? format(new Date(provider.dateOfBirth), 'MMMM d, yyyy') : '—'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-500">Gender</dt>
-                      <dd className="mt-1 text-sm text-gray-900 capitalize">
-                        {provider.gender.replace('_', ' ')}
-                      </dd>
-                    </div>
-                  </dl>
-                </CollapsibleSection>
+                {/* Personal Information — card grid instead of accordion */}
+                <div className="card">
+                  <div className="card-header">
+                    <h2 className="text-base font-semibold text-gray-900">Personal Information</h2>
+                  </div>
+                  <div className="card-body">
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                      {[
+                        { label: 'Email', value: provider.email },
+                        { label: 'Phone', value: provider.phone },
+                        { label: 'Mobile', value: provider.mobilePhone || '\u2014' },
+                        { label: 'Date of Birth', value: provider.dateOfBirth ? format(new Date(provider.dateOfBirth), 'MMMM d, yyyy') : '\u2014' },
+                        { label: 'Gender', value: provider.gender?.replace('_', ' ') },
+                        { label: 'Provider Type', value: provider.providerType?.replace('_', ' ') },
+                      ].map((field) => (
+                        <div key={field.label}>
+                          <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider">{field.label}</dt>
+                          <dd className="mt-1 text-sm text-gray-900 capitalize">{field.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                </div>
 
-                {/* 2. Practice Locations */}
+                {/* Practice Locations */}
                 <CollapsibleSection
                   title="Practice Locations"
                   defaultOpen
@@ -834,64 +845,43 @@ export default function ProviderDetail() {
                 >
                   {!provider.practiceLocations || provider.practiceLocations.length === 0 ? (
                     <div className="text-center py-6">
-                      <MapPinIcon className="mx-auto h-12 w-12 text-gray-400" />
+                      <MapPinIcon className="mx-auto h-10 w-10 text-gray-300" />
                       <p className="mt-2 text-sm text-gray-500">No practice locations added yet.</p>
-                      <button
-                        onClick={handleAddLocation}
-                        className="mt-2 text-sm text-primary-600 hover:text-primary-500"
-                      >
+                      <button onClick={handleAddLocation} className="mt-2 text-sm text-primary-600 hover:text-primary-500">
                         Add your first location
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {provider.practiceLocations.map((location: any) => (
-                        <div
-                          key={location.id}
-                          className="p-4 bg-gray-50 rounded-lg"
-                        >
+                        <div key={location.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
                           <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">{location.locationName}</p>
+                                <p className="font-medium text-gray-900 truncate">{location.locationName}</p>
                                 {location.isPrimary && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
-                                    Primary
-                                  </span>
+                                  <span className="badge-primary text-[10px]">Primary</span>
                                 )}
                                 {!location.isActive && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                                    Inactive
-                                  </span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500">Inactive</span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-500 capitalize">{location.locationType}</p>
+                              <p className="text-xs text-gray-500 capitalize mt-0.5">{location.locationType}</p>
                               <p className="text-sm text-gray-600 mt-1">
-                                {location.addressLine1}
-                                {location.addressLine2 && `, ${location.addressLine2}`}
+                                {location.addressLine1}{location.addressLine2 && `, ${location.addressLine2}`}
                               </p>
-                              <p className="text-sm text-gray-600">
-                                {location.city}, {location.state} {location.zipCode}
-                              </p>
-                              <p className="text-sm text-gray-500 mt-1">{location.phone}</p>
+                              <p className="text-sm text-gray-600">{location.city}, {location.state} {location.zipCode}</p>
+                              {location.phone && <p className="text-xs text-gray-400 mt-1">{location.phone}</p>}
                               {location.acceptingNewPatients && (
-                                <p className="text-xs text-green-600 mt-1">Accepting new patients</p>
+                                <p className="text-[10px] text-green-600 font-medium mt-1">Accepting new patients</p>
                               )}
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <button
-                                onClick={() => handleEditLocation(location)}
-                                className="text-primary-600 hover:text-primary-900"
-                                aria-label="Edit location"
-                              >
-                                <PencilIcon className="h-4 w-4" />
+                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleEditLocation(location)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit location">
+                                <PencilIcon className="h-3.5 w-3.5" />
                               </button>
-                              <button
-                                onClick={() => handleDeleteLocation(location.id)}
-                                className="text-red-600 hover:text-red-900"
-                                aria-label="Delete location"
-                              >
-                                <TrashIcon className="h-4 w-4" />
+                              <button onClick={() => handleDeleteLocation(location.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete location">
+                                <TrashIcon className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </div>
@@ -901,202 +891,43 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* 3. Licenses */}
-                <CollapsibleSection
-                  title="Licenses"
-                  defaultOpen
-                  count={provider.licenses?.length || 0}
-                  onAdd={handleAddLicense}
-                  addLabel="Add License"
-                >
-                  {provider.licenses?.length === 0 ? (
-                    <p className="text-sm text-gray-500">No licenses added yet.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {provider.licenses?.map((license: any) => (
-                        <div
-                          key={license.id}
-                          className="p-4 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">
-                                {license.licenseType.replace('_', ' ')} - {license.state}
-                              </p>
-                              <p className="text-sm text-gray-500">#{license.licenseNumber}</p>
-                            </div>
-                            <div className="flex items-center gap-3 ml-4">
-                              <div className="text-right">
-                                <p className="text-sm text-gray-500">Expires</p>
-                                <p className={clsx(
-                                  'text-sm font-medium',
-                                  new Date(license.expirationDate) < new Date() ? 'text-red-600' : 'text-gray-900'
-                                )}>
-                                  {format(new Date(license.expirationDate), 'MMM d, yyyy')}
-                                </p>
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleEditLicense(license)}
-                                  className="text-primary-600 hover:text-primary-900"
-                                  aria-label="Edit license"
-                                >
-                                  <PencilIcon className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteLicense(license.id)}
-                                  className="text-red-600 hover:text-red-900"
-                                  aria-label="Delete license"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 4. Board Certifications */}
-                <CollapsibleSection
-                  title="Board Certifications"
-                  defaultOpen
-                  count={provider.boardCertifications?.length || 0}
-                  onAdd={handleAddCert}
-                  addLabel="Add Certification"
-                >
-                  {provider.boardCertifications?.length === 0 ? (
-                    <p className="text-sm text-gray-500">No certifications added yet.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {provider.boardCertifications?.map((cert: any) => (
-                        <div
-                          key={cert.id}
-                          className="p-4 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{cert.boardName}</p>
-                              <p className="text-sm text-gray-500">{cert.specialty}</p>
-                            </div>
-                            <div className="flex items-center gap-3 ml-4">
-                              <div className="text-right">
-                                {cert.expirationDate && (
-                                  <>
-                                    <p className="text-sm text-gray-500">Expires</p>
-                                    <p className="text-sm font-medium text-gray-900">
-                                      {format(new Date(cert.expirationDate), 'MMM d, yyyy')}
-                                    </p>
-                                  </>
-                                )}
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleEditCert(cert)}
-                                  className="text-primary-600 hover:text-primary-900"
-                                  aria-label="Edit certification"
-                                >
-                                  <PencilIcon className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteCert(cert.id)}
-                                  className="text-red-600 hover:text-red-900"
-                                  aria-label="Delete certification"
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 5. DEA Registrations */}
-                <CollapsibleSection
-                  title="DEA Registrations"
-                  count={deaRegistrationsList?.length || 0}
-                  onAdd={handleAddDeaRegistration}
-                  addLabel="Add DEA"
-                >
-                  {(!deaRegistrationsList || deaRegistrationsList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No DEA registrations added yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {deaRegistrationsList.map((dea: any) => (
-                        <div key={dea.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">DEA #{dea.deaNumber}</p>
-                                <span className={clsx(
-                                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                                  dea.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                                )}>
-                                  {dea.status}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {dea.deaState && `State: ${dea.deaState} | `}
-                                Schedules: {dea.deaSchedules?.join(', ') || 'None'}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                Expires: {dea.expirationDate ? format(new Date(dea.expirationDate), 'MMM d, yyyy') : 'N/A'}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditDeaRegistration(dea)} className="text-primary-600 hover:text-primary-900" aria-label="Edit DEA registration">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteDeaRegistration(dea.id)} className="text-red-600 hover:text-red-900" aria-label="Delete DEA registration">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 6. Education & Training */}
+                {/* Education & Training */}
                 <CollapsibleSection
                   title="Education & Training"
                   count={educationList?.length || 0}
                   onAdd={handleAddEducation}
-                  addLabel="Add Education"
+                  addLabel="Add"
                 >
                   {(!educationList || educationList.length === 0) ? (
                     <p className="text-sm text-gray-500">No education records added yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {educationList.map((edu: any) => (
-                        <div key={edu.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{edu.institutionName}</p>
-                              <p className="text-sm text-gray-500">
+                        <div key={edu.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex gap-3">
+                            <div className="mt-0.5 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <AcademicCapIcon className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm text-gray-900">{edu.institutionName}</p>
+                              <p className="text-xs text-gray-500">
                                 {edu.degree?.toUpperCase()} in {edu.fieldOfStudy}
                                 {edu.educationType && ` (${edu.educationType.replace('_', ' ')})`}
                               </p>
-                              <p className="text-sm text-gray-400">
+                              <p className="text-xs text-gray-400">
                                 {edu.startDate ? format(new Date(edu.startDate), 'MMM yyyy') : ''}
                                 {' \u2013 '}
                                 {edu.endDate ? format(new Date(edu.endDate), 'MMM yyyy') : 'Present'}
                               </p>
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditEducation(edu)} className="text-primary-600 hover:text-primary-900" aria-label="Edit education">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteEducation(edu.id)} className="text-red-600 hover:text-red-900" aria-label="Delete education">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditEducation(edu)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit education">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteEducation(edu.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete education">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1104,44 +935,45 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* 7. Work History */}
+                {/* Work History */}
                 <CollapsibleSection
                   title="Work History"
                   count={workHistoryList?.length || 0}
                   onAdd={handleAddWorkHistory}
-                  addLabel="Add Work History"
+                  addLabel="Add"
                 >
                   {(!workHistoryList || workHistoryList.length === 0) ? (
                     <p className="text-sm text-gray-500">No work history added yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {workHistoryList.map((wh: any) => (
-                        <div key={wh.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                        <div key={wh.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex gap-3">
+                            <div className="mt-0.5 h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                              <BriefcaseIcon className="h-4 w-4 text-purple-600" />
+                            </div>
+                            <div>
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">{wh.organizationName}</p>
+                                <p className="font-medium text-sm text-gray-900">{wh.organizationName}</p>
                                 {wh.isCurrent && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                    Current
-                                  </span>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">Current</span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-500">{wh.position}</p>
-                              <p className="text-sm text-gray-400">
+                              <p className="text-xs text-gray-500">{wh.position}</p>
+                              <p className="text-xs text-gray-400">
                                 {wh.startDate ? format(new Date(wh.startDate), 'MMM yyyy') : ''}
                                 {' \u2013 '}
                                 {wh.isCurrent ? 'Present' : (wh.endDate ? format(new Date(wh.endDate), 'MMM yyyy') : '')}
                               </p>
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditWorkHistory(wh)} className="text-primary-600 hover:text-primary-900" aria-label="Edit work history">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteWorkHistory(wh.id)} className="text-red-600 hover:text-red-900" aria-label="Delete work history">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditWorkHistory(wh)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit work history">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteWorkHistory(wh.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete work history">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1149,236 +981,37 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* 8. Supervising Physicians */}
-                <CollapsibleSection
-                  title="Supervising Physicians"
-                  count={supervisingPhysiciansList?.length || 0}
-                  onAdd={handleAddSupervisingPhysician}
-                  addLabel="Add Supervisor"
-                >
-                  {(!supervisingPhysiciansList || supervisingPhysiciansList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No supervising physicians added yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {supervisingPhysiciansList.map((sp: any) => (
-                        <div key={sp.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">
-                                  {sp.supervisorFirstName} {sp.supervisorLastName}
-                                </p>
-                                {sp.isPrimary && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
-                                    Primary
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {sp.supervisionType.replace('_', ' ')} supervision
-                                {sp.supervisorNpi && ` | NPI: ${sp.supervisorNpi}`}
-                              </p>
-                              <p className="text-sm text-gray-400">
-                                From {sp.agreementStartDate ? format(new Date(sp.agreementStartDate), 'MMM d, yyyy') : 'N/A'}
-                                {sp.agreementEndDate && ` to ${format(new Date(sp.agreementEndDate), 'MMM d, yyyy')}`}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditSupervisingPhysician(sp)} className="text-primary-600 hover:text-primary-900" aria-label="Edit supervising physician">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteSupervisingPhysician(sp.id)} className="text-red-600 hover:text-red-900" aria-label="Delete supervising physician">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 9. Malpractice Insurance */}
-                <CollapsibleSection
-                  title="Malpractice Insurance"
-                  count={malpracticeInsuranceList?.length || 0}
-                  onAdd={handleAddMalpracticeInsurance}
-                  addLabel="Add Insurance"
-                >
-                  {(!malpracticeInsuranceList || malpracticeInsuranceList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No malpractice insurance records added yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {malpracticeInsuranceList.map((ins: any) => (
-                        <div key={ins.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{ins.carrierName}</p>
-                              <p className="text-sm text-gray-500">
-                                Policy #{ins.policyNumber} | {ins.coverageType?.replace('_', ' ')}
-                              </p>
-                              <p className="text-sm text-gray-400">
-                                {ins.effectiveDate ? format(new Date(ins.effectiveDate), 'MMM d, yyyy') : ''}
-                                {' \u2013 '}
-                                {ins.expirationDate ? format(new Date(ins.expirationDate), 'MMM d, yyyy') : ''}
-                              </p>
-                              {ins.hasTailCoverage && (
-                                <p className="text-xs text-blue-600 mt-1">Has tail coverage</p>
-                              )}
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditMalpracticeInsurance(ins)} className="text-primary-600 hover:text-primary-900" aria-label="Edit malpractice insurance">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteMalpracticeInsurance(ins.id)} className="text-red-600 hover:text-red-900" aria-label="Delete malpractice insurance">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 10. Malpractice Claims History */}
-                <CollapsibleSection
-                  title="Malpractice Claims History"
-                  count={malpracticeClaimsList?.length || 0}
-                  onAdd={handleAddMalpracticeClaim}
-                  addLabel="Add Claim"
-                >
-                  {(!malpracticeClaimsList || malpracticeClaimsList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No malpractice claims recorded.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {malpracticeClaimsList.map((mc: any) => (
-                        <div key={mc.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">
-                                  Incident: {mc.dateOfIncident ? format(new Date(mc.dateOfIncident), 'MMM d, yyyy') : 'N/A'}
-                                </p>
-                                <span className={clsx(
-                                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                                  mc.claimStatus === 'DISMISSED' || mc.claimStatus === 'JUDGMENT_FOR_PROVIDER'
-                                    ? 'bg-green-100 text-green-800'
-                                    : mc.claimStatus === 'OPEN'
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-gray-100 text-gray-600'
-                                )}>
-                                  {mc.claimStatus?.replace(/_/g, ' ')}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-500 line-clamp-2">{mc.description}</p>
-                              {(mc.settlementAmount || mc.judgmentAmount) && (
-                                <p className="text-sm text-gray-400 mt-1">
-                                  {mc.settlementAmount ? `Settlement: $${mc.settlementAmount.toLocaleString()}` : ''}
-                                  {mc.judgmentAmount ? `Judgment: $${mc.judgmentAmount.toLocaleString()}` : ''}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditMalpracticeClaim(mc)} className="text-primary-600 hover:text-primary-900" aria-label="Edit malpractice claim">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="text-red-600 hover:text-red-900" aria-label="Delete malpractice claim">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 11. Disclosure Questions */}
-                <CollapsibleSection
-                  title="Disclosure Questions"
-                  count={disclosuresList?.length || 0}
-                  onAdd={handleAddDisclosure}
-                  addLabel="Add Disclosure"
-                >
-                  {(!disclosuresList || disclosuresList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No disclosures recorded.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {disclosuresList.map((d: any) => (
-                        <div key={d.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">
-                                  {d.category?.replace(/_/g, ' ')}
-                                </p>
-                                <span className={clsx(
-                                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                                  d.answer ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                )}>
-                                  {d.answer ? 'Yes' : 'No'}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-500 line-clamp-2">{d.questionText}</p>
-                              {d.answer && d.explanation && (
-                                <p className="text-sm text-gray-400 mt-1 line-clamp-1">
-                                  Explanation: {d.explanation}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditDisclosure(d)} className="text-primary-600 hover:text-primary-900" aria-label="Edit disclosure">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteDisclosure(d.id)} className="text-red-600 hover:text-red-900" aria-label="Delete disclosure">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
-                {/* 12. Provider Identifiers */}
+                {/* Provider Identifiers */}
                 <CollapsibleSection
                   title="Provider Identifiers"
                   count={providerIdentifiersList?.length || 0}
                   onAdd={handleAddProviderIdentifier}
-                  addLabel="Add Identifier"
+                  addLabel="Add"
                 >
                   {(!providerIdentifiersList || providerIdentifiersList.length === 0) ? (
                     <p className="text-sm text-gray-500">No identifiers added yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {providerIdentifiersList.map((pi: any) => (
-                        <div key={pi.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">
-                                {pi.identifierType?.replace(/_/g, ' ')}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {pi.identifierValue}
-                                {pi.issuingEntity && ` | ${pi.issuingEntity}`}
-                                {pi.state && ` | ${pi.state}`}
-                              </p>
-                              {pi.expirationDate && (
-                                <p className="text-sm text-gray-400">
-                                  Expires: {format(new Date(pi.expirationDate), 'MMM d, yyyy')}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditProviderIdentifier(pi)} className="text-primary-600 hover:text-primary-900" aria-label="Edit identifier">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteProviderIdentifier(pi.id)} className="text-red-600 hover:text-red-900" aria-label="Delete identifier">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
+                        <div key={pi.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <p className="font-medium text-sm text-gray-900">{pi.identifierType?.replace(/_/g, ' ')}</p>
+                            <p className="text-xs text-gray-500">
+                              {pi.identifierValue}
+                              {pi.issuingEntity && ` \u00B7 ${pi.issuingEntity}`}
+                              {pi.state && ` \u00B7 ${pi.state}`}
+                            </p>
+                            {pi.expirationDate && (
+                              <p className="text-xs text-gray-400">Expires: {format(new Date(pi.expirationDate), 'MMM d, yyyy')}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditProviderIdentifier(pi)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit identifier">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteProviderIdentifier(pi.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete identifier">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1386,44 +1019,34 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* 13. Banking / EFT */}
+                {/* Banking / EFT */}
                 <CollapsibleSection
                   title="Banking / EFT"
                   count={bankingList?.length || 0}
                   onAdd={handleAddBanking}
-                  addLabel="Add Banking"
+                  addLabel="Add"
                 >
                   {(!bankingList || bankingList.length === 0) ? (
                     <p className="text-sm text-gray-500">No banking records added yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {bankingList.map((b: any) => (
-                        <div key={b.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium text-gray-900">{b.bankName}</p>
-                                {b.isPrimary && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
-                                    Primary
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {b.bankAccountType} | Acct: {b.accountNumberEncrypted}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                Holder: {b.accountHolderName}
-                              </p>
+                        <div key={b.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-gray-900">{b.bankName}</p>
+                              {b.isPrimary && <span className="badge-primary text-[10px]">Primary</span>}
                             </div>
-                            <div className="flex gap-2 ml-4">
-                              <button onClick={() => handleEditBanking(b)} className="text-primary-600 hover:text-primary-900" aria-label="Edit banking info">
-                                <PencilIcon className="h-4 w-4" />
-                              </button>
-                              <button onClick={() => handleDeleteBanking(b.id)} className="text-red-600 hover:text-red-900" aria-label="Delete banking info">
-                                <TrashIcon className="h-4 w-4" />
-                              </button>
-                            </div>
+                            <p className="text-xs text-gray-500">{b.bankAccountType} \u00B7 Acct: {b.accountNumberEncrypted}</p>
+                            <p className="text-xs text-gray-400">Holder: {b.accountHolderName}</p>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditBanking(b)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit banking info">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteBanking(b.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete banking info">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1431,49 +1054,26 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* 14. Additional Demographics */}
+                {/* Additional Demographics */}
                 <CollapsibleSection title="Additional Demographics">
                   <DemographicsForm providerId={id!} />
                 </CollapsibleSection>
-
               </div>
 
               {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Status Card */}
-                <div className="card card-body">
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">Status</h3>
-                  <span
-                    className={clsx(
-                      'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize',
-                      provider.status === 'active' && 'bg-green-100 text-green-800',
-                      provider.status === 'inactive' && 'bg-gray-100 text-gray-800',
-                      provider.status === 'pending' && 'bg-yellow-100 text-yellow-800'
-                    )}
-                  >
-                    {provider.status}
-                  </span>
-                </div>
-
+              <div className="space-y-4">
                 {/* Practice Assignment */}
                 <div className="card card-body">
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">Practice</h3>
+                  <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Practice</h3>
                   {provider.practice ? (
                     <div>
-                      <Link
-                        to={`/practices/${provider.practice.id}`}
-                        className="text-sm font-medium text-primary-600 hover:text-primary-500"
-                      >
+                      <Link to={`/practices/${provider.practice.id}`} className="text-sm font-medium text-primary-600 hover:text-primary-500">
                         {provider.practice.name}
                       </Link>
-                      <span
-                        className={clsx(
-                          'ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                          provider.practice.status === 'ACTIVE'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        )}
-                      >
+                      <span className={clsx(
+                        'ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                        provider.practice.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      )}>
                         {provider.practice.status}
                       </span>
                     </div>
@@ -1482,10 +1082,8 @@ export default function ProviderDetail() {
                   )}
                 </div>
 
-                {/* CAQH ProView */}
                 <CaqhCard providerId={id!} />
 
-                {/* Taxonomy Assistant */}
                 <TaxonomyAssistant
                   providerId={id!}
                   providerType={provider.providerType}
@@ -1503,24 +1101,23 @@ export default function ProviderDetail() {
 
                 {/* Medicare Enrollment */}
                 <div className="card card-body">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-gray-500">Medicare Enrollment</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">Medicare</h3>
                     <button
                       onClick={() => verifyMedicareMutation.mutate(id!)}
                       disabled={verifyMedicareMutation.isPending}
                       className="text-xs text-primary-600 hover:text-primary-500 flex items-center gap-1"
                       title="Re-verify with CMS"
                     >
-                      <ArrowPathIcon className={clsx('h-3.5 w-3.5', verifyMedicareMutation.isPending && 'animate-spin')} />
+                      <ArrowPathIcon className={clsx('h-3 w-3', verifyMedicareMutation.isPending && 'animate-spin')} />
                       {verifyMedicareMutation.isPending ? 'Verifying...' : 'Verify'}
                     </button>
                   </div>
-
                   {provider.medicareVerification ? (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <span className={clsx(
-                          'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                          'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
                           provider.medicareVerification.status === 'ENROLLED' && 'bg-green-100 text-green-800',
                           provider.medicareVerification.status === 'NOT_ENROLLED' && 'bg-yellow-100 text-yellow-800',
                           provider.medicareVerification.status === 'UNVERIFIED' && 'bg-gray-100 text-gray-600',
@@ -1531,19 +1128,15 @@ export default function ProviderDetail() {
                         {provider.medicareVerification.verifiedAt && (() => {
                           const daysSince = Math.floor((Date.now() - new Date(provider.medicareVerification.verifiedAt).getTime()) / 86400000);
                           return daysSince > 30 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                              Stale
-                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Stale</span>
                           ) : null;
                         })()}
                       </div>
-
                       {provider.medicareVerification.rawData?.pacId && (
-                        <p className="text-xs text-gray-500 mb-2">PAC ID: {provider.medicareVerification.rawData.pacId}</p>
+                        <p className="text-xs text-gray-500 mb-1">PAC ID: {provider.medicareVerification.rawData.pacId}</p>
                       )}
-
                       {provider.medicareVerification.rawData?.enrollments?.length > 0 && (
-                        <div className="text-xs text-gray-600 space-y-1 mb-2">
+                        <div className="text-xs text-gray-600 space-y-0.5 mb-1">
                           {provider.medicareVerification.rawData.enrollments.map((enrollment: any, idx: number) => (
                             <p key={idx} className="truncate" title={enrollment.providerTypeDesc}>
                               &bull; {enrollment.state}: {enrollment.providerTypeDesc?.replace('PRACTITIONER - ', '')}
@@ -1552,9 +1145,8 @@ export default function ProviderDetail() {
                           ))}
                         </div>
                       )}
-
                       {provider.medicareVerification.rawData?.orderingPrivileges && (
-                        <div className="text-xs text-gray-500 space-y-0.5 mb-2">
+                        <div className="text-xs text-gray-500 space-y-0.5 mb-1">
                           <p className="font-medium text-gray-600">Ordering Privileges:</p>
                           {provider.medicareVerification.rawData.orderingPrivileges.partB && <p>&#10003; Part B</p>}
                           {provider.medicareVerification.rawData.orderingPrivileges.dme && <p>&#10003; DME</p>}
@@ -1563,104 +1155,405 @@ export default function ProviderDetail() {
                           {provider.medicareVerification.rawData.orderingPrivileges.hospice && <p>&#10003; Hospice</p>}
                         </div>
                       )}
-
                       {provider.medicareVerification.verifiedAt && (
-                        <p className="text-xs text-gray-400 mt-2">
+                        <p className="text-xs text-gray-400 mt-1">
                           Verified: {format(new Date(provider.medicareVerification.verifiedAt), 'MMM d, yyyy')}
                         </p>
                       )}
                     </div>
                   ) : (
                     <div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                        Unverified
-                      </span>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Click Verify to check Medicare enrollment status.
-                      </p>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Unverified</span>
+                      <p className="text-xs text-gray-500 mt-1">Click Verify to check Medicare enrollment status.</p>
                     </div>
                   )}
                 </div>
 
-                {/* PDM Compliance */}
                 <PdmComplianceCard providerId={id!} />
-
-                {/* Directory Verification */}
                 <DirectoryStatusCard providerId={id!} />
 
                 {/* Documents */}
                 <div className="card card-body">
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">Documents</h3>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {provider.documents?.length || 0}
-                  </p>
-                  <p className="text-sm text-gray-500">documents uploaded</p>
+                  <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Documents</h3>
+                  <p className="text-2xl font-bold text-gray-900">{provider.documents?.length || 0}</p>
+                  <p className="text-xs text-gray-500">documents uploaded</p>
                   <div className="mt-2 flex gap-3">
-                    <Link to="/documents" className="text-sm text-primary-600 hover:text-primary-500">
-                      View All
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setUploadDocumentType('');
-                        setUploadModalOpen(true);
-                      }}
-                      className="text-sm text-primary-600 hover:text-primary-500"
-                    >
-                      Upload
-                    </button>
+                    <Link to="/documents" className="text-xs text-primary-600 hover:text-primary-500">View All</Link>
+                    <button onClick={() => { setUploadDocumentType(''); setUploadModalOpen(true); }} className="text-xs text-primary-600 hover:text-primary-500">Upload</button>
                   </div>
                 </div>
               </div>
             </div>
           </Tab.Panel>
 
-          {/* Checklist Tab */}
+          {/* ===== CREDENTIALS TAB ===== */}
           <Tab.Panel>
             {activeTab === 1 && (
-              <ProviderChecklist
-                providerId={id!}
-                onUploadDocument={handleUploadDocument}
-              />
+              <div className="space-y-6">
+                {/* Credential Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Licenses', count: provider.licenses?.length || 0, color: 'bg-emerald-50 text-emerald-700', icon: MapIcon },
+                    { label: 'Board Certs', count: provider.boardCertifications?.length || 0, color: 'bg-blue-50 text-blue-700', icon: ShieldCheckIcon },
+                    { label: 'DEA', count: deaRegistrationsList?.length || 0, color: 'bg-purple-50 text-purple-700', icon: DocumentTextIcon },
+                    { label: 'Insurance', count: malpracticeInsuranceList?.length || 0, color: 'bg-amber-50 text-amber-700', icon: ShieldCheckIcon },
+                  ].map((item) => (
+                    <div key={item.label} className="card card-body flex items-center gap-3">
+                      <div className={clsx('h-10 w-10 rounded-xl flex items-center justify-center', item.color)}>
+                        <item.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900">{item.count}</p>
+                        <p className="text-xs text-gray-500">{item.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Licenses — Card Grid */}
+                <div className="card">
+                  <div className="card-header flex items-center justify-between">
+                    <h2 className="text-base font-semibold text-gray-900">Licenses</h2>
+                    <button onClick={handleAddLicense} className="text-sm text-primary-600 hover:text-primary-500 flex items-center">
+                      <PlusIcon className="h-4 w-4 mr-1" />Add
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {provider.licenses?.length === 0 ? (
+                      <p className="text-sm text-gray-500">No licenses added yet.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {provider.licenses?.map((license: any) => {
+                          const isExpired = new Date(license.expirationDate) < new Date();
+                          return (
+                            <div key={license.id} className={clsx(
+                              'group relative p-4 rounded-xl border transition-colors',
+                              isExpired ? 'bg-red-50/50 border-red-200' : 'bg-gray-50 border-gray-100 hover:border-primary-200'
+                            )}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm text-gray-900">
+                                      {license.licenseType.replace('_', ' ')}
+                                    </p>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200/80 text-gray-600">
+                                      {license.state}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">#{license.licenseNumber}</p>
+                                  <p className={clsx('text-xs mt-1', isExpired ? 'text-red-600 font-medium' : 'text-gray-400')}>
+                                    {isExpired ? 'Expired' : 'Expires'}: {format(new Date(license.expirationDate), 'MMM d, yyyy')}
+                                  </p>
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => handleEditLicense(license)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit license">
+                                    <PencilIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteLicense(license.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete license">
+                                    <TrashIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Multi-State License Grid */}
+                <MultiStateLicenseGrid
+                  providerId={id!}
+                  licenses={provider.licenses || []}
+                  providerType={provider.providerType}
+                  onAddLicense={() => { setEditingLicense(null); setLicenseModalOpen(true); }}
+                />
+
+                {/* Board Certifications — Card Grid */}
+                <div className="card">
+                  <div className="card-header flex items-center justify-between">
+                    <h2 className="text-base font-semibold text-gray-900">Board Certifications</h2>
+                    <button onClick={handleAddCert} className="text-sm text-primary-600 hover:text-primary-500 flex items-center">
+                      <PlusIcon className="h-4 w-4 mr-1" />Add
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {provider.boardCertifications?.length === 0 ? (
+                      <p className="text-sm text-gray-500">No certifications added yet.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {provider.boardCertifications?.map((cert: any) => (
+                          <div key={cert.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-900">{cert.boardName}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{cert.specialty}</p>
+                                {cert.expirationDate && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Expires: {format(new Date(cert.expirationDate), 'MMM d, yyyy')}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => handleEditCert(cert)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit certification">
+                                  <PencilIcon className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => handleDeleteCert(cert.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete certification">
+                                  <TrashIcon className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* DEA Registrations */}
+                <CollapsibleSection
+                  title="DEA Registrations"
+                  defaultOpen
+                  count={deaRegistrationsList?.length || 0}
+                  onAdd={handleAddDeaRegistration}
+                  addLabel="Add"
+                >
+                  {(!deaRegistrationsList || deaRegistrationsList.length === 0) ? (
+                    <p className="text-sm text-gray-500">No DEA registrations added yet.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {deaRegistrationsList.map((dea: any) => (
+                        <div key={dea.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm text-gray-900">DEA #{dea.deaNumber}</p>
+                                <span className={clsx(
+                                  'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                  dea.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                )}>{dea.status}</span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {dea.deaState && `${dea.deaState} \u00B7 `}Schedules: {dea.deaSchedules?.join(', ') || 'None'}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Expires: {dea.expirationDate ? format(new Date(dea.expirationDate), 'MMM d, yyyy') : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleEditDeaRegistration(dea)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit DEA">
+                                <PencilIcon className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteDeaRegistration(dea.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete DEA">
+                                <TrashIcon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Malpractice Insurance */}
+                <CollapsibleSection
+                  title="Malpractice Insurance"
+                  defaultOpen
+                  count={malpracticeInsuranceList?.length || 0}
+                  onAdd={handleAddMalpracticeInsurance}
+                  addLabel="Add"
+                >
+                  {(!malpracticeInsuranceList || malpracticeInsuranceList.length === 0) ? (
+                    <p className="text-sm text-gray-500">No malpractice insurance records added yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {malpracticeInsuranceList.map((ins: any) => (
+                        <div key={ins.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <p className="font-medium text-sm text-gray-900">{ins.carrierName}</p>
+                            <p className="text-xs text-gray-500">
+                              Policy #{ins.policyNumber} \u00B7 {ins.coverageType?.replace('_', ' ')}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {ins.effectiveDate ? format(new Date(ins.effectiveDate), 'MMM d, yyyy') : ''}
+                              {' \u2013 '}
+                              {ins.expirationDate ? format(new Date(ins.expirationDate), 'MMM d, yyyy') : ''}
+                            </p>
+                            {ins.hasTailCoverage && <p className="text-[10px] text-blue-600 font-medium mt-0.5">Has tail coverage</p>}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditMalpracticeInsurance(ins)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit insurance">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteMalpracticeInsurance(ins.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete insurance">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Malpractice Claims */}
+                <CollapsibleSection
+                  title="Malpractice Claims"
+                  count={malpracticeClaimsList?.length || 0}
+                  onAdd={handleAddMalpracticeClaim}
+                  addLabel="Add"
+                >
+                  {(!malpracticeClaimsList || malpracticeClaimsList.length === 0) ? (
+                    <p className="text-sm text-gray-500">No malpractice claims recorded.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {malpracticeClaimsList.map((mc: any) => (
+                        <div key={mc.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-gray-900">
+                                Incident: {mc.dateOfIncident ? format(new Date(mc.dateOfIncident), 'MMM d, yyyy') : 'N/A'}
+                              </p>
+                              <span className={clsx(
+                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                mc.claimStatus === 'DISMISSED' || mc.claimStatus === 'JUDGMENT_FOR_PROVIDER'
+                                  ? 'bg-green-100 text-green-800'
+                                  : mc.claimStatus === 'OPEN' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
+                              )}>{mc.claimStatus?.replace(/_/g, ' ')}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{mc.description}</p>
+                            {(mc.settlementAmount || mc.judgmentAmount) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {mc.settlementAmount ? `Settlement: $${mc.settlementAmount.toLocaleString()}` : ''}
+                                {mc.judgmentAmount ? ` Judgment: $${mc.judgmentAmount.toLocaleString()}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditMalpracticeClaim(mc)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit claim">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete claim">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Supervising Physicians */}
+                <CollapsibleSection
+                  title="Supervising Physicians"
+                  defaultOpen
+                  count={supervisingPhysiciansList?.length || 0}
+                  onAdd={handleAddSupervisingPhysician}
+                  addLabel="Add"
+                >
+                  {(!supervisingPhysiciansList || supervisingPhysiciansList.length === 0) ? (
+                    <p className="text-sm text-gray-500">No supervising physicians added yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {supervisingPhysiciansList.map((sp: any) => (
+                        <div key={sp.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-gray-900">{sp.supervisorFirstName} {sp.supervisorLastName}</p>
+                              {sp.isPrimary && <span className="badge-primary text-[10px]">Primary</span>}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {sp.supervisionType.replace('_', ' ')} supervision
+                              {sp.supervisorNpi && ` \u00B7 NPI: ${sp.supervisorNpi}`}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              From {sp.agreementStartDate ? format(new Date(sp.agreementStartDate), 'MMM d, yyyy') : 'N/A'}
+                              {sp.agreementEndDate && ` to ${format(new Date(sp.agreementEndDate), 'MMM d, yyyy')}`}
+                            </p>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditSupervisingPhysician(sp)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit supervisor">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteSupervisingPhysician(sp.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete supervisor">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Supervision Tracker */}
+                <SupervisionTracker
+                  providerId={id!}
+                  providerType={provider.providerType}
+                  supervisingPhysicians={supervisingPhysiciansList || []}
+                  onAdd={() => { setEditingSupervisingPhysician(null); setSupervisingPhysicianModalOpen(true); }}
+                />
+
+                {/* Disclosure Questions */}
+                <CollapsibleSection
+                  title="Disclosure Questions"
+                  count={disclosuresList?.length || 0}
+                  onAdd={handleAddDisclosure}
+                  addLabel="Add"
+                >
+                  {(!disclosuresList || disclosuresList.length === 0) ? (
+                    <p className="text-sm text-gray-500">No disclosures recorded.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {disclosuresList.map((d: any) => (
+                        <div key={d.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-gray-900">{d.category?.replace(/_/g, ' ')}</p>
+                              <span className={clsx(
+                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                d.answer ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                              )}>{d.answer ? 'Yes' : 'No'}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{d.questionText}</p>
+                            {d.answer && d.explanation && (
+                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">Explanation: {d.explanation}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditDisclosure(d)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit disclosure">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteDisclosure(d.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete disclosure">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+              </div>
             )}
           </Tab.Panel>
 
-          {/* Enrollments Tab */}
+          {/* ===== ENROLLMENTS TAB ===== */}
           <Tab.Panel>
             {activeTab === 2 && <ProviderEnrollments providerId={id!} />}
           </Tab.Panel>
 
-          {/* Tasks Tab */}
+          {/* ===== ACTIVITY TAB (Checklist + Tasks) ===== */}
           <Tab.Panel>
-            {activeTab === 3 && <ProviderTasks providerId={id!} />}
-          </Tab.Panel>
-
-          {/* Multi-State License Grid Tab */}
-          <Tab.Panel>
-            {activeTab === 4 && (
-              <MultiStateLicenseGrid
-                providerId={id!}
-                licenses={provider.licenses || []}
-                providerType={provider.providerType}
-                onAddLicense={() => {
-                  setEditingLicense(null);
-                  setLicenseModalOpen(true);
-                }}
-              />
-            )}
-          </Tab.Panel>
-
-          {/* Supervision Tab */}
-          <Tab.Panel>
-            {activeTab === 5 && (
-              <SupervisionTracker
-                providerId={id!}
-                providerType={provider.providerType}
-                supervisingPhysicians={supervisingPhysiciansList || []}
-                onAdd={() => {
-                  setEditingSupervisingPhysician(null);
-                  setSupervisingPhysicianModalOpen(true);
-                }}
-              />
+            {activeTab === 3 && (
+              <div className="space-y-8">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 mb-4">Credentialing Checklist</h2>
+                  <ProviderChecklist providerId={id!} onUploadDocument={handleUploadDocument} />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 mb-4">Tasks</h2>
+                  <ProviderTasks providerId={id!} />
+                </div>
+              </div>
             )}
           </Tab.Panel>
         </Tab.Panels>
