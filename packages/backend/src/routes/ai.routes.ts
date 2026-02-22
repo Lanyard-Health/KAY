@@ -82,7 +82,7 @@ router.get('/status', authorize('admin', 'credentialing_staff', 'practice_admin'
 router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+      return res.status(503).json({ success: false, error: 'AI service is not available.' });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -103,7 +103,7 @@ router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_
 router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+      return res.status(503).json({ success: false, error: 'AI service is not available.' });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -122,7 +122,7 @@ router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff',
 router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+      return res.status(503).json({ success: false, error: 'AI service is not available.' });
     }
     const result = await analyzePortfolio();
     res.json({ success: true, data: result });
@@ -139,7 +139,7 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'pra
 router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+      return res.status(503).json({ success: false, error: 'AI service is not available.' });
     }
     const { days } = expirationAlertSchema.parse(req.body || {});
     const result = await generateExpirationAlerts(days);
@@ -247,7 +247,7 @@ router.get('/contextual-recommendations', authorize('admin', 'credentialing_staf
 router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI is not configured. Set ANTHROPIC_API_KEY.' });
+      return res.status(503).json({ success: false, error: 'AI service is not available.' });
     }
     const { message, conversationId } = chatMessageSchema.parse(req.body || {});
     const result = await sendChatMessage({

@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { getOpsDashboardStats, getPracticesOverview, getStaffWorkload, getSlaSummary } from '../services/ops.service.js';
+
+const practicesQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  serviceTier: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
 
 const router = Router();
 
@@ -21,12 +29,7 @@ router.get('/dashboard', async (_req: Request, res: Response, next: NextFunction
 /** GET /api/v1/ops/practices */
 router.get('/practices', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const filters = {
-      search: req.query['search'] as string | undefined,
-      serviceTier: req.query['serviceTier'] as string | undefined,
-      page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : undefined,
-      limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : undefined,
-    };
+    const filters = practicesQuerySchema.parse(req.query);
     const data = await getPracticesOverview(filters);
     res.json({ success: true, data });
   } catch (error) {
