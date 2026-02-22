@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { getCached, setCache } from '../utils/cache.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
@@ -797,6 +798,281 @@ Respond with JSON only:
   );
 
   return { generated, skipped, providersProcessed, errors };
+}
+
+// ===========================
+// Contextual Recommendations (non-AI, data-driven)
+// ===========================
+
+interface ContextualRecommendation {
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  description: string;
+  actionUrl?: string;
+  actionLabel?: string;
+}
+
+export async function getContextualRecommendations(
+  entityType: 'provider' | 'enrollment',
+  entityId: string,
+): Promise<ContextualRecommendation[]> {
+  const cacheKey = `ai-recommendations:${entityType}:${entityId}`;
+  const cached = getCached<ContextualRecommendation[]>(cacheKey);
+  if (cached) return cached;
+
+  const recommendations: ContextualRecommendation[] = [];
+  const now = new Date();
+
+  if (entityType === 'provider') {
+    const provider = await prisma.provider.findUnique({
+      where: { id: entityId },
+      include: {
+        licenses: { where: { status: 'active' } },
+        boardCertifications: { where: { status: 'active' } },
+        deaRegistrations: { where: { status: 'active' } },
+        malpracticeInsurances: { where: { status: 'active' } },
+      },
+    });
+
+    if (!provider) {
+      throw new Error('Provider not found');
+    }
+
+    // Check licenses expiring within 90 days
+    for (const license of provider.licenses) {
+      const daysUntilExpiration = Math.floor(
+        (new Date(license.expirationDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilExpiration <= 90 && daysUntilExpiration > 0) {
+        const severity = daysUntilExpiration <= 30 ? 'critical' : 'warning';
+        recommendations.push({
+          type: 'license_expiration',
+          severity,
+          title: `License expiring in ${daysUntilExpiration} days`,
+          description: `${license.licenseType} license ${license.licenseNumber} in ${license.state || 'N/A'} expires on ${new Date(license.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      } else if (daysUntilExpiration <= 0) {
+        recommendations.push({
+          type: 'license_expired',
+          severity: 'critical',
+          title: 'License expired',
+          description: `${license.licenseType} license ${license.licenseNumber} in ${license.state || 'N/A'} expired on ${new Date(license.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      }
+    }
+
+    // Check for missing DEA registrations (prescribers should typically have one)
+    const prescriberTypes = ['psychiatrist', 'pmhnp'];
+    if (prescriberTypes.includes(provider.providerType) && provider.deaRegistrations.length === 0) {
+      recommendations.push({
+        type: 'missing_dea',
+        severity: 'warning',
+        title: 'No DEA registration on file',
+        description: `${provider.firstName} ${provider.lastName} is a ${provider.providerType} but has no DEA registration recorded.`,
+        actionUrl: `/providers/${entityId}?tab=credentials`,
+        actionLabel: 'Add DEA registration',
+      });
+    }
+
+    // Check DEA registrations expiring within 90 days
+    for (const dea of provider.deaRegistrations) {
+      const daysUntilExpiration = Math.floor(
+        (new Date(dea.expirationDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilExpiration <= 90 && daysUntilExpiration > 0) {
+        const severity = daysUntilExpiration <= 30 ? 'critical' : 'warning';
+        recommendations.push({
+          type: 'dea_expiration',
+          severity,
+          title: `DEA registration expiring in ${daysUntilExpiration} days`,
+          description: `DEA ${dea.deaNumber} expires on ${new Date(dea.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      }
+    }
+
+    // Check board certifications expiring within 90 days
+    for (const cert of provider.boardCertifications) {
+      if (!cert.expirationDate) continue;
+      const daysUntilExpiration = Math.floor(
+        (new Date(cert.expirationDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilExpiration <= 90 && daysUntilExpiration > 0) {
+        const severity = daysUntilExpiration <= 30 ? 'critical' : 'warning';
+        recommendations.push({
+          type: 'board_cert_expiration',
+          severity,
+          title: `Board certification expiring in ${daysUntilExpiration} days`,
+          description: `${cert.boardName} certification for ${cert.specialty} expires on ${new Date(cert.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      }
+    }
+
+    // Check CAQH sync staleness
+    if (provider.caqhProviderId && provider.caqhLastSync) {
+      const daysSinceSync = Math.floor(
+        (now.getTime() - new Date(provider.caqhLastSync).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysSinceSync > 30) {
+        recommendations.push({
+          type: 'caqh_stale',
+          severity: 'warning',
+          title: 'CAQH data is stale',
+          description: `Last CAQH sync was ${daysSinceSync} days ago. Data may be outdated.`,
+          actionUrl: `/providers/${entityId}`,
+          actionLabel: 'Sync CAQH',
+        });
+      }
+    } else if (provider.caqhProviderId && !provider.caqhLastSync) {
+      recommendations.push({
+        type: 'caqh_never_synced',
+        severity: 'info',
+        title: 'CAQH has never been synced',
+        description: 'Provider has a CAQH ID but data has never been pulled.',
+        actionUrl: `/providers/${entityId}`,
+        actionLabel: 'Sync CAQH',
+      });
+    }
+
+    // Check malpractice insurance expiring within 90 days
+    for (const insurance of provider.malpracticeInsurances) {
+      const daysUntilExpiration = Math.floor(
+        (new Date(insurance.expirationDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilExpiration <= 90 && daysUntilExpiration > 0) {
+        const severity = daysUntilExpiration <= 30 ? 'critical' : 'warning';
+        recommendations.push({
+          type: 'malpractice_expiration',
+          severity,
+          title: `Malpractice insurance expiring in ${daysUntilExpiration} days`,
+          description: `Policy ${insurance.policyNumber} with ${insurance.carrierName} expires on ${new Date(insurance.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      } else if (daysUntilExpiration <= 0) {
+        recommendations.push({
+          type: 'malpractice_expired',
+          severity: 'critical',
+          title: 'Malpractice insurance expired',
+          description: `Policy ${insurance.policyNumber} with ${insurance.carrierName} expired on ${new Date(insurance.expirationDate).toLocaleDateString()}.`,
+          actionUrl: `/providers/${entityId}?tab=credentials`,
+          actionLabel: 'View credentials',
+        });
+      }
+    }
+  } else {
+    // entityType === 'enrollment'
+    const enrollment = await prisma.payerEnrollment.findUnique({
+      where: { id: entityId },
+      include: {
+        payer: { select: { name: true, averageProcessingDays: true } },
+        provider: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    if (!enrollment) {
+      throw new Error('Enrollment not found');
+    }
+
+    // Estimated completion based on payer average processing days
+    if (enrollment.applicationDate && enrollment.payer.averageProcessingDays) {
+      const daysSinceApplication = Math.floor(
+        (now.getTime() - new Date(enrollment.applicationDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const daysRemaining = enrollment.payer.averageProcessingDays - daysSinceApplication;
+      if (daysRemaining > 0) {
+        recommendations.push({
+          type: 'estimated_completion',
+          severity: 'info',
+          title: `Estimated ~${daysRemaining} days remaining`,
+          description: `Based on ${enrollment.payer.name}'s average processing time of ${enrollment.payer.averageProcessingDays} days. Application submitted ${daysSinceApplication} days ago.`,
+        });
+      } else if (daysSinceApplication > enrollment.payer.averageProcessingDays) {
+        recommendations.push({
+          type: 'processing_overdue',
+          severity: 'warning',
+          title: 'Processing time exceeded average',
+          description: `Application has been pending for ${daysSinceApplication} days, exceeding ${enrollment.payer.name}'s average of ${enrollment.payer.averageProcessingDays} days.`,
+          actionUrl: `/enrollments/${entityId}`,
+          actionLabel: 'Follow up',
+        });
+      }
+    }
+
+    // No follow-up in >30 days for active enrollments
+    const activeStatuses = ['submitted', 'pending_review'];
+    if (activeStatuses.includes(enrollment.status)) {
+      const lastActivity = enrollment.lastFollowUpDate || enrollment.applicationDate;
+      if (lastActivity) {
+        const daysSinceActivity = Math.floor(
+          (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (daysSinceActivity > 30) {
+          recommendations.push({
+            type: 'follow_up_overdue',
+            severity: 'warning',
+            title: `No follow-up in ${daysSinceActivity} days`,
+            description: `This enrollment has been in "${enrollment.status.replace(/_/g, ' ')}" status with no follow-up for ${daysSinceActivity} days.`,
+            actionUrl: `/enrollments/${entityId}`,
+            actionLabel: 'Send follow-up',
+          });
+        }
+      } else {
+        recommendations.push({
+          type: 'no_activity_date',
+          severity: 'info',
+          title: 'No application date recorded',
+          description: 'Consider adding an application date to track processing time accurately.',
+          actionUrl: `/enrollments/${entityId}`,
+          actionLabel: 'Update enrollment',
+        });
+      }
+    }
+
+    // SLA target date approaching
+    if (enrollment.slaTargetDate) {
+      const daysUntilSla = Math.floor(
+        (new Date(enrollment.slaTargetDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysUntilSla <= 0 && !enrollment.slaBreachedAt) {
+        recommendations.push({
+          type: 'sla_breached',
+          severity: 'critical',
+          title: 'SLA target date passed',
+          description: `The SLA target of ${new Date(enrollment.slaTargetDate).toLocaleDateString()} has been exceeded by ${Math.abs(daysUntilSla)} days.`,
+          actionUrl: `/enrollments/${entityId}`,
+          actionLabel: 'Escalate',
+        });
+      } else if (daysUntilSla > 0 && daysUntilSla <= 14) {
+        const severity = daysUntilSla <= 7 ? 'critical' : 'warning';
+        recommendations.push({
+          type: 'sla_approaching',
+          severity,
+          title: `SLA target in ${daysUntilSla} days`,
+          description: `SLA target date is ${new Date(enrollment.slaTargetDate).toLocaleDateString()}. Consider prioritizing this enrollment.`,
+          actionUrl: `/enrollments/${entityId}`,
+          actionLabel: 'View enrollment',
+        });
+      }
+    }
+  }
+
+  // Sort: critical first, then warning, then info
+  const severityOrder = { critical: 0, warning: 1, info: 2 };
+  recommendations.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  setCache(cacheKey, recommendations, 10 * 60 * 1000); // 10 minute TTL
+  logger.info(`Generated ${recommendations.length} contextual recommendations for ${entityType} ${entityId}`);
+
+  return recommendations;
 }
 
 // ===========================

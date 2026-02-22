@@ -28,6 +28,7 @@ import clsx from 'clsx';
 import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
+import ApprovalToasts from './ApprovalToasts';
 import { useSearch } from '../hooks/useSearch';
 
 // ──────────────────────────────────────────────
@@ -406,6 +407,7 @@ export default function Layout() {
           </div>
         </footer>
       </div>
+      <ApprovalToasts />
     </div>
   );
 }

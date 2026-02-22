@@ -65,6 +65,7 @@ import commandCenterRoutes from './routes/command-center.routes.js';
 import opsRoutes from './routes/ops.routes.js';
 import opsWorkQueueRoutes from './routes/opsWorkQueue.routes.js';
 import opsAssignmentRoutes from './routes/opsAssignment.routes.js';
+import opsActivityRoutes from './routes/ops-activity.routes.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -209,6 +210,7 @@ app.use('/api/v1/command-center', commandCenterRoutes);
 app.use('/api/v1/ops', opsRoutes);
 app.use('/api/v1/ops/work-items', opsWorkQueueRoutes);
 app.use('/api/v1/ops/assignments', opsAssignmentRoutes);
+app.use('/api/v1/ops/activity', opsActivityRoutes);
 app.use('/api/v1/agent', agentRoutes);
 app.use('/api/v1/agent/approvals', approvalRoutes);
 

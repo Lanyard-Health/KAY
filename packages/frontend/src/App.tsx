@@ -44,6 +44,7 @@ const OpsPracticesList = lazy(() => import('./features/ops/OpsPracticesList'));
 const OpsPracticeDetail = lazy(() => import('./features/ops/OpsPracticeDetail'));
 const OpsStaffPage = lazy(() => import('./features/ops/OpsStaffPage'));
 const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
+const OpsActivityLog = lazy(() => import('./features/ops/OpsActivityLog'));
 
 function LoadingFallback() {
   return (
@@ -162,6 +163,7 @@ export default function App() {
           <Route path="ops/practices/:id" element={<OpsPracticeDetail />} />
           <Route path="ops/staff" element={<OpsStaffPage />} />
           <Route path="ops/sla" element={<OpsSlaDashboard />} />
+          <Route path="ops/activity" element={<OpsActivityLog />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

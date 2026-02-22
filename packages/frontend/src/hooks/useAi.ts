@@ -125,11 +125,12 @@ export function useAiUsage() {
   });
 }
 
-export function useAiRecommendations(filters?: { type?: string; status?: string; enrollmentId?: string }) {
+export function useAiRecommendations(filters?: { type?: string; status?: string; enrollmentId?: string; providerId?: string }) {
   const params = new URLSearchParams();
   if (filters?.type) params.set('type', filters.type);
   if (filters?.status) params.set('status', filters.status);
   if (filters?.enrollmentId) params.set('enrollmentId', filters.enrollmentId);
+  if (filters?.providerId) params.set('providerId', filters.providerId);
   const queryString = params.toString();
 
   return useQuery({
@@ -267,6 +268,29 @@ export function useUpdateRecommendation() {
       const message = error.response?.data?.error || error.message || 'Failed to update recommendation';
       toast.error(message);
     },
+  });
+}
+
+export interface ContextualRecommendation {
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  description: string;
+  actionUrl?: string;
+  actionLabel?: string;
+}
+
+export function useContextualRecommendations(entityType: 'provider' | 'enrollment', entityId: string) {
+  return useQuery({
+    queryKey: ['contextual-recommendations', entityType, entityId],
+    queryFn: async () => {
+      const { data } = await api.get<{ success: boolean; data: ContextualRecommendation[] }>(
+        `/ai/contextual-recommendations?entityType=${entityType}&entityId=${encodeURIComponent(entityId)}`
+      );
+      return data;
+    },
+    enabled: !!entityId,
+    staleTime: 5 * 60 * 1000, // 5 minutes (backend caches for 10min)
   });
 }
 
