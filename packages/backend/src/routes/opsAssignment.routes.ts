@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import {
   assignStaffToPractice,
@@ -10,6 +11,25 @@ import {
   updateServiceTier,
   getActiveAssignments,
 } from '../services/opsAssignment.service.js';
+
+const createAssignmentSchema = z.object({
+  staffId: z.string().uuid(),
+  practiceId: z.string().uuid().optional(),
+  providerId: z.string().uuid().optional(),
+  enrollmentId: z.string().uuid().optional(),
+}).refine(
+  (data) => data.practiceId || data.providerId || data.enrollmentId,
+  { message: 'One of practiceId, providerId, or enrollmentId is required' }
+);
+
+const transferSchema = z.object({
+  fromStaffId: z.string().uuid(),
+  toStaffId: z.string().uuid(),
+});
+
+const serviceTierSchema = z.object({
+  tier: z.enum(['full_service', 'white_glove', 'self_serve']),
+});
 
 const router = Router();
 
@@ -33,15 +53,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 /** POST /api/v1/ops/assignments */
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { staffId, practiceId, providerId, enrollmentId } = req.body;
-    if (!staffId) {
-      res.status(400).json({ success: false, error: 'staffId is required' });
-      return;
-    }
-    if (!practiceId && !providerId && !enrollmentId) {
-      res.status(400).json({ success: false, error: 'One of practiceId, providerId, or enrollmentId is required' });
-      return;
-    }
+    const { staffId, practiceId, providerId, enrollmentId } = createAssignmentSchema.parse(req.body);
 
     let assignment;
     if (practiceId) {
@@ -49,7 +61,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     } else if (providerId) {
       assignment = await assignStaffToProvider(staffId, providerId, req.user!.id);
     } else {
-      assignment = await assignStaffToEnrollment(staffId, enrollmentId, req.user!.id);
+      assignment = await assignStaffToEnrollment(staffId, enrollmentId!, req.user!.id);
     }
 
     res.status(201).json({ success: true, data: assignment });
@@ -71,11 +83,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 /** POST /api/v1/ops/assignments/transfer */
 router.post('/transfer', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { fromStaffId, toStaffId } = req.body;
-    if (!fromStaffId || !toStaffId) {
-      res.status(400).json({ success: false, error: 'fromStaffId and toStaffId are required' });
-      return;
-    }
+    const { fromStaffId, toStaffId } = transferSchema.parse(req.body);
     const result = await transferAssignments(fromStaffId, toStaffId);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -86,11 +94,7 @@ router.post('/transfer', async (req: Request, res: Response, next: NextFunction)
 /** PATCH /api/v1/ops/practices/:id/service-tier */
 router.patch('/practices/:id/service-tier', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { tier } = req.body;
-    if (!tier) {
-      res.status(400).json({ success: false, error: 'tier is required' });
-      return;
-    }
+    const { tier } = serviceTierSchema.parse(req.body);
     const practice = await updateServiceTier(req.params['id']!, tier);
     res.json({ success: true, data: practice });
   } catch (error) {

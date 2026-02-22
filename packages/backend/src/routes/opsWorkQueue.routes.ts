@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import {
   createWorkItem,
@@ -17,19 +18,63 @@ const router = Router();
 router.use(authenticate);
 router.use(authorize('admin', 'ops_staff'));
 
+const workQueueQuerySchema = z.object({
+  assigneeId: z.string().uuid().optional(),
+  practiceId: z.string().uuid().optional(),
+  status: z.union([z.string(), z.array(z.string())]).optional(),
+  priority: z.union([z.string(), z.array(z.string())]).optional(),
+  category: z.union([z.string(), z.array(z.string())]).optional(),
+  slaStatus: z.enum(['on_track', 'at_risk', 'breached']).optional(),
+  search: z.string().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+const createWorkItemSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(5000).optional(),
+  category: z.enum(['initial_enrollment', 're_credentialing', 'follow_up', 'document_collection', 'payer_outreach', 'data_entry', 'verification', 'termination', 'general']),
+  priority: z.enum(['urgent', 'high', 'normal', 'low']).default('normal'),
+  practiceId: z.string().uuid().optional(),
+  providerId: z.string().uuid().optional(),
+  enrollmentId: z.string().uuid().optional(),
+  assignedToId: z.string().uuid().optional(),
+  dueDate: z.string().datetime().optional(),
+  slaDeadline: z.string().datetime().optional(),
+  estimatedMinutes: z.number().int().min(0).max(10000).optional(),
+});
+
+const updateWorkItemSchema = z.object({
+  status: z.enum(['backlog', 'todo', 'in_progress', 'waiting_external', 'review', 'done', 'cancelled']).optional(),
+  notes: z.string().max(5000).optional(),
+  priority: z.enum(['urgent', 'high', 'normal', 'low']).optional(),
+  dueDate: z.string().datetime().optional(),
+  blockerNotes: z.string().max(2000).optional().nullable(),
+  actualMinutes: z.number().int().min(0).max(10000).optional(),
+});
+
+const assignSchema = z.object({
+  staffId: z.string().uuid(),
+});
+
+const commentSchema = z.object({
+  content: z.string().min(1).max(5000),
+});
+
+const bulkAssignSchema = z.object({
+  workItemIds: z.array(z.string().uuid()).min(1).max(100),
+  staffId: z.string().uuid(),
+});
+
 /** GET /api/v1/ops/work-items */
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const parsed = workQueueQuerySchema.parse(req.query);
     const filters = {
-      assigneeId: req.query['assigneeId'] as string | undefined,
-      practiceId: req.query['practiceId'] as string | undefined,
-      status: req.query['status'] ? (Array.isArray(req.query['status']) ? req.query['status'] as string[] : [req.query['status'] as string]) : undefined,
-      priority: req.query['priority'] ? (Array.isArray(req.query['priority']) ? req.query['priority'] as string[] : [req.query['priority'] as string]) : undefined,
-      category: req.query['category'] ? (Array.isArray(req.query['category']) ? req.query['category'] as string[] : [req.query['category'] as string]) : undefined,
-      slaStatus: req.query['slaStatus'] as 'on_track' | 'at_risk' | 'breached' | undefined,
-      search: req.query['search'] as string | undefined,
-      page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : undefined,
-      limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : undefined,
+      ...parsed,
+      status: parsed.status ? (Array.isArray(parsed.status) ? parsed.status : [parsed.status]) : undefined,
+      priority: parsed.priority ? (Array.isArray(parsed.priority) ? parsed.priority : [parsed.priority]) : undefined,
+      category: parsed.category ? (Array.isArray(parsed.category) ? parsed.category : [parsed.category]) : undefined,
     };
     const data = await getWorkQueue(filters);
     res.json({ success: true, data });
@@ -51,23 +96,11 @@ router.get('/my', async (req: Request, res: Response, next: NextFunction) => {
 /** POST /api/v1/ops/work-items */
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { title, description, category, priority, practiceId, providerId, enrollmentId, assignedToId, dueDate, slaDeadline, estimatedMinutes } = req.body;
-    if (!title || !category) {
-      res.status(400).json({ success: false, error: 'title and category are required' });
-      return;
-    }
+    const parsed = createWorkItemSchema.parse(req.body);
     const item = await createWorkItem({
-      title,
-      description,
-      category,
-      priority,
-      practiceId,
-      providerId,
-      enrollmentId,
-      assignedToId,
-      dueDate: dueDate ? new Date(dueDate) : undefined,
-      slaDeadline: slaDeadline ? new Date(slaDeadline) : undefined,
-      estimatedMinutes,
+      ...parsed,
+      dueDate: parsed.dueDate ? new Date(parsed.dueDate) : undefined,
+      slaDeadline: parsed.slaDeadline ? new Date(parsed.slaDeadline) : undefined,
     });
     res.status(201).json({ success: true, data: item });
   } catch (error) {
@@ -105,19 +138,19 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 /** PATCH /api/v1/ops/work-items/:id */
 router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { status, notes, priority, dueDate, blockerNotes, actualMinutes } = req.body;
-    if (status) {
-      const item = await updateWorkItemStatus(req.params['id']!, status, notes);
+    const parsed = updateWorkItemSchema.parse(req.body);
+    if (parsed.status) {
+      const item = await updateWorkItemStatus(req.params['id']!, parsed.status, parsed.notes);
       res.json({ success: true, data: item });
       return;
     }
     // General field updates
     const { prisma } = await import('../utils/prisma.js');
     const updateData: Record<string, unknown> = {};
-    if (priority) updateData['priority'] = priority;
-    if (dueDate) updateData['dueDate'] = new Date(dueDate);
-    if (blockerNotes !== undefined) updateData['blockerNotes'] = blockerNotes;
-    if (actualMinutes !== undefined) updateData['actualMinutes'] = actualMinutes;
+    if (parsed.priority) updateData['priority'] = parsed.priority;
+    if (parsed.dueDate) updateData['dueDate'] = new Date(parsed.dueDate);
+    if (parsed.blockerNotes !== undefined) updateData['blockerNotes'] = parsed.blockerNotes;
+    if (parsed.actualMinutes !== undefined) updateData['actualMinutes'] = parsed.actualMinutes;
     const item = await prisma.opsWorkItem.update({
       where: { id: req.params['id'] },
       data: updateData,
@@ -131,11 +164,7 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 /** POST /api/v1/ops/work-items/:id/assign */
 router.post('/:id/assign', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { staffId } = req.body;
-    if (!staffId) {
-      res.status(400).json({ success: false, error: 'staffId is required' });
-      return;
-    }
+    const { staffId } = assignSchema.parse(req.body);
     const item = await assignWorkItem(req.params['id']!, staffId);
     res.json({ success: true, data: item });
   } catch (error) {
@@ -146,11 +175,7 @@ router.post('/:id/assign', async (req: Request, res: Response, next: NextFunctio
 /** POST /api/v1/ops/work-items/:id/comments */
 router.post('/:id/comments', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { content } = req.body;
-    if (!content) {
-      res.status(400).json({ success: false, error: 'content is required' });
-      return;
-    }
+    const { content } = commentSchema.parse(req.body);
     const comment = await addComment(req.params['id']!, req.user!.id, content);
     res.status(201).json({ success: true, data: comment });
   } catch (error) {
@@ -171,11 +196,7 @@ router.get('/:id/comments', async (req: Request, res: Response, next: NextFuncti
 /** POST /api/v1/ops/work-items/bulk-assign */
 router.post('/bulk-assign', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { workItemIds, staffId } = req.body;
-    if (!Array.isArray(workItemIds) || !staffId) {
-      res.status(400).json({ success: false, error: 'workItemIds (array) and staffId are required' });
-      return;
-    }
+    const { workItemIds, staffId } = bulkAssignSchema.parse(req.body);
     const count = await bulkAssignWorkItems(workItemIds, staffId);
     res.json({ success: true, data: { count } });
   } catch (error) {

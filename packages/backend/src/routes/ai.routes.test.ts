@@ -128,7 +128,7 @@ describe('AI Routes', () => {
         .send({});
 
       expect(res.status).toBe(503);
-      expect(res.body.error).toContain('not configured');
+      expect(res.body.error).toContain('not available');
     });
 
     it('returns 404 when enrollment not found', async () => {
