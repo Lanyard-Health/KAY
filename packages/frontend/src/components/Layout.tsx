@@ -12,6 +12,7 @@ import {
   TableCellsIcon,
   SparklesIcon,
   ChartBarSquareIcon,
+  ViewColumnsIcon,
   UserPlusIcon,
   BuildingOffice2Icon,
   UserGroupIcon,
@@ -49,6 +50,7 @@ const customerNavGroups: NavGroup[] = [
     label: 'Core',
     items: [
       { name: 'Dashboard', href: '/', icon: HomeIcon },
+      { name: 'Command Center', href: '/command-center', icon: ViewColumnsIcon },
       { name: 'Providers', href: '/providers', icon: UsersIcon },
       { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
     ],

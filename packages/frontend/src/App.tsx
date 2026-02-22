@@ -36,6 +36,7 @@ const PortalDocuments = lazy(() => import('./features/portal/PortalDocuments'));
 const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuccess'));
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
+const CommandCenter = lazy(() => import('./features/command-center/CommandCenter'));
 
 function LoadingFallback() {
   return (
@@ -127,6 +128,7 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="command-center" element={<CommandCenter />} />
           <Route path="providers" element={<ProviderList />} />
           <Route path="providers/import" element={<ProviderImportPage />} />
           <Route path="providers/new" element={<ProviderForm />} />
