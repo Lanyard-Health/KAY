@@ -6,6 +6,7 @@ import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDire
 import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
+import { checkSlaBreaches } from './opsWorkQueue.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -21,6 +22,8 @@ class SchedulerService {
   private isExpirationEmailJobRunning = false;
   private isDirectoryJobRunning = false;
   private isCaqhSyncJobRunning = false;
+  private slaBreachJob: cron.ScheduledTask | null = null;
+  private isSlaBreachJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -87,6 +90,12 @@ class SchedulerService {
         .catch((err) => logger.error('[Scheduler] Notification cleanup error:', err));
     });
     logger.info('[Scheduler] Notification cleanup job scheduled: 0 4 * * 0');
+
+    // Schedule hourly SLA breach detection
+    this.slaBreachJob = cron.schedule('0 * * * *', () => {
+      this.runSlaBreachJob();
+    });
+    logger.info('[Scheduler] SLA breach detection job scheduled: 0 * * * *');
   }
 
   /**
@@ -219,6 +228,27 @@ class SchedulerService {
   }
 
   /**
+   * Run the SLA breach detection job
+   */
+  private async runSlaBreachJob(): Promise<void> {
+    if (this.isSlaBreachJobRunning) {
+      logger.info('[Scheduler] SLA breach job already running, skipping...');
+      return;
+    }
+    this.isSlaBreachJobRunning = true;
+    try {
+      const count = await checkSlaBreaches();
+      if (count > 0) {
+        logger.info(`[Scheduler] SLA breach job found ${count} new breach(es)`);
+      }
+    } catch (error) {
+      logger.error('[Scheduler] SLA breach job error:', error);
+    } finally {
+      this.isSlaBreachJobRunning = false;
+    }
+  }
+
+  /**
    * Run the CAQH credential sync job for all eligible providers.
    */
   async runCaqhSyncJob(): Promise<{
@@ -335,6 +365,11 @@ class SchedulerService {
       this.notificationCleanupJob.stop();
       this.notificationCleanupJob = null;
       logger.info('[Scheduler] Notification cleanup job stopped');
+    }
+    if (this.slaBreachJob) {
+      this.slaBreachJob.stop();
+      this.slaBreachJob = null;
+      logger.info('[Scheduler] SLA breach detection job stopped');
     }
   }
 
