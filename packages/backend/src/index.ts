@@ -65,6 +65,9 @@ import commandCenterRoutes from './routes/command-center.routes.js';
 import opsRoutes from './routes/ops.routes.js';
 import opsWorkQueueRoutes from './routes/opsWorkQueue.routes.js';
 import opsAssignmentRoutes from './routes/opsAssignment.routes.js';
+import billingRoutes from './routes/billing.routes.js';
+import setupRoutes from './routes/setup.routes.js';
+import onboardRoutes from './routes/onboard.routes.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -123,7 +126,14 @@ if (process.env['NODE_ENV'] === 'production') {
 }
 
 // Body parsing and compression
-app.use(express.json({ limit: '10mb' }));
+// Skip JSON parsing for Stripe webhook — it needs raw Buffer for signature verification
+app.use((req, res, next) => {
+  if (req.path === '/api/v1/billing/webhook') {
+    next();
+  } else {
+    express.json({ limit: '10mb' })(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 
@@ -211,6 +221,9 @@ app.use('/api/v1/ops/work-items', opsWorkQueueRoutes);
 app.use('/api/v1/ops/assignments', opsAssignmentRoutes);
 app.use('/api/v1/agent', agentRoutes);
 app.use('/api/v1/agent/approvals', approvalRoutes);
+app.use('/api/v1/billing', billingRoutes);
+app.use('/api/v1/setup', setupRoutes);
+app.use('/api/v1/providers/onboard', onboardRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);

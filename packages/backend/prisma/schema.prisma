@@ -151,6 +151,14 @@ model Practice {
   groupNpi          String?     @map("group_npi")
   setupComplete     Boolean     @default(false) @map("setup_complete")
 
+  // Practice address (setup flow)
+  addressLine1   String? @map("address_line_1")
+  addressLine2   String? @map("address_line_2")
+  city           String? @map("city")
+  state          String? @map("state")
+  zipCode        String? @map("zip_code")
+  specialtyFocus String? @map("specialty_focus")
+
   users                UserPractice[]
   providers            Provider[]
   providerApplications ProviderApplication[]
@@ -293,10 +301,11 @@ model Provider {
   fax         String?
 
   // Professional
-  providerType ProviderType @map("provider_type")
-  taxonomy     String?
-  specialties  String[]     @default([])
-  languages    String[]     @default([])
+  providerType  ProviderType @map("provider_type")
+  taxonomy      String?
+  primaryState  String?      @map("primary_state")
+  specialties   String[]     @default([])
+  languages     String[]     @default([])
 
   // Aetna enrollment automation
   acceptingMedicare Boolean @default(false) @map("accepting_medicare")

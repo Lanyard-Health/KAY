@@ -44,6 +44,12 @@ const OpsPracticesList = lazy(() => import('./features/ops/OpsPracticesList'));
 const OpsPracticeDetail = lazy(() => import('./features/ops/OpsPracticeDetail'));
 const OpsStaffPage = lazy(() => import('./features/ops/OpsStaffPage'));
 const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
+const BillingPage = lazy(() => import('./features/settings/BillingPage'));
+const SetupFlow = lazy(() => import('./features/setup/SetupFlow'));
+const PracticeProfile = lazy(() => import('./features/setup/PracticeProfile'));
+const QuickProvider = lazy(() => import('./features/setup/QuickProvider'));
+const BatchEnroll = lazy(() => import('./features/setup/BatchEnroll'));
+const OnboardingWizard = lazy(() => import('./features/onboarding/OnboardingWizard'));
 
 function LoadingFallback() {
   return (
@@ -162,6 +168,13 @@ export default function App() {
           <Route path="ops/practices/:id" element={<OpsPracticeDetail />} />
           <Route path="ops/staff" element={<OpsStaffPage />} />
           <Route path="ops/sla" element={<OpsSlaDashboard />} />
+          <Route path="settings/billing" element={<BillingPage />} />
+          <Route path="setup" element={<SetupFlow />}>
+            <Route path="practice" element={<PracticeProfile />} />
+            <Route path="provider" element={<QuickProvider />} />
+            <Route path="enroll" element={<BatchEnroll />} />
+          </Route>
+          <Route path="onboarding/wizard" element={<OnboardingWizard />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
