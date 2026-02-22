@@ -397,6 +397,66 @@ jobs:
           path: semgrep-results.json
           if-no-files-found: ignore
 
+  schema-drift:
+    name: Schema Drift Check
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.check.outputs.status }}
+      summary: ${{ steps.check.outputs.summary }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: credentials
+          POSTGRES_PASSWORD: credentials_dev_password
+          POSTGRES_DB: credentials_shadow
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U credentials"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Schema Drift
+        id: check
+        working-directory: packages/backend
+        run: |
+          DIFF_OUTPUT=$(npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "postgresql://credentials:credentials_dev_password@localhost:5433/credentials_shadow" \
+            --exit-code 2>&1) && EXIT_CODE=0 || EXIT_CODE=$?
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "status=pass" >> "$GITHUB_OUTPUT"
+            echo "summary=### :white_check_mark: Schema Drift: Migrations match schema.prisma" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=fail" >> "$GITHUB_OUTPUT"
+            EOF_MARKER=$(uuidgen)
+            echo "summary<<$EOF_MARKER" >> "$GITHUB_OUTPUT"
+            echo "### :x: Schema Drift: schema.prisma has changes without a migration" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "Run \`npx prisma migrate dev --name <description>\` to generate the missing migration." >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo '```' >> "$GITHUB_OUTPUT"
+            echo "$DIFF_OUTPUT" >> "$GITHUB_OUTPUT"
+            echo '```' >> "$GITHUB_OUTPUT"
+            echo "$EOF_MARKER" >> "$GITHUB_OUTPUT"
+          fi
+
   backend-tests:
     name: Backend Tests (Vitest)
     runs-on: ubuntu-latest
@@ -663,7 +723,7 @@ jobs:
     name: Security Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests, e2e-tests]
+    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests, e2e-tests, schema-drift]
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -686,6 +746,8 @@ jobs:
           TESTS_SUMMARY: ${{ needs.backend-tests.outputs.summary }}
           E2E_STATUS: ${{ needs.e2e-tests.outputs.status }}
           E2E_SUMMARY: ${{ needs.e2e-tests.outputs.summary }}
+          SCHEMA_DRIFT_STATUS: ${{ needs.schema-drift.outputs.status }}
+          SCHEMA_DRIFT_SUMMARY: ${{ needs.schema-drift.outputs.summary }}
         with:
           script: |
             const gitleaksStatus = process.env.GITLEAKS_STATUS || 'unknown';
@@ -700,9 +762,11 @@ jobs:
             const testsSummary = process.env.TESTS_SUMMARY || '### :grey_question: Tests: No results available';
             const e2eStatus = process.env.E2E_STATUS || 'unknown';
             const e2eSummary = process.env.E2E_SUMMARY || '### :grey_question: E2E Tests: No results available';
+            const schemaDriftStatus = process.env.SCHEMA_DRIFT_STATUS || 'unknown';
+            const schemaDriftSummary = process.env.SCHEMA_DRIFT_SUMMARY || '### :grey_question: Schema Drift: No results available';
 
             // Detect infrastructure failure: all jobs failed to produce results
-            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus, e2eStatus];
+            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus, e2eStatus, schemaDriftStatus];
             const allUnknown = allStatuses.every(s => s === 'unknown' || s === '');
 
             if (allUnknown) {
@@ -738,6 +802,10 @@ jobs:
                 '---',
                 '',
                 e2eSummary,
+                '',
+                '---',
+                '',
+                schemaDriftSummary,
                 '',
                 '---',
                 '',
