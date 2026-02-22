@@ -253,6 +253,54 @@ export async function authenticate(
         return;
       }
 
+      if (devRole === 'ops_staff') {
+        const DEV_OPS_STAFF_COGNITO_ID = 'dev-ops-staff-cognito-id';
+        const DEV_OPS_STAFF_EMAIL = 'opsstaff@dev.local';
+
+        let user = await prisma.user.findUnique({
+          where: { cognitoId: DEV_OPS_STAFF_COGNITO_ID },
+        });
+
+        if (!user) {
+          user = await prisma.user.findFirst({
+            where: { email: DEV_OPS_STAFF_EMAIL },
+          });
+
+          if (user) {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { cognitoId: DEV_OPS_STAFF_COGNITO_ID, role: 'ops_staff' },
+            });
+          }
+        }
+
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              cognitoId: DEV_OPS_STAFF_COGNITO_ID,
+              email: DEV_OPS_STAFF_EMAIL,
+              firstName: 'Dev',
+              lastName: 'OpsStaff',
+              role: 'ops_staff',
+              isActive: true,
+            },
+          });
+          logger.info('Created development ops_staff user');
+        }
+
+        req.user = {
+          id: user.id,
+          cognitoId: user.cognitoId,
+          email: user.email,
+          role: user.role,
+          providerId: user.providerId ?? undefined,
+        };
+
+        await initPracticeScope(req);
+        next();
+        return;
+      }
+
       // Default: dev admin login
       let user = await prisma.user.findUnique({
         where: { cognitoId: DEV_USER.cognitoId },
@@ -414,7 +462,7 @@ export function requireProviderAccess(
   const requestedProviderId = req.params['providerId'] || req.body?.providerId;
 
   // Admins, credentialing staff, and practice admins can access providers (scoped by practice middleware)
-  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') {
+  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin' || role === 'ops_staff') {
     next();
     return;
   }

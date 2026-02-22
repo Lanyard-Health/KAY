@@ -18,6 +18,21 @@ export default {
           800: '#082f23',
           900: '#061f17',
         },
+        // Status colors
+        status: {
+          success: '#16a34a',
+          warning: '#d97706',
+          danger: '#dc2626',
+          info: '#2563eb',
+          neutral: '#6b7280',
+        },
+        // Surface hierarchy
+        surface: {
+          0: '#ffffff',
+          1: '#f9fafb',
+          2: '#f3f4f6',
+          3: '#e5e7eb',
+        },
       },
       fontFamily: {
         sans: ['Inter', ...defaultTheme.fontFamily.sans],
@@ -31,6 +46,26 @@ export default {
       },
       borderRadius: {
         '4xl': '2rem',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.2s ease-out',
+        'slide-up': 'slideUp 0.3s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
       },
     },
   },
