@@ -45,7 +45,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
+  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'ops_staff';
   providerId?: string;
   practices?: UserPractice[];
 }
@@ -58,14 +58,22 @@ interface AuthState {
   error: string | null;
   isDevMode: boolean;
 
+  // Ops mode state
+  isOpsMode: boolean;
+  opsPracticeContext: { id: string; name: string } | null;
+
   // Actions
   checkAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   devLogin: () => Promise<void>;
   devProviderLogin: () => Promise<void>;
   devPracticeAdminLogin: () => Promise<void>;
+  devOpsStaffLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
+  toggleOpsMode: () => void;
+  enterPracticeContext: (id: string, name: string) => void;
+  exitPracticeContext: () => void;
 
   // Challenge flow
   challengeName: string | null;
@@ -87,6 +95,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   error: null,
   isDevMode: DEV_BYPASS_ENABLED,
+  isOpsMode: false,
+  opsPracticeContext: null,
   challengeName: null,
   challengeSession: null,
   challengeEmail: null,
@@ -131,6 +141,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           } else if (devSession === 'practice_admin') {
             try {
               await get().devPracticeAdminLogin();
+              return;
+            } catch {
+              // Recovery failed — fall through to unauthenticated state
+            }
+          } else if (devSession === 'ops_staff') {
+            try {
+              await get().devOpsStaffLogin();
               return;
             } catch {
               // Recovery failed — fall through to unauthenticated state
@@ -313,6 +330,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev practice admin login failed',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  // Development ops_staff login bypass
+  devOpsStaffLogin: async () => {
+    if (!DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      localStorage.setItem('dev_session', 'ops_staff');
+
+      const response = await fetchWithDevRetry(
+        `${API_BASE_URL}/users/me`,
+        {
+          Authorization: 'Bearer dev-token',
+          'X-Dev-Role': 'ops_staff',
+        },
+      );
+
+      if (response?.ok) {
+        const { data } = await response.json();
+        set({
+          user: data,
+          isAuthenticated: true,
+          token: 'dev-token',
+          isLoading: false,
+          isOpsMode: true,
+        });
+      } else {
+        throw new Error('Failed to fetch dev ops_staff user');
+      }
+    } catch (error) {
+      localStorage.removeItem('dev_session');
+      set({
+        error: error instanceof Error ? error.message : 'Dev ops_staff login failed',
         isLoading: false,
       });
       throw error;
@@ -502,10 +560,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         isAuthenticated: false,
         token: null,
+        isOpsMode: false,
+        opsPracticeContext: null,
       });
     } catch (error) {
       console.error('Logout error:', error);
     }
+  },
+
+  toggleOpsMode: () => {
+    const { isOpsMode, user } = get();
+    if (user?.role !== 'admin' && user?.role !== 'ops_staff') return;
+    set({ isOpsMode: !isOpsMode, opsPracticeContext: null });
+  },
+
+  enterPracticeContext: (id: string, name: string) => {
+    set({ opsPracticeContext: { id, name } });
+  },
+
+  exitPracticeContext: () => {
+    set({ opsPracticeContext: null });
   },
 
   setUser: (user) => {

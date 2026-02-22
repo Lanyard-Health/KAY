@@ -19,6 +19,7 @@ enum UserRole {
   credentialing_staff
   provider
   practice_admin
+  ops_staff
 }
 
 enum PracticeStatus {
@@ -31,6 +32,55 @@ enum PracticeRole {
   PRACTICE_ADMIN
   PRACTICE_STAFF
   PROVIDER
+}
+
+enum ServiceTier {
+  full_service
+  white_glove
+  self_serve
+}
+
+enum OpsWorkItemStatus {
+  backlog
+  todo
+  in_progress
+  waiting_external
+  review
+  done
+  cancelled
+}
+
+enum OpsWorkItemPriority {
+  urgent
+  high
+  normal
+  low
+}
+
+enum OpsWorkItemCategory {
+  initial_enrollment
+  re_credentialing
+  follow_up
+  document_collection
+  payer_outreach
+  data_entry
+  verification
+  termination
+  general
+}
+
+enum SubscriptionPlan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
 }
 
 model User {
@@ -53,20 +103,24 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  auditLogs        AuditLog[]
-  documentsCreated Document[]           @relation("DocumentCreatedBy")
-  documentsReviewed Document[]          @relation("DocumentReviewedBy")
-  documentsReviewedAsReviewer Document[] @relation("DocumentReviewer")
-  rosterTemplates  RosterTemplate[]
-  tasksAssigned        Task[]              @relation("TaskAssignedTo")
-  tasksCompleted       Task[]              @relation("TaskCompletedBy")
-  termLettersReviewed  TerminationLetter[] @relation("TermLetterReviewedBy")
-  practices            UserPractice[]
-  inAppNotifications   InAppNotification[]
-  workflowStepsCompleted EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
-  aetnaEnrollmentRuns    AetnaEnrollmentRun[]
-  requestedWorkflows     AgentWorkflow[]        @relation("WorkflowRequester")
-  approvalDecisions      PendingApproval[]      @relation("ApprovalDecider")
+  auditLogs                   AuditLog[]
+  documentsCreated            Document[]               @relation("DocumentCreatedBy")
+  documentsReviewed           Document[]               @relation("DocumentReviewedBy")
+  documentsReviewedAsReviewer Document[]               @relation("DocumentReviewer")
+  rosterTemplates             RosterTemplate[]
+  tasksAssigned               Task[]                   @relation("TaskAssignedTo")
+  tasksCompleted              Task[]                   @relation("TaskCompletedBy")
+  termLettersReviewed         TerminationLetter[]      @relation("TermLetterReviewedBy")
+  practices                   UserPractice[]
+  inAppNotifications          InAppNotification[]
+  workflowStepsCompleted      EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
+  aetnaEnrollmentRuns         AetnaEnrollmentRun[]
+  requestedWorkflows          AgentWorkflow[]          @relation("WorkflowRequester")
+  approvalDecisions           PendingApproval[]        @relation("ApprovalDecider")
+  opsAssignments              OpsAssignment[]          @relation("OpsStaff")
+  opsAssignedBy               OpsAssignment[]          @relation("OpsAssigner")
+  opsWorkItems                OpsWorkItem[]
+  opsWorkItemComments         OpsWorkItemComment[]
 
   @@map("users")
 }
@@ -76,21 +130,35 @@ model User {
 // ==========================================
 
 model Practice {
-  id        String          @id @default(uuid())
+  id        String         @id @default(uuid())
   name      String
-  status    PracticeStatus  @default(ACTIVE)
+  status    PracticeStatus @default(ACTIVE)
   phone     String?
   email     String?
   website   String?
   notes     String?
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
-  users              UserPractice[]
-  providers              Provider[]
-  providerApplications   ProviderApplication[]
-  practiceLocations      PracticeLocation[]
-  providerImports        ProviderImport[]
+  serviceTier       ServiceTier @default(self_serve) @map("service_tier")
+  primaryOpsStaffId String?     @map("primary_ops_staff_id")
+  slaTargetDays     Int         @default(90) @map("sla_target_days")
+  onboardedAt       DateTime?   @map("onboarded_at")
+  contractStartDate DateTime?   @map("contract_start_date")
+  contractEndDate   DateTime?   @map("contract_end_date")
+  billingEmail      String?     @map("billing_email")
+  taxId             String?     @map("tax_id")
+  groupNpi          String?     @map("group_npi")
+  setupComplete     Boolean     @default(false) @map("setup_complete")
+
+  users                UserPractice[]
+  providers            Provider[]
+  providerApplications ProviderApplication[]
+  practiceLocations    PracticeLocation[]
+  providerImports      ProviderImport[]
+  subscription         Subscription?
+  opsAssignments       OpsAssignment[]
+  opsWorkItems         OpsWorkItem[]
 
   @@map("practices")
 }
@@ -214,9 +282,9 @@ model Provider {
   maidenName String? @map("maiden_name")
 
   // Personal Info
-  dateOfBirth DateTime @map("date_of_birth")
-  gender      Gender
-  ssnEncrypted String? @map("ssn_encrypted") // Encrypted SSN
+  dateOfBirth  DateTime @map("date_of_birth")
+  gender       Gender
+  ssnEncrypted String?  @map("ssn_encrypted") // Encrypted SSN
 
   // Contact
   email       String
@@ -236,13 +304,13 @@ model Provider {
   ePrescribing      Boolean @default(false) @map("e_prescribing")
 
   // CAQH Integration
-  caqhProviderId       String?     @map("caqh_provider_id")
-  caqhStatus           CaqhStatus? @map("caqh_status")
-  caqhLastSync         DateTime?   @map("caqh_last_sync")
-  caqhUsername         String?     @map("caqh_username")
-  caqhPassword         String?     @map("caqh_password") // Encrypted
-  caqhCredentialsValid Boolean?    @map("caqh_credentials_valid")
-  caqhCredentialsLastChecked DateTime? @map("caqh_credentials_last_checked")
+  caqhProviderId             String?     @map("caqh_provider_id")
+  caqhStatus                 CaqhStatus? @map("caqh_status")
+  caqhLastSync               DateTime?   @map("caqh_last_sync")
+  caqhUsername               String?     @map("caqh_username")
+  caqhPassword               String?     @map("caqh_password") // Encrypted
+  caqhCredentialsValid       Boolean?    @map("caqh_credentials_valid")
+  caqhCredentialsLastChecked DateTime?   @map("caqh_credentials_last_checked")
 
   // Directory change tracking (golden record for PDM)
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
@@ -252,6 +320,7 @@ model Provider {
 
   // Onboarding
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  onboardingData        Json?     @map("onboarding_data")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -260,7 +329,7 @@ model Provider {
   updatedById String?  @map("updated_by_id")
 
   // Multi-tenant
-  practiceId  String?  @map("practice_id")
+  practiceId String? @map("practice_id")
 
   // Relations
   user                   User?
@@ -293,7 +362,9 @@ model Provider {
   demographics           ProviderDemographics?
   medicareVerification   MedicareVerification?
   agentWorkflows         AgentWorkflow[]
-  practice               Practice?  @relation(fields: [practiceId], references: [id])
+  practice               Practice?                   @relation(fields: [practiceId], references: [id])
+  opsAssignments         OpsAssignment[]
+  opsWorkItems           OpsWorkItem[]
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
   @@index([status])
@@ -342,32 +413,32 @@ model PracticeLocation {
   providerId String @map("provider_id")
 
   // Location Details
-  locationName  String  @map("location_name")
-  locationType  String  @map("location_type") // e.g., "office", "telehealth", "hospital"
-  isPrimary     Boolean @default(false) @map("is_primary")
-  isActive      Boolean @default(true) @map("is_active")
+  locationName String  @map("location_name")
+  locationType String  @map("location_type") // e.g., "office", "telehealth", "hospital"
+  isPrimary    Boolean @default(false) @map("is_primary")
+  isActive     Boolean @default(true) @map("is_active")
 
   // Address
-  addressLine1  String  @map("address_line_1")
-  addressLine2  String? @map("address_line_2")
-  city          String
-  state         String
-  zipCode       String  @map("zip_code")
-  county        String?
-  country       String  @default("US")
+  addressLine1 String  @map("address_line_1")
+  addressLine2 String? @map("address_line_2")
+  city         String
+  state        String
+  zipCode      String  @map("zip_code")
+  county       String?
+  country      String  @default("US")
 
   // Contact
-  phone         String
-  fax           String?
-  email         String?
+  phone String
+  fax   String?
+  email String?
 
   // Business Info
-  taxId         String? @map("tax_id")
-  npi           String? // Location-specific NPI if different from provider
-  groupNpi      String? @map("group_npi")
+  taxId    String? @map("tax_id")
+  npi      String? // Location-specific NPI if different from provider
+  groupNpi String? @map("group_npi")
 
   // Hours (JSON object with day: {open, close} format)
-  officeHours   Json?   @map("office_hours")
+  officeHours Json? @map("office_hours")
 
   // Accessibility
   wheelchairAccessible Boolean @default(false) @map("wheelchair_accessible")
@@ -375,9 +446,9 @@ model PracticeLocation {
   parkingAvailable     Boolean @default(true) @map("parking_available")
 
   // Additional Info
-  acceptingNewPatients Boolean @default(true) @map("accepting_new_patients")
-  languagesSpoken      String[] @default([])   @map("languages_spoken")
-  specialServices      String[] @default([])   @map("special_services")
+  acceptingNewPatients Boolean  @default(true) @map("accepting_new_patients")
+  languagesSpoken      String[] @default([]) @map("languages_spoken")
+  specialServices      String[] @default([]) @map("special_services")
   notes                String?
 
   // Billing address (if different from service address)
@@ -398,10 +469,10 @@ model PracticeLocation {
   updatedById String?  @map("updated_by_id")
 
   // Multi-tenant
-  practiceId  String?  @map("practice_id")
+  practiceId String? @map("practice_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   practice Practice? @relation(fields: [practiceId], references: [id])
 
   @@map("practice_locations")
@@ -576,10 +647,10 @@ model Education {
   notes           String?
 
   // Payer enrollment additions
-  educationType        EducationType? @map("education_type")
-  programDirector      String?        @map("program_director")
-  programDirectorPhone String?        @map("program_director_phone")
-  source               CredentialSource   @default(manual_entry)
+  educationType        EducationType?   @map("education_type")
+  programDirector      String?          @map("program_director")
+  programDirectorPhone String?          @map("program_director_phone")
+  source               CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -836,21 +907,21 @@ model SupervisingPhysician {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  supervisorFirstName    String          @map("supervisor_first_name")
-  supervisorLastName     String          @map("supervisor_last_name")
-  supervisorMiddleName   String?         @map("supervisor_middle_name")
-  supervisorNpi          String?         @map("supervisor_npi")
-  supervisorLicenseNumber String?        @map("supervisor_license_number")
-  supervisorLicenseState  String?        @map("supervisor_license_state")
-  supervisorSpecialty     String?        @map("supervisor_specialty")
-  supervisorPhone        String?         @map("supervisor_phone")
-  supervisorEmail        String?         @map("supervisor_email")
-  supervisionType        SupervisionType @map("supervision_type")
-  agreementStartDate     DateTime        @map("agreement_start_date")
-  agreementEndDate       DateTime?       @map("agreement_end_date")
-  stateRequirement       String?         @map("state_requirement")
-  isPrimary              Boolean         @default(false) @map("is_primary")
-  notes                  String?
+  supervisorFirstName     String          @map("supervisor_first_name")
+  supervisorLastName      String          @map("supervisor_last_name")
+  supervisorMiddleName    String?         @map("supervisor_middle_name")
+  supervisorNpi           String?         @map("supervisor_npi")
+  supervisorLicenseNumber String?         @map("supervisor_license_number")
+  supervisorLicenseState  String?         @map("supervisor_license_state")
+  supervisorSpecialty     String?         @map("supervisor_specialty")
+  supervisorPhone         String?         @map("supervisor_phone")
+  supervisorEmail         String?         @map("supervisor_email")
+  supervisionType         SupervisionType @map("supervision_type")
+  agreementStartDate      DateTime        @map("agreement_start_date")
+  agreementEndDate        DateTime?       @map("agreement_end_date")
+  stateRequirement        String?         @map("state_requirement")
+  isPrimary               Boolean         @default(false) @map("is_primary")
+  notes                   String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -868,17 +939,17 @@ model MalpracticeClaim {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  dateOfIncident   DateTime     @map("date_of_incident")
-  dateOfClaim      DateTime     @map("date_of_claim")
-  claimStatus      ClaimStatus  @map("claim_status")
+  dateOfIncident   DateTime    @map("date_of_incident")
+  dateOfClaim      DateTime    @map("date_of_claim")
+  claimStatus      ClaimStatus @map("claim_status")
   description      String
-  settlementAmount Decimal?     @map("settlement_amount") @db.Decimal(15, 2)
-  judgmentAmount   Decimal?     @map("judgment_amount") @db.Decimal(15, 2)
-  dateResolved     DateTime?    @map("date_resolved")
-  insuranceCarrier String?      @map("insurance_carrier")
-  policyNumber     String?      @map("policy_number")
-  courtName        String?      @map("court_name")
-  caseNumber       String?      @map("case_number")
+  settlementAmount Decimal?    @map("settlement_amount") @db.Decimal(15, 2)
+  judgmentAmount   Decimal?    @map("judgment_amount") @db.Decimal(15, 2)
+  dateResolved     DateTime?   @map("date_resolved")
+  insuranceCarrier String?     @map("insurance_carrier")
+  policyNumber     String?     @map("policy_number")
+  courtName        String?     @map("court_name")
+  caseNumber       String?     @map("case_number")
   notes            String?
 
   // Audit
@@ -970,18 +1041,18 @@ model ProviderBanking {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  bankName             String          @map("bank_name")
-  bankAccountType      BankAccountType @map("bank_account_type")
-  routingNumberEncrypted String        @map("routing_number_encrypted") // Encrypted
-  accountNumberEncrypted String        @map("account_number_encrypted") // Encrypted
-  accountNumberLast4   String          @map("account_number_last4") // For display
-  accountHolderName    String          @map("account_holder_name")
-  accountHolderTaxId   String?         @map("account_holder_tax_id") // Encrypted
-  eftAuthorizationDate DateTime?       @map("eft_authorization_date")
-  w9OnFile             Boolean         @default(false) @map("w9_on_file")
-  voidedCheckOnFile    Boolean         @default(false) @map("voided_check_on_file")
-  isPrimary            Boolean         @default(false) @map("is_primary")
-  notes                String?
+  bankName               String          @map("bank_name")
+  bankAccountType        BankAccountType @map("bank_account_type")
+  routingNumberEncrypted String          @map("routing_number_encrypted") // Encrypted
+  accountNumberEncrypted String          @map("account_number_encrypted") // Encrypted
+  accountNumberLast4     String          @map("account_number_last4") // For display
+  accountHolderName      String          @map("account_holder_name")
+  accountHolderTaxId     String?         @map("account_holder_tax_id") // Encrypted
+  eftAuthorizationDate   DateTime?       @map("eft_authorization_date")
+  w9OnFile               Boolean         @default(false) @map("w9_on_file")
+  voidedCheckOnFile      Boolean         @default(false) @map("voided_check_on_file")
+  isPrimary              Boolean         @default(false) @map("is_primary")
+  notes                  String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -999,13 +1070,13 @@ model ProviderDemographics {
   id         String @id @default(uuid())
   providerId String @unique @map("provider_id")
 
-  birthCity          String?           @map("birth_city")
-  birthState         String?           @map("birth_state")
-  birthCountry       String?           @map("birth_country")
+  birthCity          String?            @map("birth_city")
+  birthState         String?            @map("birth_state")
+  birthCountry       String?            @map("birth_country")
   citizenshipStatus  CitizenshipStatus? @map("citizenship_status")
-  visaType           String?           @map("visa_type")
-  visaExpirationDate DateTime?         @map("visa_expiration_date")
-  previousNames      String[]          @default([]) @map("previous_names")
+  visaType           String?            @map("visa_type")
+  visaExpirationDate DateTime?          @map("visa_expiration_date")
+  previousNames      String[]           @default([]) @map("previous_names")
   ethnicity          String?
   race               String?
 
@@ -1072,11 +1143,11 @@ model Document {
   description  String?
 
   // Linked credential
-  linkedLicenseId              String?             @map("linked_license_id")
-  linkedBoardCertificationId   String?             @map("linked_board_certification_id")
-  linkedMalpracticeInsuranceId String?             @map("linked_malpractice_insurance_id")
-  linkedEducationId            String?             @map("linked_education_id")
-  linkedContinuingEducationId  String?             @map("linked_continuing_education_id")
+  linkedLicenseId              String? @map("linked_license_id")
+  linkedBoardCertificationId   String? @map("linked_board_certification_id")
+  linkedMalpracticeInsuranceId String? @map("linked_malpractice_insurance_id")
+  linkedEducationId            String? @map("linked_education_id")
+  linkedContinuingEducationId  String? @map("linked_continuing_education_id")
 
   // Expiration
   expirationDate DateTime? @map("expiration_date")
@@ -1106,15 +1177,15 @@ model Document {
   createdById String?  @map("created_by_id")
 
   // Relations
-  provider               Provider               @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  license                License?               @relation(fields: [linkedLicenseId], references: [id])
-  boardCertification     BoardCertification?    @relation(fields: [linkedBoardCertificationId], references: [id])
-  malpracticeInsurance   MalpracticeInsurance?  @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
-  education              Education?             @relation(fields: [linkedEducationId], references: [id])
-  continuingEducation    ContinuingEducation?   @relation(fields: [linkedContinuingEducationId], references: [id])
-  createdBy              User?                  @relation("DocumentCreatedBy", fields: [createdById], references: [id])
-  ocrReviewer            User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
-  documentReviewer       User?                  @relation("DocumentReviewer", fields: [reviewedById], references: [id])
+  provider             Provider              @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  license              License?              @relation(fields: [linkedLicenseId], references: [id])
+  boardCertification   BoardCertification?   @relation(fields: [linkedBoardCertificationId], references: [id])
+  malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
+  education            Education?            @relation(fields: [linkedEducationId], references: [id])
+  continuingEducation  ContinuingEducation?  @relation(fields: [linkedContinuingEducationId], references: [id])
+  createdBy            User?                 @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  ocrReviewer          User?                 @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
+  documentReviewer     User?                 @relation("DocumentReviewer", fields: [reviewedById], references: [id])
 
   @@map("documents")
 }
@@ -1136,32 +1207,32 @@ model ProviderChecklist {
   providerId String @unique @map("provider_id")
 
   // Required Documents Status
-  w9Status          ChecklistItemStatus @default(not_started) @map("w9_status")
-  w9DocumentId      String?             @map("w9_document_id")
-  w9ReviewedAt      DateTime?           @map("w9_reviewed_at")
-  w9ReviewedBy      String?             @map("w9_reviewed_by")
-  w9Notes           String?             @map("w9_notes")
+  w9Status     ChecklistItemStatus @default(not_started) @map("w9_status")
+  w9DocumentId String?             @map("w9_document_id")
+  w9ReviewedAt DateTime?           @map("w9_reviewed_at")
+  w9ReviewedBy String?             @map("w9_reviewed_by")
+  w9Notes      String?             @map("w9_notes")
 
-  coiStatus         ChecklistItemStatus @default(not_started) @map("coi_status")
-  coiDocumentId     String?             @map("coi_document_id")
-  coiReviewedAt     DateTime?           @map("coi_reviewed_at")
-  coiReviewedBy     String?             @map("coi_reviewed_by")
-  coiNotes          String?             @map("coi_notes")
+  coiStatus     ChecklistItemStatus @default(not_started) @map("coi_status")
+  coiDocumentId String?             @map("coi_document_id")
+  coiReviewedAt DateTime?           @map("coi_reviewed_at")
+  coiReviewedBy String?             @map("coi_reviewed_by")
+  coiNotes      String?             @map("coi_notes")
 
-  cp575Status       ChecklistItemStatus @default(not_started) @map("cp575_status")
-  cp575DocumentId   String?             @map("cp575_document_id")
-  cp575ReviewedAt   DateTime?           @map("cp575_reviewed_at")
-  cp575ReviewedBy   String?             @map("cp575_reviewed_by")
-  cp575Notes        String?             @map("cp575_notes")
+  cp575Status     ChecklistItemStatus @default(not_started) @map("cp575_status")
+  cp575DocumentId String?             @map("cp575_document_id")
+  cp575ReviewedAt DateTime?           @map("cp575_reviewed_at")
+  cp575ReviewedBy String?             @map("cp575_reviewed_by")
+  cp575Notes      String?             @map("cp575_notes")
 
   // Additional checklist items can be added here
-  licenseVerified        Boolean @default(false) @map("license_verified")
-  credentialsComplete    Boolean @default(false) @map("credentials_complete")
+  licenseVerified         Boolean @default(false) @map("license_verified")
+  credentialsComplete     Boolean @default(false) @map("credentials_complete")
   backgroundCheckComplete Boolean @default(false) @map("background_check_complete")
 
   // Overall Status
-  overallComplete   Boolean @default(false) @map("overall_complete")
-  completedAt       DateTime? @map("completed_at")
+  overallComplete Boolean   @default(false) @map("overall_complete")
+  completedAt     DateTime? @map("completed_at")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -1180,28 +1251,31 @@ model ProviderChecklist {
 model Payer {
   id String @id @default(uuid())
 
-  name        String
-  payerId     String  @unique @map("payer_id")
-  payerType   String  @map("payer_type")
+  name         String
+  payerId      String  @unique @map("payer_id")
+  payerType    String  @map("payer_type")
   addressLine1 String? @map("address_line_1")
-  city        String?
-  state       String?
-  zipCode     String? @map("zip_code")
-  phone       String?
-  website     String?
-  notes       String?
-  workflowKey String?  @map("workflow_key")
+  city         String?
+  state        String?
+  zipCode      String? @map("zip_code")
+  phone        String?
+  website      String?
+  notes        String?
+  workflowKey  String? @map("workflow_key")
+
+  verticalTags          String[] @default([]) @map("vertical_tags")
+  averageProcessingDays Int?     @map("average_processing_days")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollments          PayerEnrollment[]
-  directorySnapshots   ProviderDirectorySnapshot[]
-  directoryAlerts      ProviderDirectoryAlert[]
-  agentWorkflows       AgentWorkflow[]
-  adapterConfig        PayerAdapterConfig?
+  enrollments        PayerEnrollment[]
+  directorySnapshots ProviderDirectorySnapshot[]
+  directoryAlerts    ProviderDirectoryAlert[]
+  agentWorkflows     AgentWorkflow[]
+  adapterConfig      PayerAdapterConfig?
 
   @@map("payers")
 }
@@ -1221,34 +1295,37 @@ model PayerEnrollment {
   providerId String @map("provider_id")
   payerId    String @map("payer_id")
 
-  status                 EnrollmentStatus @default(not_started)
-  productTypes           String[]         @default([]) @map("product_types")
-  applicationDate        DateTime?        @map("application_date")
-  effectiveDate          DateTime?        @map("effective_date")
-  terminationDate        DateTime?        @map("termination_date")
-  dateContractReceived   DateTime?        @map("date_contract_received")
-  dateContractSigned     DateTime?        @map("date_contract_signed")
-  lastFollowUpDate       DateTime?        @map("last_follow_up_date")
-  recredentialingDate    DateTime?        @map("recredentialing_date")
-  providerNumber         String?          @map("provider_number")
-  groupNumber            String?          @map("group_number")
-  notes                  String?
-  payerEmail             String?          @map("payer_email")
+  status               EnrollmentStatus @default(not_started)
+  productTypes         String[]         @default([]) @map("product_types")
+  applicationDate      DateTime?        @map("application_date")
+  effectiveDate        DateTime?        @map("effective_date")
+  terminationDate      DateTime?        @map("termination_date")
+  dateContractReceived DateTime?        @map("date_contract_received")
+  dateContractSigned   DateTime?        @map("date_contract_signed")
+  lastFollowUpDate     DateTime?        @map("last_follow_up_date")
+  recredentialingDate  DateTime?        @map("recredentialing_date")
+  providerNumber       String?          @map("provider_number")
+  groupNumber          String?          @map("group_number")
+  notes                String?
+  payerEmail           String?          @map("payer_email")
 
   // Automated Follow-up Settings
-  followUpEnabled        Boolean   @default(false) @map("follow_up_enabled")
-  followUpEmail          String?   @map("follow_up_email")
-  followUpFrequencyDays  Int       @default(14) @map("follow_up_frequency_days")
-  lastFollowUpSentAt     DateTime? @map("last_follow_up_sent_at")
-  nextFollowUpDate       DateTime? @map("next_follow_up_date")
+  followUpEnabled       Boolean   @default(false) @map("follow_up_enabled")
+  followUpEmail         String?   @map("follow_up_email")
+  followUpFrequencyDays Int       @default(14) @map("follow_up_frequency_days")
+  lastFollowUpSentAt    DateTime? @map("last_follow_up_sent_at")
+  nextFollowUpDate      DateTime? @map("next_follow_up_date")
 
   // PDM Attestation Tracking (CAA 2021 - 90 day requirement)
-  pdmLastAttestedAt      DateTime? @map("pdm_last_attested_at")
-  pdmLastAttestedBy      String?   @map("pdm_last_attested_by")
-  pdmEnabled             Boolean   @default(true) @map("pdm_enabled")
+  pdmLastAttestedAt DateTime? @map("pdm_last_attested_at")
+  pdmLastAttestedBy String?   @map("pdm_last_attested_by")
+  pdmEnabled        Boolean   @default(true) @map("pdm_enabled")
 
   // Workflow
-  workflowType      WorkflowType?          @map("workflow_type")
+  workflowType WorkflowType? @map("workflow_type")
+
+  slaTargetDate DateTime? @map("sla_target_date")
+  slaBreachedAt DateTime? @map("sla_breached_at")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1257,12 +1334,14 @@ model PayerEnrollment {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider          Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  payer             Payer              @relation(fields: [payerId], references: [id])
+  provider          Provider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer             Payer                    @relation(fields: [payerId], references: [id])
   aiRecommendations AiRecommendation[]
   tasks             Task[]
   workflowSteps     EnrollmentWorkflowStep[]
   aetnaRuns         AetnaEnrollmentRun[]
+  opsAssignments    OpsAssignment[]
+  opsWorkItems      OpsWorkItem[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
@@ -1319,11 +1398,11 @@ model AiRecommendation {
 // ==========================================
 
 model ChatConversation {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
   title     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
   messages  ChatMessage[]
 
   @@index([userId])
@@ -1333,7 +1412,7 @@ model ChatConversation {
 model ChatMessage {
   id               String   @id @default(uuid())
   conversationId   String   @map("conversation_id")
-  role             String   // 'user' | 'assistant'
+  role             String // 'user' | 'assistant'
   content          String   @db.Text
   metadata         Json?
   promptTokens     Int      @default(0) @map("prompt_tokens")
@@ -1402,14 +1481,14 @@ model CaqhSyncLog {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  direction    CaqhSyncDirection
-  status       CaqhSyncStatus
-  startedAt    DateTime          @default(now()) @map("started_at")
-  completedAt  DateTime?         @map("completed_at")
-  errorMessage String?           @map("error_message")
-  changesApplied Json?           @map("changes_applied")
-  retryCount     Int       @default(0) @map("retry_count")
-  durationMs     Int?      @map("duration_ms")
+  direction      CaqhSyncDirection
+  status         CaqhSyncStatus
+  startedAt      DateTime          @default(now()) @map("started_at")
+  completedAt    DateTime?         @map("completed_at")
+  errorMessage   String?           @map("error_message")
+  changesApplied Json?             @map("changes_applied")
+  retryCount     Int               @default(0) @map("retry_count")
+  durationMs     Int?              @map("duration_ms")
 
   @@index([providerId])
   @@map("caqh_sync_logs")
@@ -1438,7 +1517,7 @@ enum NotificationStatus {
 model Notification {
   id String @id @default(uuid())
 
-  recipientEmail String           @map("recipient_email")
+  recipientEmail String             @map("recipient_email")
   type           NotificationType
   subject        String
   body           String
@@ -1462,7 +1541,7 @@ model RosterTemplate {
   id          String   @id @default(uuid())
   name        String
   description String?
-  columns     Json     // [{ fieldKey, label, width? }]
+  columns     Json // [{ fieldKey, label, width? }]
   filters     Json?
   sortConfig  Json?    @map("sort_config")
   isShared    Boolean  @default(false) @map("is_shared")
@@ -1490,15 +1569,15 @@ model ProviderApplication {
 
   // Provider Info
   npi        String
-  firstName  String @map("first_name")
-  lastName   String @map("last_name")
+  firstName  String  @map("first_name")
+  lastName   String  @map("last_name")
   middleName String? @map("middle_name")
   suffix     String?
   email      String
   phone      String
 
   // Personal Info
-  dateOfBirth DateTime  @map("date_of_birth")
+  dateOfBirth DateTime @map("date_of_birth")
   gender      Gender
 
   // Professional Info
@@ -1513,8 +1592,8 @@ model ProviderApplication {
   reviewNotes String?   @map("review_notes")
 
   // Auto-assign to practice (from registration link)
-  practiceId  String?   @map("practice_id")
-  practice    Practice? @relation(fields: [practiceId], references: [id])
+  practiceId String?   @map("practice_id")
+  practice   Practice? @relation(fields: [practiceId], references: [id])
 
   // Re-application support
   previousApplicationId String?              @unique @map("previous_application_id")
@@ -1532,7 +1611,7 @@ model ProviderApplication {
 
 model AdminNotification {
   id            String   @id @default(uuid())
-  type          String   // 'NEW_APPLICATION'
+  type          String // 'NEW_APPLICATION'
   message       String
   read          Boolean  @default(false)
   applicationId String?  @map("application_id")
@@ -1560,16 +1639,16 @@ enum InAppNotificationType {
 }
 
 model InAppNotification {
-  id        String               @id @default(uuid())
-  userId    String               @map("user_id")
+  id        String                @id @default(uuid())
+  userId    String                @map("user_id")
   type      InAppNotificationType
   title     String
   message   String
-  read      Boolean              @default(false)
-  actionUrl String?              @map("action_url")
+  read      Boolean               @default(false)
+  actionUrl String?               @map("action_url")
   metadata  Json?
-  createdAt DateTime             @default(now()) @map("created_at")
-  readAt    DateTime?            @map("read_at")
+  createdAt DateTime              @default(now()) @map("created_at")
+  readAt    DateTime?             @map("read_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1618,10 +1697,10 @@ model Task {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  provider    Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  enrollment  PayerEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
-  assignedTo  User?            @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
-  completedBy User?            @relation("TaskCompletedBy", fields: [completedById], references: [id])
+  provider           Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  enrollment         PayerEnrollment?    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
   terminationLetters TerminationLetter[]
 
   @@index([providerId])
@@ -1670,27 +1749,27 @@ enum DirectoryListingStatus {
 }
 
 model ProviderDirectorySnapshot {
-  id         String                 @id @default(uuid())
-  providerId String                 @map("provider_id")
-  payerId    String                 @map("payer_id")
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+  payerId    String @map("payer_id")
 
   status       DirectoryListingStatus
   checkedAt    DateTime               @default(now()) @map("checked_at")
   fhirResponse Json?                  @map("fhir_response")
 
   // Parsed fields from FHIR Practitioner resource
-  listedName       String?  @map("listed_name")
-  listedNpi        String?  @map("listed_npi")
-  listedPhone      String?  @map("listed_phone")
-  listedSpecialty  String?  @map("listed_specialty")
-  listedAddress    String?  @map("listed_address")
-  networkNames     String[] @default([]) @map("network_names")
+  listedName      String?  @map("listed_name")
+  listedNpi       String?  @map("listed_npi")
+  listedPhone     String?  @map("listed_phone")
+  listedSpecialty String?  @map("listed_specialty")
+  listedAddress   String?  @map("listed_address")
+  networkNames    String[] @default([]) @map("network_names")
 
   // Mismatch details (JSON array of { field, ours, theirs })
   mismatches Json? @map("mismatches")
 
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  payer    Payer    @relation(fields: [payerId], references: [id])
+  provider Provider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  payer    Payer                    @relation(fields: [payerId], references: [id])
   alerts   ProviderDirectoryAlert[]
 
   @@index([providerId, payerId])
@@ -1704,13 +1783,13 @@ model ProviderDirectoryAlert {
   payerId    String @map("payer_id")
   snapshotId String @map("snapshot_id")
 
-  alertType   String
-  message     String
-  details     Json?
-  resolved    Boolean   @default(false)
-  resolvedAt  DateTime? @map("resolved_at")
-  resolvedBy  String?   @map("resolved_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  alertType  String
+  message    String
+  details    Json?
+  resolved   Boolean   @default(false)
+  resolvedAt DateTime? @map("resolved_at")
+  resolvedBy String?   @map("resolved_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   provider Provider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer    Payer                     @relation(fields: [payerId], references: [id])
@@ -1756,33 +1835,33 @@ model ProviderImport {
 // ==========================================
 
 model EnrollmentWorkflowStep {
-  id             String @id @default(uuid())
-  enrollmentId   String @map("enrollment_id")
+  id           String @id @default(uuid())
+  enrollmentId String @map("enrollment_id")
 
   // Template reference
   templateStepId String @map("template_step_id")
   stepOrder      Int    @map("step_order")
 
   // Step details (copied from template at creation time)
-  name           String
-  description    String   @db.Text
-  actionType     WorkflowActionType @map("action_type")
-  url            String?
-  owner          WorkflowStepOwner
-  estimatedDays  Int      @map("estimated_days")
+  name          String
+  description   String             @db.Text
+  actionType    WorkflowActionType @map("action_type")
+  url           String?
+  owner         WorkflowStepOwner
+  estimatedDays Int                @map("estimated_days")
 
   // Dependencies & requirements
-  dependencies   String[] @default([])
-  documentsNeeded String[] @default([])  @map("documents_needed")
-  warnings       String[] @default([])
+  dependencies    String[] @default([])
+  documentsNeeded String[] @default([]) @map("documents_needed")
+  warnings        String[] @default([])
 
   // Progress tracking
-  status         WorkflowStepStatus @default(not_started)
-  startedAt      DateTime?  @map("started_at")
-  completedAt    DateTime?  @map("completed_at")
-  completedById  String?    @map("completed_by_id")
-  skippedReason  String?    @map("skipped_reason")
-  notes          String?
+  status        WorkflowStepStatus @default(not_started)
+  startedAt     DateTime?          @map("started_at")
+  completedAt   DateTime?          @map("completed_at")
+  completedById String?            @map("completed_by_id")
+  skippedReason String?            @map("skipped_reason")
+  notes         String?
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -1803,31 +1882,31 @@ model EnrollmentWorkflowStep {
 // ==========================================
 
 model AetnaEnrollmentRun {
-  id                String         @id @default(uuid())
-  payerEnrollmentId String         @map("payer_enrollment_id")
+  id                String          @id @default(uuid())
+  payerEnrollmentId String          @map("payer_enrollment_id")
   payerEnrollment   PayerEnrollment @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
 
-  status            AetnaRunStatus @default(pending)
-  aetnaRequestId    String?        @map("aetna_request_id")
+  status         AetnaRunStatus @default(pending)
+  aetnaRequestId String?        @map("aetna_request_id")
 
-  formPayload       Json           @map("form_payload")
-  automationLog     String?        @map("automation_log") @db.Text
-  errorMessage      String?        @map("error_message")
-  errorPage         Int?           @map("error_page")
+  formPayload   Json    @map("form_payload")
+  automationLog String? @map("automation_log") @db.Text
+  errorMessage  String? @map("error_message")
+  errorPage     Int?    @map("error_page")
 
-  screenshotDocIds  String[]       @map("screenshot_doc_ids")
-  confirmationPdfId String?        @map("confirmation_pdf_id")
+  screenshotDocIds  String[] @map("screenshot_doc_ids")
+  confirmationPdfId String?  @map("confirmation_pdf_id")
 
-  startedAt         DateTime?      @map("started_at")
-  reviewExpiresAt   DateTime?      @map("review_expires_at")
-  submittedAt       DateTime?      @map("submitted_at")
-  completedAt       DateTime?      @map("completed_at")
+  startedAt       DateTime? @map("started_at")
+  reviewExpiresAt DateTime? @map("review_expires_at")
+  submittedAt     DateTime? @map("submitted_at")
+  completedAt     DateTime? @map("completed_at")
 
-  initiatedById     String         @map("initiated_by_id")
-  initiatedBy       User           @relation(fields: [initiatedById], references: [id])
+  initiatedById String @map("initiated_by_id")
+  initiatedBy   User   @relation(fields: [initiatedById], references: [id])
 
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("aetna_enrollment_runs")
 }
@@ -1856,8 +1935,8 @@ model MedicareVerification {
   enrollmentStates String[] @default([]) @map("enrollment_states")
   rawData          Json?    @map("raw_data")
 
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([verifiedAt])
@@ -1896,12 +1975,12 @@ enum ApprovalStatus {
 }
 
 model AgentWorkflow {
-  id          String              @id @default(uuid())
-  goal        String
-  goalParams  Json                @map("goal_params")
-  status      AgentWorkflowStatus @default(planning)
-  priority    String              @default("normal")
-  plan        Json?
+  id         String              @id @default(uuid())
+  goal       String
+  goalParams Json                @map("goal_params")
+  status     AgentWorkflowStatus @default(planning)
+  priority   String              @default("normal")
+  plan       Json?
 
   // Relations
   providerId   String   @map("provider_id")
@@ -1918,14 +1997,14 @@ model AgentWorkflow {
   approvals PendingApproval[]
 
   // Timestamps
-  startedAt   DateTime?  @map("started_at")
-  completedAt DateTime?  @map("completed_at")
-  cancelledAt DateTime?  @map("cancelled_at")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  cancelledAt  DateTime? @map("cancelled_at")
   cancelReason String?   @map("cancel_reason")
 
   // Metrics
   totalTokensUsed Int  @default(0) @map("total_tokens_used")
-  totalDurationMs Int?  @map("total_duration_ms")
+  totalDurationMs Int? @map("total_duration_ms")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -1938,37 +2017,37 @@ model AgentWorkflow {
 }
 
 model AgentTask {
-  id         String          @id @default(uuid())
-  workflowId String          @map("workflow_id")
-  workflow   AgentWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  id         String        @id @default(uuid())
+  workflowId String        @map("workflow_id")
+  workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  type             String
-  agentType        String          @map("agent_type")
-  status           AgentTaskStatus @default(pending)
+  type      String
+  agentType String          @map("agent_type")
+  status    AgentTaskStatus @default(pending)
 
-  input            Json
-  output           Json?
-  error            Json?
+  input  Json
+  output Json?
+  error  Json?
 
-  stepNumber       Int             @map("step_number")
-  dependsOn        String[]        @default([]) @map("depends_on")
-  requiresApproval Boolean         @default(false) @map("requires_approval")
+  stepNumber       Int      @map("step_number")
+  dependsOn        String[] @default([]) @map("depends_on")
+  requiresApproval Boolean  @default(false) @map("requires_approval")
 
   // BullMQ tracking
-  bullmqJobId      String?         @map("bullmq_job_id")
-  queue            String?
+  bullmqJobId String? @map("bullmq_job_id")
+  queue       String?
 
   // Retry
-  attempts         Int             @default(0)
-  maxAttempts      Int             @default(3) @map("max_attempts")
+  attempts    Int @default(0)
+  maxAttempts Int @default(3) @map("max_attempts")
 
   // Timing
-  queuedAt         DateTime?       @map("queued_at")
-  startedAt        DateTime?       @map("started_at")
-  completedAt      DateTime?       @map("completed_at")
+  queuedAt    DateTime? @map("queued_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
 
   // Metrics
-  tokensUsed       Int             @default(0) @map("tokens_used")
+  tokensUsed Int @default(0) @map("tokens_used")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -1985,12 +2064,12 @@ model AgentEvent {
   workflowId String        @map("workflow_id")
   workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  taskId     String?       @map("task_id")
-  agent      String
-  action     String
-  data       Json
-  level      String        @default("info")
-  timestamp  DateTime      @default(now())
+  taskId    String?  @map("task_id")
+  agent     String
+  action    String
+  data      Json
+  level     String   @default("info")
+  timestamp DateTime @default(now())
 
   @@index([workflowId, timestamp])
   @@index([agent, action])
@@ -2002,18 +2081,18 @@ model PendingApproval {
   workflowId String        @map("workflow_id")
   workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  taskId        String         @map("task_id")
-  type          String
-  status        ApprovalStatus @default(pending)
-  context       Json
+  taskId  String         @map("task_id")
+  type    String
+  status  ApprovalStatus @default(pending)
+  context Json
 
-  requestedAt   DateTime       @default(now()) @map("requested_at")
-  expiresAt     DateTime       @map("expires_at")
+  requestedAt DateTime @default(now()) @map("requested_at")
+  expiresAt   DateTime @map("expires_at")
 
-  decidedBy     String?        @map("decided_by")
-  decider       User?          @relation("ApprovalDecider", fields: [decidedBy], references: [id])
-  decidedAt     DateTime?      @map("decided_at")
-  decisionNotes String?        @map("decision_notes")
+  decidedBy     String?   @map("decided_by")
+  decider       User?     @relation("ApprovalDecider", fields: [decidedBy], references: [id])
+  decidedAt     DateTime? @map("decided_at")
+  decisionNotes String?   @map("decision_notes")
 
   @@index([status])
   @@index([workflowId])
@@ -2021,23 +2100,171 @@ model PendingApproval {
 }
 
 model PayerAdapterConfig {
-  id               String   @id @default(uuid())
-  payerId          String   @unique @map("payer_id")
-  payer            Payer    @relation(fields: [payerId], references: [id])
+  id      String @id @default(uuid())
+  payerId String @unique @map("payer_id")
+  payer   Payer  @relation(fields: [payerId], references: [id])
 
-  adapterType      String   @map("adapter_type")
-  submissionMethod String   @map("submission_method")
+  adapterType      String @map("adapter_type")
+  submissionMethod String @map("submission_method")
   config           Json
   credentials      Json?
-  requiredFields   Json     @map("required_fields")
+  requiredFields   Json   @map("required_fields")
 
-  isActive         Boolean  @default(true) @map("is_active")
-  lastTestedAt     DateTime? @map("last_tested_at")
-  lastTestResult   String?  @map("last_test_result")
+  isActive       Boolean   @default(true) @map("is_active")
+  lastTestedAt   DateTime? @map("last_tested_at")
+  lastTestResult String?   @map("last_test_result")
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("payer_adapter_configs")
+}
+
+// =====================
+// Subscription & Billing
+// =====================
+
+model Subscription {
+  id         String   @id @default(uuid())
+  practiceId String   @unique @map("practice_id")
+  practice   Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  stripeCustomerId     String  @unique @map("stripe_customer_id")
+  stripeSubscriptionId String? @unique @map("stripe_subscription_id")
+  stripePriceId        String? @map("stripe_price_id")
+
+  plan          SubscriptionPlan   @default(STARTER)
+  status        SubscriptionStatus @default(TRIALING)
+  providerCount Int                @default(0) @map("provider_count")
+  providerLimit Int                @default(10) @map("provider_limit")
+
+  trialEndsAt        DateTime? @map("trial_ends_at")
+  currentPeriodStart DateTime? @map("current_period_start")
+  currentPeriodEnd   DateTime? @map("current_period_end")
+  cancelledAt        DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoices Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String       @id @default(uuid())
+  subscriptionId String       @map("subscription_id")
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  stripeInvoiceId String  @unique @map("stripe_invoice_id")
+  amount          Int // cents
+  status          String
+  invoiceUrl      String? @map("invoice_url")
+  pdfUrl          String? @map("pdf_url")
+
+  periodStart DateTime  @map("period_start")
+  periodEnd   DateTime  @map("period_end")
+  paidAt      DateTime? @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("invoices")
+}
+
+// =====================
+// Ops Management
+// =====================
+
+model OpsAssignment {
+  id      String @id @default(uuid())
+  staffId String @map("staff_id")
+  staff   User   @relation("OpsStaff", fields: [staffId], references: [id])
+
+  practiceId String?   @map("practice_id")
+  practice   Practice? @relation(fields: [practiceId], references: [id])
+
+  providerId String?   @map("provider_id")
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  enrollmentId String?          @map("enrollment_id")
+  enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])
+
+  isPrimary    Boolean   @default(true) @map("is_primary")
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  assignedById String    @map("assigned_by_id")
+  assignedBy   User      @relation("OpsAssigner", fields: [assignedById], references: [id])
+  unassignedAt DateTime? @map("unassigned_at")
+  notes        String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ops_assignments")
+}
+
+model OpsWorkItem {
+  id String @id @default(uuid())
+
+  practiceId String?   @map("practice_id")
+  practice   Practice? @relation(fields: [practiceId], references: [id])
+
+  providerId String?   @map("provider_id")
+  provider   Provider? @relation(fields: [providerId], references: [id])
+
+  enrollmentId String?          @map("enrollment_id")
+  enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])
+
+  title       String
+  description String?             @db.Text
+  category    OpsWorkItemCategory
+  status      OpsWorkItemStatus   @default(todo)
+  priority    OpsWorkItemPriority @default(normal)
+
+  assignedToId String? @map("assigned_to_id")
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  dueDate          DateTime? @map("due_date")
+  slaDeadline      DateTime? @map("sla_deadline")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  estimatedMinutes Int?      @map("estimated_minutes")
+  actualMinutes    Int?      @map("actual_minutes")
+  blockerNotes     String?   @map("blocker_notes")
+
+  parentWorkItemId String?       @map("parent_work_item_id")
+  parentWorkItem   OpsWorkItem?  @relation("WorkItemHierarchy", fields: [parentWorkItemId], references: [id])
+  childWorkItems   OpsWorkItem[] @relation("WorkItemHierarchy")
+
+  sourceTaskId String? @map("source_task_id")
+
+  comments OpsWorkItemComment[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([assignedToId, status])
+  @@index([status, priority])
+  @@index([dueDate])
+  @@index([slaDeadline])
+  @@map("ops_work_items")
+}
+
+model OpsWorkItemComment {
+  id         String      @id @default(uuid())
+  workItemId String      @map("work_item_id")
+  workItem   OpsWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+
+  authorId String @map("author_id")
+  author   User   @relation(fields: [authorId], references: [id])
+
+  content    String  @db.Text
+  isInternal Boolean @default(true) @map("is_internal")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([workItemId])
+  @@map("ops_work_item_comments")
 }

@@ -11,7 +11,20 @@ import { ForbiddenError } from './error.middleware.js';
 export async function initPracticeScope(req: Request): Promise<void> {
   if (req.practiceScope || !req.user) return;
 
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'admin' || req.user.role === 'ops_staff') {
+    // Check for X-Ops-Practice-Context header to narrow scope
+    const opsPracticeId = req.headers['x-ops-practice-context'] as string | undefined;
+    if (opsPracticeId && (req.user.role === 'admin' || req.user.role === 'ops_staff')) {
+      // Validate practice exists
+      const practice = await prisma.practice.findUnique({
+        where: { id: opsPracticeId },
+        select: { id: true },
+      });
+      if (practice) {
+        req.practiceScope = { isSuperAdmin: false, practiceIds: [opsPracticeId] };
+        return;
+      }
+    }
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return;
   }
@@ -45,7 +58,18 @@ export async function attachPracticeScope(
 ): Promise<void> {
   if (!req.user) return next();
 
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'admin' || req.user.role === 'ops_staff') {
+    const opsPracticeId = req.headers['x-ops-practice-context'] as string | undefined;
+    if (opsPracticeId) {
+      const practice = await prisma.practice.findUnique({
+        where: { id: opsPracticeId },
+        select: { id: true },
+      });
+      if (practice) {
+        req.practiceScope = { isSuperAdmin: false, practiceIds: [opsPracticeId] };
+        return next();
+      }
+    }
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return next();
   }
