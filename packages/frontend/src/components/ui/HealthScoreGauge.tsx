@@ -63,8 +63,14 @@ export default function HealthScoreGauge({
         </svg>
         {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold text-gray-900">{clamped}</span>
-          <span className="text-xs text-gray-500">{label || getLabel(clamped)}</span>
+          <span className={clsx(
+            'font-bold text-gray-900',
+            size < 80 ? 'text-sm' : size < 120 ? 'text-xl' : 'text-3xl'
+          )}>{clamped}</span>
+          <span className={clsx(
+            'text-gray-500',
+            size < 80 ? 'text-[8px]' : size < 120 ? 'text-[10px]' : 'text-xs'
+          )}>{label || getLabel(clamped)}</span>
         </div>
       </div>
     </div>

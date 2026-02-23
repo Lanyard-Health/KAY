@@ -75,6 +75,10 @@
     @apply badge bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10;
   }
 
+  .badge-primary {
+    @apply badge bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-600/20;
+  }
+
   .stat-card {
     @apply card p-5 flex flex-col gap-1 animate-fade-in;
   }

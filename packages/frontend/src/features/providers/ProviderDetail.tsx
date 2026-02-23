@@ -113,7 +113,12 @@ function CollapsibleSection({
           </button>
         )}
       </div>
-      {isOpen && <div className="card-body">{children}</div>}
+      <div className={clsx(
+        'overflow-hidden transition-all duration-200 ease-out',
+        isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+      )}>
+        <div className="card-body">{children}</div>
+      </div>
     </div>
   );
 }
@@ -781,6 +786,36 @@ export default function ProviderDetail() {
               </div>
             ))}
           </div>
+
+          {/* Next Step Banner */}
+          {completenessScore < 100 && (() => {
+            const missingItems: { label: string; action: () => void }[] = [];
+            if (!provider.licenses?.length) missingItems.push({ label: 'a license', action: handleAddLicense });
+            if (!provider.boardCertifications?.length) missingItems.push({ label: 'board certification', action: handleAddCert });
+            if (!(malpracticeInsuranceList?.length)) missingItems.push({ label: 'malpractice insurance', action: handleAddMalpracticeInsurance });
+            if (!(educationList?.length)) missingItems.push({ label: 'education', action: handleAddEducation });
+            if (!(deaRegistrationsList?.length)) missingItems.push({ label: 'DEA registration', action: handleAddDeaRegistration });
+            if (!provider.practiceLocations?.length) missingItems.push({ label: 'a practice location', action: handleAddLocation });
+            if (!provider.documents?.length) missingItems.push({ label: 'documents', action: () => { setUploadDocumentType(''); setUploadModalOpen(true); } });
+            if (!provider.taxonomy) missingItems.push({ label: 'taxonomy code', action: () => setActiveTab(0) });
+            if (missingItems.length === 0) return null;
+            const targetScore = Math.min(100, completenessScore + (missingItems.length >= 2 ? 30 : 15));
+            return (
+              <div className="mt-4 border-l-4 border-primary-400 bg-primary-50/50 rounded-lg p-3 animate-fade-in">
+                <p className="text-sm text-primary-800">
+                  Complete your profile — add{' '}
+                  <button onClick={missingItems[0].action} className="font-medium underline underline-offset-2 hover:text-primary-600">{missingItems[0].label}</button>
+                  {missingItems.length > 1 && (
+                    <>
+                      {' '}and{' '}
+                      <button onClick={missingItems[1].action} className="font-medium underline underline-offset-2 hover:text-primary-600">{missingItems[1].label}</button>
+                    </>
+                  )}
+                  {' '}to reach {targetScore}%
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -808,11 +843,11 @@ export default function ProviderDetail() {
         <Tab.Panels>
           {/* ===== PROFILE TAB ===== */}
           <Tab.Panel>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
               <div className="lg:col-span-2 space-y-6">
 
                 {/* Personal Information — card grid instead of accordion */}
-                <div className="card">
+                <div className="card animate-fade-in">
                   <div className="card-header">
                     <h2 className="text-base font-semibold text-gray-900">Personal Information</h2>
                   </div>
@@ -854,7 +889,7 @@ export default function ProviderDetail() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {provider.practiceLocations.map((location: any) => (
-                        <div key={location.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
+                        <div key={location.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -899,7 +934,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!educationList || educationList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No education records added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <AcademicCapIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No education records yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first education record to get started</p>
+                      <button onClick={handleAddEducation} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add education
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {educationList.map((edu: any) => (
@@ -943,7 +987,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!workHistoryList || workHistoryList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No work history added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <BriefcaseIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No work history yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first work history record to get started</p>
+                      <button onClick={handleAddWorkHistory} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add work history
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {workHistoryList.map((wh: any) => (
@@ -989,7 +1042,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!providerIdentifiersList || providerIdentifiersList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No identifiers added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No identifiers yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first provider identifier to get started</p>
+                      <button onClick={handleAddProviderIdentifier} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add identifier
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {providerIdentifiersList.map((pi: any) => (
@@ -1027,7 +1089,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!bankingList || bankingList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No banking records added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <BuildingOfficeIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No banking records yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first banking record to get started</p>
+                      <button onClick={handleAddBanking} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add banking info
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {bankingList.map((b: any) => (
@@ -1063,7 +1134,7 @@ export default function ProviderDetail() {
               {/* Sidebar */}
               <div className="space-y-4">
                 {/* Practice Assignment */}
-                <div className="card card-body">
+                <div className="card card-body border-l-4 border-l-primary-400">
                   <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Practice</h3>
                   {provider.practice ? (
                     <div>
@@ -1173,13 +1244,16 @@ export default function ProviderDetail() {
                 <DirectoryStatusCard providerId={id!} />
 
                 {/* Documents */}
-                <div className="card card-body">
-                  <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Documents</h3>
-                  <p className="text-2xl font-bold text-gray-900">{provider.documents?.length || 0}</p>
-                  <p className="text-xs text-gray-500">documents uploaded</p>
-                  <div className="mt-2 flex gap-3">
-                    <Link to="/documents" className="text-xs text-primary-600 hover:text-primary-500">View All</Link>
-                    <button onClick={() => { setUploadDocumentType(''); setUploadModalOpen(true); }} className="text-xs text-primary-600 hover:text-primary-500">Upload</button>
+                <div className="card px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Documents</h3>
+                      <span className="text-sm font-bold text-gray-900">{provider.documents?.length || 0}</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <Link to="/documents" className="text-xs text-primary-600 hover:text-primary-500">View</Link>
+                      <button onClick={() => { setUploadDocumentType(''); setUploadModalOpen(true); }} className="text-xs text-primary-600 hover:text-primary-500">Upload</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1189,7 +1263,7 @@ export default function ProviderDetail() {
           {/* ===== CREDENTIALS TAB ===== */}
           <Tab.Panel>
             {activeTab === 1 && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-fade-in">
                 {/* Credential Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
@@ -1197,8 +1271,8 @@ export default function ProviderDetail() {
                     { label: 'Board Certs', count: provider.boardCertifications?.length || 0, color: 'bg-blue-50 text-blue-700', icon: ShieldCheckIcon },
                     { label: 'DEA', count: deaRegistrationsList?.length || 0, color: 'bg-purple-50 text-purple-700', icon: DocumentTextIcon },
                     { label: 'Insurance', count: malpracticeInsuranceList?.length || 0, color: 'bg-amber-50 text-amber-700', icon: ShieldCheckIcon },
-                  ].map((item) => (
-                    <div key={item.label} className="card card-body flex items-center gap-3">
+                  ].map((item, idx) => (
+                    <div key={item.label} className="card card-body flex items-center gap-3 animate-scale-in" style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'backwards' }}>
                       <div className={clsx('h-10 w-10 rounded-xl flex items-center justify-center', item.color)}>
                         <item.icon className="h-5 w-5" />
                       </div>
@@ -1220,15 +1294,28 @@ export default function ProviderDetail() {
                   </div>
                   <div className="card-body">
                     {provider.licenses?.length === 0 ? (
-                      <p className="text-sm text-gray-500">No licenses added yet.</p>
+                      <div className="text-center py-8">
+                        <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                          <MapIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500">No licenses yet</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Add your first license to get started</p>
+                        <button onClick={handleAddLicense} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                          <PlusIcon className="h-3.5 w-3.5" /> Add license
+                        </button>
+                      </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {provider.licenses?.map((license: any) => {
-                          const isExpired = new Date(license.expirationDate) < new Date();
+                          const expDate = new Date(license.expirationDate);
+                          const now = new Date();
+                          const daysUntilExpiry = Math.floor((expDate.getTime() - now.getTime()) / 86400000);
+                          const isExpired = daysUntilExpiry < 0;
+                          const isExpiringSoon = !isExpired && daysUntilExpiry <= 90;
                           return (
                             <div key={license.id} className={clsx(
-                              'group relative p-4 rounded-xl border transition-colors',
-                              isExpired ? 'bg-red-50/50 border-red-200' : 'bg-gray-50 border-gray-100 hover:border-primary-200'
+                              'group relative p-4 rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-4',
+                              isExpired ? 'bg-red-50/50 border-red-200 border-l-red-400' : isExpiringSoon ? 'bg-gray-50 border-gray-100 border-l-amber-400 hover:border-primary-200' : 'bg-gray-50 border-gray-100 border-l-green-400 hover:border-primary-200'
                             )}>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1 min-w-0">
@@ -1280,11 +1367,28 @@ export default function ProviderDetail() {
                   </div>
                   <div className="card-body">
                     {provider.boardCertifications?.length === 0 ? (
-                      <p className="text-sm text-gray-500">No certifications added yet.</p>
+                      <div className="text-center py-8">
+                        <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                          <ShieldCheckIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500">No certifications yet</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Add your first board certification to get started</p>
+                        <button onClick={handleAddCert} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                          <PlusIcon className="h-3.5 w-3.5" /> Add certification
+                        </button>
+                      </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {provider.boardCertifications?.map((cert: any) => (
-                          <div key={cert.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
+                        {provider.boardCertifications?.map((cert: any) => {
+                          const certExpDate = cert.expirationDate ? new Date(cert.expirationDate) : null;
+                          const certDaysUntil = certExpDate ? Math.floor((certExpDate.getTime() - Date.now()) / 86400000) : null;
+                          const certExpired = certDaysUntil !== null && certDaysUntil < 0;
+                          const certExpiringSoon = certDaysUntil !== null && !certExpired && certDaysUntil <= 90;
+                          return (
+                          <div key={cert.id} className={clsx(
+                            'group relative p-4 bg-gray-50 rounded-xl border hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4',
+                            certExpired ? 'border-red-200 border-l-red-400 bg-red-50/50' : certExpiringSoon ? 'border-gray-100 border-l-amber-400 hover:border-primary-200' : 'border-gray-100 border-l-green-400 hover:border-primary-200'
+                          )}>
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-sm text-gray-900">{cert.boardName}</p>
@@ -1305,7 +1409,8 @@ export default function ProviderDetail() {
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1320,11 +1425,28 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!deaRegistrationsList || deaRegistrationsList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No DEA registrations added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No DEA registrations yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first DEA registration to get started</p>
+                      <button onClick={handleAddDeaRegistration} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add DEA registration
+                      </button>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {deaRegistrationsList.map((dea: any) => (
-                        <div key={dea.id} className="group relative p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-primary-200 transition-colors">
+                      {deaRegistrationsList.map((dea: any) => {
+                        const deaExpDate = dea.expirationDate ? new Date(dea.expirationDate) : null;
+                        const deaDaysUntil = deaExpDate ? Math.floor((deaExpDate.getTime() - Date.now()) / 86400000) : null;
+                        const deaExpired = deaDaysUntil !== null && deaDaysUntil < 0;
+                        const deaExpiringSoon = deaDaysUntil !== null && !deaExpired && deaDaysUntil <= 90;
+                        return (
+                        <div key={dea.id} className={clsx(
+                          'group relative p-4 bg-gray-50 rounded-xl border hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4',
+                          deaExpired ? 'border-red-200 border-l-red-400 bg-red-50/50' : deaExpiringSoon ? 'border-gray-100 border-l-amber-400 hover:border-primary-200' : 'border-gray-100 border-l-green-400 hover:border-primary-200'
+                        )}>
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -1351,7 +1473,8 @@ export default function ProviderDetail() {
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CollapsibleSection>
@@ -1365,7 +1488,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!malpracticeInsuranceList || malpracticeInsuranceList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No malpractice insurance records added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <ShieldCheckIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No malpractice insurance yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first malpractice insurance to get started</p>
+                      <button onClick={handleAddMalpracticeInsurance} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add insurance
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {malpracticeInsuranceList.map((ins: any) => (
@@ -1404,7 +1536,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!malpracticeClaimsList || malpracticeClaimsList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No malpractice claims recorded.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No malpractice claims</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Claims will appear here when recorded</p>
+                      <button onClick={handleAddMalpracticeClaim} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add claim
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {malpracticeClaimsList.map((mc: any) => (
@@ -1452,7 +1593,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!supervisingPhysiciansList || supervisingPhysiciansList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No supervising physicians added yet.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <UserCircleIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No supervising physicians yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add your first supervising physician to get started</p>
+                      <button onClick={handleAddSupervisingPhysician} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add supervisor
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {supervisingPhysiciansList.map((sp: any) => (
@@ -1501,7 +1651,16 @@ export default function ProviderDetail() {
                   addLabel="Add"
                 >
                   {(!disclosuresList || disclosuresList.length === 0) ? (
-                    <p className="text-sm text-gray-500">No disclosures recorded.</p>
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No disclosures recorded</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Disclosure questions will appear here when answered</p>
+                      <button onClick={handleAddDisclosure} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add disclosure
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {disclosuresList.map((d: any) => (
