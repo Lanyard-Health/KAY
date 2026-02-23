@@ -5,12 +5,12 @@ const REDACTION_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /\b\d{3}-?\d{2}-?\d{4}\b/g, replacement: '[SSN_REDACTED]' },
   // Email
   { pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, replacement: '[EMAIL_REDACTED]' },
+  // NPI (must come before phone — NPI is 10 digits which the phone regex also matches)
+  { pattern: /\bNPI[:\s]*\d{10}\b/gi, replacement: '[NPI_REDACTED]' },
   // Phone
   { pattern: /\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, replacement: '[PHONE_REDACTED]' },
   // DOB-like dates
   { pattern: /\b(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/(19|20)\d{2}\b/g, replacement: '[DATE_REDACTED]' },
-  // NPI
-  { pattern: /\bNPI[:\s]*\d{10}\b/gi, replacement: '[NPI_REDACTED]' },
   // Prisma WHERE clauses
   { pattern: /WHERE[\s\S]*?(?=\)|$)/gi, replacement: 'WHERE [PARAMS_REDACTED]' },
   // JSON bodies with PII keys
