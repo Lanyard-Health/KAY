@@ -84,16 +84,21 @@ async function checkCredentialCompleteness(input: { providerId: string; payerId:
     return { error: `Provider ${input.providerId} not found` };
   }
 
-  // Load payer required fields
+  // Load payer required fields (fall back to standard requirements if no adapter config)
   const config = await prisma.payerAdapterConfig.findUnique({
     where: { payerId: input.payerId },
   });
 
-  if (!config) {
-    return { error: `No adapter config found for payer ${input.payerId}` };
-  }
-
-  const requiredFields = (config.requiredFields as string[]) ?? [];
+  const DEFAULT_REQUIRED_FIELDS = [
+    'npi',
+    'medical_license',
+    'board_certification',
+    'malpractice_insurance',
+    'education',
+  ];
+  const requiredFields = config
+    ? ((config.requiredFields as string[]) ?? DEFAULT_REQUIRED_FIELDS)
+    : DEFAULT_REQUIRED_FIELDS;
   const now = new Date();
 
   const present: string[] = [];
