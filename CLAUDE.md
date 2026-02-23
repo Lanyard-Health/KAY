@@ -13,6 +13,8 @@ Before completing ANY task, automatically perform these checks on all changed fi
 
 6. ERROR HANDLING: Never expose stack traces, internal paths, or system details in error responses.
 
+7. ENV FILES: NEVER commit, read aloud, or display the contents of `.env` files. They contain real API keys and credentials. If you need to reference an env var, use `.env.example` which has empty values.
+
 ## Prisma Schema Changes — ALWAYS Generate Migrations
 **Critical**: Any change to `prisma/schema.prisma` (new columns, new models, altered fields, new enums) **MUST** include a migration file. Without it, `prisma generate` creates a client that expects columns/tables that don't exist in production, causing 500 errors on every query that touches the changed models.
 
