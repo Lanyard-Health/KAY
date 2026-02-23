@@ -96,7 +96,7 @@ export function useLaunchWorkflow() {
       providerId: string;
       payerId?: string;
       enrollmentId?: string;
-      priority?: number;
+      priority?: 'low' | 'normal' | 'high' | 'urgent';
     }) => api.post<AgentWorkflow>('/agent/workflows', params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-workflows'] });
