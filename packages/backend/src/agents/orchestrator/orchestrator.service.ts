@@ -83,7 +83,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   if (replanCount >= MAX_REPLAN_COUNT) {
     await prisma.agentWorkflow.update({
       where: { id: workflowId },
-      data: { status: 'failed', completedAt: new Date() },
+      data: { status: 'paused' },
     });
     await logAgentEvent({
       workflowId,
@@ -93,13 +93,13 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       level: 'warn',
     });
     logger.warn('Orchestrator replan limit reached', { workflowId, replanCount });
-    return { workflowId, status: 'failed', tokensUsed: 0, toolCallCount: 0, reasoning: 'Replan limit reached' };
+    return { workflowId, status: 'paused', tokensUsed: 0, toolCallCount: 0, reasoning: 'Replan limit reached' };
   }
 
   if (workflow.totalTokensUsed >= WORKFLOW_TOKEN_BUDGET) {
     await prisma.agentWorkflow.update({
       where: { id: workflowId },
-      data: { status: 'failed', completedAt: new Date() },
+      data: { status: 'paused' },
     });
     await logAgentEvent({
       workflowId,
@@ -109,7 +109,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       level: 'warn',
     });
     logger.warn('Orchestrator token budget exceeded', { workflowId, totalTokensUsed: workflow.totalTokensUsed });
-    return { workflowId, status: 'failed', tokensUsed: 0, toolCallCount: 0, reasoning: 'Token budget exceeded' };
+    return { workflowId, status: 'paused', tokensUsed: 0, toolCallCount: 0, reasoning: 'Token budget exceeded' };
   }
 
   // 3. Build prompts
@@ -201,14 +201,9 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       }
     }
   } catch (err) {
-    // Mark workflow as failed so it doesn't stay stuck in 'planning'
+    // Log the error but rethrow so BullMQ can retry the job
     const errorMessage = err instanceof Error ? err.message : String(err);
     logger.error('Orchestrator job failed', { workflowId, error: errorMessage });
-
-    await prisma.agentWorkflow.update({
-      where: { id: workflowId },
-      data: { status: 'failed', completedAt: new Date() },
-    });
 
     await logAgentEvent({
       workflowId,
@@ -218,13 +213,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       level: 'error',
     });
 
-    return {
-      workflowId,
-      status: 'failed',
-      tokensUsed: totalInputTokens + totalOutputTokens,
-      toolCallCount,
-      reasoning: `Error: ${errorMessage}`,
-    };
+    throw err;
   }
 
   // 5. Post-loop: persist plan and update workflow
