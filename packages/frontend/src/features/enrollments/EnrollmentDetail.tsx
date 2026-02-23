@@ -15,6 +15,7 @@ import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWo
 import AiSidebar from '../../components/AiSidebar';
 import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
+import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
@@ -224,6 +225,15 @@ export default function EnrollmentDetail() {
           onClose={() => setActiveRunId(null)}
         />
       )}
+
+      {/* Agent Workflow */}
+      <AgentWorkflowPanel
+        enrollmentId={enrollment.id}
+        providerId={enrollment.providerId}
+        payerId={enrollment.payer?.id}
+        providerName={`${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim()}
+        payerName={enrollment.payer?.name ?? ''}
+      />
 
       {/* AI Sidebar */}
       <AiSidebar entityType="enrollment" entityId={enrollment.id} />

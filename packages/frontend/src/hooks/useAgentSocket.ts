@@ -84,3 +84,76 @@ export function useApprovalSocket() {
 
   return socketRef;
 }
+
+/**
+ * Connects to the agent WebSocket server and subscribes to a specific workflow room.
+ * Automatically invalidates React Query caches when workflow events arrive.
+ */
+export function useWorkflowSocket(workflowId: string | null) {
+  const queryClient = useQueryClient();
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    if (!workflowId) return;
+
+    const connectSocket = async () => {
+      let authToken = getSocketToken();
+
+      if (!authToken && !DEV_BYPASS_ENABLED) {
+        try {
+          const { fetchAuthSession } = await import('aws-amplify/auth');
+          const session = await fetchAuthSession();
+          authToken = session.tokens?.accessToken?.toString() || null;
+        } catch {
+          return;
+        }
+      }
+
+      if (!authToken) return;
+
+      const wsUrl = import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace(/\/api\/v1$/, '')
+        : window.location.origin;
+
+      const socket = io(wsUrl, {
+        path: '/ws/agent',
+        auth: { token: authToken },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 10000,
+        reconnectionAttempts: 10,
+      });
+
+      socket.on('connect', () => {
+        socket.emit('subscribe:workflow', workflowId);
+      });
+
+      socket.on('workflow:updated', () => {
+        queryClient.invalidateQueries({ queryKey: ['agent-workflow', workflowId] });
+        queryClient.invalidateQueries({ queryKey: ['agent-workflow-events', workflowId] });
+      });
+
+      socket.on('workflow:task:updated', () => {
+        queryClient.invalidateQueries({ queryKey: ['agent-workflow', workflowId] });
+      });
+
+      socket.on('workflow:event', () => {
+        queryClient.invalidateQueries({ queryKey: ['agent-workflow-events', workflowId] });
+      });
+
+      socketRef.current = socket;
+    };
+
+    connectSocket();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [workflowId, queryClient]);
+
+  return socketRef;
+}

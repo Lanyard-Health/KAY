@@ -1,0 +1,170 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../services/api';
+import toast from 'react-hot-toast';
+
+// ===========================
+// Types
+// ===========================
+
+export type WorkflowStatus =
+  | 'planning'
+  | 'active'
+  | 'waiting_approval'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type TaskStatus = 'pending' | 'active' | 'completed' | 'failed' | 'skipped';
+
+export interface AgentTask {
+  id: string;
+  workflowId: string;
+  agentType: string;
+  status: TaskStatus;
+  input: Record<string, unknown>;
+  output: Record<string, unknown> | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface AgentEvent {
+  id: string;
+  workflowId: string;
+  taskId: string | null;
+  agent: string | null;
+  action: string;
+  level: 'info' | 'warn' | 'error';
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AgentWorkflow {
+  id: string;
+  goal: string;
+  status: WorkflowStatus;
+  priority: number;
+  providerId: string | null;
+  payerId: string | null;
+  enrollmentId: string | null;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tasks: AgentTask[];
+  approvals: Array<{
+    id: string;
+    type: string;
+    status: string;
+    context: Record<string, unknown>;
+    requestedAt: string;
+    expiresAt: string;
+    decidedAt: string | null;
+  }>;
+  provider: { id: string; firstName: string; lastName: string; npi: string } | null;
+  payer: { id: string; name: string } | null;
+}
+
+export interface WorkflowListItem {
+  id: string;
+  goal: string;
+  status: WorkflowStatus;
+  priority: number;
+  providerId: string | null;
+  payerId: string | null;
+  enrollmentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  provider: { id: string; firstName: string; lastName: string } | null;
+  payer: { id: string; name: string } | null;
+}
+
+// ===========================
+// Hooks
+// ===========================
+
+const TERMINAL_STATUSES: WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
+
+export function useLaunchWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: {
+      goal: string;
+      providerId: string;
+      payerId?: string;
+      enrollmentId?: string;
+      priority?: number;
+    }) => api.post<AgentWorkflow>('/agent/workflows', params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-workflows'] });
+      toast.success('Agent workflow launched');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to launch workflow: ${error.message}`);
+    },
+  });
+}
+
+export function useWorkflowsForEnrollment(providerId: string, enrollmentId: string) {
+  return useQuery<WorkflowListItem[]>({
+    queryKey: ['agent-workflows', providerId, enrollmentId],
+    queryFn: async () => {
+      const { data } = await api.get<WorkflowListItem[]>(
+        `/agent/workflows?providerId=${encodeURIComponent(providerId)}&limit=50`,
+      );
+      // Client-side filter by enrollmentId since backend list doesn't support it
+      return data.filter((w) => w.enrollmentId === enrollmentId);
+    },
+    refetchInterval: 30_000,
+    enabled: !!providerId && !!enrollmentId,
+  });
+}
+
+export function useWorkflowDetail(workflowId: string | null) {
+  return useQuery<AgentWorkflow | null>({
+    queryKey: ['agent-workflow', workflowId],
+    queryFn: async () => {
+      if (!workflowId) return null;
+      const { data } = await api.get<AgentWorkflow>(`/agent/workflows/${workflowId}`);
+      return data;
+    },
+    enabled: !!workflowId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || TERMINAL_STATUSES.includes(status)) return false;
+      return 5_000;
+    },
+  });
+}
+
+export function useWorkflowEvents(workflowId: string | null) {
+  return useQuery<AgentEvent[]>({
+    queryKey: ['agent-workflow-events', workflowId],
+    queryFn: async () => {
+      if (!workflowId) return [];
+      const { data } = await api.get<AgentEvent[]>(`/agent/workflows/${workflowId}/events`);
+      return data;
+    },
+    enabled: !!workflowId,
+  });
+}
+
+export function useCancelWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (workflowId: string) =>
+      api.patch(`/agent/workflows/${workflowId}`, { action: 'cancel' }),
+    onSuccess: (_data, workflowId) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-workflows'] });
+      queryClient.invalidateQueries({ queryKey: ['agent-workflow', workflowId] });
+      toast.success('Workflow cancelled');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to cancel workflow: ${error.message}`);
+    },
+  });
+}
