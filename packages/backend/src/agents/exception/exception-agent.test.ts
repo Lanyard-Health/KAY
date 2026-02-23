@@ -114,10 +114,15 @@ describe('processExceptionJob', () => {
       }),
     });
 
-    // Should notify orchestrator
-    expect(mockAdd).toHaveBeenCalledWith(
-      'task_callback',
-      expect.objectContaining({ workflowId: 'wf-1', event: 'task_failed' })
+    // Should NOT re-enqueue orchestrator (autoRemediable is false)
+    expect(mockAdd).not.toHaveBeenCalled();
+
+    // Should mark workflow as failed (non-remediable)
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'wf-1' },
+        data: expect.objectContaining({ status: 'failed' }),
+      })
     );
 
     // Should emit WebSocket
@@ -146,11 +151,13 @@ describe('processExceptionJob', () => {
     expect(result.severity).toBe('medium');
     expect(result.analysis.autoRemediable).toBe(false);
 
-    // Should still log event and notify orchestrator
+    // Should still log event
     expect(logAgentEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'exception_analyzed' })
     );
-    expect(mockAdd).toHaveBeenCalled();
+
+    // Should NOT re-enqueue orchestrator (malformed response defaults to non-remediable)
+    expect(mockAdd).not.toHaveBeenCalled();
   });
 
   it('tracks tokens on workflow', async () => {
