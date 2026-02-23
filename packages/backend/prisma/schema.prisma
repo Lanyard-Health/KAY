@@ -2268,3 +2268,27 @@ model OpsWorkItemComment {
   @@index([workItemId])
   @@map("ops_work_item_comments")
 }
+
+model BugFingerprint {
+  id              String    @id @default(uuid())
+  hash            String    @unique
+  source          String
+  title           String
+  errorClass      String?
+  linearIssueId   String?
+  linearIssueUrl  String?
+  currentSeverity String    @default("medium")
+  occurrenceCount Int       @default(1)
+  pendingSync     Boolean   @default(false)
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  resolvedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([hash])
+  @@index([source])
+  @@index([lastSeenAt])
+  @@index([pendingSync])
+}
