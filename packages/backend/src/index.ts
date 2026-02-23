@@ -68,6 +68,7 @@ import opsAssignmentRoutes from './routes/opsAssignment.routes.js';
 import opsActivityRoutes from './routes/ops-activity.routes.js';
 import { bugReportRoutes } from './routes/bug-report.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
+import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -227,6 +228,7 @@ app.use('/api/v1/bugs', bugReportRoutes);
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
+app.use(bugMonitorErrorMiddleware);
 
 // 404 handler
 app.use((_req, res) => {
@@ -281,6 +283,7 @@ server.listen(PORT, async () => {
 
   // Initialize bug monitor
   initBugMonitor(prisma);
+  registerProcessHandlers();
 
   // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
   if (process.env['NODE_ENV'] === 'production') {
