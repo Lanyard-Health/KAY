@@ -201,20 +201,33 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
     rootCause: analysis.rootCause,
   });
 
-  // 12. Notify orchestrator for replanning
-  const orchestratorQueue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
-  await orchestratorQueue.add('task_callback', {
-    workflowId,
-    taskId,
-    event: 'task_failed',
-    jobType: 'task_callback',
-  });
-
-  logger.info('Exception analyzed', {
-    workflowId,
-    category: analysis.category,
-    severity: analysis.severity,
-  });
+  // 12. Only re-enqueue orchestrator if the exception is auto-remediable.
+  //     Non-remediable issues (e.g., missing adapter config) cause infinite
+  //     escalation loops if we blindly replan.
+  if (analysis.autoRemediable) {
+    const orchestratorQueue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
+    await orchestratorQueue.add('task_callback', {
+      workflowId,
+      taskId,
+      event: 'task_failed',
+      jobType: 'task_callback',
+    });
+    logger.info('Exception analyzed — auto-remediable, re-enqueuing orchestrator', {
+      workflowId,
+      category: analysis.category,
+    });
+  } else {
+    // Mark workflow as failed — requires human intervention
+    await prisma.agentWorkflow.update({
+      where: { id: workflowId },
+      data: { status: 'failed', completedAt: new Date() },
+    });
+    logger.info('Exception analyzed — not auto-remediable, workflow marked failed', {
+      workflowId,
+      category: analysis.category,
+      severity: analysis.severity,
+    });
+  }
 
   // 13. Return result
   return {
