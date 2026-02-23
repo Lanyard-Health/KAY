@@ -66,6 +66,8 @@ import opsRoutes from './routes/ops.routes.js';
 import opsWorkQueueRoutes from './routes/opsWorkQueue.routes.js';
 import opsAssignmentRoutes from './routes/opsAssignment.routes.js';
 import opsActivityRoutes from './routes/ops-activity.routes.js';
+import { bugReportRoutes } from './routes/bug-report.routes.js';
+import { initBugMonitor } from './services/bug-monitor/index.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
@@ -220,6 +222,7 @@ app.use('/api/v1/ops/assignments', opsAssignmentRoutes);
 app.use('/api/v1/ops/activity', opsActivityRoutes);
 app.use('/api/v1/agent', agentRoutes);
 app.use('/api/v1/agent/approvals', approvalRoutes);
+app.use('/api/v1/bugs', bugReportRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
@@ -275,6 +278,9 @@ server.listen(PORT, async () => {
       error: err instanceof Error ? err.message : 'unknown',
     });
   }
+
+  // Initialize bug monitor
+  initBugMonitor(prisma);
 
   // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
   if (process.env['NODE_ENV'] === 'production') {
