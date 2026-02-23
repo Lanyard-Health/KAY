@@ -6,6 +6,8 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
 import { validateEnv } from './utils/validateEnv';
+import { BugReportingErrorBoundary } from './components/BugReportingErrorBoundary';
+import { registerGlobalErrorHandlers } from './utils/global-error-handlers';
 
 // Only configure AWS Amplify if not in dev bypass mode
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
@@ -40,14 +42,19 @@ const initApp = async () => {
     },
   });
 
+  const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
+  registerGlobalErrorHandlers(apiUrl);
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-          <Toaster position="top-right" />
-        </BrowserRouter>
-      </QueryClientProvider>
+      <BugReportingErrorBoundary apiUrl={apiUrl}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+            <Toaster position="top-right" />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </BugReportingErrorBoundary>
     </React.StrictMode>
   );
 };
