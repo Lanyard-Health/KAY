@@ -690,14 +690,14 @@ export default function ProviderDetail() {
       <div className="card overflow-hidden mb-6">
         <div className="h-20 bg-gradient-to-r from-primary-800 via-primary-600 to-emerald-500" />
         <div className="px-6 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between -mt-8">
-            <div className="flex items-end gap-4">
-              <div className="h-16 w-16 rounded-2xl bg-white shadow-lg border-2 border-white flex items-center justify-center ring-1 ring-gray-200/60">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between -mt-8">
+            <div className="flex items-start gap-4">
+              <div className="h-16 w-16 rounded-2xl bg-white shadow-lg border-2 border-white flex items-center justify-center ring-1 ring-gray-200/60 shrink-0">
                 <span className="text-primary-600 text-xl font-bold tracking-tight">
                   {provider.firstName[0]}{provider.lastName[0]}
                 </span>
               </div>
-              <div className="pb-0.5">
+              <div className="pt-9">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl font-bold text-gray-900 tracking-tight">
                     {provider.firstName} {provider.lastName}
@@ -721,7 +721,7 @@ export default function ProviderDetail() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-3 sm:mt-0">
+            <div className="flex items-center gap-2 mt-3 sm:mt-10">
               <Link to={`/providers/${id}/edit`} className="btn-secondary text-sm">
                 <PencilIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
                 Edit
@@ -765,7 +765,7 @@ export default function ProviderDetail() {
           </div>
 
           {/* Stats Row with Completeness Gauge */}
-          <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap items-center gap-6">
+          <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-3">
               <HealthScoreGauge score={completenessScore} size={52} strokeWidth={5} label="Complete" />
               <div>
@@ -773,17 +773,19 @@ export default function ProviderDetail() {
                 <p className="text-lg font-bold text-gray-900 -mt-0.5">{completenessScore}%</p>
               </div>
             </div>
-            <div className="h-8 w-px bg-gray-200 hidden sm:block" />
             {[
               { label: 'Licenses', value: provider.licenses?.length || 0 },
               { label: 'Certifications', value: provider.boardCertifications?.length || 0 },
               { label: 'Enrollments', value: provider.payerEnrollments?.length || 0 },
               { label: 'Documents', value: provider.documents?.length || 0 },
             ].map((stat) => (
-              <div key={stat.label}>
-                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{stat.label}</p>
-                <p className="text-lg font-bold text-gray-900 -mt-0.5">{stat.value}</p>
-              </div>
+              <Fragment key={stat.label}>
+                <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+                <div>
+                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-lg font-bold text-gray-900 -mt-0.5">{stat.value}</p>
+                </div>
+              </Fragment>
             ))}
           </div>
 
