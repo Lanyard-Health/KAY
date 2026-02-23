@@ -18,6 +18,37 @@ import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel'
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
 
+/** Only renders Aetna panels when the payer is Aetna — prevents unnecessary API calls */
+function AetnaSection({ enrollmentId, payerName }: { enrollmentId: string; payerName: string }) {
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const { data: runs } = useAetnaRuns(enrollmentId);
+
+  useEffect(() => {
+    if (!runs || activeRunId) return;
+    const active = runs.find(r =>
+      ['pending', 'filling', 'awaiting_review', 'submitting'].includes(r.status)
+    );
+    if (active) setActiveRunId(active.id);
+  }, [runs, activeRunId]);
+
+  return (
+    <>
+      <AetnaReadinessPanel
+        enrollmentId={enrollmentId}
+        payerName={payerName}
+        onRunStarted={(runId) => setActiveRunId(runId)}
+      />
+      {activeRunId && (
+        <AetnaReviewPanel
+          enrollmentId={enrollmentId}
+          runId={activeRunId}
+          onClose={() => setActiveRunId(null)}
+        />
+      )}
+    </>
+  );
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
   in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', icon: ArrowRightIcon },
@@ -35,17 +66,6 @@ function formatDate(dateStr: string | null): string {
 
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-
-  // Auto-discover active runs on mount
-  const { data: runs } = useAetnaRuns(id!);
-  useEffect(() => {
-    if (!runs || activeRunId) return;
-    const active = runs.find(r =>
-      ['pending', 'filling', 'awaiting_review', 'submitting'].includes(r.status)
-    );
-    if (active) setActiveRunId(active.id);
-  }, [runs, activeRunId]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollment', id],
@@ -211,19 +231,9 @@ export default function EnrollmentDetail() {
         </div>
       </div>
 
-      {/* Aetna Enrollment Automation */}
-      <AetnaReadinessPanel
-        enrollmentId={enrollment.id}
-        payerName={enrollment.payer?.name || ''}
-        onRunStarted={(runId) => setActiveRunId(runId)}
-      />
-
-      {activeRunId && (
-        <AetnaReviewPanel
-          enrollmentId={enrollment.id}
-          runId={activeRunId}
-          onClose={() => setActiveRunId(null)}
-        />
+      {/* Aetna Enrollment Automation — only rendered for Aetna payers */}
+      {enrollment.payer?.name?.toLowerCase().includes('aetna') && (
+        <AetnaSection enrollmentId={enrollment.id} payerName={enrollment.payer.name} />
       )}
 
       {/* Agent Workflow */}
