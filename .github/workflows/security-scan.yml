@@ -926,3 +926,125 @@ jobs:
             if (anyFailed) {
               core.setFailed('Security scan found HIGH or CRITICAL issues. See PR comment or workflow summary for details.');
             }
+
+      - name: Report to Linear
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+          GITLEAKS_STATUS: ${{ needs.gitleaks.outputs.status }}
+          NPM_AUDIT_STATUS: ${{ needs.npm-audit.outputs.status }}
+          ESLINT_STATUS: ${{ needs.eslint-security.outputs.status }}
+          SEMGREP_STATUS: ${{ needs.semgrep.outputs.status }}
+          TESTS_STATUS: ${{ needs.backend-tests.outputs.status }}
+          E2E_STATUS: ${{ needs.e2e-tests.outputs.status }}
+          SCHEMA_DRIFT_STATUS: ${{ needs.schema-drift.outputs.status }}
+        with:
+          script: |
+            if (!process.env.LINEAR_API_KEY || !process.env.LINEAR_TEAM_ID) {
+              console.log('LINEAR_API_KEY or LINEAR_TEAM_ID not set — skipping Linear reporting');
+              return;
+            }
+
+            const LINEAR_API = 'https://api.linear.app/graphql';
+            const headers = {
+              'Authorization': process.env.LINEAR_API_KEY,
+              'Content-Type': 'application/json'
+            };
+
+            async function linearQuery(query, variables = {}) {
+              const res = await fetch(LINEAR_API, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ query, variables })
+              });
+              if (!res.ok) {
+                console.log(`Linear API error: ${res.status} ${await res.text()}`);
+                return null;
+              }
+              return (await res.json()).data;
+            }
+
+            // Collect which checks failed
+            const checks = [
+              { name: 'Gitleaks', status: process.env.GITLEAKS_STATUS },
+              { name: 'npm audit', status: process.env.NPM_AUDIT_STATUS },
+              { name: 'ESLint Security', status: process.env.ESLINT_STATUS },
+              { name: 'Semgrep', status: process.env.SEMGREP_STATUS },
+              { name: 'Backend Tests', status: process.env.TESTS_STATUS },
+              { name: 'E2E Tests', status: process.env.E2E_STATUS },
+              { name: 'Schema Drift', status: process.env.SCHEMA_DRIFT_STATUS },
+            ];
+            const failed = checks.filter(c => c.status === 'fail');
+            const failedList = failed.map(c => `- **${c.name}**: failed`).join('\n');
+
+            // 1. Check for existing open issue
+            const searchData = await linearQuery(`
+              query($teamId: String!) {
+                issues(filter: {
+                  team: { id: { eq: $teamId } },
+                  title: { contains: "[CI] Security Gate Failed" },
+                  state: { type: { nin: ["completed", "canceled"] } }
+                }, first: 1) {
+                  nodes { id title }
+                }
+              }
+            `, { teamId: process.env.LINEAR_TEAM_ID });
+
+            const existingIssue = searchData?.issues?.nodes?.[0];
+            const branch = context.ref?.replace('refs/heads/', '') || 'unknown';
+            const sha = context.sha?.substring(0, 7) || 'unknown';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const prLink = context.eventName === 'pull_request'
+              ? `**PR:** #${context.payload.pull_request.number}`
+              : '';
+            const details = [
+              `**Branch:** ${branch}`,
+              `**Commit:** ${sha}`,
+              prLink,
+              `**Run:** ${runUrl}`,
+              `**Time:** ${new Date().toISOString()}`,
+              '',
+              '### Failed Checks',
+              failedList || '- No specific check failures detected',
+            ].filter(Boolean).join('\n');
+
+            if (existingIssue) {
+              // 2. Add comment to existing issue
+              await linearQuery(`
+                mutation($issueId: String!, $body: String!) {
+                  commentCreate(input: { issueId: $issueId, body: $body }) {
+                    success
+                  }
+                }
+              `, {
+                issueId: existingIssue.id,
+                body: `### Security Gate Failed Again\n\n${details}`
+              });
+              console.log(`Added comment to existing Linear issue: ${existingIssue.title}`);
+            } else {
+              // 3. Create new issue
+              const result = await linearQuery(`
+                mutation($title: String!, $description: String!, $teamId: String!, $priority: Int!) {
+                  issueCreate(input: {
+                    title: $title,
+                    description: $description,
+                    teamId: $teamId,
+                    priority: $priority
+                  }) {
+                    success
+                    issue { id url identifier }
+                  }
+                }
+              `, {
+                title: `[CI] Security Gate Failed — ${branch}`,
+                description: `## Security Gate Failure\n\n${details}\n\n---\n*Created by Lanyard Bug Monitor (GitHub Actions)*`,
+                teamId: process.env.LINEAR_TEAM_ID,
+                priority: 2
+              });
+              console.log('Created new Linear issue for security gate failure');
+              if (result?.issueCreate?.issue?.url) {
+                console.log(`Issue URL: ${result.issueCreate.issue.url}`);
+              }
+            }
