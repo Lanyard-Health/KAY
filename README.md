@@ -239,6 +239,15 @@ terraform apply
 - `GET /api/v1/documents/provider/:providerId` - Get documents
 - `GET /api/v1/documents/upload-url` - Get pre-signed upload URL
 
+### Bug Monitor
+- Automated error detection pipeline that creates Linear issues from bugs
+- Monitors: backend runtime errors, frontend crashes, CI failures, security scan findings
+- AI-powered triage (Claude Haiku) with rule-based fallback for severity classification
+- PII sanitization (SOC 2 compliant) before any data leaves the system
+- **Enable**: Set `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, and `LINEAR_BUG_MONITOR_ENABLED=true` in env vars
+- **Disable**: Set `LINEAR_BUG_MONITOR_ENABLED=false` (kill switch)
+- Issues are tracked in [Linear](https://linear.app) with deduplication and noise filtering
+
 ---
 
 ## Troubleshooting

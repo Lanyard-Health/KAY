@@ -204,5 +204,43 @@ Two services: `caqh.service.ts` (roster management, credential pull, nightly aut
 - The backend exposes a readiness gate: `/health` and `/api/health` return `{ ready: false }` with 503 until all async initialization (DB warmup, dev user seeding) completes. The frontend retries automatically.
 - The dev environment must work with a single command (`docker compose up -d && npm run dev`) after a clean restart — no manual steps, no seed scripts, no browser cache clearing.
 
+## Bug Monitor
+
+Automated bug detection and triage pipeline that creates Linear issues from runtime errors, frontend crashes, CI failures, and security findings.
+
+### File locations
+All source files live in `packages/backend/src/services/bug-monitor/`:
+- `types.ts` — shared types (`BugReport`, `SanitizedBugReport`, `TriageResult`)
+- `sanitizer.ts` — PII scrubbing (SSN, email, phone, NPI, DOB, Prisma WHERE clauses, JSON bodies)
+- `fingerprint.ts` — SHA-256 dedup hashing with normalization (UUIDs, URL path numbers, line numbers)
+- `noise-filter.ts` — occurrence threshold and severity escalation logic
+- `triage.ts` — AI triage via Anthropic SDK with rule-based fallback
+- `linear-client.ts` — raw fetch GraphQL client for Linear API
+- `alert-router.ts` — SES email alerts for urgent issues
+- `index.ts` — orchestrator (`BugMonitorService`) that ties everything together
+
+API endpoint: `packages/backend/src/routes/bug-report.routes.ts` (`POST /api/v1/bugs`)
+Error middleware: `packages/backend/src/middleware/bug-monitor.middleware.ts`
+Frontend boundary: `packages/frontend/src/components/BugReportingErrorBoundary.tsx`
+CI integration: `.github/workflows/security-scan.yml` (Linear reporting step)
+Tests: `packages/backend/src/services/bug-monitor/__tests__/`
+
+### Key env vars
+| Variable | Purpose |
+|----------|---------|
+| `LINEAR_API_KEY` | Linear API key for issue creation |
+| `LINEAR_TEAM_ID` | Linear team to file issues under |
+| `LINEAR_BUG_MONITOR_ENABLED` | Kill switch — set to `false` to disable |
+| `BUG_MONITOR_SECRET` | Shared secret for CI/frontend → backend auth |
+| `BUG_TRIAGE_MODEL` | Anthropic model for AI triage (default: `claude-haiku-4-5-20251001`) |
+| `BUG_ALERT_EMAIL` | Email address for urgent bug alerts via SES |
+| `BUG_MONITOR_NOISE_THRESHOLD` | Occurrence count before creating a new issue (default: 10) |
+
+### SOC 2 compliance
+**Critical**: `sanitizer.ts` must be the first thing called in the pipeline — never send unsanitized bug data to Linear, SES, or any external service. The sanitizer scrubs SSNs, emails, phone numbers, NPIs, DOBs, Prisma WHERE clause contents, and JSON request bodies containing PII keys.
+
+### Testing requirements
+Sanitizer tests (`__tests__/sanitizer.test.ts`) are **mandatory** for any changes to PII redaction patterns. If you add, remove, or reorder regex patterns in `sanitizer.ts`, you must update and verify the corresponding tests. Pattern ordering matters — see the NPI-before-phone fix for why.
+
 ## After Every Task
 Provide a brief security summary: what was checked, any issues found, and any issues fixed.
