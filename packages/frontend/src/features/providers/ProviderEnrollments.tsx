@@ -18,7 +18,7 @@ import {
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { usePdmStatus } from '../../hooks/usePdmStatus';
-import { useLaunchWorkflow } from '../../hooks/useAgentWorkflows';
+import { useLaunchWorkflow, isUuid } from '../../hooks/useAgentWorkflows';
 import { PdmStatusBadgeForEnrollment } from '../../components/PdmAttestationBadge';
 import TerminationConfirmDialog from './TerminationConfirmDialog';
 import FollowUpConfigPanel from './FollowUpConfigPanel';
@@ -653,8 +653,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                           : 'Never'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        {/* Agent workflow button - for non-terminal enrollments */}
-                        {!['approved', 'denied', 'terminated'].includes(enrollment.status) && (
+                        {/* Agent workflow button - for non-terminal enrollments with UUID provider */}
+                        {!['approved', 'denied', 'terminated'].includes(enrollment.status) && isUuid(providerId) && (
                           <button
                             onClick={() => setLaunchAgentFor(enrollment)}
                             className="mr-3 text-purple-500 hover:text-purple-700"

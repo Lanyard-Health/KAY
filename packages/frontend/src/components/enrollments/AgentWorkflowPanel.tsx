@@ -15,6 +15,7 @@ import {
   useWorkflowEvents,
   useLaunchWorkflow,
   useCancelWorkflow,
+  isUuid,
 } from '../../hooks/useAgentWorkflows';
 import { useDecideApproval } from '../../hooks/useApprovals';
 import { useWorkflowSocket } from '../../hooks/useAgentSocket';
@@ -128,6 +129,7 @@ export default function AgentWorkflowPanel({
   providerName,
   payerName,
 }: AgentWorkflowPanelProps) {
+  const validProvider = isUuid(providerId);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
@@ -193,6 +195,9 @@ export default function AgentWorkflowPanel({
         return 'border-l-gray-200';
     }
   };
+
+  // Backend requires UUID provider IDs — hide panel for seed/non-UUID providers
+  if (!validProvider) return null;
 
   // No workflows yet — show CTA
   if (!workflows || workflows.length === 0) {

@@ -87,6 +87,11 @@ export interface WorkflowListItem {
 
 const TERMINAL_STATUSES: WorkflowStatus[] = ['completed', 'failed', 'cancelled'];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 export function useLaunchWorkflow() {
   const queryClient = useQueryClient();
 
@@ -119,7 +124,7 @@ export function useWorkflowsForEnrollment(providerId: string, enrollmentId: stri
       return data.filter((w) => w.enrollmentId === enrollmentId);
     },
     refetchInterval: 30_000,
-    enabled: !!providerId && !!enrollmentId,
+    enabled: !!providerId && !!enrollmentId && isUuid(providerId),
   });
 }
 
