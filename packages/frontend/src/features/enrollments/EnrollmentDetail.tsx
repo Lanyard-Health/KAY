@@ -15,6 +15,7 @@ import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWo
 import AiSidebar from '../../components/AiSidebar';
 import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
+import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
 
 /** Only renders Aetna panels when the payer is Aetna — prevents unnecessary API calls */
@@ -234,6 +235,15 @@ export default function EnrollmentDetail() {
       {enrollment.payer?.name?.toLowerCase().includes('aetna') && (
         <AetnaSection enrollmentId={enrollment.id} payerName={enrollment.payer.name} />
       )}
+
+      {/* Agent Workflow */}
+      <AgentWorkflowPanel
+        enrollmentId={enrollment.id}
+        providerId={enrollment.providerId}
+        payerId={enrollment.payer?.id}
+        providerName={`${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim()}
+        payerName={enrollment.payer?.name ?? ''}
+      />
 
       {/* AI Sidebar */}
       <AiSidebar entityType="enrollment" entityId={enrollment.id} />

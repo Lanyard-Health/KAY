@@ -101,7 +101,12 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (server-to-server, curl, health checks)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
+      callback(null, true);
+    } else if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      // In dev, allow any localhost port (Vite may pick a different port if 5190 is taken)
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -109,7 +114,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Ops-Practice-Context'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Ops-Practice-Context', 'X-Dev-Role'],
   maxAge: 600, // Cache preflight for 10 minutes
 }));
 

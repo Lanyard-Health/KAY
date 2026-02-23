@@ -18,6 +18,7 @@ import {
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { usePdmStatus } from '../../hooks/usePdmStatus';
+import { useLaunchWorkflow, isUuid } from '../../hooks/useAgentWorkflows';
 import { PdmStatusBadgeForEnrollment } from '../../components/PdmAttestationBadge';
 import TerminationConfirmDialog from './TerminationConfirmDialog';
 import FollowUpConfigPanel from './FollowUpConfigPanel';
@@ -166,6 +167,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [payerSearch, setPayerSearch] = useState('');
   const [showPayerDropdown, setShowPayerDropdown] = useState(false);
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
+  const [launchAgentFor, setLaunchAgentFor] = useState<Enrollment | null>(null);
+  const launchWorkflow = useLaunchWorkflow();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollments', providerId],
@@ -650,6 +653,16 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                           : 'Never'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
+                        {/* Agent workflow button - for non-terminal enrollments with UUID provider */}
+                        {!['approved', 'denied', 'terminated'].includes(enrollment.status) && isUuid(providerId) && (
+                          <button
+                            onClick={() => setLaunchAgentFor(enrollment)}
+                            className="mr-3 text-purple-500 hover:text-purple-700"
+                            title="Launch AI Agent"
+                          >
+                            <SparklesIcon className="h-5 w-5" />
+                          </button>
+                        )}
                         {/* Follow-up button - only for active enrollments */}
                         {!['approved', 'denied', 'terminated'].includes(enrollment.status) && (
                           <button
@@ -1336,6 +1349,59 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
           onSend={handleAiSend}
           sendPending={sendFollowUp.isPending}
         />
+      )}
+
+      {/* Agent Launch Confirmation Modal */}
+      {launchAgentFor && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
+              onClick={() => setLaunchAgentFor(null)}
+            />
+            <div className="relative z-10 inline-block w-full max-w-md p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-purple-100">
+                  <SparklesIcon className="h-5 w-5 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">Launch AI Agent</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-2">
+                Launch an AI agent to automate the enrollment process with{' '}
+                <span className="font-medium">{launchAgentFor.payer.name}</span>.
+              </p>
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-3 mb-4">
+                The agent will analyze requirements, gather documents, and fill forms. You'll be asked to approve key actions before they execute.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setLaunchAgentFor(null)}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const goal = `Complete payer enrollment with ${launchAgentFor.payer.name}`;
+                    launchWorkflow.mutateAsync({
+                      goal,
+                      providerId,
+                      payerId: launchAgentFor.payerId,
+                      enrollmentId: launchAgentFor.id,
+                    }).then(() => {
+                      setLaunchAgentFor(null);
+                    });
+                  }}
+                  disabled={launchWorkflow.isPending}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                >
+                  <SparklesIcon className="h-4 w-4 mr-2" />
+                  {launchWorkflow.isPending ? 'Launching...' : 'Launch Agent'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Email Preview Modal */}
