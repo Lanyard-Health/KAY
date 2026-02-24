@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
+import { useAuthStore } from '../../stores/auth.store';
+import PasswordStrength from '../../components/PasswordStrength';
 
 interface RegistrationData {
   npi: string;
@@ -17,6 +19,8 @@ interface RegistrationData {
   gender: string;
   providerType?: string;
   practiceId?: string;
+  password?: string;
+  confirmPassword?: string;
 }
 
 const GENDER_OPTIONS = [
@@ -41,8 +45,11 @@ const PROVIDER_TYPES = [
 export default function RegisterPage() {
   const [submitted, setSubmitted] = useState(false);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const practiceParam = searchParams.get('practice');
   const reapplyParam = searchParams.get('reapply');
+  const isSelfServe = !practiceParam;
+  const { checkAuth, isDevMode } = useAuthStore();
 
   const { data: practiceInfo } = useQuery({
     queryKey: ['practice-info', practiceParam],
@@ -65,6 +72,8 @@ export default function RegisterPage() {
     gender: '',
     providerType: '',
     practiceId: practiceParam || undefined,
+    password: '',
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [npiLookupStatus, setNpiLookupStatus] = useState<'idle' | 'loading' | 'found' | 'not-found'>('idle');
@@ -89,7 +98,6 @@ export default function RegisterPage() {
         const result = response.data as any;
         if (result.success && result.data) {
           const d = result.data;
-          // Map NPPES gender values to our enum
           let mappedGender = '';
           if (d.gender === 'Male') mappedGender = 'male';
           else if (d.gender === 'Female') mappedGender = 'female';
@@ -119,7 +127,8 @@ export default function RegisterPage() {
     };
   }, [formData.npi]);
 
-  const mutation = useMutation({
+  // Practice-linked registration mutation (existing flow)
+  const registerMutation = useMutation({
     mutationFn: async (data: RegistrationData) => {
       const body = reapplyParam
         ? { ...data, previousApplicationId: reapplyParam }
@@ -136,6 +145,36 @@ export default function RegisterPage() {
       toast.error(message);
     },
   });
+
+  // Self-serve signup mutation (instant access)
+  const selfServeMutation = useMutation({
+    mutationFn: async (data: RegistrationData) => {
+      const response = await api.post('/portal/self-serve-signup', data);
+      return response.data;
+    },
+    onSuccess: async () => {
+      toast.success('Account created! Logging you in...');
+      try {
+        if (isDevMode) {
+          localStorage.setItem('dev_session', 'provider');
+          await checkAuth();
+        } else {
+          const { login } = useAuthStore.getState();
+          await login(formData.email, formData.password!);
+        }
+        navigate('/portal');
+      } catch {
+        toast.error('Account created but auto-login failed. Please log in manually.');
+        navigate('/login');
+      }
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.error || 'Failed to create account';
+      toast.error(message);
+    },
+  });
+
+  const mutation = isSelfServe ? selfServeMutation : registerMutation;
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -185,6 +224,29 @@ export default function RegisterPage() {
       newErrors.gender = 'Gender is required';
     }
 
+    // Self-serve password validation
+    if (isSelfServe) {
+      if (!formData.password) {
+        newErrors.password = 'Password is required';
+      } else if (formData.password.length < 12) {
+        newErrors.password = 'Password must be at least 12 characters';
+      } else if (!/[A-Z]/.test(formData.password)) {
+        newErrors.password = 'Password must contain an uppercase letter';
+      } else if (!/[a-z]/.test(formData.password)) {
+        newErrors.password = 'Password must contain a lowercase letter';
+      } else if (!/[0-9]/.test(formData.password)) {
+        newErrors.password = 'Password must contain a number';
+      } else if (!/[^A-Za-z0-9]/.test(formData.password)) {
+        newErrors.password = 'Password must contain a special character';
+      }
+
+      if (!formData.confirmPassword) {
+        newErrors.confirmPassword = 'Please confirm your password';
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -204,6 +266,14 @@ export default function RegisterPage() {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
+
+  const inputClass = (field: string) =>
+    `mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+      // eslint-disable-next-line security/detect-object-injection
+      errors[field]
+        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+        : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+    }`;
 
   if (submitted) {
     return (
@@ -246,7 +316,9 @@ export default function RegisterPage() {
           Provider Registration
         </h2>
         <p className="mt-2 text-center text-sm text-white/70">
-          Join our provider network by completing the form below
+          {isSelfServe
+            ? 'Create your account and get instant access'
+            : 'Join our provider network by completing the form below'}
         </p>
         {reapplyParam && (
           <div className="mt-4 mx-auto max-w-lg bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center">
@@ -281,11 +353,7 @@ export default function RegisterPage() {
                   value={formData.npi}
                   onChange={handleChange}
                   placeholder="10-digit NPI number"
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.npi
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
+                  className={inputClass('npi')}
                 />
                 {npiLookupStatus === 'loading' && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5">
@@ -311,36 +379,14 @@ export default function RegisterPage() {
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
                   First Name <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  name="firstName"
-                  id="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.firstName
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
+                <input type="text" name="firstName" id="firstName" value={formData.firstName} onChange={handleChange} className={inputClass('firstName')} />
                 {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
               </div>
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
                   Last Name <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  name="lastName"
-                  id="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.lastName
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
+                <input type="text" name="lastName" id="lastName" value={formData.lastName} onChange={handleChange} className={inputClass('lastName')} />
                 {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
               </div>
             </div>
@@ -348,71 +394,25 @@ export default function RegisterPage() {
             {/* Middle Name & Suffix */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="middleName" className="block text-sm font-medium text-gray-700">
-                  Middle Name
-                </label>
-                <input
-                  type="text"
-                  name="middleName"
-                  id="middleName"
-                  value={formData.middleName}
-                  onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                />
+                <label htmlFor="middleName" className="block text-sm font-medium text-gray-700">Middle Name</label>
+                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
               </div>
               <div>
-                <label htmlFor="suffix" className="block text-sm font-medium text-gray-700">
-                  Suffix
-                </label>
-                <input
-                  type="text"
-                  name="suffix"
-                  id="suffix"
-                  value={formData.suffix}
-                  onChange={handleChange}
-                  placeholder="MD, DO, NP, etc."
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                />
+                <label htmlFor="suffix" className="block text-sm font-medium text-gray-700">Suffix</label>
+                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
               </div>
             </div>
 
             {/* Contact Fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  id="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.email
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email <span className="text-red-500">*</span></label>
+                <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className={inputClass('email')} />
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
               </div>
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                  Phone <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  id="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="(555) 123-4567"
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.phone
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone <span className="text-red-500">*</span></label>
+                <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} placeholder="(555) 123-4567" className={inputClass('phone')} />
                 {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
               </div>
             </div>
@@ -420,42 +420,15 @@ export default function RegisterPage() {
             {/* Date of Birth & Gender */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">
-                  Date of Birth <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  name="dateOfBirth"
-                  id="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.dateOfBirth
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                />
+                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">Date of Birth <span className="text-red-500">*</span></label>
+                <input type="date" name="dateOfBirth" id="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className={inputClass('dateOfBirth')} />
                 {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>}
               </div>
               <div>
-                <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
-                  Gender <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="gender"
-                  id="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
-                    errors.gender
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
-                  }`}
-                >
+                <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender <span className="text-red-500">*</span></label>
+                <select name="gender" id="gender" value={formData.gender} onChange={handleChange} className={inputClass('gender')}>
                   {GENDER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
                 {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
@@ -464,23 +437,50 @@ export default function RegisterPage() {
 
             {/* Provider Type */}
             <div>
-              <label htmlFor="providerType" className="block text-sm font-medium text-gray-700">
-                Provider Type
-              </label>
-              <select
-                name="providerType"
-                id="providerType"
-                value={formData.providerType}
-                onChange={handleChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-              >
+              <label htmlFor="providerType" className="block text-sm font-medium text-gray-700">Provider Type</label>
+              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
                 {PROVIDER_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
+                  <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
             </div>
+
+            {/* Password fields — self-serve only */}
+            {isSelfServe && (
+              <>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    id="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Minimum 12 characters"
+                    className={inputClass('password')}
+                  />
+                  {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                  <PasswordStrength password={formData.password || ''} />
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                    Confirm Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    id="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Re-enter your password"
+                    className={inputClass('confirmPassword')}
+                  />
+                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+                </div>
+              </>
+            )}
 
             {/* Submit Button */}
             <div>
@@ -489,7 +489,9 @@ export default function RegisterPage() {
                 disabled={mutation.isPending}
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {mutation.isPending ? 'Submitting...' : 'Submit Application'}
+                {mutation.isPending
+                  ? (isSelfServe ? 'Creating Account...' : 'Submitting...')
+                  : (isSelfServe ? 'Create Account & Get Started' : 'Submit Application')}
               </button>
             </div>
           </form>

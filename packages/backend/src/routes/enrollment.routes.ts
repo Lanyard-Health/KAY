@@ -32,6 +32,24 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
 
 const router = Router();
 
+// Guard: block enrollment mutations for pending_verification providers
+async function blockPendingVerification(req: Request, res: Response, next: NextFunction) {
+  const user = req.user;
+  if (user?.role === 'provider' && user.providerId) {
+    const provider = await prisma.provider.findUnique({
+      where: { id: user.providerId },
+      select: { status: true },
+    });
+    if (provider?.status === 'pending_verification') {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Enrollment features are available once your account is verified.' },
+      });
+    }
+  }
+  next();
+}
+
 // Validation schemas
 const createPayerSchema = z.object({
   name: z.string().min(1).max(200),
@@ -226,6 +244,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
+  blockPendingVerification,
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -336,6 +355,7 @@ router.post(
 router.put(
   '/:id',
   authenticate,
+  blockPendingVerification,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
@@ -402,6 +422,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
+  blockPendingVerification,
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
