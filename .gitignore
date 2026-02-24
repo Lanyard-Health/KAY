@@ -52,6 +52,9 @@ infrastructure/terraform/**/*.tfvars
 # Aetna test screenshots
 packages/backend/scripts/aetna-screenshots/
 
+# Worktrees
+.worktrees/
+
 # Misc
 *.pem
 *.key
