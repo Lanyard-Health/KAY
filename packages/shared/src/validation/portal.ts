@@ -21,20 +21,31 @@ export const markNotificationsReadSchema = z.object({
   notificationIds: z.array(z.string().uuid()).max(100).optional(),
 });
 
+const passwordSchema = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
+
 export const practiceSignupSchema = z.object({
   practiceName: z.string().min(2, 'Practice name must be at least 2 characters').max(200),
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(100),
   lastName: z.string().min(2, 'Last name must be at least 2 characters').max(100),
   email: z.string().email('Invalid email format'),
   phone: phoneSchema,
-  password: z.string()
-    .min(12, 'Password must be at least 12 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  password: passwordSchema,
+});
+
+export const selfServeSignupSchema = portalRegistrationSchema.extend({
+  password: passwordSchema,
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
 });
 
 export type PortalRegistrationInput = z.infer<typeof portalRegistrationSchema>;
 export type MarkNotificationsReadInput = z.infer<typeof markNotificationsReadSchema>;
 export type PracticeSignupInput = z.infer<typeof practiceSignupSchema>;
+export type SelfServeSignupInput = z.infer<typeof selfServeSignupSchema>;

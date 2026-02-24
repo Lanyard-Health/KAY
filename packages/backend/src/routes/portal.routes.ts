@@ -12,9 +12,11 @@ import {
   getAdminNotifications,
   markNotificationsAsRead,
   ProviderApplicationInput,
+  selfServeSignup,
+  SelfServeSignupInput,
 } from '../services/portal.service.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { portalRegistrationSchema, markNotificationsReadSchema } from '@credential-management/shared';
+import { portalRegistrationSchema, markNotificationsReadSchema, selfServeSignupSchema } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -89,6 +91,51 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
     res.status(500).json({
       success: false,
       error: 'Failed to submit application',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/portal/self-serve-signup
+ * Self-serve provider registration with instant access
+ */
+router.post('/self-serve-signup', portalRegistrationLimit, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = selfServeSignupSchema.parse(req.body);
+    // Strip confirmPassword before passing to service
+    const { confirmPassword: _, ...signupData } = parsed;
+    const data: SelfServeSignupInput = signupData as SelfServeSignupInput;
+
+    const result = await selfServeSignup(data);
+
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully',
+      data: {
+        userId: result.userId,
+        providerId: result.providerId,
+        email: result.email,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') return next(error);
+    logger.error('Error in self-serve signup:', error);
+
+    if (error instanceof Error) {
+      if (
+        error.message.includes('already pending') ||
+        error.message.includes('already exists')
+      ) {
+        return res.status(409).json({
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create account',
     });
   }
 });

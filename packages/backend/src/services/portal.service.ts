@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { emailService } from './email.service.js';
-import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
+import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -218,6 +218,160 @@ export async function submitApplication(data: ProviderApplicationInput) {
   return application;
 }
 
+export interface SelfServeSignupInput extends ProviderApplicationInput {
+  password: string;
+}
+
+/**
+ * Self-serve signup — provider sets own password, gets instant access with pending_verification status
+ */
+export async function selfServeSignup(data: SelfServeSignupInput) {
+  // 1. Check for existing pending application
+  const existingApplication = await checkExistingApplication(data.npi);
+  if (existingApplication) {
+    throw new Error('An application with this NPI is already pending review');
+  }
+
+  // 2. Check for existing provider
+  const existingProvider = await checkExistingProvider(data.npi);
+  if (existingProvider) {
+    throw new Error('A provider with this NPI already exists in our system');
+  }
+
+  // 3. Check email uniqueness
+  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existingUser) {
+    throw new Error('An account with this email address already exists');
+  }
+
+  // 4. Create Cognito user (suppress invite email — they already set their password)
+  const { cognitoId } = await createCognitoUser({
+    email: data.email,
+    firstName: data.firstName,
+    lastName: data.lastName,
+    suppressInviteEmail: true,
+  });
+
+  try {
+    // 5. Set permanent password
+    await setCognitoUserPassword(data.email, data.password, true);
+
+    // 6. Create Provider + User + Application in a transaction
+    const { provider, application, newUser } = await prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.create({
+        data: {
+          npi: data.npi,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          middleName: data.middleName,
+          suffix: data.suffix,
+          email: data.email,
+          phone: data.phone,
+          dateOfBirth: new Date(data.dateOfBirth),
+          gender: data.gender as any,
+          providerType: (data.providerType as any) || 'other',
+          taxonomy: data.taxonomy,
+          specialties: data.specialties || [],
+          status: 'pending_verification',
+        },
+      });
+
+      const newUser = await tx.user.create({
+        data: {
+          cognitoId,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          role: 'provider',
+          providerId: provider.id,
+        },
+      });
+
+      const application = await tx.providerApplication.create({
+        data: {
+          npi: data.npi,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          middleName: data.middleName,
+          suffix: data.suffix,
+          email: data.email,
+          phone: data.phone,
+          dateOfBirth: new Date(data.dateOfBirth),
+          gender: data.gender as any,
+          providerType: data.providerType,
+          taxonomy: data.taxonomy,
+          specialties: data.specialties || [],
+          status: 'pending',
+          providerId: provider.id,
+        },
+      });
+
+      return { provider, application, newUser };
+    });
+
+    // 7. Create admin notification
+    await prisma.adminNotification.create({
+      data: {
+        type: 'NEW_APPLICATION',
+        message: `New self-serve provider signup: ${data.firstName} ${data.lastName}`,
+        applicationId: application.id,
+      },
+    });
+
+    // 8. Notify admin users (non-blocking)
+    notificationService.notifyAdminUsers({
+      type: 'new_application',
+      title: 'New Self-Serve Provider Signup',
+      message: `${data.firstName} ${data.lastName} (NPI: ${data.npi}) signed up for instant access.`,
+      actionUrl: '/pending-providers',
+      metadata: { applicationId: application.id, npi: data.npi },
+    }).catch((err: unknown) => logger.error('Failed to create in-app notifications:', err));
+
+    // 9. Send welcome email (non-blocking)
+    if (emailService.isConfigured()) {
+      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      emailService.sendEmail({
+        to: data.email,
+        subject: 'Welcome to Lanyard Health',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #0A3D2E;">Welcome to Lanyard Health!</h2>
+            <p>Dear ${data.firstName},</p>
+            <p>Your account has been created and you can start setting up your provider profile immediately.</p>
+
+            <div style="background-color: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #92400e;">Account Verification</h3>
+              <p style="margin-bottom: 0; color: #78350f;">Your account is being reviewed by our team. You can start setting up your profile now. Enrollment features will be available once your account is verified.</p>
+            </div>
+
+            <p>
+              <a href="${appUrl}/login" style="background-color: #0A3D2E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Log In Now
+              </a>
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated notification from Lanyard Health. Please do not reply to this email.
+            </p>
+          </div>
+        `,
+        notificationType: 'application_submitted',
+      }).catch((err: unknown) => logger.error('Failed to send welcome email:', err));
+    }
+
+    return { userId: newUser.id, providerId: provider.id, email: newUser.email };
+  } catch (err: any) {
+    // 10. Roll back Cognito user on any failure
+    await deleteCognitoUser(data.email).catch(() => {});
+    if (err?.code === 'P2002') {
+      throw new Error('An account with this email address already exists');
+    }
+    throw err;
+  }
+}
+
 /**
  * Get application status by NPI
  */
@@ -270,6 +424,78 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
     throw new Error('Application has already been reviewed');
   }
 
+  // Self-serve path: provider already has a User + Provider record (created during selfServeSignup)
+  if (application.providerId) {
+    const updatedApplication = await prisma.$transaction(async (tx) => {
+      await tx.provider.update({
+        where: { id: application.providerId! },
+        data: { status: 'active' },
+      });
+
+      return tx.providerApplication.update({
+        where: { id },
+        data: {
+          status: 'approved',
+          reviewedAt: new Date(),
+          reviewedBy,
+          reviewNotes: notes,
+        },
+      });
+    });
+
+    // Mark related notification as read
+    await prisma.adminNotification.updateMany({
+      where: { applicationId: id, read: false },
+      data: { read: true },
+    });
+
+    // Find the user linked to this provider and send in-app notification
+    const providerUser = await prisma.user.findFirst({
+      where: { providerId: application.providerId },
+      select: { id: true },
+    });
+    if (providerUser) {
+      notificationService.createNotification({
+        userId: providerUser.id,
+        type: 'application_approved',
+        title: 'Account Verified',
+        message: 'Your account has been verified. All features are now available.',
+        actionUrl: '/portal',
+      }).catch((err: unknown) => logger.error('Failed to create verification notification:', err));
+    }
+
+    // Send "verified" email (no temp password mention)
+    if (emailService.isConfigured()) {
+      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      emailService.sendEmail({
+        to: application.email,
+        subject: 'Account Verified — Lanyard Health',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #0A3D2E;">Your Account Has Been Verified!</h2>
+            <p>Dear ${application.firstName},</p>
+            <p>Your Lanyard Health account has been verified by our team. All features, including enrollment management, are now available.</p>
+
+            <p>
+              <a href="${appUrl}/portal" style="background-color: #0A3D2E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Go to Your Dashboard
+              </a>
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+            <p style="color: #6b7280; font-size: 12px;">
+              This is an automated notification from Lanyard Health. Please do not reply to this email.
+            </p>
+          </div>
+        `,
+        notificationType: 'application_approved',
+      }).catch((err: unknown) => logger.error('Failed to send verification email:', err));
+    }
+
+    return updatedApplication;
+  }
+
+  // Traditional path: create Cognito user + Provider + User from scratch
   // Pre-check: ensure no user with this email exists (could have been created since submission)
   const existingUser = await prisma.user.findUnique({ where: { email: application.email } });
   if (existingUser) {

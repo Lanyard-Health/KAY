@@ -186,6 +186,7 @@ enum ProviderStatus {
   active
   inactive
   pending
+  pending_verification
 }
 
 enum Gender {
