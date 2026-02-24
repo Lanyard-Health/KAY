@@ -1,4 +1,5 @@
-// Intentional lint failure for CI bug monitor test
-const unused_variable = 'this will fail lint';
-var bad_style = 123;
-console.log(bad_style)
+// Intentional test failure for CI bug monitor test
+// This file will be imported by the test below
+export function brokenFunction(): string {
+  return 'wrong value';
+}
