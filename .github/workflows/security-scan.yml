@@ -981,7 +981,7 @@ jobs:
 
             // 1. Check for existing open issue
             const searchData = await linearQuery(`
-              query($teamId: String!) {
+              query($teamId: ID!) {
                 issues(filter: {
                   team: { id: { eq: $teamId } },
                   title: { contains: "[CI] Security Gate Failed" },
