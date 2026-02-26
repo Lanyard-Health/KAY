@@ -35,7 +35,7 @@ export function PayerAIInsightCard({ insight, recommendationId, payerId, onDismi
   const updateRecommendation = useUpdateRecommendation();
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-5">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

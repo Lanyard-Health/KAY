@@ -94,7 +94,7 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-16rem)] rounded-lg bg-white shadow overflow-hidden">
+    <div className="flex h-[calc(100vh-16rem)] rounded-2xl bg-white shadow-sm border border-gray-200/60 overflow-hidden">
       {/* Sidebar */}
       <div
         className={`${

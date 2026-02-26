@@ -117,7 +117,7 @@ export default function OpsActivityLog() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl shadow-sm border border-gray-200/60 bg-white p-4">
         <FunnelIcon className="h-5 w-5 text-gray-400 shrink-0 self-center" />
 
         <div className="flex flex-col gap-1">
@@ -179,7 +179,7 @@ export default function OpsActivityLog() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-2xl shadow-sm border border-gray-200/60 bg-white">
         {isLoading ? (
           <div className="divide-y divide-gray-200">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -201,7 +201,7 @@ export default function OpsActivityLog() {
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   Timestamp
@@ -275,7 +275,7 @@ export default function OpsActivityLog() {
               <button
                 disabled={filters.page <= 1}
                 onClick={() => setFilters((p) => ({ ...p, page: p.page - 1 }))}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronLeftIcon className="h-4 w-4" />
                 Previous
@@ -286,7 +286,7 @@ export default function OpsActivityLog() {
               <button
                 disabled={filters.page >= totalPages}
                 onClick={() => setFilters((p) => ({ ...p, page: p.page + 1 }))}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
                 <ChevronRightIcon className="h-4 w-4" />

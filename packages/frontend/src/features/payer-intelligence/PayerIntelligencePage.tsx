@@ -101,7 +101,7 @@ export default function PayerIntelligencePage() {
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50/80">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
@@ -131,7 +131,7 @@ export default function PayerIntelligencePage() {
                           selectedPayerId === payer.payerId ? null : payer.payerId
                         )}
                         className={clsx(
-                          'cursor-pointer hover:bg-gray-50 transition-colors',
+                          'cursor-pointer hover:bg-primary-50/50 transition-colors',
                           selectedPayerId === payer.payerId && 'bg-primary-50'
                         )}
                       >

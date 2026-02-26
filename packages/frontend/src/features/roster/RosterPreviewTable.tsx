@@ -47,7 +47,7 @@ export default function RosterPreviewTable({
     <div>
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50/80">
             <tr>
               {headers.map((header, idx) => (
                 <th

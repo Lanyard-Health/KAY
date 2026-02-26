@@ -163,7 +163,7 @@ export default function DocumentList() {
       </div>
 
       {/* Provider Filter */}
-      <div className="card card-body mb-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 mb-6">
         <div className="flex gap-4 items-end">
           <div className="flex-1">
             <label className="label">Select Provider</label>
@@ -191,7 +191,7 @@ export default function DocumentList() {
 
       {/* Error States */}
       {providersError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 mb-6">
           <p className="font-medium">Failed to load providers</p>
           <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>
@@ -199,18 +199,18 @@ export default function DocumentList() {
 
       {/* Documents Grid */}
       {!selectedProvider ? (
-        <div className="text-center py-12">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No provider selected</h3>
           <p className="mt-1 text-sm text-gray-500">Select a provider to view their documents</p>
         </div>
       ) : documentsError ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
           <p className="font-medium">Failed to load documents</p>
           <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>
       ) : isLoading ? (
-        <div className="bg-white shadow rounded-lg overflow-hidden animate-pulse">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden animate-pulse">
           <div className="bg-gray-50 px-6 py-3 flex gap-8">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-3 w-20 bg-gray-200 rounded" />
@@ -227,7 +227,7 @@ export default function DocumentList() {
           ))}
         </div>
       ) : documents?.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 text-center py-12">
           <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
           <p className="mt-1 text-sm text-gray-500 mb-4">
@@ -239,9 +239,9 @@ export default function DocumentList() {
           </button>
         </div>
       ) : (
-        <div className="card overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Document
@@ -262,7 +262,7 @@ export default function DocumentList() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {documents?.map((doc: any) => (
-                <tr key={doc.id} className="hover:bg-gray-50">
+                <tr key={doc.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <DocumentIcon className="h-8 w-8 text-gray-400" />
@@ -368,7 +368,7 @@ export default function DocumentList() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => setViewingOcr(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200"
                 >
                   Close
                 </button>
@@ -400,14 +400,14 @@ export default function DocumentList() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleDownload(previewDoc.doc.id, previewDoc.doc.originalFileName)}
-                    className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 inline-flex items-center"
+                    className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-xl hover:bg-primary-700 inline-flex items-center"
                   >
                     <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                     Download
                   </button>
                   <button
                     onClick={() => setPreviewDoc(null)}
-                    className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300"
                   >
                     Close
                   </button>
@@ -438,7 +438,7 @@ export default function DocumentList() {
                       </p>
                       <button
                         onClick={() => handleDownload(previewDoc.doc.id, previewDoc.doc.originalFileName)}
-                        className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                        className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700"
                       >
                         Download to View
                       </button>
@@ -473,7 +473,7 @@ export default function DocumentList() {
                   <select
                     value={editForm.documentType}
                     onChange={(e) => setEditForm({ ...editForm, documentType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   >
                     {DOCUMENT_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -492,7 +492,7 @@ export default function DocumentList() {
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     placeholder="Optional description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   />
                 </div>
 
@@ -504,7 +504,7 @@ export default function DocumentList() {
                     type="date"
                     value={editForm.expirationDate}
                     onChange={(e) => setEditForm({ ...editForm, expirationDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   />
                 </div>
               </div>
@@ -512,14 +512,14 @@ export default function DocumentList() {
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   onClick={() => setEditingDoc(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveEdit}
                   disabled={updateMutation.isPending}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50"
                 >
                   {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
