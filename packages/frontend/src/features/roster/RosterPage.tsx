@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   ArrowDownTrayIcon,
   BookmarkIcon,
@@ -134,6 +135,7 @@ export default function RosterPage() {
   };
 
   return (
+    <PageTransition>
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -226,5 +228,6 @@ export default function RosterPage() {
         currentUserId={user?.id}
       />
     </div>
+    </PageTransition>
   );
 }

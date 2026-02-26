@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChartBarSquareIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import {
   usePayerAnalytics,
@@ -49,6 +50,7 @@ export default function PayerIntelligencePage() {
   };
 
   return (
+    <PageTransition>
     <div>
       {/* Header */}
       <div className="mb-8">
@@ -252,5 +254,6 @@ export default function PayerIntelligencePage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   );
 }

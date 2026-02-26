@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   UserPlusIcon,
   DocumentArrowUpIcon,
@@ -22,6 +23,7 @@ import RefreshIndicator from '../../components/RefreshIndicator';
 import StatCard from '../../components/ui/StatCard';
 import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
 import ActionCard from '../../components/ui/ActionCard';
+import AnimatedCard from '../../components/ui/AnimatedCard';
 import clsx from 'clsx';
 
 // Lazy-loaded widgets — Recharts (EnrollmentPipelineChart) is ~150KB
@@ -222,6 +224,7 @@ export default function Dashboard() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <style>{`
         @keyframes dashFadeUp {
@@ -270,34 +273,44 @@ export default function Dashboard() {
 
       {/* Row 1: Hero Stats */}
       <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          label="Total Providers"
-          value={isLoading ? '-' : data?.totalProviders ?? 0}
-          sparkline={data?.trendData?.providers7d}
-          icon={<UserCircleIcon className="h-5 w-5" />}
-        />
-        <StatCard
-          label="Fully Credentialed"
-          value={isLoading ? '-' : `${credentialedPct}%`}
-          trend={credentialedPct >= 80 ? { value: credentialedPct, label: 'of target' } : undefined}
-          icon={<CheckCircleIcon className="h-5 w-5" />}
-        />
-        <StatCard
-          label="Active Enrollments"
-          value={isLoading ? '-' : data?.activeEnrollments ?? 0}
-          sparkline={data?.trendData?.enrollments7d}
-          icon={<ClipboardDocumentListIcon className="h-5 w-5" />}
-        />
-        <StatCard
-          label="Revenue at Risk"
-          value={isLoading ? '-' : `$${((data?.revenueAtRisk ?? 0) / 1000).toFixed(0)}k`}
-          icon={<CurrencyDollarIcon className="h-5 w-5" />}
-        />
-        <StatCard
-          label="AI Actions Today"
-          value={isLoading ? '-' : data?.aiActionsToday ?? 0}
-          icon={<SparklesIcon className="h-5 w-5" />}
-        />
+        <AnimatedCard index={0}>
+          <StatCard
+            label="Total Providers"
+            value={isLoading ? '-' : data?.totalProviders ?? 0}
+            sparkline={data?.trendData?.providers7d}
+            icon={<UserCircleIcon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
+        <AnimatedCard index={1}>
+          <StatCard
+            label="Fully Credentialed"
+            value={isLoading ? '-' : `${credentialedPct}%`}
+            trend={credentialedPct >= 80 ? { value: credentialedPct, label: 'of target' } : undefined}
+            icon={<CheckCircleIcon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
+        <AnimatedCard index={2}>
+          <StatCard
+            label="Active Enrollments"
+            value={isLoading ? '-' : data?.activeEnrollments ?? 0}
+            sparkline={data?.trendData?.enrollments7d}
+            icon={<ClipboardDocumentListIcon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
+        <AnimatedCard index={3}>
+          <StatCard
+            label="Revenue at Risk"
+            value={isLoading ? '-' : `$${((data?.revenueAtRisk ?? 0) / 1000).toFixed(0)}k`}
+            icon={<CurrencyDollarIcon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
+        <AnimatedCard index={4}>
+          <StatCard
+            label="AI Actions Today"
+            value={isLoading ? '-' : data?.aiActionsToday ?? 0}
+            icon={<SparklesIcon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
       </div>
 
       {/* Row 2: Health Score + Action Stream */}
@@ -412,6 +425,7 @@ export default function Dashboard() {
       </ErrorBoundary>
       </div>
     </div>
+    </PageTransition>
   );
 }
 

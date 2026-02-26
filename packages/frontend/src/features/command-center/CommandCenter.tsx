@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   ViewColumnsIcon,
   TableCellsIcon,
@@ -30,6 +31,7 @@ export default function CommandCenter() {
   const { data, isLoading, error } = useCommandCenterMatrix();
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -142,5 +144,6 @@ export default function CommandCenter() {
         ) : null}
       </div>
     </div>
+    </PageTransition>
   );
 }

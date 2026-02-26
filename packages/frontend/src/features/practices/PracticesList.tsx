@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BuildingOffice2Icon, PlusIcon } from '@heroicons/react/24/outline';
+import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import { usePractices } from '../../hooks/usePractices';
 import PracticeFormModal from './PracticeFormModal';
@@ -37,6 +38,7 @@ export default function PracticesList() {
   }
 
   return (
+    <PageTransition>
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
@@ -142,5 +144,6 @@ export default function PracticesList() {
         onClose={() => setCreateModalOpen(false)}
       />
     </div>
+    </PageTransition>
   );
 }

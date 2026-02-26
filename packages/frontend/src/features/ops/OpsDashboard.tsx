@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   BuildingOffice2Icon,
   UserGroupIcon,
@@ -157,6 +158,7 @@ export default function OpsDashboard() {
   const maxOpenItems = staffList.length > 0 ? Math.max(...staffList.map((s) => s.openItems), 1) : 1;
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -346,5 +348,6 @@ export default function OpsDashboard() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }

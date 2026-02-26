@@ -1,5 +1,6 @@
 import { useState, Fragment, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
 import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ArrowPathIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
@@ -665,6 +666,7 @@ export default function ProviderDetail() {
   const maskedTaxId = primaryLocation?.taxId ? `****${primaryLocation.taxId.slice(-4)}` : null;
 
   return (
+    <PageTransition>
     <div>
       {/* PDM Alert Banner */}
       {(overdueCount > 0 || dueSoonCount > 0) && (
@@ -1881,5 +1883,6 @@ export default function ProviderDetail() {
         variant="danger"
       />
     </div>
+    </PageTransition>
   );
 }

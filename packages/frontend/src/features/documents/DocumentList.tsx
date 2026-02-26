@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import PageTransition from '../../components/ui/PageTransition';
 import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
 import toast from 'react-hot-toast';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 const DOCUMENT_TYPES = [
@@ -152,6 +154,7 @@ export default function DocumentList() {
   };
 
   return (
+    <PageTransition>
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
@@ -260,9 +263,9 @@ export default function DocumentList() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {documents?.map((doc: any) => (
-                <tr key={doc.id} className="hover:bg-gray-50/50 transition-colors">
+            <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
+              {documents?.map((doc: any, index: number) => (
+                <AnimatedListItem itemKey={doc.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <DocumentIcon className="h-8 w-8 text-gray-400" />
@@ -316,9 +319,9 @@ export default function DocumentList() {
                       <TrashIcon className="h-4 w-4" />
                     </button>
                   </td>
-                </tr>
+                </AnimatedListItem>
               ))}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
       )}
@@ -543,5 +546,6 @@ export default function DocumentList() {
         variant="danger"
       />
     </div>
+    </PageTransition>
   );
 }

@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import { UserGroupIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useUsersList } from '../../hooks/useUserManagement';
 import type { UserFilters } from '../../hooks/useUserManagement';
 import UserFormModal from './UserFormModal';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 
 const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   admin: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Admin' },
@@ -68,6 +70,7 @@ export default function UsersList() {
   }
 
   return (
+    <PageTransition>
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
@@ -156,12 +159,14 @@ export default function UsersList() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => {
+            <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
+              {users.map((user, index) => {
                 const roleBadge = ROLE_BADGE[user.role] || ROLE_BADGE.credentialing_staff;
                 return (
-                  <tr
-                    key={user.id}
+                  <AnimatedListItem
+                    itemKey={user.id}
+                    index={index}
+                    as="tr"
                     onClick={() => navigate(`/users/${user.id}`)}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
                   >
@@ -210,10 +215,10 @@ export default function UsersList() {
                         {user.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                  </tr>
+                  </AnimatedListItem>
                 );
               })}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
       )}
@@ -226,5 +231,6 @@ export default function UsersList() {
         }}
       />
     </div>
+    </PageTransition>
   );
 }

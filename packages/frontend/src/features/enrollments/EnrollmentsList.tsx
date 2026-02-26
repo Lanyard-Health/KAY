@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -357,6 +359,7 @@ export default function EnrollmentsList() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -763,8 +766,8 @@ export default function EnrollmentsList() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredEnrollments.map((enrollment) => {
+            <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
+              {filteredEnrollments.map((enrollment, index) => {
                 const statusConfig = getStatusConfig(enrollment.status);
                 const needsFollowUp =
                   enrollment.lastFollowUpDate &&
@@ -773,7 +776,7 @@ export default function EnrollmentsList() {
                   !['approved', 'denied', 'terminated'].includes(enrollment.status);
 
                 return (
-                  <tr key={enrollment.id} className="hover:bg-gray-50/50 transition-colors">
+                  <AnimatedListItem itemKey={enrollment.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Link
                         to={`/providers/${enrollment.providerId}`}
@@ -844,10 +847,10 @@ export default function EnrollmentsList() {
                         View
                       </Link>
                     </td>
-                  </tr>
+                  </AnimatedListItem>
                 );
               })}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
       )}
@@ -1281,5 +1284,6 @@ export default function EnrollmentsList() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }
