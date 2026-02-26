@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
@@ -318,11 +318,11 @@ export default function EnrollmentsList() {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
-      toast.success('Enrollment created');
+      notify.success('Enrollment created');
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
-      toast.error(message);
+      notify.error('Enrollment failed', { description: message });
     },
   });
 

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { TrashIcon, ArrowUpTrayIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import { usePortalDocuments, useUploadDocument, useDeleteDocument } from './hooks/usePortalData';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
@@ -41,21 +41,21 @@ export default function PortalDocuments() {
   const handleUpload = async () => {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      toast.error('Please select a file');
+      notify.error('No file selected', { description: 'Please choose a file to upload' });
       return;
     }
     if (!documentType) {
-      toast.error('Please select a document type');
+      notify.error('Missing document type', { description: 'Please select a document type' });
       return;
     }
 
     try {
       await uploadMutation.mutateAsync({ file, documentType });
-      toast.success('Document uploaded successfully');
+      notify.success('Document uploaded');
       setDocumentType('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      toast.error('Failed to upload document');
+      notify.error('Upload failed', { description: 'Could not upload document. Please try again.' });
     }
   };
 
@@ -195,9 +195,9 @@ export default function PortalDocuments() {
         onConfirm={async () => {
           try {
             await deleteMutation.mutateAsync(deleteConfirm.id);
-            toast.success('Document deleted');
+            notify.success('Document deleted');
           } catch {
-            toast.error('Failed to delete document');
+            notify.error('Delete failed', { description: 'Could not delete document' });
           }
           setDeleteConfirm({ isOpen: false, id: '', name: '' });
         }}

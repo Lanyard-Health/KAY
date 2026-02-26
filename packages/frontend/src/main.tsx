@@ -51,7 +51,15 @@ const initApp = async () => {
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <App />
-            <Toaster position="top-right" />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: { background: 'transparent', boxShadow: 'none', padding: 0 },
+              }}
+              containerStyle={{ top: 16, right: 16 }}
+              gutter={8}
+            />
           </BrowserRouter>
         </QueryClientProvider>
       </BugReportingErrorBoundary>

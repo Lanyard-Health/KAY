@@ -4,7 +4,7 @@ import { CheckIcon, XMarkIcon, EyeIcon } from '@heroicons/react/24/outline';
 import PageTransition from '../../components/ui/PageTransition';
 import { format } from 'date-fns';
 import clsx from 'clsx';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
@@ -54,10 +54,10 @@ export default function PendingProviders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      toast.success('Application approved');
+      notify.success('Application approved', { description: 'Provider account has been created' });
     },
     onError: () => {
-      toast.error('Failed to approve application');
+      notify.error('Approval failed', { description: 'Could not approve this application' });
     },
   });
 
@@ -71,10 +71,10 @@ export default function PendingProviders() {
       setRejectModalOpen(false);
       setRejectNotes('');
       setSelectedApp(null);
-      toast.success('Application rejected');
+      notify.success('Application rejected');
     },
     onError: () => {
-      toast.error('Failed to reject application');
+      notify.error('Rejection failed', { description: 'Could not reject this application' });
     },
   });
 

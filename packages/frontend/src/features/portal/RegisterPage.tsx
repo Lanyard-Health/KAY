@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import PasswordStrength from '../../components/PasswordStrength';
@@ -138,11 +138,11 @@ export default function RegisterPage() {
     },
     onSuccess: () => {
       setSubmitted(true);
-      toast.success('Application submitted successfully!');
+      notify.success('Application submitted', { description: 'Our team will review and get back to you shortly' });
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || 'Failed to submit application';
-      toast.error(message);
+      notify.error('Submission failed', { description: message });
     },
   });
 
@@ -153,7 +153,7 @@ export default function RegisterPage() {
       return response.data;
     },
     onSuccess: async () => {
-      toast.success('Account created! Logging you in...');
+      notify.success('Account created', { description: 'Welcome to Lanyard Health' });
       try {
         if (isDevMode) {
           localStorage.setItem('dev_session', 'provider');
@@ -164,13 +164,13 @@ export default function RegisterPage() {
         }
         navigate('/portal');
       } catch {
-        toast.error('Account created but auto-login failed. Please log in manually.');
+        notify.error('Auto-login failed', { description: 'Your account was created. Please log in manually.' });
         navigate('/login');
       }
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || 'Failed to create account';
-      toast.error(message);
+      notify.error('Registration failed', { description: message });
     },
   });
 
