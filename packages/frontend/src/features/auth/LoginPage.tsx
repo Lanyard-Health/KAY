@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import QRCode from 'qrcode';
 
 type AuthStep = 'login' | 'new-password' | 'mfa-totp' | 'mfa-setup' | 'forgot-password' | 'confirm-reset';
@@ -65,7 +65,7 @@ export default function LoginPage() {
         setQrUri(uri);
         setSecretCode(code);
       }).catch(() => {
-        toast.error('Failed to initialize MFA setup');
+        notify.error('MFA setup failed', { description: 'Could not initialize authenticator setup' });
       });
     }
   }, [challengeName]);
@@ -87,11 +87,11 @@ export default function LoginPage() {
       await login(email, password);
       const state = useAuthStore.getState();
       if (!state.challengeName && state.isAuthenticated) {
-        toast.success('Logged in successfully');
+        notify.success('Welcome back');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Login failed');
+      notify.error('Login failed', { description: error instanceof Error ? error.message : 'Check your email and password' });
     } finally {
       setIsLoading(false);
     }
@@ -101,10 +101,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await devLogin();
-      toast.success('Logged in as Dev Admin');
+      notify.success('Dev Admin', { description: 'Logged in with admin privileges' });
       navigate('/');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Dev login failed');
+      notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev admin' });
     } finally {
       setIsLoading(false);
     }
@@ -114,10 +114,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await devProviderLogin();
-      toast.success('Logged in as Dev Provider');
+      notify.success('Dev Provider', { description: 'Logged in with provider privileges' });
       navigate('/portal');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Dev provider login failed');
+      notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev provider' });
     } finally {
       setIsLoading(false);
     }
@@ -127,10 +127,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await devPracticeAdminLogin();
-      toast.success('Logged in as Dev Practice Admin');
+      notify.success('Dev Practice Admin', { description: 'Logged in with practice admin privileges' });
       navigate('/');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Dev practice admin login failed');
+      notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev practice admin' });
     } finally {
       setIsLoading(false);
     }
@@ -139,11 +139,11 @@ export default function LoginPage() {
   const handleNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      notify.error('Passwords do not match');
       return;
     }
     if (newPassword.length < 12) {
-      toast.error('Password must be at least 12 characters');
+      notify.error('Invalid password', { description: 'Password must be at least 12 characters' });
       return;
     }
     setIsLoading(true);
@@ -151,11 +151,11 @@ export default function LoginPage() {
       await handleNewPasswordChallenge(newPassword);
       const state = useAuthStore.getState();
       if (!state.challengeName && state.isAuthenticated) {
-        toast.success('Password set successfully');
+        notify.success('Password updated');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to set password');
+      notify.error('Password update failed', { description: error instanceof Error ? error.message : 'Could not set your new password' });
     } finally {
       setIsLoading(false);
     }
@@ -168,11 +168,11 @@ export default function LoginPage() {
       await handleMfaChallenge(mfaCode);
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        toast.success('Logged in successfully');
+        notify.success('Welcome back');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid verification code');
+      notify.error('Verification failed', { description: error instanceof Error ? error.message : 'Invalid verification code' });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -186,11 +186,11 @@ export default function LoginPage() {
       await confirmMfaSetup(mfaCode);
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        toast.success('MFA configured successfully');
+        notify.success('MFA configured', { description: 'Your authenticator app is now linked' });
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'MFA setup failed');
+      notify.error('MFA setup failed', { description: error instanceof Error ? error.message : 'Could not verify authenticator code' });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -202,10 +202,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await forgotPassword(resetEmail);
-      toast.success('Verification code sent to your email');
+      notify.success('Code sent', { description: 'Check your email for a verification code' });
       setAuthStep('confirm-reset');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to send reset code');
+      notify.error('Reset failed', { description: error instanceof Error ? error.message : 'Could not send verification code' });
     } finally {
       setIsLoading(false);
     }
@@ -214,19 +214,19 @@ export default function LoginPage() {
   const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (resetNewPassword.length < 12) {
-      toast.error('Password must be at least 12 characters');
+      notify.error('Invalid password', { description: 'Password must be at least 12 characters' });
       return;
     }
     setIsLoading(true);
     try {
       await confirmForgotPassword(resetEmail, resetCode, resetNewPassword);
-      toast.success('Password reset successfully. Please sign in.');
+      notify.success('Password reset', { description: 'You can now sign in with your new password' });
       setAuthStep('login');
       setResetEmail('');
       setResetCode('');
       setResetNewPassword('');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to reset password');
+      notify.error('Reset failed', { description: error instanceof Error ? error.message : 'Could not reset your password' });
     } finally {
       setIsLoading(false);
     }

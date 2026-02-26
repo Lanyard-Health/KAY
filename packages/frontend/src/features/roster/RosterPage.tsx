@@ -5,7 +5,7 @@ import {
   BookmarkIcon,
   FolderOpenIcon,
 } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import FieldPicker from './FieldPicker';
 import SelectedColumns from './SelectedColumns';
 import RosterPreviewTable from './RosterPreviewTable';
@@ -71,7 +71,7 @@ export default function RosterPage() {
 
   const handleExport = async () => {
     if (columns.length === 0) {
-      toast.error('Select at least one column to export');
+      notify.error('No columns selected', { description: 'Select at least one column to export' });
       return;
     }
     setIsExporting(true);
@@ -80,9 +80,9 @@ export default function RosterPage() {
         columns,
         activeTemplate?.name || 'Roster Report'
       );
-      toast.success('Excel file downloaded');
+      notify.success('Export complete', { description: 'Excel file downloaded' });
     } catch {
-      toast.error('Export failed');
+      notify.error('Export failed', { description: 'Please try again' });
     } finally {
       setIsExporting(false);
     }
@@ -100,18 +100,18 @@ export default function RosterPage() {
           ...data,
           columns,
         });
-        toast.success('Template updated');
+        notify.success('Template updated');
       } else {
         const created = await createTemplate.mutateAsync({
           ...data,
           columns,
         });
         setActiveTemplate(created);
-        toast.success('Template saved');
+        notify.success('Template saved');
       }
       setSaveModalOpen(false);
     } catch {
-      toast.error('Failed to save template');
+      notify.error('Save failed', { description: 'Could not save template' });
     }
   };
 
@@ -119,7 +119,7 @@ export default function RosterPage() {
     setColumns(template.columns);
     setActiveTemplate(template);
     setPage(1);
-    toast.success(`Loaded "${template.name}"`);
+    notify.success('Template loaded', { description: `"${template.name}" applied` });
   };
 
   const handleDeleteTemplate = async (id: string) => {
@@ -128,9 +128,9 @@ export default function RosterPage() {
       if (activeTemplate?.id === id) {
         setActiveTemplate(null);
       }
-      toast.success('Template deleted');
+      notify.success('Template deleted');
     } catch {
-      toast.error('Failed to delete template');
+      notify.error('Delete failed', { description: 'Could not delete template' });
     }
   };
 
