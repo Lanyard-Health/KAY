@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -18,6 +19,7 @@ import {
   useOpsStaff,
   OpsWorkItem,
 } from '../../hooks/useOps';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 
 type Status = 'backlog' | 'todo' | 'in_progress' | 'waiting_external' | 'review' | 'done' | 'cancelled';
 type Priority = 'urgent' | 'high' | 'normal' | 'low';
@@ -222,6 +224,7 @@ export default function OpsWorkQueue() {
   );
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -445,7 +448,7 @@ export default function OpsWorkQueue() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">SLA</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <AnimatedList as="tbody" className="divide-y divide-gray-100">
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : items.length === 0 ? (
@@ -461,7 +464,7 @@ export default function OpsWorkQueue() {
                   </td>
                 </tr>
               ) : (
-                items.map((item) => {
+                items.map((item, index) => {
                   const slaStatus = computeSlaStatus(item);
                   const providerName = item.provider
                     ? `${item.provider.firstName} ${item.provider.lastName}`
@@ -471,8 +474,10 @@ export default function OpsWorkQueue() {
                     : null;
 
                   return (
-                    <tr
-                      key={item.id}
+                    <AnimatedListItem
+                      itemKey={item.id}
+                      index={index}
+                      as="tr"
                       onClick={() => navigate(`/ops/work-queue/${item.id}`)}
                       className="hover:bg-gray-50/50 cursor-pointer transition-colors"
                     >
@@ -523,11 +528,11 @@ export default function OpsWorkQueue() {
                           <span className="text-sm text-gray-400">--</span>
                         )}
                       </td>
-                    </tr>
+                    </AnimatedListItem>
                   );
                 })
               )}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
 
@@ -559,5 +564,6 @@ export default function OpsWorkQueue() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import { BellIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
@@ -36,6 +37,7 @@ export default function NotificationsPage() {
   };
 
   return (
+    <PageTransition>
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-6">
         <div>
@@ -197,5 +199,6 @@ export default function NotificationsPage() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }

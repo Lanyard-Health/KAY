@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   BuildingOffice2Icon,
   MagnifyingGlassIcon,
@@ -109,6 +110,7 @@ export default function OpsPracticesList() {
   }
 
   return (
+    <PageTransition>
     <div>
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
@@ -312,5 +314,6 @@ export default function OpsPracticesList() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -107,6 +108,7 @@ export default function OpsActivityLog() {
   }
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -296,5 +298,6 @@ export default function OpsActivityLog() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }

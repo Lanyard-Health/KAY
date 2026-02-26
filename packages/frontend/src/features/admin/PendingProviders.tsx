@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, XMarkIcon, EyeIcon } from '@heroicons/react/24/outline';
+import PageTransition from '../../components/ui/PageTransition';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 
 interface ProviderApplication {
   id: string;
@@ -98,6 +100,7 @@ export default function PendingProviders() {
   ];
 
   return (
+    <PageTransition>
     <div>
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
@@ -180,9 +183,9 @@ export default function PendingProviders() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {data?.applications?.map((app: ProviderApplication) => (
-                <tr key={app.id} className="hover:bg-gray-50/50 transition-colors">
+            <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
+              {data?.applications?.map((app: ProviderApplication, index: number) => (
+                <AnimatedListItem itemKey={app.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -241,9 +244,9 @@ export default function PendingProviders() {
                       </button>
                     )}
                   </td>
-                </tr>
+                </AnimatedListItem>
               ))}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
       )}
@@ -305,5 +308,6 @@ export default function PendingProviders() {
         isLoading={approveMutation.isPending}
       />
     </div>
+    </PageTransition>
   );
 }

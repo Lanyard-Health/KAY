@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -11,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
+import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import clsx from 'clsx';
 import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
 
@@ -141,6 +143,7 @@ export default function ProviderList() {
   };
 
   return (
+    <PageTransition>
     <div>
       <div className="sm:flex sm:items-center sm:justify-between mb-8">
         <div>
@@ -401,13 +404,13 @@ export default function ProviderList() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {data?.data?.map((provider: Provider) => {
+            <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
+              {data?.data?.map((provider: Provider, index: number) => {
                 const { progress } = calculateProgress(provider);
                 const StatusIcon = statusIcons[provider.status];
 
                 return (
-                  <tr key={provider.id} className="hover:bg-gray-50/50 transition-colors">
+                  <AnimatedListItem itemKey={provider.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0 rounded-full bg-primary-100 flex items-center justify-center">
@@ -468,10 +471,10 @@ export default function ProviderList() {
                         View
                       </Link>
                     </td>
-                  </tr>
+                  </AnimatedListItem>
                 );
               })}
-            </tbody>
+            </AnimatedList>
           </table>
         </div>
       )}
@@ -540,5 +543,6 @@ export default function ProviderList() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }

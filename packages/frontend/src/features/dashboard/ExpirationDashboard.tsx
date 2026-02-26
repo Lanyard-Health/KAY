@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
 import clsx from 'clsx';
+import PageTransition from '../../components/ui/PageTransition';
 
 interface ExpiringCredential {
   id: string;
@@ -38,6 +39,7 @@ export default function ExpirationDashboard() {
   };
 
   return (
+    <PageTransition>
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Expiration Tracking</h1>
@@ -148,5 +150,6 @@ export default function ExpirationDashboard() {
         </div>
       </div>
     </div>
+    </PageTransition>
   );
 }

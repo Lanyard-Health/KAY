@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import AnimatedNumber from './AnimatedNumber';
 
 interface HealthScoreGaugeProps {
   score: number; // 0-100
@@ -66,7 +67,9 @@ export default function HealthScoreGauge({
           <span className={clsx(
             'font-bold text-gray-900',
             size < 80 ? 'text-sm' : size < 120 ? 'text-xl' : 'text-3xl'
-          )}>{clamped}</span>
+          )}>
+            <AnimatedNumber value={clamped} duration={1.2} />
+          </span>
           <span className={clsx(
             'text-gray-500',
             size < 80 ? 'text-[8px]' : size < 120 ? 'text-[10px]' : 'text-xs'

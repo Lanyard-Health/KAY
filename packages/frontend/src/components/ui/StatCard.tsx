@@ -1,5 +1,7 @@
 import clsx from 'clsx';
+import { motion } from 'framer-motion';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/20/solid';
+import AnimatedNumber from './AnimatedNumber';
 
 interface StatCardProps {
   label: string;
@@ -34,14 +36,23 @@ function MiniSparkline({ data }: { data: number[] }) {
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon fill="url(#sparkFill)" points={areaPoints} />
-      <polyline
+      <motion.polygon
+        fill="url(#sparkFill)"
+        points={areaPoints}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      />
+      <motion.polyline
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         points={points}
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
       />
     </svg>
   );
@@ -58,7 +69,11 @@ export default function StatCard({
   const isPositive = trend && trend.value >= 0;
 
   return (
-    <div className={clsx('stat-card group', className)}>
+    <motion.div
+      className={clsx('stat-card group', className)}
+      whileHover={{ y: -2, boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.03)' }}
+      transition={{ duration: 0.2 }}
+    >
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
         {icon && (
@@ -69,7 +84,9 @@ export default function StatCard({
       </div>
       <div className="flex items-end justify-between gap-4 mt-2">
         <div>
-          <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
+          <p className="text-2xl font-bold text-gray-900 tracking-tight">
+            {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
+          </p>
           {trend && (
             <div className="flex items-center gap-1 mt-1">
               {isPositive ? (
@@ -94,6 +111,6 @@ export default function StatCard({
         </div>
         {sparkline && <MiniSparkline data={sparkline} />}
       </div>
-    </div>
+    </motion.div>
   );
 }

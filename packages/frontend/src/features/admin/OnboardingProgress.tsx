@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, XMarkIcon, EyeIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
@@ -102,6 +103,7 @@ export default function OnboardingProgress() {
   ];
 
   return (
+    <PageTransition>
     <div>
       {/* Header */}
       <div className="mb-8">
@@ -378,5 +380,6 @@ export default function OnboardingProgress() {
         </div>
       )}
     </div>
+    </PageTransition>
   );
 }

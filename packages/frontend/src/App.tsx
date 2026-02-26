@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/auth.store';
 import ErrorBoundary from './components/ErrorBoundary';
+import RouteProgressBar from './components/ui/RouteProgressBar';
 
 // Eager: needed for auth shell / initial render
 import LoginPage from './features/auth/LoginPage';
@@ -47,12 +48,7 @@ const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
 const OpsActivityLog = lazy(() => import('./features/ops/OpsActivityLog'));
 
 function LoadingFallback() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
-      <div style={{ width: '24px', height: '24px', border: '3px solid #e5e7eb', borderTopColor: '#0A3D2E', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-    </div>
-  );
+  return <RouteProgressBar />;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {

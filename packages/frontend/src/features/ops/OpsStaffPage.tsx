@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
+import PageTransition from '../../components/ui/PageTransition';
 import {
   UserGroupIcon,
   ArrowsRightLeftIcon,
@@ -237,6 +238,7 @@ export default function OpsStaffPage() {
   const staffList = staff ?? [];
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -282,5 +284,6 @@ export default function OpsStaffPage() {
         </>
       )}
     </div>
+    </PageTransition>
   );
 }

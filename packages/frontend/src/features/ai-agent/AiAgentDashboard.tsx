@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import PageTransition from '../../components/ui/PageTransition';
 import { SparklesIcon, ChatBubbleLeftRightIcon, ShieldExclamationIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import {
   useAiStatus,
@@ -102,6 +103,7 @@ export default function AiAgentDashboard() {
   };
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -356,6 +358,7 @@ export default function AiAgentDashboard() {
         />
       )}
     </div>
+    </PageTransition>
   );
 }
 
