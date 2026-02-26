@@ -95,21 +95,21 @@ export default function Dashboard() {
       description: 'Start credentialing a new provider',
       icon: UserPlusIcon,
       href: '/providers/new',
-      color: 'bg-white/20 hover:bg-white/30',
+      color: 'bg-white/[0.08] hover:bg-white/[0.15] backdrop-blur-sm border border-white/[0.1]',
     },
     {
       name: 'Upload Document',
       description: 'Add documents to a provider',
       icon: DocumentArrowUpIcon,
       href: '/documents',
-      color: 'bg-white/20 hover:bg-white/30',
+      color: 'bg-white/[0.08] hover:bg-white/[0.15] backdrop-blur-sm border border-white/[0.1]',
     },
     {
       name: 'New Enrollment',
       description: 'Start a payer enrollment',
       icon: ClipboardDocumentListIcon,
       href: '/enrollments',
-      color: 'bg-white/20 hover:bg-white/30',
+      color: 'bg-white/[0.08] hover:bg-white/[0.15] backdrop-blur-sm border border-white/[0.1]',
     },
   ];
 
@@ -223,8 +223,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @keyframes dashFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .dash-stagger { animation: dashFadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .dash-d1 { animation-delay: 0.05s; }
+        .dash-d2 { animation-delay: 0.1s; }
+        .dash-d3 { animation-delay: 0.15s; }
+        .dash-d4 { animation-delay: 0.2s; }
+      `}</style>
       {/* Welcome Header */}
-      <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
+      <div className="dash-stagger bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
           <RefreshIndicator isFetching={isFetching && !isLoading} />
@@ -258,7 +269,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Hero Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Providers"
           value={isLoading ? '-' : data?.totalProviders ?? 0}
@@ -290,9 +301,9 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: Health Score + Action Stream */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="dash-stagger dash-d2 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Health Score */}
-        <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
+        <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-shadow duration-300 p-6">
           <h3 className="text-sm font-medium text-gray-500 mb-4">Credentialing Health Score</h3>
           <div className="flex flex-col items-center">
             <HealthScoreGauge
@@ -316,7 +327,7 @@ export default function Dashboard() {
         </div>
 
         {/* Prioritized Action Stream */}
-        <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-200/60">
+        <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-shadow duration-300">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BellAlertIcon className="h-5 w-5 text-primary-500" />
@@ -361,6 +372,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Enrollment Pipeline + Expiration Forecast */}
+      <div className="dash-stagger dash-d3">
       <ErrorBoundary>
         <Suspense fallback={
           <div className="grid grid-cols-1 lg:grid-cols-8 gap-6">
@@ -384,8 +396,10 @@ export default function Dashboard() {
           </div>
         </Suspense>
       </ErrorBoundary>
+      </div>
 
       {/* Row 4: Provider Readiness Table */}
+      <div className="dash-stagger dash-d4">
       <ErrorBoundary>
         <Suspense fallback={
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 animate-pulse">
@@ -396,6 +410,7 @@ export default function Dashboard() {
           <ProviderReadinessTable practiceId={practiceId} />
         </Suspense>
       </ErrorBoundary>
+      </div>
     </div>
   );
 }

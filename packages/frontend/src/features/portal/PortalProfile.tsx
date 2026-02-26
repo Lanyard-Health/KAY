@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { UserCircleIcon, EnvelopeIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import { useCurrentProvider } from './hooks/usePortalData';
 import { api } from '../../services/api';
 
@@ -85,8 +86,8 @@ export default function PortalProfile() {
           <div className="h-10 w-28 bg-gray-200 rounded animate-pulse" />
         </div>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-lg shadow mb-6 animate-pulse">
-            <div className="px-6 py-4 border-b border-gray-200">
+          <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-200/60 mb-6 animate-pulse">
+            <div className="px-6 py-4 border-b border-gray-100">
               <div className="h-5 w-40 bg-gray-200 rounded" />
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -129,7 +130,7 @@ export default function PortalProfile() {
         {!isEditing ? (
           <button
             onClick={() => setIsEditing(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-xl hover:bg-primary-700"
           >
             Edit Profile
           </button>
@@ -152,14 +153,14 @@ export default function PortalProfile() {
                   });
                 }
               }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={updateProfile.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-xl hover:bg-primary-700 disabled:opacity-50"
             >
               {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
             </button>
@@ -176,8 +177,9 @@ export default function PortalProfile() {
       )}
 
       {/* Personal Information */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className={`bg-white rounded-2xl shadow-sm border border-gray-200/60 mb-6 ${isEditing ? 'ring-2 ring-primary-100' : ''}`}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <UserCircleIcon className="h-5 w-5 text-primary-500" />
           <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -188,10 +190,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.firstName}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.firstName}</p>
             )}
           </div>
           <div>
@@ -201,10 +203,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.lastName}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.lastName}</p>
             )}
           </div>
           <div>
@@ -214,10 +216,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.middleName}
                 onChange={(e) => setForm({ ...form, middleName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.middleName || '\u2014'}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.middleName || '\u2014'}</p>
             )}
           </div>
           <div>
@@ -227,18 +229,19 @@ export default function PortalProfile() {
                 type="text"
                 value={form.suffix}
                 onChange={(e) => setForm({ ...form, suffix: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.suffix || '\u2014'}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.suffix || '\u2014'}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Contact Information */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className={`bg-white rounded-2xl shadow-sm border border-gray-200/60 mb-6 ${isEditing ? 'ring-2 ring-primary-100' : ''}`}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <EnvelopeIcon className="h-5 w-5 text-primary-500" />
           <h2 className="text-lg font-semibold text-gray-900">Contact Information</h2>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -249,10 +252,10 @@ export default function PortalProfile() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.email || '\u2014'}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.email || '\u2014'}</p>
             )}
           </div>
           <div>
@@ -262,18 +265,19 @@ export default function PortalProfile() {
                 type="tel"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.phone || '\u2014'}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.phone || '\u2014'}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Professional Information */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className={`bg-white rounded-2xl shadow-sm border border-gray-200/60 ${isEditing ? 'ring-2 ring-primary-100' : ''}`}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <AcademicCapIcon className="h-5 w-5 text-primary-500" />
           <h2 className="text-lg font-semibold text-gray-900">Professional Information</h2>
         </div>
         <div className="p-6 grid grid-cols-1 gap-6">
@@ -284,10 +288,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.taxonomy}
                 onChange={(e) => setForm({ ...form, taxonomy: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">{provider.taxonomy || '\u2014'}</p>
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">{provider.taxonomy || '\u2014'}</p>
             )}
           </div>
           <div>
@@ -299,10 +303,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.specialties}
                 onChange={(e) => setForm({ ...form, specialties: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">
                 {provider.specialties?.length > 0 ? provider.specialties.join(', ') : '\u2014'}
               </p>
             )}
@@ -316,10 +320,10 @@ export default function PortalProfile() {
                 type="text"
                 value={form.languages}
                 onChange={(e) => setForm({ ...form, languages: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             ) : (
-              <p className="text-gray-900">
+              <p className="text-gray-900 bg-gray-50/50 rounded-lg px-3 py-2">
                 {provider.languages?.length > 0 ? provider.languages.join(', ') : '\u2014'}
               </p>
             )}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { usePortalLicenses, useCreateLicense } from './hooks/usePortalData';
 
@@ -67,8 +68,11 @@ export default function PortalLicenseForm() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Licenses</h1>
 
       {/* Add License Form */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Add License</h2>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <ShieldCheckIcon className="h-5 w-5 text-primary-500" />
+          Add License
+        </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -78,7 +82,7 @@ export default function PortalLicenseForm() {
               name="licenseType"
               value={form.licenseType}
               onChange={handleChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
             >
               {LICENSE_TYPES.map((lt) => (
                 <option key={lt.value} value={lt.value}>{lt.label}</option>
@@ -94,7 +98,7 @@ export default function PortalLicenseForm() {
               name="licenseNumber"
               value={form.licenseNumber}
               onChange={handleChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
             />
           </div>
           <div>
@@ -103,7 +107,7 @@ export default function PortalLicenseForm() {
               name="state"
               value={form.state}
               onChange={handleChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
             >
               <option value="">Select State</option>
               {US_STATES.filter(Boolean).map((st) => (
@@ -120,14 +124,14 @@ export default function PortalLicenseForm() {
               name="expirationDate"
               value={form.expirationDate}
               onChange={handleChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
             />
           </div>
           <div className="sm:col-span-2">
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
             >
               {createMutation.isPending ? 'Adding...' : 'Add License'}
             </button>
@@ -137,13 +141,14 @@ export default function PortalLicenseForm() {
 
       {/* Existing Licenses */}
       {licenses.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-6 text-center">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 text-center">
+          <ShieldCheckIcon className="mx-auto h-10 w-10 text-gray-300 mb-2" />
           <p className="text-gray-500">No licenses added yet.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Number</th>
@@ -154,12 +159,12 @@ export default function PortalLicenseForm() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {licenses.map((lic: any) => (
-                <tr key={lic.id} className="hover:bg-gray-50">
+                <tr key={lic.id} className="hover:bg-gray-50/80">
                   <td className="px-6 py-4 text-sm text-gray-900 capitalize">
                     {lic.licenseType.replace(/_/g, ' ')}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">{lic.licenseNumber}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{lic.state || '—'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{lic.state || '\u2014'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {new Date(lic.expirationDate).toLocaleDateString()}
                   </td>
