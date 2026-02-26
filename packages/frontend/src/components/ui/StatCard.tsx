@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/20/solid';
@@ -13,6 +14,7 @@ interface StatCardProps {
 }
 
 function MiniSparkline({ data }: { data: number[] }) {
+  const gradientId = useId();
   if (data.length < 2) return null;
   const max = Math.max(...data);
   const min = Math.min(...data);
@@ -31,13 +33,13 @@ function MiniSparkline({ data }: { data: number[] }) {
   return (
     <svg width={w} height={h} className="text-primary-500">
       <defs>
-        <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.15" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
       <motion.polygon
-        fill="url(#sparkFill)"
+        fill={`url(#${gradientId})`}
         points={areaPoints}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
