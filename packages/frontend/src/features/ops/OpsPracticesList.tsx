@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useOpsPractices, type OpsPractice } from '../../hooks/useOps';
+import EmptyState from '../../components/ui/EmptyState';
 
 const TIER_OPTIONS = [
   { value: '', label: 'All Tiers' },
@@ -157,15 +158,14 @@ export default function OpsPracticesList() {
 
         {/* Table */}
         {practices.length === 0 ? (
-          <div className="text-center py-16">
-            <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-3 text-sm font-medium text-gray-900">No practices found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {search || tierFilter
-                ? 'Try adjusting your search or filter criteria.'
-                : 'No practices have been added yet.'}
-            </p>
-          </div>
+          <EmptyState
+            illustration="inbox"
+            title="No practices found"
+            description={search || tierFilter
+              ? 'Try adjusting your search or filter criteria.'
+              : 'No practices have been added yet.'}
+            className="py-16"
+          />
         ) : (
           <>
             <div className="overflow-x-auto">

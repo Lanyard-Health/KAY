@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface ProviderApplication {
   id: string;
@@ -158,8 +159,12 @@ export default function PendingProviders() {
           ))}
         </div>
       ) : data?.applications?.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200/60">
-          <p className="text-gray-500">No {statusFilter !== 'all' ? statusFilter : ''} applications found.</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="people"
+            title={`No ${statusFilter !== 'all' ? statusFilter : ''} applications found`}
+            description="Applications will appear here when providers submit them."
+          />
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">

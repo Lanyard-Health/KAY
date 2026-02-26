@@ -5,6 +5,7 @@ import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
+import EmptyState from '../../components/ui/EmptyState';
 
 type FilterTab = 'all' | 'completed' | 'in_progress' | 'not_started';
 
@@ -170,8 +171,12 @@ export default function OnboardingProgress() {
           ))}
         </div>
       ) : filteredProviders.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">No providers found.</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="people"
+            title="No providers found"
+            description="No providers match the current filter."
+          />
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">

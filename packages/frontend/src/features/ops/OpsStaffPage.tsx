@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import PageTransition from '../../components/ui/PageTransition';
 import {
-  UserGroupIcon,
   ArrowsRightLeftIcon,
   ExclamationCircleIcon,
   CheckCircleIcon,
@@ -15,6 +14,7 @@ import {
   useTransferAssignments,
   type OpsStaffMember,
 } from '../../hooks/useOps';
+import EmptyState from '../../components/ui/EmptyState';
 
 // ── Staff Card ─────────────────────────────────────
 
@@ -264,12 +264,12 @@ export default function OpsStaffPage() {
           ))}
         </div>
       ) : staffList.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-12 text-center">
-          <UserGroupIcon className="h-12 w-12 text-gray-300 mx-auto" />
-          <p className="mt-3 text-sm font-medium text-gray-500">No staff members found</p>
-          <p className="mt-1 text-xs text-gray-400">
-            Staff accounts will appear here once team members are added to the system.
-          </p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-12">
+          <EmptyState
+            illustration="people"
+            title="No staff members found"
+            description="Staff accounts will appear here once team members are added to the system."
+          />
         </div>
       ) : (
         <>

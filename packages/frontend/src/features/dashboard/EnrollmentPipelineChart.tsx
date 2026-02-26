@@ -9,13 +9,11 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import {
-  ArrowDownTrayIcon,
-  ClipboardDocumentListIcon,
-} from '@heroicons/react/24/outline';
-import { Link } from 'react-router-dom';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useEnrollmentPipeline } from '../../hooks/useReporting';
+import EmptyState from '../../components/ui/EmptyState';
 import { downloadCsv } from '../../utils/downloadCsv';
 
 const STATUS_CONFIG = [
@@ -42,6 +40,7 @@ interface EnrollmentPipelineChartProps {
 export default function EnrollmentPipelineChart({
   practiceId,
 }: EnrollmentPipelineChartProps) {
+  const navigate = useNavigate();
   const [selectedDays, setSelectedDays] = useState<number | null>(null);
 
   const startDate = useMemo(() => {
@@ -139,19 +138,12 @@ export default function EnrollmentPipelineChart({
             ))}
           </div>
         ) : isEmpty ? (
-          <div className="text-center py-10">
-            <ClipboardDocumentListIcon className="h-12 w-12 text-gray-300 mx-auto" />
-            <p className="mt-3 text-sm text-gray-500">
-              No enrollments yet. Start your first enrollment to track your
-              pipeline.
-            </p>
-            <Link
-              to="/enrollments"
-              className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
-            >
-              Go to Enrollments
-            </Link>
-          </div>
+          <EmptyState
+            illustration="chart"
+            title="No enrollments yet"
+            description="Start your first enrollment to track your pipeline."
+            action={{ label: 'Go to Enrollments', onClick: () => navigate('/enrollments') }}
+          />
         ) : (
           <ResponsiveContainer
             width="100%"

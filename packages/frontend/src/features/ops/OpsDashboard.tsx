@@ -17,6 +17,7 @@ import {
   useOpsStaff,
   type OpsStaffMember,
 } from '../../hooks/useOps';
+import EmptyState from '../../components/ui/EmptyState';
 
 // ── Helpers ────────────────────────────────────────
 
@@ -218,10 +219,12 @@ export default function OpsDashboard() {
               ))}
             </div>
           ) : staffList.length === 0 ? (
-            <div className="text-center py-10">
-              <UserGroupIcon className="h-10 w-10 text-gray-300 mx-auto" />
-              <p className="mt-2 text-sm text-gray-400">No staff members yet.</p>
-            </div>
+            <EmptyState
+              illustration="clipboard"
+              title="No staff members yet"
+              description="Staff accounts will appear here once team members are added."
+              className="py-10"
+            />
           ) : (
             <div className="space-y-1">
               {staffList.map((m) => (

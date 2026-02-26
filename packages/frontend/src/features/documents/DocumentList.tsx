@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
 
 const DOCUMENT_TYPES = [
   { value: 'license', label: 'License' },
@@ -202,10 +203,12 @@ export default function DocumentList() {
 
       {/* Documents Grid */}
       {!selectedProvider ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 text-center py-12">
-          <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No provider selected</h3>
-          <p className="mt-1 text-sm text-gray-500">Select a provider to view their documents</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="folder"
+            title="No provider selected"
+            description="Select a provider to view their documents."
+          />
         </div>
       ) : documentsError ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
@@ -230,16 +233,13 @@ export default function DocumentList() {
           ))}
         </div>
       ) : documents?.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 text-center py-12">
-          <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
-          <p className="mt-1 text-sm text-gray-500 mb-4">
-            Upload documents for this provider
-          </p>
-          <button className="btn-primary" onClick={() => setIsUploadModalOpen(true)}>
-            <CloudArrowUpIcon className="-ml-1 mr-2 h-5 w-5" />
-            Upload First Document
-          </button>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="folder"
+            title="No documents"
+            description="Upload documents for this provider."
+            action={{ label: 'Upload First Document', onClick: () => setIsUploadModalOpen(true) }}
+          />
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
