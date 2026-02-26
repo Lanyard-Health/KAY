@@ -34,7 +34,7 @@ export default function PayerAnalyticsCards({ analytics }: PayerAnalyticsCardsPr
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Approval Rate</p>
           <p className="mt-1 text-2xl font-semibold text-gray-900">
             {analytics.approvalRate !== null ? `${analytics.approvalRate}%` : '--'}
@@ -44,7 +44,7 @@ export default function PayerAnalyticsCards({ analytics }: PayerAnalyticsCardsPr
           )}
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Avg Days to Approval</p>
           <p className={`mt-1 text-2xl font-semibold ${daysColor(analytics.avgDaysToApproval)}`}>
             {analytics.avgDaysToApproval !== null ? `${analytics.avgDaysToApproval}d` : '--'}
@@ -56,7 +56,7 @@ export default function PayerAnalyticsCards({ analytics }: PayerAnalyticsCardsPr
           )}
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4">
           <p className="text-xs font-medium text-gray-500 uppercase">Stuck Enrollments</p>
           <p className={`mt-1 text-2xl font-semibold ${analytics.enrollmentsStuckOver60Days > 0 ? 'text-red-600' : 'text-green-600'}`}>
             {analytics.enrollmentsStuckOver60Days}

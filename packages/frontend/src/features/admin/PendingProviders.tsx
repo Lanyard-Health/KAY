@@ -115,43 +115,53 @@ export default function PendingProviders() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={clsx(
-                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm',
-                statusFilter === tab.key
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              )}
-            >
-              {tab.label}
-              {tab.count !== undefined && tab.count > 0 && (
-                <span className="ml-2 bg-primary-100 text-primary-600 py-0.5 px-2 rounded-full text-xs">
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setStatusFilter(tab.key)}
+            className={clsx(
+              'whitespace-nowrap px-4 py-2 rounded-lg font-medium text-sm transition-all',
+              statusFilter === tab.key
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className="ml-2 bg-primary-100 text-primary-600 py-0.5 px-2 rounded-full text-xs">
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Applications List */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600" />
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden animate-pulse">
+          <div className="bg-gray-50/80 px-6 py-3 flex gap-8">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-3 w-20 bg-gray-200 rounded" />
+            ))}
+          </div>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="px-6 py-4 flex gap-8 border-t border-gray-100">
+              <div className="h-4 w-40 bg-gray-200 rounded" />
+              <div className="h-4 w-32 bg-gray-200 rounded" />
+              <div className="h-4 w-20 bg-gray-200 rounded" />
+              <div className="h-4 w-16 bg-gray-200 rounded" />
+            </div>
+          ))}
         </div>
       ) : data?.applications?.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200/60">
           <p className="text-gray-500">No {statusFilter !== 'all' ? statusFilter : ''} applications found.</p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Provider
@@ -172,7 +182,7 @@ export default function PendingProviders() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {data?.applications?.map((app: ProviderApplication) => (
-                <tr key={app.id} className="hover:bg-gray-50">
+                <tr key={app.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -212,14 +222,14 @@ export default function PendingProviders() {
                         <button
                           onClick={() => handleApprove(app)}
                           disabled={approveMutation.isPending}
-                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-xl text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                         >
                           <CheckIcon className="h-4 w-4 mr-1" />
                           Approve
                         </button>
                         <button
                           onClick={() => handleRejectClick(app)}
-                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-xl text-white bg-red-600 hover:bg-red-700"
                         >
                           <XMarkIcon className="h-4 w-4 mr-1" />
                           Reject
@@ -253,7 +263,7 @@ export default function PendingProviders() {
                 onChange={(e) => setRejectNotes(e.target.value)}
                 rows={4}
                 placeholder="Enter rejection reason (required)..."
-                className="mt-4 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="mt-4 block w-full rounded-xl border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
               />
               <div className="mt-4 flex justify-end gap-3">
                 <button
@@ -263,7 +273,7 @@ export default function PendingProviders() {
                     setRejectNotes('');
                     setSelectedApp(null);
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50"
                 >
                   Cancel
                 </button>
@@ -271,7 +281,7 @@ export default function PendingProviders() {
                   type="button"
                   onClick={handleRejectSubmit}
                   disabled={!rejectNotes.trim() || rejectMutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50"
                 >
                   {rejectMutation.isPending ? 'Rejecting...' : 'Reject Application'}
                 </button>

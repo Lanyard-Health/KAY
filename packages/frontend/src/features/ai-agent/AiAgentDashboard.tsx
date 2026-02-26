@@ -115,7 +115,7 @@ export default function AiAgentDashboard() {
       </div>
 
       {/* Status Bar */}
-      <div className="rounded-lg bg-white shadow p-4">
+      <div className="rounded-2xl bg-white shadow-sm border border-gray-200/60 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -146,47 +146,45 @@ export default function AiAgentDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex gap-6">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'dashboard'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            }`}
-          >
-            <SparklesIcon className="h-4 w-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'chat'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            }`}
-          >
-            <ChatBubbleLeftRightIcon className="h-4 w-4" />
-            Chat
-          </button>
-          <button
-            onClick={() => setActiveTab('approvals')}
-            className={`flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'approvals'
-                ? 'border-primary-600 text-primary-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            }`}
-          >
-            <ShieldCheckIcon className="h-4 w-4" />
-            Approvals
-            {pendingCount > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem]">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        </nav>
+      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'dashboard'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <SparklesIcon className="h-4 w-4" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab('chat')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'chat'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <ChatBubbleLeftRightIcon className="h-4 w-4" />
+          Chat
+        </button>
+        <button
+          onClick={() => setActiveTab('approvals')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'approvals'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <ShieldCheckIcon className="h-4 w-4" />
+          Approvals
+          {pendingCount > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white min-w-[1.25rem]">
+              {pendingCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -197,7 +195,7 @@ export default function AiAgentDashboard() {
       ) : (
       <>
       {/* Portfolio Priority List */}
-      <div className="rounded-lg bg-white shadow">
+      <div className="rounded-2xl bg-white shadow-sm border border-gray-200/60">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Portfolio Priority List</h2>
           <div className="flex items-center gap-2">
@@ -247,7 +245,7 @@ export default function AiAgentDashboard() {
         {portfolioResults && portfolioResults.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50/80">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
@@ -260,7 +258,7 @@ export default function AiAgentDashboard() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {portfolioResults.map((item, index) => (
-                  <tr key={item.enrollmentId} className="hover:bg-gray-50">
+                  <tr key={item.enrollmentId} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-400 font-mono">#{index + 1}</span>
@@ -308,7 +306,7 @@ export default function AiAgentDashboard() {
       </div>
 
       {/* Pending Recommendations */}
-      <div className="rounded-lg bg-white shadow">
+      <div className="rounded-2xl bg-white shadow-sm border border-gray-200/60">
         <div className="border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Pending Recommendations
@@ -445,13 +443,13 @@ function RecommendationCard({
         <div className="flex items-center gap-2 ml-4">
           <button
             onClick={onAccept}
-            className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
+            className="inline-flex items-center rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
           >
             Accept
           </button>
           <button
             onClick={onDismiss}
-            className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+            className="inline-flex items-center rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
           >
             Dismiss
           </button>

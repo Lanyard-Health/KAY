@@ -151,7 +151,7 @@ export default function OnboardingProgress() {
 
       {/* Providers Table */}
       {isLoading ? (
-        <div className="bg-white shadow rounded-lg overflow-hidden animate-pulse">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden animate-pulse">
           <div className="bg-gray-50 px-6 py-3 flex gap-8">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="h-3 w-20 bg-gray-200 rounded" />
@@ -172,9 +172,9 @@ export default function OnboardingProgress() {
           <p className="text-gray-500">No providers found.</p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">NPI</th>

@@ -161,7 +161,7 @@ export default function ProviderList() {
       </div>
 
       {/* Search and Filters */}
-      <div className="card card-body mb-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1 flex gap-4">
             <div className="flex-1">
@@ -226,12 +226,12 @@ export default function ProviderList() {
           </form>
 
           {/* View Toggle */}
-          <div className="flex border border-gray-200 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('cards')}
               className={clsx(
-                'px-3 py-2 text-sm font-medium',
-                viewMode === 'cards' ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               )}
             >
               Cards
@@ -239,8 +239,8 @@ export default function ProviderList() {
             <button
               onClick={() => setViewMode('table')}
               className={clsx(
-                'px-3 py-2 text-sm font-medium',
-                viewMode === 'table' ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               )}
             >
               Table
@@ -374,9 +374,9 @@ export default function ProviderList() {
         </div>
       ) : (
         /* Table View */
-        <div className="card overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Provider
@@ -407,7 +407,7 @@ export default function ProviderList() {
                 const StatusIcon = statusIcons[provider.status];
 
                 return (
-                  <tr key={provider.id} className="hover:bg-gray-50">
+                  <tr key={provider.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0 rounded-full bg-primary-100 flex items-center justify-center">

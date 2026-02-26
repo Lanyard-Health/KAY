@@ -350,7 +350,7 @@ export default function EnrollmentsList() {
 
   if (error) {
     return (
-      <div className="text-red-600 p-4 bg-red-50 rounded-lg">
+      <div className="text-red-600 p-4 bg-red-50 rounded-xl">
         Failed to load enrollments. Please try again.
       </div>
     );
@@ -371,7 +371,7 @@ export default function EnrollmentsList() {
         </div>
         <div className="flex gap-3">
           {/* View Toggle */}
-          <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+          <div className="inline-flex items-center gap-1 bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('kanban')}
               className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -397,7 +397,7 @@ export default function EnrollmentsList() {
           </div>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50"
           >
             <ArrowPathIcon className="h-5 w-5 mr-2 text-gray-500" />
             Refresh
@@ -562,7 +562,7 @@ export default function EnrollmentsList() {
           )}
         </div>
       ) : enrollments.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
+        <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200/60">
           <FunnelIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Found</h3>
           <p className="text-gray-500 mb-4">
@@ -733,7 +733,7 @@ export default function EnrollmentsList() {
         </div>
       ) : (
         /* Table View */
-        <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/50">
               <tr>
@@ -773,7 +773,7 @@ export default function EnrollmentsList() {
                   !['approved', 'denied', 'terminated'].includes(enrollment.status);
 
                 return (
-                  <tr key={enrollment.id} className="hover:bg-gray-50">
+                  <tr key={enrollment.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Link
                         to={`/providers/${enrollment.providerId}`}

@@ -423,7 +423,7 @@ export default function OpsWorkQueue() {
       <div className="rounded-2xl border border-gray-200/60 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-4 py-3 w-10">
                   <input
@@ -474,7 +474,7 @@ export default function OpsWorkQueue() {
                     <tr
                       key={item.id}
                       onClick={() => navigate(`/ops/work-queue/${item.id}`)}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="hover:bg-gray-50/50 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <input

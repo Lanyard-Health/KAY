@@ -78,9 +78,9 @@ function CollapsibleSection({
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
-    <div className="card">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
       <div
-        className="card-header flex items-center justify-between cursor-pointer select-none"
+        className="px-5 py-4 border-b border-gray-100 flex items-center justify-between cursor-pointer select-none"
         role="button"
         tabIndex={0}
         aria-expanded={isOpen}
@@ -93,11 +93,7 @@ function CollapsibleSection({
         }}
       >
         <div className="flex items-center gap-2">
-          {isOpen ? (
-            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-          ) : (
-            <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-          )}
+          <ChevronRightIcon className={clsx('h-4 w-4 text-gray-400 transition-transform duration-200', isOpen && 'rotate-90')} />
           <h2 className="text-lg font-medium text-gray-900">{title}</h2>
           {count !== undefined && (
             <span className="text-sm text-gray-400">({count})</span>
@@ -106,7 +102,7 @@ function CollapsibleSection({
         {onAdd && (
           <button
             onClick={(e) => { e.stopPropagation(); onAdd(); }}
-            className="text-sm text-primary-600 hover:text-primary-500 flex items-center"
+            className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 rounded-lg hover:bg-primary-50 px-2.5 py-1.5 transition-colors"
           >
             <PlusIcon className="h-4 w-4 mr-1" />
             {addLabel}
@@ -117,7 +113,7 @@ function CollapsibleSection({
         'overflow-hidden transition-all duration-200 ease-out',
         isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
       )}>
-        <div className="card-body">{children}</div>
+        <div className="px-5 pb-5">{children}</div>
       </div>
     </div>
   );
@@ -614,7 +610,7 @@ export default function ProviderDetail() {
         {/* Card grid skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow p-4 space-y-3">
+            <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 space-y-3">
               <div className="h-4 w-24 bg-gray-200 rounded" />
               <div className="h-4 w-full bg-gray-200 rounded" />
               <div className="h-4 w-3/4 bg-gray-200 rounded" />
@@ -628,7 +624,7 @@ export default function ProviderDetail() {
   if (error) {
     return (
       <div className="space-y-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
           <p className="font-medium">Failed to load provider</p>
           <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>

@@ -149,7 +149,7 @@ export default function RosterPage() {
           <button
             type="button"
             onClick={() => setLoadModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <FolderOpenIcon className="h-4 w-4" />
             Load
@@ -158,7 +158,7 @@ export default function RosterPage() {
             type="button"
             onClick={() => setSaveModalOpen(true)}
             disabled={columns.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <BookmarkIcon className="h-4 w-4" />
             Save
@@ -167,7 +167,7 @@ export default function RosterPage() {
             type="button"
             onClick={handleExport}
             disabled={columns.length === 0 || isExporting}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ArrowDownTrayIcon className="h-4 w-4" />
             {isExporting ? 'Exporting...' : 'Export'}
@@ -178,12 +178,12 @@ export default function RosterPage() {
       {/* Builder area: field picker + selected columns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Left: Available Fields */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 h-[420px] overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 h-[420px] overflow-hidden flex flex-col">
           <FieldPicker selectedKeys={selectedKeys} onAddField={handleAddField} />
         </div>
 
         {/* Right: Selected Columns */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 h-[420px] overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 h-[420px] overflow-hidden flex flex-col">
           <SelectedColumns
             columns={columns}
             onReorder={handleReorder}
@@ -193,7 +193,7 @@ export default function RosterPage() {
       </div>
 
       {/* Data Preview */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4">
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Data Preview</h3>
         <RosterPreviewTable
           headers={preview?.headers || []}
