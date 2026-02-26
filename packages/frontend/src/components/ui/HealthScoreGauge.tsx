@@ -39,6 +39,17 @@ export default function HealthScoreGauge({
     <div className={clsx('flex flex-col items-center gap-2', className)}>
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
+          <defs>
+            <filter id={`gauge-glow-${clamped}`} x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feFlood floodColor={color} floodOpacity="0.3" result="color" />
+              <feComposite in="color" in2="blur" operator="in" result="shadow" />
+              <feMerge>
+                <feMergeNode in="shadow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           {/* Background ring */}
           <circle
             cx={size / 2}
@@ -48,18 +59,18 @@ export default function HealthScoreGauge({
             stroke="#e5e7eb"
             strokeWidth={strokeWidth}
           />
-          {/* Score ring */}
+          {/* Score ring with glow */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke={color}
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             strokeLinecap="round"
-            className="transition-all duration-1000 ease-out"
+            filter={`url(#gauge-glow-${clamped})`}
+            style={{ stroke: color, transition: 'stroke 0.5s ease, stroke-dashoffset 1s ease-out' }}
           />
         </svg>
         {/* Center text */}
