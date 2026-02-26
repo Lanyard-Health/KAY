@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -16,20 +17,68 @@ const STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
+// Particle confetti component
+function Confetti() {
+  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; color: string; delay: number; size: number }>>([]);
+
+  useEffect(() => {
+    const colors = ['#10b981', '#34d399', '#6ee7b7', '#059669', '#fbbf24', '#f59e0b', '#818cf8', '#a78bfa'];
+    const items = Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      color: colors[i % colors.length]!,
+      delay: Math.random() * 0.8,
+      size: 4 + Math.random() * 6,
+    }));
+    setParticles(items);
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @keyframes confettiFall {
+          0% { transform: translateY(-20px) rotate(0deg) scale(1); opacity: 1; }
+          100% { transform: translateY(200px) rotate(720deg) scale(0); opacity: 0; }
+        }
+        .confetti-particle { animation: confettiFall 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+      `}</style>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            className="confetti-particle absolute rounded-sm"
+            style={{
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              width: p.size,
+              height: p.size,
+              backgroundColor: p.color,
+              animationDelay: `${p.delay}s`,
+            }}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
   const { data: progressData, refetch } = useOnboardingProgress();
   const completeMutation = useCompleteOnboarding();
+  const navigate = useNavigate();
 
   const progress = (progressData as any)?.data;
   const steps = progress?.steps ?? [];
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
       refetch();
     }
-  };
+  }, [currentStep, refetch]);
 
   const handleBack = () => {
     if (currentStep > 0) {
@@ -44,7 +93,7 @@ export default function OnboardingWizard() {
   const handleComplete = async () => {
     try {
       await completeMutation.mutateAsync();
-      toast.success('Onboarding complete! Welcome to Lanyard Health.');
+      setShowCelebration(true);
     } catch {
       toast.error('Failed to complete onboarding');
     }
@@ -53,6 +102,63 @@ export default function OnboardingWizard() {
   const isStepComplete = (key: string) => {
     return steps.find((s: any) => s.key === key)?.complete ?? false;
   };
+
+  if (showCelebration) {
+    return (
+      <>
+        <style>{`
+          @keyframes celebrateFadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes celebrateRing {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 0.3; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+          @keyframes celebrateCheck {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          .celebrate-fade { animation: celebrateFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
+          .celebrate-fade-d1 { animation: celebrateFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both; }
+          .celebrate-fade-d2 { animation: celebrateFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both; }
+          .celebrate-check { animation: celebrateCheck 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+          .celebrate-ring { animation: celebrateRing 1.5s ease-out forwards; }
+          .celebrate-ring-2 { animation: celebrateRing 1.5s ease-out 0.2s forwards; }
+        `}</style>
+        <div className="relative flex flex-col items-center justify-center py-20 px-4 text-center">
+          <Confetti />
+
+          {/* Animated checkmark with rings */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 w-24 h-24 rounded-full border-2 border-emerald-300 celebrate-ring" />
+            <div className="absolute inset-0 w-24 h-24 rounded-full border-2 border-emerald-200 celebrate-ring-2" />
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 celebrate-check">
+              <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </div>
+          </div>
+
+          <h2 className="text-3xl font-bold text-gray-900 mb-2 celebrate-fade">
+            You're all set!
+          </h2>
+          <p className="text-gray-500 max-w-md mb-10 celebrate-fade-d1">
+            Your credentialing profile is complete. We'll review your information and notify you of any updates.
+          </p>
+
+          <button
+            onClick={() => navigate('/portal')}
+            className="px-8 py-3 bg-primary-700 text-white font-medium rounded-xl hover:bg-primary-800 hover:shadow-lg hover:shadow-primary-700/20 transition-all duration-200 celebrate-fade-d2"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
