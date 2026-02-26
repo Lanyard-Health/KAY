@@ -268,11 +268,11 @@ export default function RegisterPage() {
   };
 
   const inputClass = (field: string) =>
-    `mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+    `mt-1 block w-full rounded-xl bg-white/[0.08] border text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 ${
       // eslint-disable-next-line security/detect-object-injection
       errors[field]
-        ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-        : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'
+        ? 'border-red-400/60 focus:border-red-400'
+        : 'border-white/[0.15] focus:border-emerald-400/60'
     }`;
 
   if (submitted) {
@@ -333,28 +333,28 @@ export default function RegisterPage() {
           </div>
         )}
         {reapplyParam && (
-          <div className="mt-4 mx-auto max-w-lg bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center">
-            <p className="text-sm text-yellow-800">
+          <div className="mt-4 mx-auto max-w-lg bg-white/[0.08] border border-white/[0.15] rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-amber-200">
               You are submitting a new application. Previous feedback from our team has been noted.
             </p>
           </div>
         )}
         {practiceInfo && (
-          <div className="mt-4 mx-auto max-w-lg bg-primary-50 border border-primary-200 rounded-lg px-4 py-3 text-center">
-            <p className="text-sm text-primary-800">
-              Registering with <span className="font-semibold">{practiceInfo.name}</span>
+          <div className="mt-4 mx-auto max-w-lg bg-white/[0.08] border border-white/[0.15] rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-white/80">
+              Registering with <span className="text-emerald-300 font-semibold">{practiceInfo.name}</span>
             </p>
           </div>
         )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
-        <div className="bg-white py-8 px-4 shadow-sm sm:rounded-2xl border border-gray-200/60 sm:px-10">
+        <div className="bg-white/[0.1] backdrop-blur-2xl border border-white/[0.15] shadow-2xl shadow-black/10 py-8 px-4 sm:rounded-2xl sm:px-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* NPI */}
             <div>
-              <label htmlFor="npi" className="block text-sm font-medium text-gray-700">
-                NPI <span className="text-red-500">*</span>
+              <label htmlFor="npi" className="block text-sm font-medium text-white/80">
+                NPI <span className="text-emerald-300">*</span>
               </label>
               <div className="relative">
                 <input
@@ -376,81 +376,81 @@ export default function RegisterPage() {
                   </div>
                 )}
               </div>
-              {errors.npi && <p className="mt-1 text-sm text-red-600">{errors.npi}</p>}
+              {errors.npi && <p className="mt-1 text-sm text-red-300">{errors.npi}</p>}
               {npiLookupStatus === 'found' && (
-                <p className="mt-1 text-sm text-green-600">NPI found — fields pre-filled from NPPES</p>
+                <p className="mt-1 text-sm text-emerald-300">NPI found — fields pre-filled from NPPES</p>
               )}
               {npiLookupStatus === 'not-found' && (
-                <p className="mt-1 text-sm text-yellow-600">NPI not found in NPPES registry</p>
+                <p className="mt-1 text-sm text-amber-300">NPI not found in NPPES registry</p>
               )}
             </div>
 
             {/* Name Fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                  First Name <span className="text-red-500">*</span>
+                <label htmlFor="firstName" className="block text-sm font-medium text-white/80">
+                  First Name <span className="text-emerald-300">*</span>
                 </label>
                 <input type="text" name="firstName" id="firstName" value={formData.firstName} onChange={handleChange} className={inputClass('firstName')} />
-                {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
+                {errors.firstName && <p className="mt-1 text-sm text-red-300">{errors.firstName}</p>}
               </div>
               <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                  Last Name <span className="text-red-500">*</span>
+                <label htmlFor="lastName" className="block text-sm font-medium text-white/80">
+                  Last Name <span className="text-emerald-300">*</span>
                 </label>
                 <input type="text" name="lastName" id="lastName" value={formData.lastName} onChange={handleChange} className={inputClass('lastName')} />
-                {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
+                {errors.lastName && <p className="mt-1 text-sm text-red-300">{errors.lastName}</p>}
               </div>
             </div>
 
             {/* Middle Name & Suffix */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="middleName" className="block text-sm font-medium text-gray-700">Middle Name</label>
-                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
+                <label htmlFor="middleName" className="block text-sm font-medium text-white/80">Middle Name</label>
+                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
               </div>
               <div>
-                <label htmlFor="suffix" className="block text-sm font-medium text-gray-700">Suffix</label>
-                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm" />
+                <label htmlFor="suffix" className="block text-sm font-medium text-white/80">Suffix</label>
+                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
               </div>
             </div>
 
             {/* Contact Fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email <span className="text-red-500">*</span></label>
+                <label htmlFor="email" className="block text-sm font-medium text-white/80">Email <span className="text-emerald-300">*</span></label>
                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className={inputClass('email')} />
-                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+                {errors.email && <p className="mt-1 text-sm text-red-300">{errors.email}</p>}
               </div>
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">Phone <span className="text-red-500">*</span></label>
+                <label htmlFor="phone" className="block text-sm font-medium text-white/80">Phone <span className="text-emerald-300">*</span></label>
                 <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} placeholder="(555) 123-4567" className={inputClass('phone')} />
-                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+                {errors.phone && <p className="mt-1 text-sm text-red-300">{errors.phone}</p>}
               </div>
             </div>
 
             {/* Date of Birth & Gender */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">Date of Birth <span className="text-red-500">*</span></label>
+                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-white/80">Date of Birth <span className="text-emerald-300">*</span></label>
                 <input type="date" name="dateOfBirth" id="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className={inputClass('dateOfBirth')} />
-                {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>}
+                {errors.dateOfBirth && <p className="mt-1 text-sm text-red-300">{errors.dateOfBirth}</p>}
               </div>
               <div>
-                <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender <span className="text-red-500">*</span></label>
+                <label htmlFor="gender" className="block text-sm font-medium text-white/80">Gender <span className="text-emerald-300">*</span></label>
                 <select name="gender" id="gender" value={formData.gender} onChange={handleChange} className={inputClass('gender')}>
                   {GENDER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
+                {errors.gender && <p className="mt-1 text-sm text-red-300">{errors.gender}</p>}
               </div>
             </div>
 
             {/* Provider Type */}
             <div>
-              <label htmlFor="providerType" className="block text-sm font-medium text-gray-700">Provider Type</label>
-              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm">
+              <label htmlFor="providerType" className="block text-sm font-medium text-white/80">Provider Type</label>
+              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60">
                 {PROVIDER_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
@@ -461,8 +461,8 @@ export default function RegisterPage() {
             {isSelfServe && (
               <>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password <span className="text-red-500">*</span>
+                  <label htmlFor="password" className="block text-sm font-medium text-white/80">
+                    Password <span className="text-emerald-300">*</span>
                   </label>
                   <input
                     type="password"
@@ -473,12 +473,12 @@ export default function RegisterPage() {
                     placeholder="Minimum 12 characters"
                     className={inputClass('password')}
                   />
-                  {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                  {errors.password && <p className="mt-1 text-sm text-red-300">{errors.password}</p>}
                   <PasswordStrength password={formData.password || ''} />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                    Confirm Password <span className="text-red-500">*</span>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-white/80">
+                    Confirm Password <span className="text-emerald-300">*</span>
                   </label>
                   <input
                     type="password"
@@ -489,7 +489,7 @@ export default function RegisterPage() {
                     placeholder="Re-enter your password"
                     className={inputClass('confirmPassword')}
                   />
-                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-300">{errors.confirmPassword}</p>}
                 </div>
               </>
             )}
@@ -499,7 +499,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={mutation.isPending}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-400 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-400/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {mutation.isPending
                   ? (isSelfServe ? 'Creating Account...' : 'Submitting...')
@@ -508,9 +508,9 @@ export default function RegisterPage() {
             </div>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
+          <p className="mt-6 text-center text-sm text-white/70 hover:text-white">
             Already have an account?{' '}
-            <a href="/login" className="text-primary-700 hover:text-primary-600 font-semibold transition-colors">
+            <a href="/login" className="text-emerald-300 hover:text-emerald-200 font-semibold transition-colors">
               Sign in
             </a>
           </p>

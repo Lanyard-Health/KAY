@@ -168,7 +168,7 @@ export default function PortalLocations() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
+            <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 animate-pulse">
               <div className="h-5 w-40 bg-gray-200 rounded mb-3" />
               <div className="h-4 w-56 bg-gray-200 rounded mb-2" />
               <div className="h-4 w-32 bg-gray-200 rounded" />
@@ -199,7 +199,7 @@ export default function PortalLocations() {
         <h1 className="text-2xl font-bold text-gray-900">Practice Locations</h1>
         <button
           onClick={openCreate}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 transition-colors"
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Add Location
@@ -208,8 +208,8 @@ export default function PortalLocations() {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <div className="bg-white rounded-lg shadow mb-6 border border-primary-200">
-          <div className="px-6 py-4 border-b border-gray-200 bg-primary-50 rounded-t-lg flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm mb-6 border border-primary-200/60">
+          <div className="px-6 py-4 border-b border-gray-200 bg-primary-50 rounded-t-2xl flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">
               {editingId ? 'Edit Location' : 'Add New Location'}
             </h2>
@@ -230,7 +230,7 @@ export default function PortalLocations() {
                   value={form.locationName}
                   onChange={(e) => setForm({ ...form, locationName: e.target.value })}
                   placeholder="e.g. Main Office"
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                   required
                 />
               </div>
@@ -239,7 +239,7 @@ export default function PortalLocations() {
                 <select
                   value={form.locationType}
                   onChange={(e) => setForm({ ...form, locationType: e.target.value })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                 >
                   {LOCATION_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -256,7 +256,7 @@ export default function PortalLocations() {
                 value={form.addressLine1}
                 onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
                 placeholder="Street address"
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                 required
               />
             </div>
@@ -267,7 +267,7 @@ export default function PortalLocations() {
                 value={form.addressLine2}
                 onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
                 placeholder="Suite, unit, floor, etc."
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
               />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -277,7 +277,7 @@ export default function PortalLocations() {
                   type="text"
                   value={form.city}
                   onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                   required
                 />
               </div>
@@ -286,7 +286,7 @@ export default function PortalLocations() {
                 <select
                   value={form.state}
                   onChange={(e) => setForm({ ...form, state: e.target.value })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                   required
                 >
                   <option value="">--</option>
@@ -303,7 +303,7 @@ export default function PortalLocations() {
                   onChange={(e) => setForm({ ...form, zipCode: e.target.value })}
                   placeholder="12345"
                   pattern="\d{5}(-\d{4})?"
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                   required
                 />
               </div>
@@ -318,7 +318,7 @@ export default function PortalLocations() {
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   placeholder="555-123-4567"
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                   required
                 />
               </div>
@@ -328,7 +328,7 @@ export default function PortalLocations() {
                   type="tel"
                   value={form.fax}
                   onChange={(e) => setForm({ ...form, fax: e.target.value })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                 />
               </div>
               <div>
@@ -337,7 +337,7 @@ export default function PortalLocations() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
                 />
               </div>
             </div>
@@ -361,7 +361,7 @@ export default function PortalLocations() {
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={2}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 sm:text-sm"
               />
             </div>
 
@@ -369,14 +369,14 @@ export default function PortalLocations() {
               <button
                 type="button"
                 onClick={() => { setShowForm(false); setEditingId(null); }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
               >
                 {isSaving ? 'Saving...' : editingId ? 'Update Location' : 'Add Location'}
               </button>
@@ -387,7 +387,7 @@ export default function PortalLocations() {
 
       {/* Location Cards */}
       {locations.length === 0 ? (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60">
           <div className="p-8 text-center">
             <MapPinIcon className="mx-auto h-12 w-12 text-gray-300" />
             <h3 className="mt-3 text-sm font-medium text-gray-900">No practice locations</h3>
@@ -396,7 +396,7 @@ export default function PortalLocations() {
             </p>
             <button
               onClick={openCreate}
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-md hover:bg-primary-100 transition-colors"
+              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
             >
               <PlusIcon className="h-4 w-4 mr-2" />
               Add Your First Location
@@ -408,7 +408,7 @@ export default function PortalLocations() {
           {locations.map((loc) => (
             <div
               key={loc.id}
-              className="bg-white rounded-lg shadow border border-gray-200 hover:shadow-md transition-shadow"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-shadow"
             >
               <div className="p-5">
                 <div className="flex items-start justify-between">

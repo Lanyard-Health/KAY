@@ -142,9 +142,9 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                   to={item.href}
                   className={clsx(
                     pathname === item.href
-                      ? 'bg-white/10 text-white'
-                      : 'text-primary-100/70 hover:text-white hover:bg-white/10',
-                    'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200',
+                      ? 'bg-white/[0.12] text-white backdrop-blur-sm border border-white/[0.08] shadow-sm shadow-black/5'
+                      : 'text-primary-100/70 hover:text-white hover:bg-white/10 border border-transparent',
+                    'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200 hover:translate-x-0.5',
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
@@ -222,9 +222,14 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
     : filterNavGroups(customerNavGroups, role);
 
   return (
-    <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
-      <div className="flex h-16 shrink-0 items-center">
-        <span className="text-white text-xl font-bold">Lanyard Health</span>
+    <div className="relative flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
+      {/* Floating orbs for depth */}
+      <div className="absolute top-20 -left-10 w-40 h-40 bg-white/[0.04] rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute bottom-32 -right-8 w-32 h-32 bg-emerald-300/[0.05] rounded-full blur-2xl pointer-events-none" />
+
+      <div className="flex h-16 shrink-0 items-center gap-3">
+        <img src="/logo.png" alt="Lanyard Health" className="h-8 brightness-0 invert" />
+        <span className="text-white text-lg font-semibold tracking-tight">Lanyard Health</span>
       </div>
 
       {canToggleOps && (
@@ -237,13 +242,28 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
         <ul role="list" className="flex flex-1 flex-col gap-y-4">
           <li>
             <div className="-mx-2 space-y-3">
-              {activeGroups.map((group) => (
-                <SidebarNavGroup key={group.label} group={group} pathname={pathname} />
+              {activeGroups.map((group, index) => (
+                <div key={group.label} className={clsx(index > 0 && 'border-t border-white/[0.06] pt-3')}>
+                  <SidebarNavGroup group={group} pathname={pathname} />
+                </div>
               ))}
             </div>
           </li>
         </ul>
       </nav>
+
+      {/* User info at bottom */}
+      <div className="mt-auto pt-4 border-t border-white/[0.08] px-2">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-white/[0.12] flex items-center justify-center text-white text-xs font-medium">
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user?.firstName} {user?.lastName}</p>
+            <p className="text-xs text-primary-200/60 capitalize">{user?.role?.replace(/_/g, ' ')}</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -336,7 +356,7 @@ export default function Layout() {
                     new KeyboardEvent('keydown', { key: 'k', metaKey: true }),
                   );
                 }}
-                className="hidden sm:flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-100 transition-colors"
+                className="hidden sm:flex items-center gap-2 rounded-xl border border-gray-200/80 bg-gray-50/80 backdrop-blur-sm px-4 py-2 text-sm text-gray-400 hover:bg-white hover:border-gray-300 hover:shadow-sm transition-all duration-200 w-64"
               >
                 <span>Search...</span>
                 <kbd className="rounded border border-gray-200 px-1.5 text-xs font-mono">
