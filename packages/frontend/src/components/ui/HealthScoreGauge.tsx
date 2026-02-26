@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import clsx from 'clsx';
 import AnimatedNumber from './AnimatedNumber';
 
@@ -29,6 +30,7 @@ export default function HealthScoreGauge({
   label,
   className,
 }: HealthScoreGaugeProps) {
+  const filterId = useId();
   const clamped = Math.max(0, Math.min(100, score));
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -40,7 +42,7 @@ export default function HealthScoreGauge({
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
           <defs>
-            <filter id={`gauge-glow-${clamped}`} x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feFlood floodColor={color} floodOpacity="0.3" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="shadow" />
@@ -69,7 +71,7 @@ export default function HealthScoreGauge({
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             strokeLinecap="round"
-            filter={`url(#gauge-glow-${clamped})`}
+            filter={`url(#${filterId})`}
             style={{ stroke: color, transition: 'stroke 0.5s ease, stroke-dashoffset 1s ease-out' }}
           />
         </svg>

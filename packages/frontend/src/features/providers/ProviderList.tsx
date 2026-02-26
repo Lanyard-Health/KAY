@@ -36,8 +36,6 @@ interface Provider {
   } | null;
 }
 
-// ProgressRing imported from shared component
-
 // Calculate provider completion percentage
 function calculateProgress(provider: Provider): { progress: number; details: string[] } {
   const requirements = [
