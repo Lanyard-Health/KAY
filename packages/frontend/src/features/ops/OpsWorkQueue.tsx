@@ -10,7 +10,6 @@ import {
   ChevronRightIcon,
   UserGroupIcon,
   FunnelIcon,
-  ClockIcon,
 } from '@heroicons/react/24/outline';
 import {
   useOpsWorkQueue,
@@ -20,6 +19,7 @@ import {
   OpsWorkItem,
 } from '../../hooks/useOps';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
+import EmptyState from '../../components/ui/EmptyState';
 
 type Status = 'backlog' | 'todo' | 'in_progress' | 'waiting_external' | 'review' | 'done' | 'cancelled';
 type Priority = 'urgent' | 'high' | 'normal' | 'low';
@@ -453,14 +453,15 @@ export default function OpsWorkQueue() {
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-16 text-center">
-                    <ClockIcon className="mx-auto h-10 w-10 text-gray-300" />
-                    <p className="mt-3 text-sm font-medium text-gray-900">No work items found</p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {search || assigneeFilter || statusFilters.size > 0 || priorityFilter || slaFilter
+                  <td colSpan={11}>
+                    <EmptyState
+                      illustration="clipboard"
+                      title="No work items found"
+                      description={search || assigneeFilter || statusFilters.size > 0 || priorityFilter || slaFilter
                         ? 'Try adjusting your filters.'
                         : 'Create a new work item to get started.'}
-                    </p>
+                      className="py-16"
+                    />
                   </td>
                 </tr>
               ) : (

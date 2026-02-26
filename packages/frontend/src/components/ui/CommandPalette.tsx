@@ -4,6 +4,7 @@ import { MagnifyingGlassIcon } from '@heroicons/react/20/solid';
 import { SparklesIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { api } from '../../services/api';
+import EmptyState from './EmptyState';
 
 interface SearchResult {
   id: string;
@@ -219,14 +220,24 @@ export default function CommandPalette({ onSearch, onSelect }: CommandPalettePro
                 )}
 
                 {query.length >= 2 && query.length < 3 && !isLoading && results.length === 0 && (
-                  <div className="border-t border-gray-100 px-4 py-8 text-center text-sm text-gray-500">
-                    No results found for &ldquo;{query}&rdquo;
+                  <div className="border-t border-gray-100">
+                    <EmptyState
+                      illustration="search"
+                      title="No results found"
+                      description={`No results for "${query}".`}
+                      className="py-8"
+                    />
                   </div>
                 )}
 
                 {query.length >= 3 && !isLoading && results.length === 0 && !aiResponse && !aiLoading && (
-                  <div className="border-t border-gray-100 px-4 py-4 text-center text-sm text-gray-500">
-                    No results found. Try asking AI above.
+                  <div className="border-t border-gray-100">
+                    <EmptyState
+                      illustration="search"
+                      title="No results found"
+                      description="Try asking AI above."
+                      className="py-4"
+                    />
                   </div>
                 )}
 

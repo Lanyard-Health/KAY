@@ -5,13 +5,13 @@ import PageTransition from '../../components/ui/PageTransition';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
-  DocumentTextIcon,
   ClipboardDocumentCheckIcon,
   ExclamationCircleIcon,
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
+import EmptyState from '../../components/ui/EmptyState';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import clsx from 'clsx';
 import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
@@ -268,16 +268,13 @@ export default function ProviderList() {
           ))}
         </div>
       ) : data?.data?.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-200/60">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No providers found</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by adding a new provider.</p>
-          <div className="mt-6">
-            <Link to="/providers/new" className="btn-primary">
-              <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-              Add Provider
-            </Link>
-          </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="people"
+            title="No providers found"
+            description={search || status || medicareStatus ? 'Try adjusting your search or filters.' : 'Get started by adding a new provider.'}
+            action={!search && !status && !medicareStatus ? { label: 'Add Provider', onClick: () => window.location.href = '/providers/new' } : undefined}
+          />
         </div>
       ) : viewMode === 'cards' ? (
         /* Cards View */

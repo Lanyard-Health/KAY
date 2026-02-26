@@ -6,9 +6,9 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   FunnelIcon,
-  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface AuditLogEntry {
   id: string;
@@ -196,11 +196,12 @@ export default function OpsActivityLog() {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <ClockIcon className="h-10 w-10 mb-2" />
-            <p className="text-sm font-medium">No activity found</p>
-            <p className="text-xs mt-1">Try adjusting your filters.</p>
-          </div>
+          <EmptyState
+            illustration="inbox"
+            title="No activity found"
+            description="Try adjusting your filters."
+            className="py-16"
+          />
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50/80">

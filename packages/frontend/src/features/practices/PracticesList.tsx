@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BuildingOffice2Icon, PlusIcon } from '@heroicons/react/24/outline';
+import EmptyState from '../../components/ui/EmptyState';
 import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import { usePractices } from '../../hooks/usePractices';
@@ -55,17 +56,12 @@ export default function PracticesList() {
       </div>
 
       {!practices || practices.length === 0 ? (
-        <div className="text-center py-12">
-          <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No practices</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by creating a practice.</p>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="mt-4 text-sm text-primary-600 hover:text-primary-500"
-          >
-            Create your first practice
-          </button>
-        </div>
+        <EmptyState
+          illustration="inbox"
+          title="No practices"
+          description="Get started by creating a practice."
+          action={{ label: 'Create your first practice', onClick: () => setCreateModalOpen(true) }}
+        />
       ) : (
         <div className="card overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">

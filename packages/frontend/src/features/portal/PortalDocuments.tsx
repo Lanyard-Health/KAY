@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { TrashIcon, ArrowUpTrayIcon, CloudArrowUpIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, ArrowUpTrayIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { usePortalDocuments, useUploadDocument, useDeleteDocument } from './hooks/usePortalData';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
 
 const DOCUMENT_TYPES = [
   { value: '', label: 'Select Document Type' },
@@ -130,9 +131,12 @@ export default function PortalDocuments() {
 
       {/* Documents List */}
       {documents.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 text-center">
-          <DocumentDuplicateIcon className="mx-auto h-10 w-10 text-gray-300 mb-2" />
-          <p className="text-gray-500">No documents uploaded yet.</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
+          <EmptyState
+            illustration="folder"
+            title="No documents uploaded yet"
+            description="Upload your first document using the form above."
+          />
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">

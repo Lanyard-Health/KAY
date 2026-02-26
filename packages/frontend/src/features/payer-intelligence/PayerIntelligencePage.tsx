@@ -11,6 +11,7 @@ import {
 import type { PayerLeaderboardItem } from '../../hooks/usePayerIntelligence';
 import PayerAnalyticsCards from './PayerAnalyticsCards';
 import { PayerAIInsightCard, PastInsightItem } from './PayerAIInsightCard';
+import EmptyState from '../../components/ui/EmptyState';
 
 function difficultyBadgeColor(score: number): string {
   if (score >= 60) return 'bg-red-100 text-red-800';
@@ -121,8 +122,13 @@ export default function PayerIntelligencePage() {
                     </tr>
                   ) : leaderboard.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                        No payers with enough enrollment data (min 3 enrollments)
+                      <td colSpan={7}>
+                        <EmptyState
+                          illustration="chart"
+                          title="No payers with enough data"
+                          description="Payers need at least 3 enrollments to appear in the ranking."
+                          className="py-8"
+                        />
                       </td>
                     </tr>
                   ) : (

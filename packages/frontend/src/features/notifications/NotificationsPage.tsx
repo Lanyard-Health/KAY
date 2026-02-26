@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
-import { BellIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/outline';
+import EmptyState from '../../components/ui/EmptyState';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 import {
@@ -103,12 +104,12 @@ export default function NotificationsPage() {
 
       {/* Empty state */}
       {!isLoading && notifications.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-16 text-center">
-          <BellIcon className="mx-auto h-12 w-12 text-gray-300" />
-          <h3 className="mt-3 text-sm font-medium text-gray-900">No notifications</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {filter === 'unread' ? "You're all caught up!" : 'Notifications will appear here.'}
-          </p>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-16">
+          <EmptyState
+            illustration="inbox"
+            title="No notifications"
+            description={filter === 'unread' ? "You're all caught up!" : 'Notifications will appear here.'}
+          />
         </div>
       )}
 

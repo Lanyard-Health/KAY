@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
-import { UserGroupIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useUsersList } from '../../hooks/useUserManagement';
 import type { UserFilters } from '../../hooks/useUserManagement';
 import UserFormModal from './UserFormModal';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
+import EmptyState from '../../components/ui/EmptyState';
 
 const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   admin: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Admin' },
@@ -120,23 +121,12 @@ export default function UsersList() {
       </div>
 
       {!users || users.length === 0 ? (
-        <div className="text-center py-12">
-          <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {debouncedSearch || roleFilter || statusFilter
-              ? 'Try adjusting your filters.'
-              : 'Get started by creating a user.'}
-          </p>
-          {!debouncedSearch && !roleFilter && !statusFilter && (
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="mt-4 text-sm text-primary-600 hover:text-primary-500"
-            >
-              Create your first user
-            </button>
-          )}
-        </div>
+        <EmptyState
+          illustration="people"
+          title="No users found"
+          description={debouncedSearch || roleFilter || statusFilter ? 'Try adjusting your filters.' : 'Get started by creating a user.'}
+          action={!debouncedSearch && !roleFilter && !statusFilter ? { label: 'Create your first user', onClick: () => setCreateModalOpen(true) } : undefined}
+        />
       ) : (
         <div className="card overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">

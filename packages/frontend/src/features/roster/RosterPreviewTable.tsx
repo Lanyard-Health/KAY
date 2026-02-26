@@ -1,4 +1,5 @@
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface RosterPreviewTableProps {
   headers: string[];
@@ -64,11 +65,8 @@ export default function RosterPreviewTable({
               <SkeletonRows />
             ) : rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={headers.length}
-                  className="px-4 py-8 text-center text-sm text-gray-400"
-                >
-                  No data found
+                <td colSpan={headers.length}>
+                  <EmptyState illustration="chart" title="No data found" className="py-8" />
                 </td>
               </tr>
             ) : (

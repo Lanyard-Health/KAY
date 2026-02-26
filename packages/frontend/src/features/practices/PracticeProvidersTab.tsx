@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
-import { PlusIcon, TrashIcon, UsersIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import {
@@ -11,6 +11,7 @@ import {
   useUnassignProvider,
 } from '../../hooks/usePractices';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface PracticeProvidersTabProps {
   practiceId: string;
@@ -57,17 +58,12 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
       </div>
 
       {!Array.isArray(providers) || providers.length === 0 ? (
-        <div className="text-center py-12">
-          <UsersIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No providers assigned</h3>
-          <p className="mt-1 text-sm text-gray-500">Assign providers to this practice.</p>
-          <button
-            onClick={() => setAssignModalOpen(true)}
-            className="mt-4 text-sm text-primary-600 hover:text-primary-500"
-          >
-            Assign your first provider
-          </button>
-        </div>
+        <EmptyState
+          illustration="people"
+          title="No providers assigned"
+          description="Assign providers to this practice."
+          action={{ label: 'Assign your first provider', onClick: () => setAssignModalOpen(true) }}
+        />
       ) : (
         <div className="card overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">

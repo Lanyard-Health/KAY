@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { usePracticeUsers, useRemoveUser, useAssignUser } from '../../hooks/usePractices';
 import type { PracticeUserAssignment } from '../../hooks/usePractices';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import AssignUserModal from './AssignUserModal';
+import EmptyState from '../../components/ui/EmptyState';
 import UserFormModal from '../users/UserFormModal';
 
 interface PracticeUsersTabProps {
@@ -63,17 +64,12 @@ export default function PracticeUsersTab({ practiceId }: PracticeUsersTabProps) 
       </div>
 
       {!assignments || assignments.length === 0 ? (
-        <div className="text-center py-12">
-          <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No users assigned</h3>
-          <p className="mt-1 text-sm text-gray-500">Add users to this practice to manage access.</p>
-          <button
-            onClick={() => setAssignModalOpen(true)}
-            className="mt-4 text-sm text-primary-600 hover:text-primary-500"
-          >
-            Assign your first user
-          </button>
-        </div>
+        <EmptyState
+          illustration="people"
+          title="No users assigned"
+          description="Add users to this practice to manage access."
+          action={{ label: 'Assign your first user', onClick: () => setAssignModalOpen(true) }}
+        />
       ) : (
         <div className="card overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
