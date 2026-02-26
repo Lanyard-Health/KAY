@@ -320,6 +320,18 @@ export default function RegisterPage() {
             ? 'Create your account and get instant access'
             : 'Join our provider network by completing the form below'}
         </p>
+        {isSelfServe && (
+          <div className="mt-5 flex flex-col items-center gap-2">
+            {['Complete profile & upload documents', 'Track license expirations', 'NPI auto-lookup from NPPES'].map((feature) => (
+              <div key={feature} className="flex items-center gap-2.5 text-sm text-white/80">
+                <svg className="w-4 h-4 text-emerald-300 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                {feature}
+              </div>
+            ))}
+          </div>
+        )}
         {reapplyParam && (
           <div className="mt-4 mx-auto max-w-lg bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center">
             <p className="text-sm text-yellow-800">
@@ -496,9 +508,9 @@ export default function RegisterPage() {
             </div>
           </form>
 
-          <p className="mt-6 text-center text-xs text-gray-500">
+          <p className="mt-6 text-center text-sm text-gray-500">
             Already have an account?{' '}
-            <a href="/login" className="text-primary-600 hover:text-primary-500">
+            <a href="/login" className="text-primary-700 hover:text-primary-600 font-semibold transition-colors">
               Sign in
             </a>
           </p>

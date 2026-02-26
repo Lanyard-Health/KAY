@@ -13,7 +13,7 @@ import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
 import { useAuthStore } from '../../stores/auth.store';
 import NotificationBell from '../../components/NotificationBell';
-import { useProfileCompleteness } from './hooks/usePortalData';
+import { useProfileCompleteness, useCurrentProvider } from './hooks/usePortalData';
 
 const navigation = [
   { name: 'Dashboard', href: '/portal', icon: HomeIcon },
@@ -29,6 +29,8 @@ export default function PortalLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { data: completeness } = useProfileCompleteness();
+  const { data: providerData } = useCurrentProvider();
+  const provider = (providerData as any)?.data?.provider;
 
   const percentage = (completeness as any)?.data?.percentage ?? 0;
 
@@ -42,33 +44,74 @@ export default function PortalLayout() {
     return location.pathname.startsWith(href);
   };
 
+  const sidebarBrand = (
+    <div className="flex h-16 shrink-0 items-center">
+      <div className="flex flex-col items-start">
+        <img src="/logo-full.svg" alt="Lanyard Health" className="h-10 brightness-0 invert" />
+        <span className="text-primary-200/50 text-[11px] mt-1.5 tracking-widest uppercase font-medium">Provider Portal</span>
+      </div>
+    </div>
+  );
+
+  const sidebarOrbs = (
+    <>
+      <div className="absolute top-[20%] -right-10 w-32 h-32 rounded-full bg-white/[0.04] blur-2xl" />
+      <div className="absolute bottom-[30%] -left-8 w-24 h-24 rounded-full bg-emerald-300/[0.05] blur-xl" />
+    </>
+  );
+
+  const sidebarProgress = (
+    <div className="px-2 py-3 border-t border-white/[0.08]">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] text-primary-200/50 uppercase tracking-wider font-medium">Completeness</span>
+        <span className="text-xs text-white font-semibold">{percentage}%</span>
+      </div>
+      <div className="w-full bg-white/[0.08] rounded-full h-1.5">
+        <div
+          className="h-1.5 rounded-full transition-all duration-500 bg-gradient-to-r from-emerald-400 to-emerald-300"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+
   const sidebarNav = (
-    <nav className="flex flex-1 flex-col">
-      <ul role="list" className="flex flex-1 flex-col gap-y-7">
-        <li>
-          <ul role="list" className="-mx-2 space-y-1">
-            {navigation.map((item) => (
-              <li key={item.name}>
-                <Link
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={clsx(
-                    isActive(item.href)
-                      ? 'bg-white/10 text-white'
-                      : 'text-primary-100/70 hover:text-white hover:bg-white/10',
-                    'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200'
-                  )}
-                >
-                  <item.icon className="h-6 w-6 shrink-0" />
-                  {item.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </li>
+    <nav className="flex flex-col mt-4">
+      <ul role="list" className="flex flex-col gap-y-1">
+        {navigation.map((item) => (
+          <li key={item.name}>
+            <Link
+              to={item.href}
+              onClick={() => setSidebarOpen(false)}
+              className={clsx(
+                isActive(item.href)
+                  ? 'bg-white/[0.12] text-white shadow-sm shadow-black/10 backdrop-blur-sm border border-white/[0.08]'
+                  : 'text-primary-100/60 hover:text-white hover:bg-white/[0.06]',
+                'group flex gap-x-3 rounded-xl p-2.5 px-3 text-sm leading-6 font-medium transition-all duration-200'
+              )}
+            >
+              <item.icon className="h-6 w-6 shrink-0" />
+              {item.name}
+            </Link>
+          </li>
+        ))}
       </ul>
     </nav>
   );
+
+  const sidebarProviderInfo = provider ? (
+    <div className="mt-auto pt-4 border-t border-white/[0.08]">
+      <div className="flex items-center gap-3 px-2">
+        <div className="w-8 h-8 rounded-full bg-white/[0.12] border border-white/[0.08] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+          {provider.firstName?.[0]}{provider.lastName?.[0]}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white truncate">{provider.firstName} {provider.lastName}</p>
+          <p className="text-[11px] text-primary-200/40">NPI {provider.npi}</p>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="h-full">
@@ -98,22 +141,12 @@ export default function PortalLayout() {
               leaveTo="-translate-x-full"
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
-                  <div className="flex h-16 shrink-0 items-center">
-                    <span className="text-white text-xl font-bold">Provider Portal</span>
-                  </div>
-                  {/* Profile completeness */}
-                  <div className="px-2 py-2 border-t border-primary-600">
-                    <div className="text-xs text-primary-200 mb-1">Profile Completeness</div>
-                    <div className="w-full bg-black/20 rounded-full h-2">
-                      <div
-                        className="bg-primary-300 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-primary-200 mt-1">{percentage}% complete</div>
-                  </div>
+                <div className="flex grow flex-col overflow-y-auto relative overflow-hidden bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
+                  {sidebarOrbs}
+                  {sidebarBrand}
+                  {sidebarProgress}
                   {sidebarNav}
+                  {sidebarProviderInfo}
                 </div>
               </Dialog.Panel>
             </Transition.Child>
@@ -123,22 +156,12 @@ export default function PortalLayout() {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
-          <div className="flex h-16 shrink-0 items-center">
-            <span className="text-white text-xl font-bold">Provider Portal</span>
-          </div>
-          {/* Profile completeness */}
-          <div className="px-2 py-2 border-t border-primary-600">
-            <div className="text-xs text-primary-200 mb-1">Profile Completeness</div>
-            <div className="w-full bg-black/20 rounded-full h-2">
-              <div
-                className="bg-primary-300 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-            <div className="text-xs text-primary-200 mt-1">{percentage}% complete</div>
-          </div>
+        <div className="flex grow flex-col overflow-y-auto relative overflow-hidden bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
+          {sidebarOrbs}
+          {sidebarBrand}
+          {sidebarProgress}
           {sidebarNav}
+          {sidebarProviderInfo}
         </div>
       </div>
 
