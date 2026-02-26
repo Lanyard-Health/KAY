@@ -12,6 +12,7 @@ import {
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import EmptyState from '../../components/ui/EmptyState';
+import ProgressRing from '../../components/ui/ProgressRing';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import clsx from 'clsx';
 import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
@@ -35,52 +36,7 @@ interface Provider {
   } | null;
 }
 
-// Circular progress component
-function ProgressRing({ progress, size = 40, strokeWidth = 4 }: { progress: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (progress / 100) * circumference;
-
-  const getColor = (progress: number) => {
-    if (progress >= 80) return { stroke: '#10B981', bg: '#D1FAE5' }; // green
-    if (progress >= 40) return { stroke: '#F59E0B', bg: '#FEF3C7' }; // yellow
-    return { stroke: '#EF4444', bg: '#FEE2E2' }; // red
-  };
-
-  const colors = getColor(progress);
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg className="transform -rotate-90" width={size} height={size}>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={colors.bg}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={colors.stroke}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-500"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xs font-semibold" style={{ color: colors.stroke }}>
-          {Math.round(progress)}%
-        </span>
-      </div>
-    </div>
-  );
-}
+// ProgressRing imported from shared component
 
 // Calculate provider completion percentage
 function calculateProgress(provider: Provider): { progress: number; details: string[] } {
@@ -315,7 +271,7 @@ export default function ProviderList() {
                         <p className="text-sm text-gray-500">NPI: {provider.npi}</p>
                       </div>
                     </div>
-                    <ProgressRing progress={progress} size={44} strokeWidth={4} />
+                    <ProgressRing value={progress} size={44} strokeWidth={4} />
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
@@ -453,7 +409,7 @@ export default function ProviderList() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <ProgressRing progress={progress} size={36} strokeWidth={3} />
+                        <ProgressRing value={progress} size={36} strokeWidth={3} />
                         <div className="text-xs text-gray-500">
                           <div>{provider._count.documents} docs</div>
                           <div>{provider._count.licenses} lic</div>

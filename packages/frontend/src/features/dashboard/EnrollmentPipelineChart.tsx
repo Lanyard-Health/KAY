@@ -33,6 +33,47 @@ const DATE_RANGES = [
   { label: 'All time', days: null },
 ] as const;
 
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl shadow-lg border border-gray-200/60 bg-white/95 backdrop-blur-sm p-3 min-w-[180px]">
+      <p className="text-sm font-semibold text-gray-900 mb-2">{label}</p>
+      {payload.map((entry: any) => (
+        <div key={entry.name} className="flex items-center justify-between gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="text-gray-600">{entry.name}</span>
+          </div>
+          <span className="font-medium text-gray-900">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CustomLegend({ payload }: any) {
+  if (!payload?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-3 justify-center">
+      {payload.map((entry: any) => (
+        <span
+          key={entry.value}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-700"
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: entry.color }}
+          />
+          {entry.value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 interface EnrollmentPipelineChartProps {
   practiceId: string;
 }
@@ -162,8 +203,11 @@ export default function EnrollmentPipelineChart({
                 width={140}
                 tick={{ fontSize: 13 }}
               />
-              <Tooltip />
-              <Legend />
+              <Tooltip
+                content={<CustomTooltip />}
+                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+              />
+              <Legend content={<CustomLegend />} />
               {activeStatuses.map((status) => (
                 <Bar
                   key={status.key}
