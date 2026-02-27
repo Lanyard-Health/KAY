@@ -24,9 +24,9 @@ export const prisma = globalThis.prisma ?? new PrismaClient({
 
 prisma.$on('query' as never, (e: { query: string; params: string; duration: number }) => {
   if (e.duration >= SLOW_QUERY_THRESHOLD_MS) {
+    // NEVER log params — they may contain PII (SSN, DOB, tax IDs, banking data)
     logger.warn(`Slow query (${e.duration}ms): ${e.query}`, {
       duration: e.duration,
-      params: e.params,
     });
   }
 });

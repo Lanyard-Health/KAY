@@ -15,6 +15,18 @@ Before completing ANY task, automatically perform these checks on all changed fi
 
 7. ENV FILES: NEVER commit, read aloud, or display the contents of `.env` files. They contain real API keys and credentials. If you need to reference an env var, use `.env.example` which has empty values.
 
+8. **PII ENCRYPTION — ZERO PLAINTEXT TOLERANCE (HIPAA)**:
+   **NEVER store PII in plaintext.** This is a hard, non-negotiable rule for HIPAA compliance.
+   - **Must be encrypted at rest**: SSN, tax IDs, bank account numbers, routing numbers, CAQH credentials
+   - **Must be encrypted or access-controlled**: Date of birth, full name + DOB combinations, medical record numbers
+   - **Use `encrypt()` / `encryptSafe()`** from `utils/crypto.ts` — these use AES-256-GCM with authenticated encryption
+   - **`encryptSafe()` will THROW if ENCRYPTION_KEY is missing** — it does NOT fall back to plaintext. This is intentional.
+   - **Never log PII**: No SSN, DOB, tax ID, or banking data in logs, Sentry events, error messages, or slow query output
+   - **Never send PII to external services**: All data sent to Sentry, Linear, or any third party must be scrubbed first (see `bug-monitor/sanitizer.ts` and `sentry.ts`)
+   - **API responses must mask sensitive fields**: Return only last-4 digits for SSN, tax IDs, account numbers. Never return full values.
+   - **Prisma query params must never be logged**: They may contain PII values. Log only the query string, not the params.
+   - If you find existing plaintext PII in the codebase, flag it immediately as a CRITICAL security issue.
+
 ## Prisma Schema Changes — ALWAYS Generate Migrations
 **Critical**: Any change to `prisma/schema.prisma` (new columns, new models, altered fields, new enums) **MUST** include a migration file. Without it, `prisma generate` creates a client that expects columns/tables that don't exist in production, causing 500 errors on every query that touches the changed models.
 

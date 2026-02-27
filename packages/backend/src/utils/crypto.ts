@@ -45,26 +45,36 @@ export function isEncryptionAvailable(): boolean {
 }
 
 /**
- * Encrypt if ENCRYPTION_KEY is available, otherwise return plaintext.
- * Use for fields that should be encrypted in production but work without in dev.
+ * Encrypt sensitive data. Throws if ENCRYPTION_KEY is not configured.
+ * NEVER store PII (SSN, tax IDs, banking data) in plaintext.
  */
 export function encryptSafe(plaintext: string): string {
-  if (!isEncryptionAvailable()) return plaintext;
+  if (!isEncryptionAvailable()) {
+    throw new Error('ENCRYPTION_KEY is required to store sensitive data. Cannot store PII in plaintext.');
+  }
   return encrypt(plaintext);
 }
 
 /**
- * Decrypt if value looks encrypted (iv:tag:cipher format), otherwise return as-is.
- * Handles both encrypted and legacy plaintext values.
+ * Decrypt if value looks encrypted (iv:tag:cipher format).
+ * Handles legacy plaintext values with a warning — these should be re-encrypted.
  */
 export function decryptSafe(value: string): string {
   // Encrypted format: 32-char hex : 32-char hex : hex ciphertext
   const parts = value.split(':');
-  if (parts.length !== 3) return value; // plaintext
+  if (parts.length !== 3) {
+    if (process.env['NODE_ENV'] === 'production') {
+      console.error('[SECURITY] Found unencrypted sensitive data in database. Re-encrypt immediately.');
+    }
+    return value; // legacy plaintext — should be migrated
+  }
   try {
     return decrypt(value);
   } catch {
-    return value; // legacy plaintext that happens to contain colons
+    if (process.env['NODE_ENV'] === 'production') {
+      console.error('[SECURITY] Failed to decrypt value — possible plaintext or corrupted data.');
+    }
+    return value;
   }
 }
 
