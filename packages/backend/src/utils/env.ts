@@ -46,9 +46,9 @@ export function validateEnv(): Env {
     throw new Error(`Environment validation failed:\n${messages}`);
   }
 
-  // Warn if ENCRYPTION_KEY missing in production (needed for CAQH credential storage)
+  // ENCRYPTION_KEY is required in production — plaintext fallback is unacceptable for HIPAA
   if (result.data.NODE_ENV === 'production' && !result.data.ENCRYPTION_KEY) {
-    logger.warn('WARNING: ENCRYPTION_KEY not set — CAQH credential encryption will be unavailable');
+    throw new Error('FATAL: ENCRYPTION_KEY is required in production for CAQH credential storage');
   }
 
   return result.data;

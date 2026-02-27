@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { DocumentService } from '../services/document.service.js';
 import { logger } from '../utils/logger.js';
-import type { UploadUrlRequestInput } from '@credential-management/shared';
+import { uploadUrlRequestSchema } from '@credential-management/shared';
 
 const router = Router();
 
@@ -71,24 +71,12 @@ router.post('/upload-url', authenticate, authorize('provider'), async (req: Requ
       return res.status(404).json({ success: false, error: 'No provider profile linked' });
     }
 
-    const { fileName, contentType, documentType } = req.body;
-
-    if (!fileName || typeof fileName !== 'string') {
-      return res.status(400).json({ success: false, error: 'fileName is required' });
-    }
-    if (!contentType || typeof contentType !== 'string') {
-      return res.status(400).json({ success: false, error: 'contentType is required' });
-    }
-    if (!documentType || !ALLOWED_DOCUMENT_TYPES.includes(documentType)) {
-      return res.status(400).json({ success: false, error: 'Invalid documentType' });
-    }
-
-    const uploadInput: UploadUrlRequestInput = {
+    const uploadInput = uploadUrlRequestSchema.parse({
       providerId,
-      fileName,
-      contentType: contentType as UploadUrlRequestInput['contentType'],
-      documentType: documentType as UploadUrlRequestInput['documentType'],
-    };
+      fileName: req.body.fileName,
+      contentType: req.body.contentType,
+      documentType: req.body.documentType,
+    });
 
     const result = await getDocumentService().getUploadUrl(uploadInput, req.user!.id);
 
@@ -100,6 +88,10 @@ router.post('/upload-url', authenticate, authorize('provider'), async (req: Requ
 
     res.json({ success: true, data: result });
   } catch (error) {
+    if (error && (error as any).name === 'ZodError') {
+      const fieldErrors = (error as any).errors?.map((e: any) => e.path.join('.') + ': ' + e.message).join('; ');
+      return res.status(400).json({ success: false, error: fieldErrors || 'Validation failed' });
+    }
     logger.error('Error generating upload URL:', error);
     res.status(500).json({ success: false, error: 'Failed to generate upload URL' });
   }

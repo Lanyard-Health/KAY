@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
-import { providerUser } from '../../tests/helpers/fixtures.js';
+import { providerUser as baseProviderUser } from '../../tests/helpers/fixtures.js';
+
+// Override providerId with a UUID since uploadUrlRequestSchema validates it
+const providerUser = { ...baseProviderUser, providerId: 'd0000000-0000-4000-a000-000000000001' };
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
@@ -62,7 +65,7 @@ describe('Portal Documents Routes', () => {
       expect(res.body.data).toHaveLength(1);
       expect(prismaMock.document.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { providerId: 'provider-record-id' },
+          where: { providerId: 'd0000000-0000-4000-a000-000000000001' },
         })
       );
     });
@@ -132,6 +135,17 @@ describe('Portal Documents Routes', () => {
       expect(res.body.error).toContain('documentType');
     });
 
+    it('returns structured Zod error with field path for invalid contentType', async () => {
+      const res = await request(app)
+        .post('/upload-url')
+        .send({ fileName: 'test.exe', contentType: 'application/exe', documentType: 'w9' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      // Error should reference the invalid field
+      expect(res.body.error).toContain('contentType');
+    });
+
     it('accepts all valid document types', async () => {
       const validTypes = [
         'license', 'board_certification', 'malpractice_certificate', 'diploma',
@@ -160,7 +174,7 @@ describe('Portal Documents Routes', () => {
   describe('POST /confirm', () => {
     it('confirms upload when document belongs to provider', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
-        providerId: 'provider-record-id',
+        providerId: 'd0000000-0000-4000-a000-000000000001',
       } as any);
       mockConfirmUpload.mockResolvedValue({ id: 'doc-1', status: 'uploaded' });
 
@@ -206,7 +220,7 @@ describe('Portal Documents Routes', () => {
   describe('DELETE /:id', () => {
     it('deletes document when it belongs to provider and is not approved', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
-        providerId: 'provider-record-id',
+        providerId: 'd0000000-0000-4000-a000-000000000001',
         reviewStatus: 'pending',
         s3Key: 'docs/w9.pdf',
       } as any);
@@ -225,7 +239,7 @@ describe('Portal Documents Routes', () => {
 
     it('returns 403 when document is approved', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
-        providerId: 'provider-record-id',
+        providerId: 'd0000000-0000-4000-a000-000000000001',
         reviewStatus: 'approved',
         s3Key: 'docs/w9.pdf',
       } as any);
@@ -258,7 +272,7 @@ describe('Portal Documents Routes', () => {
 
     it('allows deletion of rejected documents', async () => {
       prismaMock.document.findUnique.mockResolvedValue({
-        providerId: 'provider-record-id',
+        providerId: 'd0000000-0000-4000-a000-000000000001',
         reviewStatus: 'rejected',
         s3Key: 'docs/w9.pdf',
       } as any);

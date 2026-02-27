@@ -92,6 +92,7 @@ const updateEnrollmentSchema = createEnrollmentSchema.partial();
 router.get(
   '/payers',
   authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
@@ -117,6 +118,7 @@ router.get(
 router.post(
   '/payers',
   authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPayerSchema.parse(req.body);

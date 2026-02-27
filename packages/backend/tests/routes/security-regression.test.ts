@@ -129,10 +129,29 @@ vi.mock('../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../../src/services/terminationWorkflow.service.js', () => ({
+  triggerTerminationWorkflow: vi.fn(),
+}));
+
+vi.mock('../../src/services/enrollment-creation-hook.js', () => ({
+  onEnrollmentCreated: vi.fn().mockResolvedValue({ stepsCreated: 0, templateFound: false, workflowType: null }),
+}));
+
+vi.mock('../../src/utils/cache.js', () => ({
+  invalidateCache: vi.fn(),
+  getCached: vi.fn(),
+  setCache: vi.fn(),
+}));
+
+vi.mock('../../src/services/opsWorkQueue.service.js', () => ({
+  autoCreateWorkItems: vi.fn(),
+}));
+
 import { aiRoutes } from '../../src/routes/ai.routes.js';
 import { documentRoutes } from '../../src/routes/document.routes.js';
 import { userRoutes } from '../../src/routes/user.routes.js';
 import reportingRoutes from '../../src/routes/reporting.routes.js';
+import enrollmentRouter from '../../src/routes/enrollment.routes.js';
 import { prismaMock } from '../helpers/mock-prisma.js';
 
 // ==========================================
@@ -474,5 +493,71 @@ describe('Security: Reporting routes accessible to admin and staff', () => {
     const app = createApp(reportingRoutes, providerUser);
     const res = await request(app).get(`${path}?practiceId=practice-1`);
     expect(res.status).toBe(403);
+  });
+});
+
+// ==========================================
+// 6. Payer routes: provider role must be denied
+// ==========================================
+
+describe('Security: Payer routes deny provider role', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('GET /payers returns 403 for provider role', async () => {
+    const app = createApp(enrollmentRouter, providerUser);
+    const res = await request(app).get('/payers');
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /payers returns 403 for provider role', async () => {
+    const app = createApp(enrollmentRouter, providerUser);
+    const res = await request(app)
+      .post('/payers')
+      .send({ name: 'Test Payer', payerId: 'test-001', payerType: 'insurance' });
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /payers returns 200 for admin role', async () => {
+    prismaMock.payer.findMany.mockResolvedValue([]);
+    prismaMock.payer.count.mockResolvedValue(0);
+
+    const app = createApp(enrollmentRouter, adminUser);
+    const res = await request(app).get('/payers');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /payers returns 200 for credentialing_staff role', async () => {
+    prismaMock.payer.findMany.mockResolvedValue([]);
+    prismaMock.payer.count.mockResolvedValue(0);
+
+    const app = createApp(enrollmentRouter, staffUser);
+    const res = await request(app).get('/payers');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /payers returns 200 for practice_admin role', async () => {
+    prismaMock.payer.findMany.mockResolvedValue([]);
+    prismaMock.payer.count.mockResolvedValue(0);
+
+    const app = createApp(enrollmentRouter, practiceAdminUser);
+    const res = await request(app).get('/payers');
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /payers returns 201 for admin role', async () => {
+    prismaMock.payer.create.mockResolvedValue({
+      id: 'new-payer-id',
+      name: 'Test Payer',
+      payerId: 'test-001',
+      payerType: 'insurance',
+    } as any);
+
+    const app = createApp(enrollmentRouter, adminUser);
+    const res = await request(app)
+      .post('/payers')
+      .send({ name: 'Test Payer', payerId: 'test-001', payerType: 'insurance' });
+    expect(res.status).toBe(201);
   });
 });
