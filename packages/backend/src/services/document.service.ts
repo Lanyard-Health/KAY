@@ -125,6 +125,7 @@ export class DocumentService {
       Bucket: this.bucket,
       Key: s3Key,
       ContentType: data.contentType,
+      ServerSideEncryption: 'AES256',
       Metadata: {
         'document-id': documentId,
         'provider-id': data.providerId,
@@ -132,8 +133,8 @@ export class DocumentService {
       },
     });
 
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
-    const expiresAt = new Date(Date.now() + 3600 * 1000);
+    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 900 });
+    const expiresAt = new Date(Date.now() + 900 * 1000);
 
     return {
       uploadUrl,
@@ -244,7 +245,7 @@ export class DocumentService {
       Key: s3Key,
     });
 
-    return getSignedUrl(this.s3, command, { expiresIn: 3600 });
+    return getSignedUrl(this.s3, command, { expiresIn: 900 });
   }
 
   async deleteDocument(s3Key: string): Promise<void> {

@@ -43,6 +43,29 @@ describe('validateEnv', () => {
     setMinimalEnv({
       NODE_ENV: 'production',
       ENCRYPTION_KEY: 'a'.repeat(64), // 64-char hex string
+      DATABASE_URL: 'postgresql://localhost/test?sslmode=require',
+    });
+
+    const { validateEnv } = await import('./env.js');
+    expect(() => validateEnv()).not.toThrow();
+  });
+
+  it('throws when DATABASE_URL lacks sslmode in production', async () => {
+    setMinimalEnv({
+      NODE_ENV: 'production',
+      ENCRYPTION_KEY: 'a'.repeat(64),
+      DATABASE_URL: 'postgresql://localhost/test',
+    });
+
+    const { validateEnv } = await import('./env.js');
+    expect(() => validateEnv()).toThrow('FATAL: DATABASE_URL must include sslmode=require in production');
+  });
+
+  it('does not throw when DATABASE_URL has sslmode=verify-full in production', async () => {
+    setMinimalEnv({
+      NODE_ENV: 'production',
+      ENCRYPTION_KEY: 'a'.repeat(64),
+      DATABASE_URL: 'postgresql://localhost/test?sslmode=verify-full',
     });
 
     const { validateEnv } = await import('./env.js');

@@ -33,6 +33,11 @@ export function getRedisConfig(): RedisOptions {
     config.password = password;
   }
 
+  // Enable TLS for production Redis connections (Render uses rediss:// URLs)
+  if (process.env['REDIS_TLS'] === 'true') {
+    config.tls = {};
+  }
+
   return config;
 }
 

@@ -11,7 +11,8 @@ const notificationQuerySchema = limitOffsetSchema.extend({
 
 const router = Router();
 
-// All routes require authentication (any role)
+// All routes require authentication (any role — intentionally no authorize()).
+// All endpoints scope data by req.user!.id so users only see their own notifications.
 router.use(authenticate);
 
 /**

@@ -108,7 +108,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // In dev bypass mode, check if we have a stored dev session
       if (DEV_BYPASS_ENABLED) {
-        const devSession = localStorage.getItem('dev_session');
+        const devSession = sessionStorage.getItem('dev_session');
         if (devSession) {
           const headers: Record<string, string> = {
             Authorization: 'Bearer dev-token',
@@ -227,7 +227,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      localStorage.setItem('dev_session', 'admin');
+      sessionStorage.setItem('dev_session', 'admin');
 
       // Fetch user from API with retry (backend may still be starting)
       const response = await fetchWithDevRetry(
@@ -247,7 +247,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Failed to fetch dev user');
       }
     } catch (error) {
-      localStorage.removeItem('dev_session');
+      sessionStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev login failed',
         isLoading: false,
@@ -265,7 +265,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      localStorage.setItem('dev_session', 'provider');
+      sessionStorage.setItem('dev_session', 'provider');
 
       const response = await fetchWithDevRetry(
         `${API_BASE_URL}/users/me`,
@@ -287,7 +287,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Failed to fetch dev provider user');
       }
     } catch (error) {
-      localStorage.removeItem('dev_session');
+      sessionStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev provider login failed',
         isLoading: false,
@@ -305,7 +305,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      localStorage.setItem('dev_session', 'practice_admin');
+      sessionStorage.setItem('dev_session', 'practice_admin');
 
       const response = await fetchWithDevRetry(
         `${API_BASE_URL}/users/me`,
@@ -327,7 +327,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Failed to fetch dev practice admin user');
       }
     } catch (error) {
-      localStorage.removeItem('dev_session');
+      sessionStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev practice admin login failed',
         isLoading: false,
@@ -345,7 +345,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      localStorage.setItem('dev_session', 'ops_staff');
+      sessionStorage.setItem('dev_session', 'ops_staff');
 
       const response = await fetchWithDevRetry(
         `${API_BASE_URL}/users/me`,
@@ -368,7 +368,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Failed to fetch dev ops_staff user');
       }
     } catch (error) {
-      localStorage.removeItem('dev_session');
+      sessionStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev ops_staff login failed',
         isLoading: false,
@@ -550,7 +550,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // Clear dev session if in dev mode
       if (DEV_BYPASS_ENABLED) {
-        localStorage.removeItem('dev_session');
+        sessionStorage.removeItem('dev_session');
       } else {
         const { signOut } = await getAmplifyAuth();
         await signOut();

@@ -51,5 +51,13 @@ export function validateEnv(): Env {
     throw new Error('FATAL: ENCRYPTION_KEY is required in production for CAQH credential storage');
   }
 
+  // DATABASE_URL must use SSL in production to prevent plaintext data in transit
+  if (result.data.NODE_ENV === 'production') {
+    const dbUrl = result.data.DATABASE_URL;
+    if (!dbUrl.includes('sslmode=require') && !dbUrl.includes('sslmode=verify')) {
+      throw new Error('FATAL: DATABASE_URL must include sslmode=require in production');
+    }
+  }
+
   return result.data;
 }

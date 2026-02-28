@@ -100,7 +100,7 @@ describe('DocumentService', () => {
       expect(result.s3Key).not.toContain('$');
     });
 
-    it('returns expiresAt approximately 1 hour from now', async () => {
+    it('returns expiresAt approximately 15 minutes from now', async () => {
       prismaMock.document.create.mockResolvedValue({ id: 'doc-uuid-123' } as any);
 
       const before = Date.now();
@@ -110,8 +110,8 @@ describe('DocumentService', () => {
       );
 
       const expiresMs = result.expiresAt.getTime();
-      expect(expiresMs).toBeGreaterThan(before + 3500 * 1000);
-      expect(expiresMs).toBeLessThan(before + 3700 * 1000);
+      expect(expiresMs).toBeGreaterThan(before + 850 * 1000);
+      expect(expiresMs).toBeLessThan(before + 950 * 1000);
     });
   });
 
