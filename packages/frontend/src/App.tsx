@@ -46,6 +46,7 @@ const OpsPracticeDetail = lazy(() => import('./features/ops/OpsPracticeDetail'))
 const OpsStaffPage = lazy(() => import('./features/ops/OpsStaffPage'));
 const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
 const OpsActivityLog = lazy(() => import('./features/ops/OpsActivityLog'));
+const OcrReviewQueue = lazy(() => import('./features/documents/OcrReviewQueue'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -139,6 +140,7 @@ export default function App() {
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />
           <Route path="documents" element={<DocumentList />} />
+          <Route path="ocr-review" element={<OcrReviewQueue />} />
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
           <Route path="expirations" element={<ExpirationDashboard />} />

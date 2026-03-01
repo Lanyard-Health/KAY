@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
-import { adminUser, providerUser } from '../../tests/helpers/fixtures.js';
+import { adminUser, providerUser, practiceAdminUser } from '../../tests/helpers/fixtures.js';
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
@@ -76,6 +76,137 @@ describe('Document Routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('GET /ocr-review-count', () => {
+    it('returns count for admin', async () => {
+      prismaMock.document.count.mockResolvedValue(5);
+
+      const res = await request(app).get('/ocr-review-count');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.count).toBe(5);
+    });
+
+    it('returns 0 for provider role', async () => {
+      const providerApp = createTestApp(documentRoutes, providerUser);
+
+      const res = await request(providerApp).get('/ocr-review-count');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.count).toBe(0);
+    });
+  });
+
+  describe('GET /ocr-review-queue', () => {
+    const mockQueueItems = [
+      {
+        id: 'd0000000-0000-4000-a000-000000000010',
+        originalFileName: 'license-scan.pdf',
+        documentType: 'license',
+        mimeType: 'application/pdf',
+        ocrStatus: 'needs_review',
+        ocrConfidence: 0.85,
+        createdAt: new Date('2026-01-15'),
+        provider: { id: PROVIDER_UUID, firstName: 'Jane', lastName: 'Doe', npi: '1234567890' },
+      },
+      {
+        id: 'd0000000-0000-4000-a000-000000000011',
+        originalFileName: 'cert.png',
+        documentType: 'board_certification',
+        mimeType: 'image/png',
+        ocrStatus: 'needs_review',
+        ocrConfidence: 0.72,
+        createdAt: new Date('2026-01-16'),
+        provider: { id: OTHER_PROVIDER_UUID, firstName: 'John', lastName: 'Smith', npi: '9876543210' },
+      },
+    ];
+
+    it('returns paginated needs_review documents for admin', async () => {
+      prismaMock.document.findMany.mockResolvedValue(mockQueueItems as any);
+      prismaMock.document.count.mockResolvedValue(2);
+
+      const res = await request(app).get('/ocr-review-queue?page=1&pageSize=25');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.items).toHaveLength(2);
+      expect(res.body.data.total).toBe(2);
+      expect(res.body.data.page).toBe(1);
+      expect(res.body.data.pageSize).toBe(25);
+      expect(res.body.data.items[0].provider.firstName).toBe('Jane');
+      expect(prismaMock.document.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { ocrStatus: 'needs_review' },
+          orderBy: { createdAt: 'asc' },
+          skip: 0,
+          take: 25,
+        })
+      );
+    });
+
+    it('returns paginated results for practice_admin', async () => {
+      const practiceAdminApp = createTestApp(documentRoutes, practiceAdminUser);
+      prismaMock.document.findMany.mockResolvedValue([mockQueueItems[0]] as any);
+      prismaMock.document.count.mockResolvedValue(1);
+
+      const res = await request(practiceAdminApp).get('/ocr-review-queue');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.items).toHaveLength(1);
+    });
+
+    it('returns 403 for provider role', async () => {
+      const providerApp = createTestApp(documentRoutes, providerUser);
+
+      const res = await request(providerApp).get('/ocr-review-queue');
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('respects page and pageSize query params', async () => {
+      prismaMock.document.findMany.mockResolvedValue([] as any);
+      prismaMock.document.count.mockResolvedValue(50);
+
+      const res = await request(app).get('/ocr-review-queue?page=3&pageSize=10');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.page).toBe(3);
+      expect(res.body.data.pageSize).toBe(10);
+      expect(prismaMock.document.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 20,
+          take: 10,
+        })
+      );
+    });
+
+    it('returns empty items when queue is clear', async () => {
+      prismaMock.document.findMany.mockResolvedValue([] as any);
+      prismaMock.document.count.mockResolvedValue(0);
+
+      const res = await request(app).get('/ocr-review-queue');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.items).toHaveLength(0);
+      expect(res.body.data.total).toBe(0);
+    });
+
+    it('clamps pageSize to max 100', async () => {
+      prismaMock.document.findMany.mockResolvedValue([] as any);
+      prismaMock.document.count.mockResolvedValue(0);
+
+      await request(app).get('/ocr-review-queue?pageSize=500');
+
+      expect(prismaMock.document.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        })
+      );
+    });
   });
 
   describe('POST /upload-url', () => {

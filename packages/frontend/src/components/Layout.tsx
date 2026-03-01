@@ -7,6 +7,7 @@ import {
   HomeIcon,
   UsersIcon,
   DocumentDuplicateIcon,
+  DocumentMagnifyingGlassIcon,
   ClockIcon,
   ClipboardDocumentListIcon,
   ClipboardDocumentCheckIcon,
@@ -31,6 +32,7 @@ import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
 import ApprovalToasts from './ApprovalToasts';
 import { useSearch } from '../hooks/useSearch';
+import { useOcrReviewCount } from '../hooks/useOcrReviewCount';
 
 // ──────────────────────────────────────────────
 // Nav group definitions
@@ -40,6 +42,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  badge?: number;
 }
 
 interface NavGroup {
@@ -61,6 +64,7 @@ const customerNavGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
+      { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
       { name: 'Roster', href: '/roster', icon: TableCellsIcon },
       { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
@@ -149,7 +153,12 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -218,9 +227,20 @@ function PracticeContextBanner() {
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { isOpsMode, user } = useAuthStore();
   const canToggleOps = user?.role === 'admin' || user?.role === 'ops_staff';
-  const activeGroups = isOpsMode && canToggleOps
+  const { data: ocrReviewCount } = useOcrReviewCount();
+  const baseGroups = isOpsMode && canToggleOps
     ? opsNavGroups
     : filterNavGroups(customerNavGroups, role);
+
+  // Inject OCR review count badge into OCR Review nav item
+  const activeGroups = baseGroups.map(group => ({
+    ...group,
+    items: group.items.map(item =>
+      item.name === 'OCR Review' && ocrReviewCount
+        ? { ...item, badge: ocrReviewCount }
+        : item
+    ),
+  }));
 
   return (
     <div className="relative flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">

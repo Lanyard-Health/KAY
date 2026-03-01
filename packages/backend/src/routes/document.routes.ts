@@ -84,6 +84,71 @@ documentRoutes.post(
   }
 );
 
+// GET /api/v1/documents/ocr-review-count - Count documents needing OCR review
+documentRoutes.get(
+  '/ocr-review-count',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { role } = req.user!;
+      if (role !== 'admin' && role !== 'credentialing_staff' && role !== 'practice_admin') {
+        return res.json({ success: true, data: { count: 0 } });
+      }
+
+      const count = await prisma.document.count({
+        where: { ocrStatus: 'needs_review' },
+      });
+
+      res.json({ success: true, data: { count } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/ocr-review-queue - Paginated queue of all needs_review documents
+documentRoutes.get(
+  '/ocr-review-queue',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { role } = req.user!;
+      if (role !== 'admin' && role !== 'credentialing_staff' && role !== 'practice_admin') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(req.query['pageSize'] as string) || 25));
+
+      const where = { ocrStatus: 'needs_review' as const };
+
+      const [items, total] = await Promise.all([
+        prisma.document.findMany({
+          where,
+          select: {
+            id: true,
+            originalFileName: true,
+            documentType: true,
+            mimeType: true,
+            ocrStatus: true,
+            ocrConfidence: true,
+            createdAt: true,
+            provider: {
+              select: { id: true, firstName: true, lastName: true, npi: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.document.count({ where }),
+      ]);
+
+      res.json({ success: true, data: { items, total, page, pageSize } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/documents/:id - Get document metadata
 documentRoutes.get(
   '/:id',
