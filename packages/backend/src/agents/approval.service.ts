@@ -1,5 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { emailService } from '../services/email.service.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitApprovalRequest, emitApprovalDecision } from './websocket.js';
 import { notifyTaskCompletion } from './coordinator.service.js';
@@ -88,6 +89,48 @@ export async function requestApproval(input: RequestApprovalInput) {
     type,
     expiresAt: approval.expiresAt.toISOString(),
   });
+
+  // Email approvers (fire-and-forget)
+  try {
+    const workflow = await prisma.agentWorkflow.findUnique({
+      where: { id: workflowId },
+      select: { goal: true, provider: { select: { practiceId: true } } },
+    });
+    if (workflow?.provider?.practiceId) {
+      const admins = await prisma.user.findMany({
+        where: {
+          role: { in: ['admin', 'credentialing_staff', 'practice_admin'] },
+          isActive: true,
+          practices: { some: { practiceId: workflow.provider.practiceId } },
+        },
+        select: { email: true },
+      });
+      const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
+      const expiresLabel = new Date(Date.now() + expiresInMs).toLocaleString();
+      for (const admin of admins) {
+        emailService.sendEmail({
+          to: admin.email,
+          subject: `Action Required: Approval needed — ${workflow.goal}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #0A3D2E;">Approval Required</h2>
+              <p>A workflow requires your approval:</p>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                <p style="margin: 0 0 8px;"><strong>Goal:</strong> ${workflow.goal}</p>
+                <p style="margin: 0 0 8px;"><strong>Type:</strong> ${type}</p>
+                <p style="margin: 0;"><strong>Expires:</strong> ${expiresLabel}</p>
+              </div>
+              <p><a href="${frontendUrl}/ai-agent?tab=approvals" style="display: inline-block; padding: 10px 20px; background: #0A3D2E; color: #fff; text-decoration: none; border-radius: 6px;">Review Approval</a></p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+              <p style="color: #6b7280; font-size: 12px;">This is an automated message from Lanyard Health.</p>
+            </div>
+          `,
+        }).catch(() => {}); // fire-and-forget
+      }
+    }
+  } catch (e) {
+    logger.warn('Failed to email approvers', { error: (e as Error).message });
+  }
 
   logger.info('Approval requested', { approvalId: approval.id, workflowId, type });
 

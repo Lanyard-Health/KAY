@@ -192,6 +192,11 @@ async function dispatchTask(
     return { error: `Unknown task type: ${input.type}. Allowed: ${Object.keys(TASK_TYPE_MAP).join(', ')}` };
   }
 
+  // parse_document requires a real documentId
+  if (input.type === 'parse_document' && !input.input['documentId']) {
+    return { error: 'parse_document requires a documentId. Call get_provider_profile first to find actual document IDs.' };
+  }
+
   // Count existing tasks to determine step number
   const existingTaskCount = await prisma.agentTask.count({
     where: { workflowId: ctx.workflowId },
@@ -211,12 +216,20 @@ async function dispatchTask(
     },
   });
 
+  // Auto-inject providerId from the workflow so agents always have it
+  const workflow = await prisma.agentWorkflow.findUnique({
+    where: { id: ctx.workflowId },
+    select: { providerId: true, payerId: true },
+  });
+
   // Enqueue to correct queue
   const queue = getQueue(mapping.queue as any);
   const job = await queue.add(input.type, {
     workflowId: ctx.workflowId,
     taskId: task.id,
-    ...input.input,
+    providerId: workflow?.providerId,
+    payerId: workflow?.payerId,
+    ...input.input, // AI-provided fields override if explicitly set
   });
 
   // Update task with BullMQ job ID

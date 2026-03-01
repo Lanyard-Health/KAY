@@ -44,6 +44,13 @@ export async function processPortalJob(data: PortalJobData): Promise<PortalJobRe
   });
 
   try {
+    // Guard: portal tasks require a payer
+    if (!payerId) {
+      const error = 'No payer specified — portal interaction requires a payer';
+      await markTaskFailed(taskId, workflowId, error);
+      return { status: 'failed', error };
+    }
+
     // Load adapter config for this payer
     const adapterConfig = await prisma.payerAdapterConfig.findUnique({
       where: { payerId },

@@ -16,6 +16,7 @@ import {
 import { v4 as uuid } from 'uuid';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { getQueue, QUEUE_NAMES } from '../agents/queues.js';
 import type { UploadUrlRequestInput } from '@credential-management/shared';
 
 export class DocumentService {
@@ -181,7 +182,12 @@ export class DocumentService {
           data: { ocrStatus: 'not_applicable' },
         });
       } else if (this.shouldRunOcr(document.mimeType)) {
-        await this.startOcrProcessing(documentId, document.s3Key);
+        // Enqueue document-agent job for full pipeline (OCR + classification + credential mapping)
+        const queue = getQueue(QUEUE_NAMES.DOCUMENT);
+        await queue.add('parse_document', {
+          documentId,
+          providerId: document.providerId,
+        }).catch(err => logger.error('Failed to enqueue document agent', { documentId, error: (err as Error).message }));
       } else {
         await prisma.document.update({
           where: { id: documentId },

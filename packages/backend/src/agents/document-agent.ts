@@ -1,5 +1,5 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import type { LicenseType, Prisma } from '@prisma/client';
+import type { LicenseType, DegreeType, Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
@@ -18,7 +18,7 @@ const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/tiff', 'image/webp']
 const PHI_FIELDS = ['ssn', 'socialSecurityNumber', 'taxId', 'dateOfBirth', 'dob', 'npi'];
 
 export interface DocumentJobData {
-  workflowId: string;
+  workflowId?: string;
   taskId?: string;
   documentId: string;
   providerId: string;
@@ -51,6 +51,23 @@ function createS3Client(): S3Client {
       },
     }),
   });
+}
+
+/**
+ * Returns true if the error message was intentionally written for end users
+ * (not a raw system/AWS/Prisma error that would be confusing).
+ */
+function isHumanFriendly(msg: string): boolean {
+  const humanPhrases = [
+    'could not be found',
+    'does not belong to',
+    'may have been deleted',
+    'need to be re-uploaded',
+    'may need to be re-uploaded',
+    'try again or contact support',
+    'not supported',
+  ];
+  return humanPhrases.some((p) => msg.toLowerCase().includes(p));
 }
 
 async function downloadFromS3(s3Key: string): Promise<Buffer> {
@@ -124,6 +141,53 @@ const CREDENTIAL_CREATORS: Record<
       },
     });
   },
+
+  dea_certificate: async (providerId, mapped) => {
+    return prisma.deaRegistration.create({
+      data: {
+        providerId,
+        deaNumber: mapped['licenseNumber'] as string, // mapper maps deaNumber→licenseNumber
+        deaState: (mapped['state'] as string) ?? null,
+        issueDate: mapped['issueDate'] as Date,
+        expirationDate: mapped['expirationDate'] as Date,
+        status: 'active',
+      },
+    });
+  },
+
+  diploma: async (providerId, mapped) => {
+    const VALID_DEGREES: Set<string> = new Set([
+      'md', 'do', 'phd', 'psyd', 'msw', 'ma', 'ms', 'med', 'dnp', 'msn', 'bs', 'ba', 'other',
+    ]);
+    const rawDegree = ((mapped['degree'] as string) ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    const degree: DegreeType = (VALID_DEGREES.has(rawDegree) ? rawDegree : 'other') as DegreeType;
+
+    return prisma.education.create({
+      data: {
+        providerId,
+        institutionName: mapped['institutionName'] as string,
+        degree,
+        fieldOfStudy: (mapped['fieldOfStudy'] as string) ?? 'Medicine',
+        startDate: (mapped['graduationDate'] as Date) ?? new Date(), // startDate required, best-effort
+        graduationDate: (mapped['graduationDate'] as Date) ?? null,
+        isCompleted: true,
+        source: 'agent_parsed',
+      },
+    });
+  },
+
+  cme_certificate: async (providerId, mapped) => {
+    return prisma.continuingEducation.create({
+      data: {
+        providerId,
+        courseName: mapped['courseName'] as string,
+        courseProvider: mapped['courseProvider'] as string,
+        credits: mapped['credits'] as number,
+        creditType: (mapped['creditType'] as string) ?? 'Category 1',
+        completionDate: mapped['completionDate'] as Date,
+      },
+    });
+  },
 };
 
 /**
@@ -140,26 +204,28 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
     // 1. Fetch document metadata
     const document = await prisma.document.findUnique({ where: { id: documentId } });
     if (!document) {
-      throw new Error(`Document not found: ${documentId}`);
+      throw new Error('The document record could not be found. It may have been deleted.');
     }
 
     // Cross-provider safety check: document must belong to the workflow's provider
     if (document.providerId !== providerId) {
-      throw new Error(`Document ${documentId} does not belong to provider ${providerId}`);
+      throw new Error('This document does not belong to the provider in this workflow.');
     }
 
-    await logAgentEvent({
-      workflowId,
-      taskId,
-      agent: 'document_parser',
-      action: 'processing_started',
-      data: { documentId, mimeType: document.mimeType, documentType: document.documentType },
-    });
+    if (workflowId) {
+      await logAgentEvent({
+        workflowId,
+        taskId,
+        agent: 'document_parser',
+        action: 'processing_started',
+        data: { documentId, mimeType: document.mimeType, documentType: document.documentType },
+      });
 
-    emitWorkflowEvent(workflowId, 'agent:document_processing', {
-      documentId,
-      step: 'started',
-    });
+      emitWorkflowEvent(workflowId, 'agent:document_processing', {
+        documentId,
+        step: 'started',
+      });
+    }
 
     // 2. Determine document type (classify if unknown)
     let documentType: string = document.documentType;
@@ -169,17 +235,25 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
         mimeType: document.mimeType,
       });
 
-      await logAgentEvent({
-        workflowId,
-        taskId,
-        agent: 'document_parser',
-        action: 'document_classified',
-        data: { documentId, classifiedAs: documentType },
-      });
+      if (workflowId) {
+        await logAgentEvent({
+          workflowId,
+          taskId,
+          agent: 'document_parser',
+          action: 'document_classified',
+          data: { documentId, classifiedAs: documentType },
+        });
+      }
     }
 
     // 3. Download document from S3
-    const buffer = await downloadFromS3(document.s3Key);
+    let buffer: Buffer;
+    try {
+      buffer = await downloadFromS3(document.s3Key);
+    } catch (s3Err) {
+      logger.error('S3 download failed', { s3Key: document.s3Key, error: (s3Err as Error).message });
+      throw new Error(`The file for "${document.originalFileName}" could not be found in storage. It may need to be re-uploaded.`);
+    }
 
     // 4. Extract fields based on MIME type
     let extractionMethod: 'textract' | 'vision' | 'none' = 'none';
@@ -204,29 +278,33 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       averageConfidence = result.averageConfidence;
     }
 
-    emitWorkflowEvent(workflowId, 'agent:document_extracted', {
-      documentId,
-      method: extractionMethod,
-      fieldCount: Object.keys(extractedFields).length,
-      confidence: averageConfidence,
-    });
+    if (workflowId) {
+      emitWorkflowEvent(workflowId, 'agent:document_extracted', {
+        documentId,
+        method: extractionMethod,
+        fieldCount: Object.keys(extractedFields).length,
+        confidence: averageConfidence,
+      });
+    }
 
     // 5. Map to credential schema
     const mapping = mapToCredential(documentType, extractedFields);
 
-    await logAgentEvent({
-      workflowId,
-      taskId,
-      agent: 'document_parser',
-      action: 'fields_mapped',
-      data: redactPhiFromFields({
-        documentId,
-        documentType,
-        fieldCount: Object.keys(mapping.mapped).length,
-        unmappedFields: mapping.unmappedFields,
-        averageConfidence,
-      }) as Prisma.InputJsonValue,
-    });
+    if (workflowId) {
+      await logAgentEvent({
+        workflowId,
+        taskId,
+        agent: 'document_parser',
+        action: 'fields_mapped',
+        data: redactPhiFromFields({
+          documentId,
+          documentType,
+          fieldCount: Object.keys(mapping.mapped).length,
+          unmappedFields: mapping.unmappedFields,
+          averageConfidence,
+        }) as Prisma.InputJsonValue,
+      });
+    }
 
     // 6. Save or flag for review based on confidence
     let credentialId: string | undefined;
@@ -238,13 +316,15 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
           const credential = await creator(providerId, mapping.mapped);
           credentialId = credential.id;
 
-          await logAgentEvent({
-            workflowId,
-            taskId,
-            agent: 'document_parser',
-            action: 'credential_saved',
-            data: { documentId, credentialId, documentType, confidence: averageConfidence },
-          });
+          if (workflowId) {
+            await logAgentEvent({
+              workflowId,
+              taskId,
+              agent: 'document_parser',
+              action: 'credential_saved',
+              data: { documentId, credentialId, documentType, confidence: averageConfidence },
+            });
+          }
 
           // Update document OCR status
           await prisma.document.update({
@@ -287,12 +367,14 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       });
     }
 
-    emitWorkflowEvent(workflowId, 'agent:document_complete', {
-      documentId,
-      status,
-      confidence: averageConfidence,
-      credentialId,
-    });
+    if (workflowId) {
+      emitWorkflowEvent(workflowId, 'agent:document_complete', {
+        documentId,
+        status,
+        confidence: averageConfidence,
+        credentialId,
+      });
+    }
 
     return {
       status,
@@ -304,22 +386,41 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       credentialId,
     };
   } catch (err) {
-    const errorMsg = (err as Error).message;
-    logger.error('Document agent failed', { error: errorMsg, documentId });
+    const rawError = (err as Error).message;
+    logger.error('Document agent failed', { error: rawError, documentId });
 
-    await logAgentEvent({
-      workflowId,
-      taskId,
-      agent: 'document_parser',
-      action: 'processing_failed',
-      data: { documentId, error: errorMsg },
-      level: 'error',
-    });
+    // Show human-friendly message to users; keep technical details in logs only
+    const userMessage = isHumanFriendly(rawError)
+      ? rawError
+      : 'Something went wrong while processing this document. Please try again or contact support.';
 
-    emitWorkflowEvent(workflowId, 'agent:document_failed', {
-      documentId,
-      error: errorMsg,
-    });
+    // Update task status to failed so the UI reflects reality
+    if (taskId) {
+      await prisma.agentTask.update({
+        where: { id: taskId },
+        data: {
+          status: 'failed',
+          error: userMessage,
+          completedAt: new Date(),
+        },
+      }).catch((e) => logger.error('Failed to update task status', { taskId, error: (e as Error).message }));
+    }
+
+    if (workflowId) {
+      await logAgentEvent({
+        workflowId,
+        taskId,
+        agent: 'document_parser',
+        action: 'processing_failed',
+        data: { documentId, error: rawError }, // raw error for debugging in event log
+        level: 'error',
+      });
+
+      emitWorkflowEvent(workflowId, 'agent:document_failed', {
+        documentId,
+        error: userMessage,
+      });
+    }
 
     return {
       status: 'failed',
@@ -328,7 +429,7 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       extractionMethod: 'none',
       confidence: 0,
       fieldsExtracted: 0,
-      error: errorMsg,
+      error: userMessage,
     };
   }
 }

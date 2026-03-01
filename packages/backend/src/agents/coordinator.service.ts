@@ -309,6 +309,36 @@ export async function dispatchDocumentParsing(input: DispatchDocumentInput) {
 }
 
 // ==========================================
+// deleteWorkflow
+// ==========================================
+
+export async function deleteWorkflow(workflowId: string) {
+  const existing = await prisma.agentWorkflow.findUnique({
+    where: { id: workflowId },
+    select: { status: true },
+  });
+
+  if (!existing) {
+    throw new Error(`Workflow ${workflowId} not found`);
+  }
+
+  if (!(TERMINAL_STATUSES as readonly string[]).includes(existing.status)) {
+    throw new Error(
+      `Workflow ${workflowId} cannot be deleted — current status is "${existing.status}". Only completed, failed, or cancelled workflows can be deleted.`
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.agentEvent.deleteMany({ where: { workflowId } }),
+    prisma.agentTask.deleteMany({ where: { workflowId } }),
+    prisma.pendingApproval.deleteMany({ where: { workflowId } }),
+    prisma.agentWorkflow.delete({ where: { id: workflowId } }),
+  ]);
+
+  logger.info('Workflow deleted', { workflowId });
+}
+
+// ==========================================
 // notifyTaskCompletion
 // ==========================================
 

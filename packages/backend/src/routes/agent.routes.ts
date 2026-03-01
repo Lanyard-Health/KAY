@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
@@ -10,6 +11,7 @@ import {
   getWorkflow,
   getWorkflowEvents,
   cancelWorkflow,
+  deleteWorkflow,
   dispatchPortalSubmission,
   dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
@@ -19,6 +21,7 @@ import {
   getApproval,
   decideApproval,
 } from '../agents/approval.service.js';
+import { runAutomation } from '../services/agent-automation.service.js';
 
 // ==========================================
 // Zod Schemas
@@ -26,29 +29,29 @@ import {
 
 const createWorkflowSchema = z.object({
   goal: z.string().min(1).max(200),
-  providerId: z.string().uuid(),
-  payerId: z.string().uuid().optional(),
-  enrollmentId: z.string().uuid().optional(),
+  providerId: z.string().min(1),
+  payerId: z.string().min(1).optional(),
+  enrollmentId: z.string().min(1).optional(),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
 });
 
 const listWorkflowsSchema = z.object({
   status: z.string().optional(),
-  providerId: z.string().uuid().optional(),
+  providerId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
 
 const portalSubmissionSchema = z.object({
-  providerId: z.string().uuid(),
-  payerId: z.string().uuid(),
-  enrollmentId: z.string().uuid().optional(),
+  providerId: z.string().min(1),
+  payerId: z.string().min(1),
+  enrollmentId: z.string().min(1).optional(),
   action: z.enum(['submit_to_portal', 'check_readiness']).optional(),
 });
 
 const parseDocumentSchema = z.object({
-  documentId: z.string().uuid(),
-  providerId: z.string().uuid(),
+  documentId: z.string().min(1),
+  providerId: z.string().min(1),
   extractionHints: z.array(z.string()).optional(),
 });
 
@@ -59,7 +62,7 @@ const patchWorkflowSchema = z.object({
 
 const listApprovalsSchema = z.object({
   status: z.enum(['pending', 'approved', 'denied']).optional(),
-  workflowId: z.string().uuid().optional(),
+  workflowId: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
@@ -254,6 +257,34 @@ agentRoutes.patch(
       }
 
       res.status(400).json({ error: 'Unknown action. Supported: cancel' });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /workflows/:id — delete a terminal workflow
+agentRoutes.delete(
+  '/workflows/:id',
+  ...auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Practice-scope: verify caller owns this workflow's provider
+      if (!req.practiceScope?.isSuperAdmin) {
+        const wf = await prisma.agentWorkflow.findUnique({
+          where: { id: req.params['id']! },
+          select: { providerId: true },
+        });
+        if (!wf) { res.status(404).json({ error: 'Workflow not found' }); return; }
+        const p = await prisma.provider.findFirst({
+          where: { id: wf.providerId, practiceId: { in: req.practiceScope?.practiceIds ?? [] } },
+          select: { id: true },
+        });
+        if (!p) { res.status(404).json({ error: 'Workflow not found' }); return; }
+      }
+
+      await deleteWorkflow(req.params['id']!);
+      res.status(204).send();
     } catch (err) {
       next(err);
     }
@@ -480,6 +511,32 @@ agentRoutes.post(
           return;
         }
       }
+      next(err);
+    }
+  }
+);
+
+// ==========================================
+// Automation routes
+// ==========================================
+
+const automationLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 1,
+  message: { error: 'Automation can only be triggered once per minute' },
+});
+
+// POST /automation/run — manually trigger automation (admin only)
+agentRoutes.post(
+  '/automation/run',
+  authenticate,
+  authorize('admin'),
+  automationLimiter,
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await runAutomation();
+      res.status(200).json(result);
+    } catch (err) {
       next(err);
     }
   }

@@ -7,6 +7,7 @@ import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
 import { checkSlaBreaches } from './opsWorkQueue.service.js';
+import { runAutomation } from './agent-automation.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -24,6 +25,8 @@ class SchedulerService {
   private isCaqhSyncJobRunning = false;
   private slaBreachJob: cron.ScheduledTask | null = null;
   private isSlaBreachJobRunning = false;
+  private agentAutomationJob: cron.ScheduledTask | null = null;
+  private isAgentAutomationJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -38,6 +41,17 @@ class SchedulerService {
     } else {
       logger.info('[Scheduler] Email configured. Follow-ups controlled per-enrollment.');
       logger.info('[Scheduler] Use POST /api/v1/follow-up/run to manually process due follow-ups.');
+    }
+
+    // Auto follow-up scheduling (disabled by default)
+    if (process.env['ENABLE_AUTO_FOLLOWUP'] === 'true' && emailService.isConfigured()) {
+      const followUpSchedule = process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * 1-5';
+      this.followUpJob = cron.schedule(followUpSchedule, () => {
+        this.runFollowUpJob();
+      });
+      logger.info(`[Scheduler] Auto follow-up scheduling ENABLED: ${followUpSchedule}`);
+    } else {
+      logger.info('[Scheduler] Auto follow-up scheduling DISABLED (set ENABLE_AUTO_FOLLOWUP=true to enable)');
     }
 
     // Schedule daily expiration alert generation
@@ -96,6 +110,13 @@ class SchedulerService {
       this.runSlaBreachJob();
     });
     logger.info('[Scheduler] SLA breach detection job scheduled: 0 * * * *');
+
+    // Schedule agent automation (every 4 hours by default)
+    const agentAutomationSchedule = process.env['AGENT_AUTOMATION_SCHEDULE'] || '0 */4 * * *';
+    this.agentAutomationJob = cron.schedule(agentAutomationSchedule, () => {
+      this.runAgentAutomationJob();
+    });
+    logger.info(`[Scheduler] Agent automation job scheduled: ${agentAutomationSchedule}`);
   }
 
   /**
@@ -333,6 +354,48 @@ class SchedulerService {
   }
 
   /**
+   * Run the agent automation job
+   */
+  async runAgentAutomationJob(): Promise<{
+    triggered: number;
+    skippedDuplicate: number;
+    skippedNoAction: number;
+    errors: { reason: string; providerId?: string }[];
+  }> {
+    if (this.isAgentAutomationJobRunning) {
+      logger.info('[Scheduler] Agent automation job already running, skipping...');
+      return { triggered: 0, skippedDuplicate: 0, skippedNoAction: 0, errors: [] };
+    }
+
+    this.isAgentAutomationJobRunning = true;
+    logger.info('[Scheduler] Starting agent automation job...');
+
+    try {
+      const result = await runAutomation();
+      logger.info(`[Scheduler] Agent automation job completed:`);
+      logger.info(`  - Triggered: ${result.triggered}`);
+      logger.info(`  - Skipped (duplicate): ${result.skippedDuplicate}`);
+      logger.info(`  - Errors: ${result.errors.length}`);
+
+      if (result.triggered > 0) {
+        await notificationService.notifyAdminUsers({
+          type: 'system_announcement',
+          title: 'Agent Automation',
+          message: `Auto-created ${result.triggered} workflow(s) for actionable items.`,
+          actionUrl: '/agent/workflows',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('[Scheduler] Agent automation job error:', error);
+      throw error;
+    } finally {
+      this.isAgentAutomationJobRunning = false;
+    }
+  }
+
+  /**
    * Stop all scheduled jobs
    */
   stop(): void {
@@ -371,6 +434,11 @@ class SchedulerService {
       this.slaBreachJob = null;
       logger.info('[Scheduler] SLA breach detection job stopped');
     }
+    if (this.agentAutomationJob) {
+      this.agentAutomationJob.stop();
+      this.agentAutomationJob = null;
+      logger.info('[Scheduler] Agent automation job stopped');
+    }
   }
 
   /**
@@ -386,11 +454,13 @@ class SchedulerService {
     directoryCheckJobRunning: boolean;
     caqhSyncConfigured: boolean;
     caqhSyncJobRunning: boolean;
+    agentAutomationJobRunning: boolean;
     followUpSchedule: string;
     expirationAlertSchedule: string;
     expirationEmailSchedule: string;
     directoryCheckSchedule: string;
     caqhSyncSchedule: string;
+    agentAutomationSchedule: string;
   } {
     return {
       emailConfigured: emailService.isConfigured(),
@@ -407,6 +477,8 @@ class SchedulerService {
       expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
       directoryCheckSchedule: process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0',
       caqhSyncSchedule: process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *',
+      agentAutomationJobRunning: this.isAgentAutomationJobRunning,
+      agentAutomationSchedule: process.env['AGENT_AUTOMATION_SCHEDULE'] || '0 */4 * * *',
     };
   }
 }

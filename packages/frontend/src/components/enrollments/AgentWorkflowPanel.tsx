@@ -81,10 +81,13 @@ function StatusDot({ status }: { status: TaskStatus }) {
 function TaskStatusBadge({ status }: { status: TaskStatus }) {
   const styles: Record<TaskStatus, string> = {
     pending: 'bg-gray-100 text-gray-600',
+    queued: 'bg-gray-100 text-gray-600',
     active: 'bg-blue-100 text-blue-700',
+    in_progress: 'bg-blue-100 text-blue-700',
     completed: 'bg-green-100 text-green-700',
     failed: 'bg-red-100 text-red-700',
     skipped: 'bg-gray-100 text-gray-500',
+    cancelled: 'bg-gray-100 text-gray-500',
   };
   return (
     <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${styles[status]}`}>
@@ -435,7 +438,7 @@ export default function AgentWorkflowPanel({
                   {events.map((event: AgentEvent) => (
                     <div key={event.id} className="px-3 py-2 text-xs flex items-start gap-2">
                       <span className="text-gray-400 shrink-0 font-mono">
-                        {formatTimestamp(event.createdAt)}
+                        {formatTimestamp(event.timestamp)}
                       </span>
                       <LevelBadge level={event.level} />
                       {event.agent && (

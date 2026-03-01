@@ -14,7 +14,7 @@ export type WorkflowStatus =
   | 'failed'
   | 'cancelled';
 
-export type TaskStatus = 'pending' | 'active' | 'completed' | 'failed' | 'skipped';
+export type TaskStatus = 'pending' | 'queued' | 'active' | 'in_progress' | 'completed' | 'failed' | 'skipped' | 'cancelled';
 
 export interface AgentTask {
   id: string;
@@ -36,8 +36,8 @@ export interface AgentEvent {
   agent: string | null;
   action: string;
   level: 'info' | 'warn' | 'error';
-  details: Record<string, unknown> | null;
-  createdAt: string;
+  data: Record<string, unknown> | null;
+  timestamp: string;
 }
 
 export interface AgentWorkflow {
@@ -113,6 +113,29 @@ export function useLaunchWorkflow() {
   });
 }
 
+export function useWorkflows(filters?: { status?: string; limit?: number }) {
+  return useQuery<WorkflowListItem[]>({
+    queryKey: ['agent-workflows', filters?.status ?? 'all'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.limit) params.set('limit', String(filters.limit));
+      const qs = params.toString();
+      const { data } = await api.get<WorkflowListItem[]>(
+        `/agent/workflows${qs ? `?${qs}` : ''}`,
+      );
+      return data;
+    },
+    refetchInterval: (query) => {
+      const items = query.state.data;
+      const hasActive = items?.some(
+        (w) => !['completed', 'failed', 'cancelled'].includes(w.status),
+      );
+      return hasActive ? 5_000 : 30_000;
+    },
+  });
+}
+
 export function useWorkflowsForEnrollment(providerId: string, enrollmentId: string) {
   return useQuery<WorkflowListItem[]>({
     queryKey: ['agent-workflows', providerId, enrollmentId],
@@ -154,6 +177,22 @@ export function useWorkflowEvents(workflowId: string | null) {
       return data;
     },
     enabled: !!workflowId,
+  });
+}
+
+export function useDeleteWorkflow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (workflowId: string) =>
+      api.delete(`/agent/workflows/${workflowId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-workflows'] });
+      toast.success('Workflow deleted');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete workflow: ${error.message}`);
+    },
   });
 }
 

@@ -1,10 +1,12 @@
 import { useState, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
 import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
   XMarkIcon,
+  ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 import {
@@ -75,7 +77,26 @@ function formatDate(dateStr: string): string {
 // Main Component
 // ===========================
 
+function renderContextField(context: Record<string, unknown>) {
+  const displayKeys = ['providerName', 'payerName', 'taskType', 'enrollmentId', 'action', 'reason'];
+  const entries = Object.entries(context).filter(
+    ([key]) => displayKeys.includes(key) && context[key] != null && context[key] !== '',
+  );
+  if (entries.length === 0) return null;
+  return (
+    <div className="space-y-0.5">
+      {entries.map(([key, value]) => (
+        <div key={key} className="text-xs">
+          <span className="text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>{' '}
+          <span className="text-gray-700">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ApprovalsTab() {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -221,6 +242,9 @@ export default function ApprovalsTab() {
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   Status
                 </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Workflow
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
@@ -268,6 +292,18 @@ export default function ApprovalsTab() {
                       )}
                     </td>
                     <td className="px-4 py-3">{statusBadge(approval.status)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/agent/workflows/${approval.workflowId}`);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700"
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                        View
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -401,11 +437,29 @@ export default function ApprovalsTab() {
                                 <span className="text-xs font-medium uppercase text-gray-400">
                                   Context
                                 </span>
-                                <pre className="mt-1 rounded bg-gray-50 p-2 text-xs text-gray-700 overflow-x-auto max-h-40">
-                                  {JSON.stringify(detail.context, null, 2)}
-                                </pre>
+                                <div className="mt-1">
+                                  {renderContextField(detail.context) || (
+                                    <pre className="rounded bg-gray-50 p-2 text-xs text-gray-700 overflow-x-auto max-h-40">
+                                      {JSON.stringify(detail.context, null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
                               </div>
                             )}
+
+                          {/* View Workflow link */}
+                          <div>
+                            <button
+                              onClick={() => {
+                                setSelectedId(null);
+                                navigate(`/agent/workflows/${detail.workflowId}`);
+                              }}
+                              className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700"
+                            >
+                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                              View Workflow
+                            </button>
+                          </div>
 
                           {detail.decisionNotes && (
                             <div>

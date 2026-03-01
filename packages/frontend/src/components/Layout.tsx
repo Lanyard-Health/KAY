@@ -23,6 +23,7 @@ import {
   ChartBarIcon,
   WrenchScrewdriverIcon,
   XMarkIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -70,6 +71,7 @@ const customerNavGroups: NavGroup[] = [
     label: 'AI & Automation',
     items: [
       { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
+      { name: 'Workflows', href: '/agent/workflows', icon: CpuChipIcon },
     ],
   },
   {
@@ -100,7 +102,7 @@ const opsNavGroups: NavGroup[] = [
 
 // Items hidden from practice_admin role
 const practiceAdminHidden = new Set([
-  'Practices', 'Users', 'AI Agent', 'Payer Intelligence',
+  'Practices', 'Users', 'AI Agent', 'Workflows', 'Payer Intelligence',
   'Pending Providers', 'Onboarding', 'Roster', 'Import Providers',
 ]);
 

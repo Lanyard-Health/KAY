@@ -1,5 +1,8 @@
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
+import { getQueue, QUEUE_NAMES } from '../queues.js';
+import { logAgentEvent } from '../event-logger.js';
+import { emitApprovalRequest } from '../websocket.js';
 import type {
   PayerAdapter,
   SubmissionInput,
@@ -61,6 +64,40 @@ export class ManualSubmissionAdapter implements PayerAdapter {
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     });
+
+    // Pause workflow to waiting_approval
+    await prisma.agentWorkflow.update({
+      where: { id: input.workflowId },
+      data: { status: 'waiting_approval' },
+    });
+
+    // Log event
+    await logAgentEvent({
+      workflowId: input.workflowId,
+      taskId: input.taskId,
+      agent: 'portal_adapter',
+      action: 'manual_submission_approval_requested',
+      data: { approvalId: approval.id, type: 'manual_submission' },
+    });
+
+    // Emit WebSocket notification
+    emitApprovalRequest({
+      approvalId: approval.id,
+      workflowId: input.workflowId,
+      taskId: input.taskId,
+      type: 'manual_submission',
+      context: { provider: manifest.provider },
+    });
+
+    // Enqueue approval expiry check job
+    const approvalQueue = getQueue(QUEUE_NAMES.APPROVAL);
+    await approvalQueue.add('process_approval', {
+      approvalId: approval.id,
+      workflowId: input.workflowId,
+      taskId: input.taskId,
+      type: 'manual_submission',
+      expiresAt: approval.expiresAt.toISOString(),
+    }, { jobId: `expiry-${approval.id}` });
 
     logger.info('Manual submission approval created', {
       approvalId: approval.id,

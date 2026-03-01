@@ -51,10 +51,32 @@ class ApiClient {
       headers,
     });
 
+    // 204 No Content returns no body
+    if (response.status === 204) {
+      return { data: null as T, status: response.status };
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
-      const error = new Error(data.error?.message || 'Request failed') as Error & {
+      // Extract the best human-readable message from various backend formats
+      let message = 'Request failed';
+      if (typeof data.error === 'string') {
+        message = data.error;
+      } else if (data.error?.message) {
+        message = data.error.message;
+      }
+
+      // Append field-level Zod validation details when available
+      const details = data.details ?? data.error?.details;
+      if (details?.fieldErrors) {
+        const fieldMessages = Object.entries(details.fieldErrors as Record<string, string[]>)
+          .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+          .join('; ');
+        if (fieldMessages) message += ` (${fieldMessages})`;
+      }
+
+      const error = new Error(message) as Error & {
         response?: { data: any; status: number };
       };
       error.response = { data, status: response.status };
@@ -133,7 +155,20 @@ class ApiClient {
     const data = await response.json();
 
     if (!response.ok) {
-      const error = new Error(data.error?.message || data.error || 'Upload failed') as Error & {
+      let message = 'Upload failed';
+      if (typeof data.error === 'string') {
+        message = data.error;
+      } else if (data.error?.message) {
+        message = data.error.message;
+      }
+      const details = data.details ?? data.error?.details;
+      if (details?.fieldErrors) {
+        const fieldMessages = Object.entries(details.fieldErrors as Record<string, string[]>)
+          .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+          .join('; ');
+        if (fieldMessages) message += ` (${fieldMessages})`;
+      }
+      const error = new Error(message) as Error & {
         response?: { data: any; status: number };
       };
       error.response = { data, status: response.status };

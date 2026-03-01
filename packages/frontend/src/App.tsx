@@ -21,6 +21,8 @@ const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsLis
 const EnrollmentDetail = lazy(() => import('./features/enrollments/EnrollmentDetail'));
 const RosterPage = lazy(() => import('./features/roster/RosterPage'));
 const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard'));
+const AgentWorkflowsPage = lazy(() => import('./features/agent/AgentWorkflowsPage'));
+const WorkflowDetailPage = lazy(() => import('./features/agent/WorkflowDetailPage'));
 const PayerIntelligencePage = lazy(() => import('./features/payer-intelligence/PayerIntelligencePage'));
 const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
 const PracticeSignupPage = lazy(() => import('./features/practice/PracticeSignupPage'));
@@ -144,6 +146,8 @@ export default function App() {
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<RosterPage />} />
           <Route path="ai-agent" element={<AiAgentDashboard />} />
+          <Route path="agent/workflows" element={<AgentWorkflowsPage />} />
+          <Route path="agent/workflows/:id" element={<WorkflowDetailPage />} />
           <Route path="payer-intelligence" element={<PayerIntelligencePage />} />
           <Route path="practices" element={<PracticesList />} />
           <Route path="practices/:practiceId" element={<PracticeDetail />} />

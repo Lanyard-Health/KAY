@@ -1,6 +1,7 @@
 import type { PayerEnrollment, Provider, Payer, PracticeLocation } from '@prisma/client';
 import { emailService } from './email.service.js';
 import { prisma } from '../utils/prisma.js';
+import { logger } from '../utils/logger.js';
 
 type ProviderWithLocations = Provider & {
   practiceLocations: PracticeLocation[];
@@ -296,7 +297,7 @@ class FollowUpService {
 
         <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
           <p style="color: #6b7280; font-size: 12px; margin: 0;">
-            This is an automated email from the KAY Healthcare Credentialing System.
+            This is an automated email from the Lanyard Health Credentialing System.
             <br />
             Next follow-up reminder scheduled in ${enrollment.followUpFrequencyDays} days.
           </p>
@@ -345,9 +346,21 @@ class FollowUpService {
         },
       });
 
+      // Audit trail
+      logger.info('[FollowUp] Email sent', {
+        enrollmentId: enrollment.id,
+        payerName: enrollment.payer.name,
+        providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
+        nextFollowUpDate: nextFollowUpDate.toISOString(),
+      });
+
       result.success = true;
     } else {
       result.error = emailResult.error;
+      logger.warn('[FollowUp] Email failed', {
+        enrollmentId: enrollment.id,
+        error: emailResult.error,
+      });
     }
 
     return result;

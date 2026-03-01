@@ -395,6 +395,29 @@ router.put(
         include: { payer: true },
       });
 
+      // Auto-populate SLA dates when status transitions to 'submitted'
+      if (
+        validated.status === 'submitted' &&
+        existing.status !== 'submitted'
+      ) {
+        const slaUpdates: Record<string, unknown> = {};
+        if (!enrollment.applicationDate) {
+          slaUpdates['applicationDate'] = new Date();
+        }
+        if (!enrollment.slaTargetDate) {
+          const slaProvider = await prisma.provider.findUnique({
+            where: { id: enrollment.providerId },
+            select: { practice: { select: { slaTargetDays: true } } },
+          });
+          const slaTargetDays = slaProvider?.practice?.slaTargetDays ?? 90;
+          const baseDate = enrollment.applicationDate ?? new Date();
+          slaUpdates['slaTargetDate'] = new Date(baseDate.getTime() + slaTargetDays * 86_400_000);
+        }
+        if (Object.keys(slaUpdates).length > 0) {
+          await prisma.payerEnrollment.update({ where: { id }, data: slaUpdates });
+        }
+      }
+
       // Trigger termination workflow when terminationDate transitions from null → value
       if (
         validated.terminationDate &&

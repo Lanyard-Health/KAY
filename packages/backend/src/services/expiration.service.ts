@@ -273,6 +273,17 @@ export class ExpirationService {
 
       for (const expiration of expirations) {
         try {
+          // Dedup: skip if we already sent a reminder for this credential in the last 24h
+          const existing = await prisma.notification.findFirst({
+            where: {
+              recipientEmail: expiration.providerEmail,
+              type: 'expiration_reminder',
+              sentAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+              metadata: { path: ['credentialId'], equals: expiration.id },
+            },
+          });
+          if (existing) continue;
+
           await this.sendReminderEmail(expiration, days);
           sent++;
 
@@ -381,10 +392,14 @@ export class ExpirationService {
 
           <p>Once renewed, please upload the updated documentation to your provider portal.</p>
 
+          <p style="margin-top: 16px;">
+            <a href="${process.env['FRONTEND_URL'] || 'http://localhost:5190'}/portal" style="display: inline-block; padding: 10px 20px; background: #0A3D2E; color: #fff; text-decoration: none; border-radius: 6px;">Go to Portal</a>
+          </p>
+
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
 
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated message from the Credentials Management System.
+            This is an automated message from Lanyard Health.
             Please do not reply to this email.
           </p>
         </body>

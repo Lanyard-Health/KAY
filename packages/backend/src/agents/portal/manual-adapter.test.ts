@@ -9,6 +9,19 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../queues.js', () => ({
+  getQueue: vi.fn(() => ({ add: vi.fn().mockResolvedValue(undefined) })),
+  QUEUE_NAMES: { APPROVAL: 'agent-approval' },
+}));
+
+vi.mock('../event-logger.js', () => ({
+  logAgentEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../websocket.js', () => ({
+  emitApprovalRequest: vi.fn(),
+}));
+
 import { ManualSubmissionAdapter } from './manual-adapter.js';
 import { prismaMock } from '../../../tests/helpers/mock-prisma.js';
 import type { SubmissionInput } from './payer-adapter.js';
@@ -68,7 +81,9 @@ describe('ManualSubmissionAdapter', () => {
         taskId: 'task-1',
         type: 'manual_submission',
         status: 'pending',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       } as never);
+      prismaMock.agentWorkflow.update.mockResolvedValueOnce({} as never);
 
       const result = await adapter.submit(baseInput);
 
@@ -89,7 +104,9 @@ describe('ManualSubmissionAdapter', () => {
       prismaMock.pendingApproval.create.mockResolvedValueOnce({
         id: 'approval-2',
         workflowId: 'wf-1',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       } as never);
+      prismaMock.agentWorkflow.update.mockResolvedValueOnce({} as never);
 
       const result = await adapter.submit(baseInput);
 
@@ -103,7 +120,9 @@ describe('ManualSubmissionAdapter', () => {
       prismaMock.pendingApproval.create.mockResolvedValueOnce({
         id: 'approval-3',
         workflowId: 'wf-1',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       } as never);
+      prismaMock.agentWorkflow.update.mockResolvedValueOnce({} as never);
 
       const customInput: SubmissionInput = {
         ...baseInput,
