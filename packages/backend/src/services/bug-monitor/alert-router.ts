@@ -1,8 +1,9 @@
 import { emailService } from '../email.service.js';
 import type { SanitizedBugReport } from './types.js';
+import { logger } from '../../utils/logger.js';
 
 function structuredLog(data: Record<string, unknown>): void {
-  console.log(JSON.stringify({ service: 'bugMonitor', ...data }));
+  logger.info(JSON.stringify({ service: 'bugMonitor', ...data }));
 }
 
 class AlertRouter {

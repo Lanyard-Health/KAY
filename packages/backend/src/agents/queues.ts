@@ -18,6 +18,20 @@ export const QUEUE_NAMES = {
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
 // ==========================================
+// Per-queue lock duration (ms)
+// ==========================================
+// Workers use lockDuration to detect stalled jobs. A job running longer
+// than its lockDuration is considered stalled and may be retried.
+export const QUEUE_LOCK_DURATIONS: Record<QueueName, number> = {
+  [QUEUE_NAMES.ORCHESTRATOR]: 5 * 60_000,  // 5 min — multi-turn loop, up to 20 tool calls
+  [QUEUE_NAMES.DOCUMENT]: 3 * 60_000,      // 3 min — OCR + vision + credential save
+  [QUEUE_NAMES.PORTAL]: 5 * 60_000,        // 5 min — Puppeteer browser automation
+  [QUEUE_NAMES.EXCEPTION]: 2 * 60_000,     // 2 min — single Claude call + DB writes
+  [QUEUE_NAMES.MONITOR]: 1 * 60_000,       // 1 min — lightweight checks
+  [QUEUE_NAMES.APPROVAL]: 1 * 60_000,      // 1 min — DB + email
+};
+
+// ==========================================
 // Queue cache and factory
 // ==========================================
 

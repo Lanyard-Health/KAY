@@ -1123,6 +1123,7 @@ enum DocumentType {
 enum OcrStatus {
   pending
   processing
+  needs_review
   completed
   failed
   not_applicable

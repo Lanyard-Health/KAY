@@ -1,11 +1,12 @@
 import type { SanitizedBugReport, TriageResult, BugSeverity } from './types.js';
+import { logger } from '../../utils/logger.js';
 
 const PRIORITY_MAP: Record<BugSeverity, number> = { urgent: 1, high: 2, medium: 3, low: 4 };
 const MAX_RETRIES = 3;
 const LINEAR_API_URL = 'https://api.linear.app/graphql';
 
 function structuredLog(data: Record<string, unknown>): void {
-  console.log(JSON.stringify({ service: 'bugMonitor', ...data }));
+  logger.info(JSON.stringify({ service: 'bugMonitor', ...data }));
 }
 
 async function sleep(ms: number): Promise<void> {

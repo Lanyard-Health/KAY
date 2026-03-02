@@ -59,7 +59,7 @@ import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
-import { approvalRoutes } from './routes/approval.routes.js';
+// approval.routes.ts removed — agent.routes.ts provides the same endpoints with proper practice scoping
 import searchRoutes from './routes/search.routes.js';
 import commandCenterRoutes from './routes/command-center.routes.js';
 import opsRoutes from './routes/ops.routes.js';
@@ -79,6 +79,9 @@ import { prisma } from './utils/prisma.js';
 const app = express();
 const PORT = process.env['PORT'] || 3002;
 let serverReady = false;
+
+// Trust first proxy (Render) so rate limiter sees real client IPs, not proxy IP
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet({
@@ -117,7 +120,13 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Ops-Practice-Context', 'X-Dev-Role'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Ops-Practice-Context',
+    // X-Dev-Role only in non-production — prevents header injection in staging/prod
+    ...(process.env['NODE_ENV'] !== 'production' ? ['X-Dev-Role'] : []),
+  ],
   maxAge: 600, // Cache preflight for 10 minutes
 }));
 
@@ -222,7 +231,7 @@ app.use('/api/v1/ops/work-items', opsWorkQueueRoutes);
 app.use('/api/v1/ops/assignments', opsAssignmentRoutes);
 app.use('/api/v1/ops/activity', opsActivityRoutes);
 app.use('/api/v1/agent', agentRoutes);
-app.use('/api/v1/agent/approvals', approvalRoutes);
+// approval.routes.ts removed — agent.routes.ts handles /api/v1/agent/approvals with practice scoping
 app.use('/api/v1/bugs', bugReportRoutes);
 
 // Error handling — Sentry captures before our handler responds

@@ -239,9 +239,13 @@ export class DocumentService {
   }
 
   async getDownloadUrl(s3Key: string): Promise<string> {
+    // Extract filename from s3Key for Content-Disposition header
+    const fileName = s3Key.split('/').pop() || 'document';
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: s3Key,
+      // Force download — prevents inline rendering of HTML/SVG (XSS prevention)
+      ResponseContentDisposition: `attachment; filename="${fileName}"`,
     });
 
     return getSignedUrl(this.s3, command, { expiresIn: 3600 });

@@ -48,7 +48,10 @@ userRoutes.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
-      const roleFilter = typeof req.query['role'] === 'string' ? req.query['role'] : undefined;
+      const VALID_ROLES = ['admin', 'credentialing_staff', 'provider', 'practice_admin'] as const;
+      type Role = typeof VALID_ROLES[number];
+      const rawRole = typeof req.query['role'] === 'string' ? req.query['role'] : undefined;
+      const roleFilter: Role | undefined = rawRole && (VALID_ROLES as readonly string[]).includes(rawRole) ? rawRole as Role : undefined;
       const statusFilter = typeof req.query['status'] === 'string' ? req.query['status'] : undefined;
 
       // Practice-scope: non-admins only see users who share a practice
@@ -72,7 +75,7 @@ userRoutes.get(
               { email: { contains: search, mode: 'insensitive' as const } },
             ],
           }),
-          ...(roleFilter && { role: roleFilter as any }),
+          ...(roleFilter && { role: roleFilter }),
           ...(statusFilter === 'active' ? { isActive: true } : statusFilter === 'inactive' ? { isActive: false } : {}),
         },
         select: {
@@ -279,9 +282,10 @@ userRoutes.put(
         if (!target) {
           throw new ForbiddenError('You do not have access to this user');
         }
-        // Non-admins cannot set role to admin
-        if (data.role === 'admin') {
-          throw new ForbiddenError('Only admins can assign the admin role');
+        // Non-admins can only assign provider or practice_admin roles
+        const ALLOWED_ROLES_FOR_NON_ADMIN = ['provider', 'practice_admin'] as const;
+        if (data.role && !(ALLOWED_ROLES_FOR_NON_ADMIN as readonly string[]).includes(data.role)) {
+          throw new ForbiddenError('You are not permitted to assign this role');
         }
       }
 

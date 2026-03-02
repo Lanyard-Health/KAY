@@ -1,7 +1,17 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { NPIService } from '../services/npi.service.js';
+
+const npiSearchSchema = z.object({
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+  state: z.string().max(2).regex(/^[A-Za-z]*$/).optional(),
+  city: z.string().max(100).optional(),
+}).refine((data) => data.firstName || data.lastName, {
+  message: 'At least first name or last name is required.',
+});
 
 export const npiRoutes = Router();
 
@@ -37,14 +47,7 @@ npiRoutes.get(
   '/search',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { firstName, lastName, state, city } = req.query;
-
-      if (!firstName && !lastName) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'At least first name or last name is required.' },
-        });
-      }
+      const { firstName, lastName, state, city } = npiSearchSchema.parse(req.query);
 
       const results = await npiService.searchByName(
         firstName as string,

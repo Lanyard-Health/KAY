@@ -5,6 +5,7 @@ import { CheckIcon } from '@heroicons/react/24/outline';
 import EmptyState from '../../components/ui/EmptyState';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
+import { isSafeNavigationPath } from '../../utils/safe-navigation';
 import {
   useNotifications,
   useMarkNotificationsRead,
@@ -143,7 +144,7 @@ export default function NotificationsPage() {
                         <button
                           onClick={() => {
                             if (!notification.read) handleMarkOneRead(notification.id);
-                            navigate(notification.actionUrl!);
+                            if (isSafeNavigationPath(notification.actionUrl!)) navigate(notification.actionUrl!);
                           }}
                           className="text-sm font-medium text-gray-900 hover:text-primary-600 text-left"
                         >

@@ -229,11 +229,30 @@ describe('Practice Scope Middleware', () => {
       );
     });
 
-    it('provider with null practiceId is accessible (no scope to enforce)', async () => {
+    it('staff cannot access provider with null practiceId (security: cross-practice isolation)', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
         params: { providerId: 'provider-unassigned' },
-        user: { id: 'staff-id' } as any,
+        user: { id: 'staff-id', role: 'credentialing_staff' } as any,
+      } as any);
+      const res = createMockResponse();
+      const next = createMockNext();
+
+      prismaMock.provider.findUnique.mockResolvedValue({
+        practiceId: null,
+      } as any);
+
+      await requirePracticeProvider(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('provider can access their own unassigned record', async () => {
+      const req = createMockRequest({
+        practiceScope: { isSuperAdmin: false, practiceIds: [] },
+        params: { providerId: 'my-provider-id' },
+        user: { id: 'user-id', role: 'provider', providerId: 'my-provider-id' } as any,
       } as any);
       const res = createMockResponse();
       const next = createMockNext();
@@ -245,7 +264,6 @@ describe('Practice Scope Middleware', () => {
       await requirePracticeProvider(req, res, next);
 
       expect(next).toHaveBeenCalled();
-      expect(res.status).not.toHaveBeenCalled();
     });
 
     it('calls next when provider not found (let route handler 404)', async () => {
@@ -310,10 +328,10 @@ describe('Practice Scope Middleware', () => {
       expect(result).toBe(false);
     });
 
-    it('returns true for provider with null practiceId (no scope to enforce)', async () => {
+    it('returns false for staff accessing provider with null practiceId', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
-        user: { id: 'staff-id' } as any,
+        user: { id: 'staff-id', role: 'credentialing_staff' } as any,
       } as any);
 
       prismaMock.provider.findUnique.mockResolvedValue({
@@ -321,6 +339,21 @@ describe('Practice Scope Middleware', () => {
       } as any);
 
       const result = await validateProviderPracticeAccess(req, 'unassigned-provider');
+
+      expect(result).toBe(false);
+    });
+
+    it('returns true for provider accessing their own unassigned record', async () => {
+      const req = createMockRequest({
+        practiceScope: { isSuperAdmin: false, practiceIds: [] },
+        user: { id: 'user-id', role: 'provider', providerId: 'my-provider-id' } as any,
+      } as any);
+
+      prismaMock.provider.findUnique.mockResolvedValue({
+        practiceId: null,
+      } as any);
+
+      const result = await validateProviderPracticeAccess(req, 'my-provider-id');
 
       expect(result).toBe(true);
     });
@@ -338,23 +371,23 @@ describe('Practice Scope Middleware', () => {
       expect(getPracticeProviderFilter(req)).toEqual({});
     });
 
-    it('includes own practices and unassigned providers for staff', () => {
+    it('returns only own practice providers for staff (no unassigned)', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1', 'p-2'] },
       } as any);
 
       expect(getPracticeProviderFilter(req)).toEqual({
-        OR: [{ practiceId: null }, { practiceId: { in: ['p-1', 'p-2'] } }],
+        practiceId: { in: ['p-1', 'p-2'] },
       });
     });
 
-    it('returns only unassigned providers for staff with no practices', () => {
+    it('returns no-access filter for staff with no practices', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
       } as any);
 
       expect(getPracticeProviderFilter(req)).toEqual({
-        practiceId: null,
+        id: '__no_access__',
       });
     });
   });
@@ -371,23 +404,23 @@ describe('Practice Scope Middleware', () => {
       expect(getPracticeRelationFilter(req)).toEqual({});
     });
 
-    it('returns nested filter including unassigned for staff with practices', () => {
+    it('returns nested filter for own practice providers only', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1'] },
       } as any);
 
       expect(getPracticeRelationFilter(req)).toEqual({
-        provider: { OR: [{ practiceId: null }, { practiceId: { in: ['p-1'] } }] },
+        provider: { practiceId: { in: ['p-1'] } },
       });
     });
 
-    it('returns only unassigned nested match for staff with no practices', () => {
+    it('returns no-access nested filter for staff with no practices', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
       } as any);
 
       expect(getPracticeRelationFilter(req)).toEqual({
-        provider: { practiceId: null },
+        provider: { id: '__no_access__' },
       });
     });
   });

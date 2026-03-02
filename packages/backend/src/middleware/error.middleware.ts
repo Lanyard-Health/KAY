@@ -86,6 +86,40 @@ export function errorHandler(
     return;
   }
 
+  // AWS Cognito errors — never expose internal details to clients
+  if (err.name?.includes('Exception') && err.constructor?.name?.includes('Cognito') ||
+      (err as any).$metadata?.httpStatusCode) {
+    const awsCode = (err as any).name || 'UnknownAwsError';
+    logger.error(`AWS Cognito error [${awsCode}]:`, err.message);
+
+    // Map known Cognito error names to safe client messages
+    const cognitoStatusMap: Record<string, { status: number; message: string }> = {
+      UsernameExistsException: { status: 409, message: 'An account with this email already exists' },
+      UserNotFoundException: { status: 404, message: 'Account not found' },
+      NotAuthorizedException: { status: 401, message: 'Invalid credentials' },
+      InvalidPasswordException: { status: 400, message: 'Password does not meet requirements' },
+      TooManyRequestsException: { status: 429, message: 'Too many requests. Please try again later.' },
+      LimitExceededException: { status: 429, message: 'Too many requests. Please try again later.' },
+      InvalidParameterException: { status: 400, message: 'Invalid request parameters' },
+    };
+
+    const mapped = cognitoStatusMap[awsCode];
+    if (mapped) {
+      res.status(mapped.status).json({
+        success: false,
+        error: { code: 'AUTH_ERROR', message: mapped.message },
+      });
+      return;
+    }
+
+    // Unknown AWS error — generic 500
+    res.status(500).json({
+      success: false,
+      error: { code: 'AUTH_ERROR', message: 'Authentication service error' },
+    });
+    return;
+  }
+
   // Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
     const prismaError = err as unknown as { code: string; meta?: Record<string, unknown> };

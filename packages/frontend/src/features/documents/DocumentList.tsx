@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PageTransition from '../../components/ui/PageTransition';
-import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -9,6 +9,8 @@ import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
+import StatusBadge from '../../components/ui/StatusBadge';
+import OcrReviewModal from './OcrReviewModal';
 
 const DOCUMENT_TYPES = [
   { value: 'license', label: 'License' },
@@ -34,7 +36,8 @@ export default function DocumentList() {
   const queryClient = useQueryClient();
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [viewingOcr, setViewingOcr] = useState<any>(null);
+  const [reviewingDoc, setReviewingDoc] = useState<any>(null);
+  const [ocrFilter, setOcrFilter] = useState<string>('');
   const [previewDoc, setPreviewDoc] = useState<{ doc: any; url: string } | null>(null);
   const [editingDoc, setEditingDoc] = useState<any>(null);
   const [editForm, setEditForm] = useState({ documentType: '', description: '', expirationDate: '' });
@@ -63,6 +66,22 @@ export default function DocumentList() {
   const getDocumentTypeLabel = (type: string) => {
     return DOCUMENT_TYPES.find((t) => t.value === type)?.label || type;
   };
+
+  const getOcrStatusBadge = (ocrStatus: string | null) => {
+    switch (ocrStatus) {
+      case 'needs_review': return { variant: 'warning' as const, label: 'Needs Review' };
+      case 'completed': return { variant: 'success' as const, label: 'Completed' };
+      case 'processing': return { variant: 'info' as const, label: 'Processing' };
+      case 'failed': return { variant: 'danger' as const, label: 'Failed' };
+      default: return null;
+    }
+  };
+
+  const filteredDocuments = useMemo(() => {
+    if (!documents) return [];
+    if (!ocrFilter) return documents;
+    return documents.filter((doc: any) => (doc.ocrStatus || '') === ocrFilter);
+  }, [documents, ocrFilter]);
 
   const handleDownload = async (documentId: string, fileName: string) => {
     try {
@@ -185,7 +204,23 @@ export default function DocumentList() {
             </select>
           </div>
           {selectedProvider && (
-            <button className="btn-primary" onClick={() => setIsUploadModalOpen(true)}>
+            <div className="flex-shrink-0">
+              <label className="label">OCR Status</label>
+              <select
+                className="input"
+                value={ocrFilter}
+                onChange={(e) => setOcrFilter(e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="needs_review">Needs Review</option>
+                <option value="completed">Completed</option>
+                <option value="processing">Processing</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          )}
+          {selectedProvider && (
+            <button className="btn-primary self-end" onClick={() => setIsUploadModalOpen(true)}>
               <CloudArrowUpIcon className="-ml-1 mr-2 h-5 w-5" />
               Upload Document
             </button>
@@ -232,7 +267,7 @@ export default function DocumentList() {
             </div>
           ))}
         </div>
-      ) : documents?.length === 0 ? (
+      ) : filteredDocuments.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 py-12">
           <EmptyState
             illustration="folder"
@@ -258,13 +293,18 @@ export default function DocumentList() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Expiration
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  OCR Status
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
-              {documents?.map((doc: any, index: number) => (
+              {filteredDocuments.map((doc: any, index: number) => {
+                const ocrBadge = getOcrStatusBadge(doc.ocrStatus);
+                return (
                 <AnimatedListItem itemKey={doc.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -288,7 +328,29 @@ export default function DocumentList() {
                       ? format(new Date(doc.expirationDate), 'MMM d, yyyy')
                       : '-'}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {ocrBadge ? (
+                      doc.ocrStatus === 'needs_review' ? (
+                        <button onClick={() => setReviewingDoc(doc)} className="cursor-pointer">
+                          <StatusBadge label={ocrBadge.label} variant={ocrBadge.variant} dot />
+                        </button>
+                      ) : (
+                        <StatusBadge label={ocrBadge.label} variant={ocrBadge.variant} dot />
+                      )
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    {(doc.ocrStatus === 'needs_review' || doc.ocrStatus === 'completed') && (
+                      <button
+                        onClick={() => setReviewingDoc(doc)}
+                        className="text-primary-600 hover:text-primary-900 mr-2 inline-flex items-center"
+                        title="Review OCR"
+                      >
+                        <DocumentMagnifyingGlassIcon className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handlePreview(doc)}
                       className="text-primary-600 hover:text-primary-900 mr-2 inline-flex items-center"
@@ -320,7 +382,8 @@ export default function DocumentList() {
                     </button>
                   </td>
                 </AnimatedListItem>
-              ))}
+                );
+              })}
             </AnimatedList>
           </table>
         </div>
@@ -339,47 +402,12 @@ export default function DocumentList() {
         onUploadComplete={() => refetch()}
       />
 
-      {/* OCR Results Modal */}
-      {viewingOcr && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-            <div
-              className="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm"
-              onClick={() => setViewingOcr(null)}
-            />
-            <div className="relative z-10 inline-block w-full max-w-2xl p-6 my-8 text-left align-middle bg-white rounded-2xl shadow-xl">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                OCR Results - {viewingOcr.document.originalFileName}
-              </h3>
-              <div className="max-h-96 overflow-y-auto">
-                {viewingOcr.ocrData?.ocrData ? (
-                  <div className="space-y-3">
-                    {Object.entries(viewingOcr.ocrData.ocrData).map(([key, value]: [string, any]) => (
-                      <div key={key} className="border-b pb-2">
-                        <p className="text-sm font-medium text-gray-700">{key}</p>
-                        <p className="text-sm text-gray-900">{value.value}</p>
-                        <p className="text-xs text-gray-500">
-                          Confidence: {Math.round(value.confidence * 100)}%
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No OCR data available</p>
-                )}
-              </div>
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setViewingOcr(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* OCR Review Modal */}
+      <OcrReviewModal
+        isOpen={!!reviewingDoc}
+        onClose={() => setReviewingDoc(null)}
+        document={reviewingDoc}
+      />
 
       {/* Document Preview Modal */}
       {previewDoc && (

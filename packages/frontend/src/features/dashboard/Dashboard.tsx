@@ -18,6 +18,7 @@ import {
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { useGettingStarted } from '../../hooks/useReporting';
+import { isSafeNavigationPath } from '../../utils/safe-navigation';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import StatCard from '../../components/ui/StatCard';
@@ -376,7 +377,7 @@ export default function Dashboard() {
                     item.priority === 'high' ? <ClockIcon className="h-5 w-5 text-amber-500" /> :
                     <ChartBarIcon className="h-5 w-5 text-blue-500" />
                   }
-                  actions={[{ label: 'View →', onClick: () => navigate(item.link) }]}
+                  actions={[{ label: 'View →', onClick: () => { if (isSafeNavigationPath(item.link)) navigate(item.link); } }]}
                 />
               ))
             )}
