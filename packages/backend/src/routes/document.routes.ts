@@ -273,11 +273,15 @@ documentRoutes.put(
       // Auto-create credential from approved OCR data
       let credentialId: string | null = null;
       try {
-        credentialId = await createCredentialFromOcr(
+        // Convert flat string values to ExtractedField objects for the credential service
+      const fieldsForCredential = Object.fromEntries(
+        Object.entries(extractedFields).map(([k, v]) => [k, { value: v, confidence: 1 }])
+      );
+      credentialId = await createCredentialFromOcr(
           existing.id,
           existing.providerId,
           existing.documentType,
-          extractedFields,
+          fieldsForCredential,
         );
       } catch (err) {
         // Log but don't fail the review — OCR data is already saved
@@ -315,7 +319,7 @@ documentRoutes.put(
       const updatedDocument = await prisma.document.update({
         where: { id: req.params['id'] },
         data: {
-          ...(documentType && { documentType }),
+          ...(documentType && { documentType: documentType as import('@prisma/client').DocumentType }),
           description: description !== undefined ? description : document.description,
           expirationDate: expirationDate ? new Date(expirationDate) : null,
           updatedAt: new Date(),

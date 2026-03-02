@@ -278,7 +278,7 @@ router.get('/admin/applications/:id', authenticate, authorize('admin', 'credenti
  * POST /api/v1/portal/admin/applications/:id/approve
  * Approve an application
  */
-router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { notes } = req.body;
@@ -311,7 +311,7 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
  * POST /api/v1/portal/admin/applications/:id/reject
  * Reject an application
  */
-router.post('/admin/applications/:id/reject', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.post('/admin/applications/:id/reject', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { notes } = req.body;
