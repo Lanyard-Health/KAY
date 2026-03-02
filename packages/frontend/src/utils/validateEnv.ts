@@ -1,12 +1,14 @@
 /**
  * Validates frontend environment variables at startup.
- * Logs console warnings for misconfiguration — never crashes.
+ * In production builds, blocks on critical misconfigurations.
+ * In dev, logs warnings only.
  */
 export function validateEnv(): void {
   const apiUrl = import.meta.env.VITE_API_URL;
   const devBypass = import.meta.env.VITE_DEV_AUTH_BYPASS;
   const cognitoPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
   const cognitoClientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const isProd = import.meta.env.PROD;
 
   // VITE_API_URL, if set, must end with /api/v1
   if (apiUrl && !apiUrl.endsWith('/api/v1')) {
@@ -19,17 +21,22 @@ export function validateEnv(): void {
   }
 
   // Safety guard: dev bypass must never be active in a production build
-  if (devBypass === 'true' && import.meta.env.PROD) {
-    console.error(
+  if (devBypass === 'true' && isProd) {
+    throw new Error(
       '[SECURITY] VITE_DEV_AUTH_BYPASS=true in a production build! ' +
-        'This is a critical misconfiguration — auth is bypassed. ' +
-        'Remove VITE_DEV_AUTH_BYPASS from your production environment.',
+        'Auth is bypassed. Remove VITE_DEV_AUTH_BYPASS from your production environment.',
     );
   }
 
   // When not using dev bypass, Cognito vars are required
   if (devBypass !== 'true') {
     if (!cognitoPoolId || !cognitoClientId) {
+      if (isProd) {
+        throw new Error(
+          '[env] Cognito config missing in production build. ' +
+            'Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID.',
+        );
+      }
       console.warn(
         '[env] VITE_DEV_AUTH_BYPASS is not "true", but Cognito config is missing. ' +
           'Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID, ' +

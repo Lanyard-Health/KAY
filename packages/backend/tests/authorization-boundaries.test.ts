@@ -158,8 +158,18 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
     expect(res.status).toBe(403);
   });
 
-  it('provider with practiceId=null is accessible to all staff (deliberate design)', async () => {
+  it('provider with practiceId=null is NOT accessible to staff (security: cross-practice isolation)', async () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: ['practice-A'] });
+
+    prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
+
+    const res = await request(app).get('/api/v1/providers/unassigned');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('provider with practiceId=null IS accessible to admin', async () => {
+    const app = buildApp(adminUser, { isSuperAdmin: true, practiceIds: [] });
 
     prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
 
@@ -224,19 +234,19 @@ describe('Authorization Boundaries — Provider Self-Scope', () => {
 // ==========================================
 
 describe('Authorization Boundaries — Edge Cases', () => {
-  it('staff with no practice assignments sees only unassigned providers in list', async () => {
+  it('staff with no practice assignments sees no providers (no-access filter)', async () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: [] });
 
-    prismaMock.provider.findMany.mockResolvedValue([{ id: 'unassigned', practiceId: null }] as any);
-    prismaMock.provider.count.mockResolvedValue(1);
+    prismaMock.provider.findMany.mockResolvedValue([] as any);
+    prismaMock.provider.count.mockResolvedValue(0);
 
     const res = await request(app).get('/api/v1/providers');
 
     expect(res.status).toBe(200);
-    // getPracticeProviderFilter with empty practiceIds returns { practiceId: null }
+    // getPracticeProviderFilter with empty practiceIds returns no-access filter
     expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ practiceId: null }),
+        where: expect.objectContaining({ id: '__no_access__' }),
       }),
     );
   });

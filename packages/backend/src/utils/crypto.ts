@@ -1,4 +1,5 @@
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import { logger } from './logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
@@ -45,25 +46,40 @@ export function isEncryptionAvailable(): boolean {
 }
 
 /**
- * Encrypt if ENCRYPTION_KEY is available, otherwise return plaintext.
- * Use for fields that should be encrypted in production but work without in dev.
+ * Encrypt if ENCRYPTION_KEY is available.
+ * In production, throws if ENCRYPTION_KEY is missing — ZERO plaintext tolerance.
+ * In dev/test, returns plaintext with a warning.
  */
 export function encryptSafe(plaintext: string): string {
-  if (!isEncryptionAvailable()) return plaintext;
+  if (!isEncryptionAvailable()) {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error('ENCRYPTION_KEY is required in production — refusing to store plaintext PII');
+    }
+    return plaintext;
+  }
   return encrypt(plaintext);
 }
 
 /**
  * Decrypt if value looks encrypted (iv:tag:cipher format), otherwise return as-is.
  * Handles both encrypted and legacy plaintext values.
+ * Logs a security warning in production when returning unencrypted data.
  */
 export function decryptSafe(value: string): string {
   // Encrypted format: 32-char hex : 32-char hex : hex ciphertext
   const parts = value.split(':');
-  if (parts.length !== 3) return value; // plaintext
+  if (parts.length !== 3) {
+    if (process.env['NODE_ENV'] === 'production') {
+      logger.warn('SECURITY: decryptSafe received unencrypted value — possible legacy plaintext PII in database');
+    }
+    return value; // plaintext
+  }
   try {
     return decrypt(value);
   } catch {
+    if (process.env['NODE_ENV'] === 'production') {
+      logger.warn('SECURITY: decryptSafe failed to decrypt value — possible legacy plaintext with colons');
+    }
     return value; // legacy plaintext that happens to contain colons
   }
 }

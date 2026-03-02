@@ -83,15 +83,12 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
       ) {
         return res.status(409).json({
           success: false,
-          error: error.message,
+          error: 'An application with this information already exists',
         });
       }
     }
 
-    res.status(500).json({
-      success: false,
-      error: 'Failed to submit application',
-    });
+    next(error);
   }
 });
 
@@ -128,15 +125,12 @@ router.post('/self-serve-signup', portalRegistrationLimit, async (req: Request, 
       ) {
         return res.status(409).json({
           success: false,
-          error: error.message,
+          error: 'An account with this email address already exists',
         });
       }
     }
 
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create account',
-    });
+    next(error);
   }
 });
 
@@ -302,17 +296,14 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
-        return res.status(404).json({ success: false, error: error.message });
+        return res.status(404).json({ success: false, error: 'Application not found' });
       }
       if (error.message.includes('already been reviewed') || error.message.includes('already exists')) {
-        return res.status(409).json({ success: false, error: error.message });
+        return res.status(409).json({ success: false, error: 'This application has already been reviewed' });
       }
     }
 
-    res.status(500).json({
-      success: false,
-      error: 'Failed to approve application',
-    });
+    next(error);
   }
 });
 
@@ -345,17 +336,14 @@ router.post('/admin/applications/:id/reject', authenticate, authorize('admin', '
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
-        return res.status(404).json({ success: false, error: error.message });
+        return res.status(404).json({ success: false, error: 'Application not found' });
       }
       if (error.message.includes('already been reviewed')) {
-        return res.status(409).json({ success: false, error: error.message });
+        return res.status(409).json({ success: false, error: 'This application has already been reviewed' });
       }
     }
 
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reject application',
-    });
+    next(error);
   }
 });
 

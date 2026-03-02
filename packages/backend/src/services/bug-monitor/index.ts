@@ -5,6 +5,7 @@ import { noiseFilter } from './noise-filter.js';
 import { bugTriager } from './triage.js';
 import { linearClient } from './linear-client.js';
 import { alertRouter } from './alert-router.js';
+import { logger } from '../../utils/logger.js';
 import type { BugReport, BugSeverity, BugSource, SanitizedBugReport, TriageResult } from './types.js';
 
 class BugMonitorService {
@@ -23,7 +24,7 @@ class BugMonitorService {
   async report(bug: BugReport): Promise<void> {
     // Kill switch
     if (process.env['LINEAR_BUG_MONITOR_ENABLED'] !== 'true') {
-      console.log(JSON.stringify({ service: 'bugMonitor', action: 'skipped', reason: 'disabled', title: bug.title }));
+      logger.debug(JSON.stringify({ service: 'bugMonitor', action: 'skipped', reason: 'disabled', title: bug.title }));
       return;
     }
 
@@ -44,7 +45,7 @@ class BugMonitorService {
       }
     } catch (error) {
       // Bug monitor should NEVER crash the app
-      console.error(JSON.stringify({
+      logger.error(JSON.stringify({
         service: 'bugMonitor',
         action: 'reportFailed',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -128,7 +129,7 @@ class BugMonitorService {
       await this.alertRouter.sendUrgentAlert(report, issue?.url || null);
     }
 
-    console.log(JSON.stringify({
+    logger.info(JSON.stringify({
       service: 'bugMonitor',
       action: 'newIssue',
       hash,
@@ -201,5 +202,5 @@ export function initBugMonitor(prisma: PrismaClient): void {
     }
   }, 60 * 60 * 1000);
 
-  console.log(JSON.stringify({ service: 'bugMonitor', action: 'initialized' }));
+  logger.info(JSON.stringify({ service: 'bugMonitor', action: 'initialized' }));
 }

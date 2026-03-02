@@ -86,10 +86,10 @@ payerRoutes.get(
   }
 );
 
-// POST /api/v1/payers - Create payer (admin only)
+// POST /api/v1/payers - Create payer
 payerRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);

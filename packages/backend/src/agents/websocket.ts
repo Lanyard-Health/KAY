@@ -45,9 +45,8 @@ async function authenticateSocket(
   next: (err?: Error) => void
 ): Promise<void> {
   try {
-    const token =
-      (socket.handshake.auth?.['token'] as string | undefined) ||
-      (socket.handshake.query?.['token'] as string | undefined);
+    // Only accept tokens from the auth object (not query string — tokens in URLs get logged by proxies)
+    const token = socket.handshake.auth?.['token'] as string | undefined;
 
     if (!token) {
       next(new Error('Authentication required'));
@@ -149,14 +148,19 @@ export function initializeWebSocket(httpServer: HttpServer): SocketServer {
           socket.emit('error', { message: 'Access denied' });
           return;
         }
+      } else if (user.role === 'admin' || user.role === 'ops_staff') {
+        // Global admins/ops: unrestricted access
       } else if (user.practiceIds.length > 0) {
-        // Staff/admin scoped to practices — workflow's provider must belong to one of their practices
+        // Staff scoped to practices — workflow's provider must belong to one of their practices
         if (workflow.provider?.practiceId && !user.practiceIds.includes(workflow.provider.practiceId)) {
           socket.emit('error', { message: 'Access denied' });
           return;
         }
+      } else {
+        // Non-admin with no practice assignments — deny access
+        socket.emit('error', { message: 'Access denied' });
+        return;
       }
-      // Global admins (practiceIds empty, non-provider role) get access
 
       const room = `workflow:${workflowId}`;
       socket.join(room);

@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import EmptyState from '../../components/ui/EmptyState';
+import { safeWindowOpen } from '../../utils/safe-navigation';
 
 type FilterTab = 'all' | 'completed' | 'in_progress' | 'not_started';
 
@@ -309,7 +310,7 @@ export default function OnboardingProgress() {
                             onClick={async () => {
                               try {
                                 const res = await api.get(`/documents/${doc.id}/download-url`);
-                                window.open((res.data as any).data.url, '_blank');
+                                safeWindowOpen((res.data as any).data.url);
                               } catch {
                                 toast.error('Failed to get download link');
                               }

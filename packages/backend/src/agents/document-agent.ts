@@ -265,6 +265,19 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       }
     }
 
+    // Write OCR data to document when no credential was auto-saved
+    // (low confidence, no CREDENTIAL_CREATOR, or save failure)
+    if (!credentialId) {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          ocrStatus: 'needs_review',
+          ocrConfidence: averageConfidence,
+          ocrData: extractedFields as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
+
     const status = credentialId ? 'completed' : 'needs_review';
 
     // 7. Update task output
