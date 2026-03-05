@@ -18,6 +18,7 @@ import {
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { useGettingStarted } from '../../hooks/useReporting';
+import { useSlaSummary } from '../../hooks/useOps';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import StatCard from '../../components/ui/StatCard';
@@ -37,6 +38,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const practiceId = user?.practices?.[0]?.practiceId ?? '';
   const isPracticeAdmin = user?.role === 'practice_admin';
+  const isStaff = user?.role === 'credentialing_staff' || user?.role === 'ops_staff' || user?.role === 'admin';
+
+  // SLA summary for health strip
+  const { data: slaSummary } = useSlaSummary();
 
   // Getting Started check — only for practice_admin with a practiceId
   const {
@@ -270,6 +275,36 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* SLA Health Strip */}
+      {isStaff && slaSummary && (
+        <div className="dash-stagger flex items-center gap-3">
+          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">SLA Health</span>
+          <div className="flex gap-2">
+            <Link
+              to="/ops/work-queue?slaStatus=on_track"
+              className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              {slaSummary.onTrack} on-track
+            </Link>
+            <Link
+              to="/ops/work-queue?slaStatus=at_risk"
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              {slaSummary.atRisk} at-risk
+            </Link>
+            <Link
+              to="/ops/work-queue?slaStatus=breached"
+              className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              {slaSummary.breached} breached
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Row 1: Hero Stats */}
       <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-5 gap-4">

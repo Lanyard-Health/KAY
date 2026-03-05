@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import PageTransition from '../../components/ui/PageTransition';
 import {
@@ -10,16 +10,22 @@ import {
   ChevronRightIcon,
   UserGroupIcon,
   FunnelIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline';
 import {
   useOpsWorkQueue,
   useCreateWorkItem,
   useBulkAssign,
   useOpsStaff,
+  useMyWorkItems,
   OpsWorkItem,
 } from '../../hooks/useOps';
+import { useAuthStore } from '../../stores/auth.store';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import EmptyState from '../../components/ui/EmptyState';
+import ProviderQuickPeek from '../../components/ProviderQuickPeek';
+
+type WorkQueueTab = 'my_items' | 'all_items' | 'overdue';
 
 type Status = 'backlog' | 'todo' | 'in_progress' | 'waiting_external' | 'review' | 'done' | 'cancelled';
 type Priority = 'urgent' | 'high' | 'normal' | 'low';
@@ -108,20 +114,48 @@ function computeSlaStatus(item: OpsWorkItem): SlaStatus | null {
   return 'on_track';
 }
 
+/** Format SLA time remaining as relative text */
+function formatSlaCountdown(item: OpsWorkItem): string | null {
+  if (!item.slaDeadline) return null;
+  const now = Date.now();
+  const deadline = new Date(item.slaDeadline).getTime();
+  const diff = deadline - now;
+  const absDiff = Math.abs(diff);
+  const hours = Math.floor(absDiff / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  const suffix = diff < 0 ? 'overdue' : 'left';
+  if (days > 0) return `${days}d ${suffix}`;
+  if (hours > 0) return `${hours}h ${suffix}`;
+  return diff < 0 ? 'overdue' : '<1h left';
+}
+
 export default function OpsWorkQueue() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuthStore();
+  const isStaff = user?.role === 'credentialing_staff' || user?.role === 'ops_staff';
+
+  // Tab state — default to "my_items" for staff, "all_items" for admin
+  const tabParam = searchParams.get('tab') as WorkQueueTab | null;
+  const slaStatusParam = searchParams.get('slaStatus');
+  const [activeTab, setActiveTab] = useState<WorkQueueTab>(
+    tabParam ?? (isStaff ? 'my_items' : 'all_items')
+  );
 
   // Filters
   const [search, setSearch] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [statusFilters, setStatusFilters] = useState<Set<Status>>(new Set());
   const [priorityFilter, setPriorityFilter] = useState('');
-  const [slaFilter, setSlaFilter] = useState('');
+  const [slaFilter, setSlaFilter] = useState(slaStatusParam ?? '');
   const [page, setPage] = useState(1);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState('');
+
+  // Quick Peek
+  const [peekProviderId, setPeekProviderId] = useState<string | null>(null);
 
   // New work item inline form
   const [showNewForm, setShowNewForm] = useState(false);
@@ -129,16 +163,35 @@ export default function OpsWorkQueue() {
   const [newPriority, setNewPriority] = useState<Priority>('normal');
   const [newCategory, setNewCategory] = useState('general');
 
+  // My items count (for tab badge)
+  const { data: myWorkData } = useMyWorkItems();
+  const myItemsCount = myWorkData?.total ?? 0;
+
+  const handleTabChange = (tab: WorkQueueTab) => {
+    setActiveTab(tab);
+    setPage(1);
+    setSelectedIds(new Set());
+    // Update URL params
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', tab);
+    if (tab === 'overdue') {
+      params.set('slaStatus', 'breached');
+    } else {
+      params.delete('slaStatus');
+    }
+    setSearchParams(params, { replace: true });
+  };
+
   const filters = useMemo(
     () => ({
       search,
-      assigneeId: assigneeFilter || undefined,
+      assigneeId: activeTab === 'my_items' ? user?.id : (assigneeFilter || undefined),
       status: statusFilters.size > 0 ? Array.from(statusFilters) : undefined,
       priority: priorityFilter ? [priorityFilter] : undefined,
-      slaStatus: slaFilter || undefined,
+      slaStatus: activeTab === 'overdue' ? 'breached' : (slaFilter || undefined),
       page,
     }),
-    [search, assigneeFilter, statusFilters, priorityFilter, slaFilter, page],
+    [search, assigneeFilter, statusFilters, priorityFilter, slaFilter, page, activeTab, user?.id],
   );
 
   const { data, isLoading, isError, error } = useOpsWorkQueue(filters);
@@ -241,6 +294,38 @@ export default function OpsWorkQueue() {
           <PlusIcon className="h-4 w-4" />
           New Work Item
         </button>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+        {([
+          { key: 'my_items' as const, label: 'My Items', count: myItemsCount },
+          { key: 'all_items' as const, label: 'All Items', count: totalCount },
+          { key: 'overdue' as const, label: 'Overdue' },
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
+            className={clsx(
+              'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200',
+              activeTab === tab.key
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            {tab.label}
+            {tab.count != null && tab.count > 0 && (
+              <span className={clsx(
+                'ml-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold min-w-[18px]',
+                activeTab === tab.key
+                  ? tab.key === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-primary-100 text-primary-700'
+                  : 'bg-gray-200 text-gray-600',
+              )}>
+                {tab.count > 99 ? '99+' : tab.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* New Work Item Inline Form */}
@@ -494,7 +579,20 @@ export default function OpsWorkQueue() {
                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{item.title}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{item.practice?.name ?? '--'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{providerName}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          {providerName}
+                          {item.providerId && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPeekProviderId(item.providerId!); }}
+                              className="text-gray-400 hover:text-primary-600 transition-colors"
+                              title="Quick view"
+                            >
+                              <EyeIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{item.enrollment?.payer?.name ?? '--'}</td>
                       <td className="px-4 py-3">
                         {item.category ? (
@@ -523,7 +621,13 @@ export default function OpsWorkQueue() {
                         {slaStatus ? (
                           <span className="inline-flex items-center gap-1.5">
                             <span className={clsx('h-2.5 w-2.5 rounded-full', SLA_DOT[slaStatus] ?? 'bg-gray-400')} />
-                            <span className="text-xs text-gray-500">{formatLabel(slaStatus)}</span>
+                            <span className={clsx(
+                              'text-xs font-medium',
+                              slaStatus === 'breached' ? 'text-red-600' :
+                              slaStatus === 'at_risk' ? 'text-amber-600' : 'text-gray-500',
+                            )}>
+                              {formatSlaCountdown(item) ?? formatLabel(slaStatus)}
+                            </span>
                           </span>
                         ) : (
                           <span className="text-sm text-gray-400">--</span>
@@ -565,6 +669,13 @@ export default function OpsWorkQueue() {
         )}
       </div>
     </div>
+
+    {/* Provider Quick Peek */}
+    <ProviderQuickPeek
+      isOpen={!!peekProviderId}
+      onClose={() => setPeekProviderId(null)}
+      providerId={peekProviderId ?? ''}
+    />
     </PageTransition>
   );
 }

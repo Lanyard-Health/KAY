@@ -247,6 +247,27 @@ export function useOpsAssignments(filters?: { staffId?: string; practiceId?: str
   });
 }
 
+export function useMyWorkItemCount() {
+  return useQuery({
+    queryKey: ['ops-my-work-items-count'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: { items: OpsWorkItem[]; total: number } }>('/ops/work-items/my');
+      return res.data.data.total;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useSlaSummary() {
+  return useQuery({
+    queryKey: ['ops-sla-summary'],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: OpsSlaSummary }>('/ops/sla');
+      return res.data.data;
+    },
+  });
+}
+
 // ── Mutation Hooks ───────────────────────────────
 
 export function useCreateWorkItem() {

@@ -22,6 +22,7 @@ import {
   OpsComment,
 } from '../../hooks/useOps';
 import { api } from '../../services/api';
+import Breadcrumbs from '../../components/ui/Breadcrumbs';
 
 const STATUS_BADGE: Record<string, string> = {
   backlog: 'bg-gray-100 text-gray-700',
@@ -236,15 +237,12 @@ export default function OpsWorkItemDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Back link + Header */}
+      {/* Breadcrumbs + Header */}
       <div>
-        <button
-          onClick={() => navigate('/ops/work-queue')}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-4"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-          Back to Work Queue
-        </button>
+        <Breadcrumbs items={[
+          { label: 'My Work', href: '/ops/work-queue' },
+          { label: item.title },
+        ]} />
 
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{item.title}</h1>

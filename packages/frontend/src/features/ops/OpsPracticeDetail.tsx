@@ -18,6 +18,7 @@ import {
   useOpsStaff,
 } from '../../hooks/useOps';
 import { useAuthStore } from '../../stores/auth.store';
+import Breadcrumbs from '../../components/ui/Breadcrumbs';
 
 const TIER_OPTIONS = [
   { value: 'full_service', label: 'Full Service' },
@@ -163,14 +164,10 @@ export default function OpsPracticeDetail() {
 
   return (
     <div>
-      {/* Back link */}
-      <Link
-        to="/ops/practices"
-        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-6"
-      >
-        <ArrowLeftIcon className="h-4 w-4 mr-1" />
-        Back to Practices
-      </Link>
+      <Breadcrumbs items={[
+        { label: 'Practices', href: '/ops/practices' },
+        { label: practice.name },
+      ]} />
 
       {/* Header Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 mb-6">

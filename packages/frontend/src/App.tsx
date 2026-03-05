@@ -51,6 +51,16 @@ function LoadingFallback() {
   return <RouteProgressBar />;
 }
 
+/** Redirect staff roles to work queue, others to dashboard */
+function StaffHomeRedirect() {
+  const { user } = useAuthStore();
+  const role = user?.role;
+  if (role === 'credentialing_staff' || role === 'ops_staff') {
+    return <Navigate to="/ops/work-queue" replace />;
+  }
+  return <Dashboard />;
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuthStore();
 
@@ -131,7 +141,7 @@ export default function App() {
             </AdminRoute>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route index element={<StaffHomeRedirect />} />
           <Route path="command-center" element={<CommandCenter />} />
           <Route path="providers" element={<ProviderList />} />
           <Route path="providers/import" element={<ProviderImportPage />} />

@@ -1,10 +1,46 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { Dialog, Combobox, Transition } from '@headlessui/react';
 import { MagnifyingGlassIcon } from '@heroicons/react/20/solid';
-import { SparklesIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ClockIcon, PlusIcon, ArrowUpTrayIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { api } from '../../services/api';
 import EmptyState from './EmptyState';
+
+const RECENT_ITEMS_KEY = 'lanyard:recent-items';
+const MAX_RECENT = 5;
+
+interface RecentItem {
+  id: string;
+  type: SearchResult['type'];
+  title: string;
+  url: string;
+  visitedAt: number;
+}
+
+function getRecentItems(): RecentItem[] {
+  try {
+    const raw = localStorage.getItem(RECENT_ITEMS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addRecentItem(item: { id: string; type: string; title: string; url: string }) {
+  try {
+    const items = getRecentItems().filter((r) => r.id !== item.id);
+    items.unshift({ ...item, type: item.type as SearchResult['type'], visitedAt: Date.now() });
+    localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(items.slice(0, MAX_RECENT)));
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+const ACTION_SHORTCUTS = [
+  { id: 'action-new-work', title: 'Create work item', url: '/ops/work-queue', icon: PlusIcon },
+  { id: 'action-upload', title: 'Upload document', url: '/documents', icon: ArrowUpTrayIcon },
+  { id: 'action-enroll', title: 'New enrollment', url: '/enrollments', icon: ClipboardDocumentListIcon },
+];
 
 interface SearchResult {
   id: string;
@@ -140,6 +176,12 @@ export default function CommandPalette({ onSearch, onSelect }: CommandPalettePro
                     handleAiQuery(query);
                     return;
                   }
+                  if ((result as any).type === 'action') {
+                    onSelect(result);
+                    handleClose();
+                    return;
+                  }
+                  addRecentItem(result);
                   onSelect(result);
                   handleClose();
                 }}
@@ -291,8 +333,61 @@ export default function CommandPalette({ onSearch, onSelect }: CommandPalettePro
                 )}
 
                 {query.length === 0 && (
-                  <div className="border-t border-gray-100 px-4 py-4 text-center text-xs text-gray-400">
-                    Type to search across providers, practices, payers, and more
+                  <div className="border-t border-gray-100">
+                    {/* Recent Items */}
+                    {(() => {
+                      const recent = getRecentItems();
+                      if (recent.length === 0) return null;
+                      return (
+                        <div className="py-2">
+                          <p className="px-4 py-1 text-xs font-medium text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <ClockIcon className="h-3.5 w-3.5" />
+                            Recent
+                          </p>
+                          {recent.map((item) => (
+                            <Combobox.Option
+                              key={`recent-${item.id}`}
+                              value={{ id: item.id, type: item.type, title: item.title, url: item.url } as SearchResult}
+                              className={({ active }) =>
+                                clsx('cursor-pointer select-none px-4 py-2', active && 'bg-gray-50')
+                              }
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={clsx('inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', typeColors[item.type])}>
+                                  {typeLabels[item.type]}
+                                </span>
+                                <span className="text-sm text-gray-900 truncate">{item.title}</span>
+                              </div>
+                            </Combobox.Option>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Quick Actions */}
+                    <div className="py-2 border-t border-gray-100">
+                      <p className="px-4 py-1 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                        Actions
+                      </p>
+                      {ACTION_SHORTCUTS.map((action) => (
+                        <Combobox.Option
+                          key={action.id}
+                          value={{ id: action.id, type: 'action' as any, title: action.title, url: action.url }}
+                          className={({ active }) =>
+                            clsx('cursor-pointer select-none px-4 py-2', active && 'bg-gray-50')
+                          }
+                        >
+                          <div className="flex items-center gap-3">
+                            <action.icon className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-700">{action.title}</span>
+                          </div>
+                        </Combobox.Option>
+                      ))}
+                    </div>
+
+                    <div className="px-4 py-2 text-center text-xs text-gray-400 border-t border-gray-100">
+                      Type to search across providers, practices, payers, and more
+                    </div>
                   </div>
                 )}
               </Combobox>

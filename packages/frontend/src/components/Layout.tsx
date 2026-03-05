@@ -28,9 +28,10 @@ import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
 import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
-import CommandPalette from './ui/CommandPalette';
+import CommandPalette, { addRecentItem } from './ui/CommandPalette';
 import ApprovalToasts from './ApprovalToasts';
 import { useSearch } from '../hooks/useSearch';
+import { useMyWorkItemCount } from '../hooks/useOps';
 
 // ──────────────────────────────────────────────
 // Nav group definitions
@@ -40,6 +41,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  badge?: number;
 }
 
 interface NavGroup {
@@ -51,6 +53,7 @@ const customerNavGroups: NavGroup[] = [
   {
     label: 'Core',
     items: [
+      { name: 'My Work', href: '/ops/work-queue', icon: QueueListIcon },
       { name: 'Dashboard', href: '/', icon: HomeIcon },
       { name: 'Command Center', href: '/command-center', icon: ViewColumnsIcon },
       { name: 'Providers', href: '/providers', icon: UsersIcon },
@@ -62,6 +65,7 @@ const customerNavGroups: NavGroup[] = [
     items: [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
+      { name: 'Activity', href: '/ops/activity', icon: ClipboardDocumentCheckIcon },
       { name: 'Roster', href: '/roster', icon: TableCellsIcon },
       { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
     ],
@@ -79,6 +83,7 @@ const customerNavGroups: NavGroup[] = [
       { name: 'Users', href: '/users', icon: UserGroupIcon },
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
+      { name: 'Audit Trail', href: '/ops/activity', icon: ClipboardDocumentListIcon },
       { name: 'Import Providers', href: '/providers/import', icon: ArrowUpTrayIcon },
     ],
   },
@@ -149,7 +154,12 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -218,9 +228,20 @@ function PracticeContextBanner() {
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { isOpsMode, user } = useAuthStore();
   const canToggleOps = user?.role === 'admin' || user?.role === 'ops_staff';
-  const activeGroups = isOpsMode && canToggleOps
+  const { data: myWorkCount } = useMyWorkItemCount();
+  const baseGroups = isOpsMode && canToggleOps
     ? opsNavGroups
     : filterNavGroups(customerNavGroups, role);
+
+  // Inject badge counts into nav items
+  const activeGroups = baseGroups.map(group => ({
+    ...group,
+    items: group.items.map(item =>
+      item.name === 'My Work' && myWorkCount
+        ? { ...item, badge: myWorkCount }
+        : item
+    ),
+  }));
 
   return (
     <div className="relative flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
@@ -286,7 +307,10 @@ export default function Layout() {
   };
 
   const handleSearchSelect = useCallback(
-    (result: { url: string }) => {
+    (result: { id?: string; type?: string; title?: string; url: string }) => {
+      if (result.id && result.type && result.title) {
+        addRecentItem({ id: result.id, type: result.type, title: result.title, url: result.url });
+      }
       navigate(result.url);
     },
     [navigate],

@@ -17,6 +17,7 @@ import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadiness
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
+import Breadcrumbs from '../../components/ui/Breadcrumbs';
 
 /** Only renders Aetna panels when the payer is Aetna — prevents unnecessary API calls */
 function AetnaSection({ enrollmentId, payerName }: { enrollmentId: string; payerName: string }) {
@@ -106,9 +107,10 @@ export default function EnrollmentDetail() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Link to="/enrollments" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-3">
-          <ArrowLeftIcon className="h-4 w-4 mr-1" /> Back to Enrollments
-        </Link>
+        <Breadcrumbs items={[
+          { label: 'Enrollments', href: '/enrollments' },
+          { label: enrollment.payer?.name || 'Enrollment' },
+        ]} />
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">

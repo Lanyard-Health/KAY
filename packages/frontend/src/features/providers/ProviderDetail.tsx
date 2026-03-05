@@ -14,6 +14,7 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import { useDeleteLicense, useDeleteCertification } from '../../hooks/useCredentials';
 import DemographicsForm from './DemographicsForm';
+import Breadcrumbs from '../../components/ui/Breadcrumbs';
 
 // Lazy-loaded modals — only fetched when opened
 const PracticeLocationModal = lazy(() => import('./PracticeLocationModal'));
@@ -668,6 +669,10 @@ export default function ProviderDetail() {
   return (
     <PageTransition>
     <div>
+      <Breadcrumbs items={[
+        { label: 'Providers', href: '/providers' },
+        { label: `${provider.firstName} ${provider.lastName}` },
+      ]} />
       {/* PDM Alert Banner */}
       {(overdueCount > 0 || dueSoonCount > 0) && (
         <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-center gap-3">
