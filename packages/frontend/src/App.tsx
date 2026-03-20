@@ -38,15 +38,6 @@ const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuc
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
 const CommandCenter = lazy(() => import('./features/command-center/CommandCenter'));
-const OpsDashboard = lazy(() => import('./features/ops/OpsDashboard'));
-const OpsWorkQueue = lazy(() => import('./features/ops/OpsWorkQueue'));
-const OpsWorkItemDetail = lazy(() => import('./features/ops/OpsWorkItemDetail'));
-const OpsPracticesList = lazy(() => import('./features/ops/OpsPracticesList'));
-const OpsPracticeDetail = lazy(() => import('./features/ops/OpsPracticeDetail'));
-const OpsStaffPage = lazy(() => import('./features/ops/OpsStaffPage'));
-const OpsStaffDetail = lazy(() => import('./features/ops/OpsStaffDetail'));
-const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
-const OpsActivityLog = lazy(() => import('./features/ops/OpsActivityLog'));
 const OcrReviewQueue = lazy(() => import('./features/documents/OcrReviewQueue'));
 
 function LoadingFallback() {
@@ -155,15 +146,6 @@ export default function App() {
           <Route path="pending-providers" element={<PendingProviders />} />
           <Route path="onboarding-progress" element={<OnboardingProgress />} />
           <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="ops" element={<OpsDashboard />} />
-          <Route path="ops/work-queue" element={<OpsWorkQueue />} />
-          <Route path="ops/work-queue/:id" element={<OpsWorkItemDetail />} />
-          <Route path="ops/practices" element={<OpsPracticesList />} />
-          <Route path="ops/practices/:id" element={<OpsPracticeDetail />} />
-          <Route path="ops/staff" element={<OpsStaffPage />} />
-          <Route path="ops/staff/:id" element={<OpsStaffDetail />} />
-          <Route path="ops/sla" element={<OpsSlaDashboard />} />
-          <Route path="ops/activity" element={<OpsActivityLog />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

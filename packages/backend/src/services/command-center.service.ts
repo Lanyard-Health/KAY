@@ -67,7 +67,7 @@ export async function getEnrollmentMatrix(
         lastName: true,
         npi: true,
         status: true,
-        payerEnrollments: {
+        enrollments: {
           select: {
             id: true,
             payerId: true,
@@ -87,7 +87,7 @@ export async function getEnrollmentMatrix(
 
     const rows: MatrixRow[] = providers.map((provider) => {
       const enrollments: Record<string, MatrixCell> = {};
-      for (const enrollment of provider.payerEnrollments) {
+      for (const enrollment of provider.enrollments) {
         const daysSinceUpdate = Math.floor(
           (now - new Date(enrollment.updatedAt).getTime()) / (1000 * 60 * 60 * 24),
         );

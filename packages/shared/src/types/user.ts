@@ -1,6 +1,6 @@
 import type { UUID, AuditInfo } from './common.js';
 
-export type UserRole = 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'ops_staff';
+export type UserRole = 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'lanyard_admin';
 
 export interface User extends AuditInfo {
   id: UUID;
@@ -78,16 +78,19 @@ export const RolePermissions: Record<UserRole, string[]> = {
     'documents:write',
     'reports:read',
   ],
-  ops_staff: [
+  lanyard_admin: [
     'users:read',
+    'users:write',
+    'users:delete',
     'providers:read',
     'providers:write',
+    'providers:delete',
     'documents:read',
     'documents:write',
+    'documents:delete',
     'audit:read',
+    'settings:read',
+    'settings:write',
     'reports:read',
-    'ops:read',
-    'ops:write',
-    'ops:assign',
   ],
 };

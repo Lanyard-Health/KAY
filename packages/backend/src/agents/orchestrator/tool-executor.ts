@@ -33,7 +33,7 @@ async function getProviderProfile(input: { providerId: string }) {
       educations: true,
       documents: true,
       addresses: true,
-      payerEnrollments: true,
+      enrollments: true,
       deaRegistrations: true,
     },
   });

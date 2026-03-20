@@ -40,7 +40,7 @@ export async function globalSearch(
         take: MAX_RESULTS_PER_TYPE,
       }),
 
-      // Practices (admin/ops_staff only)
+      // Practices (super admin only)
       isSuperAdmin
         ? prisma.practice.findMany({
             where: {

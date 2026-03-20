@@ -2,11 +2,9 @@ import cron from 'node-cron';
 import { followUpService } from './followup.service.js';
 import { emailService } from './email.service.js';
 import { isConfigured, generateExpirationAlerts } from './ai.service.js';
-import { getConfiguredPayers, runScheduledDirectoryChecks } from './providerDirectory.service.js';
 import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
-import { checkSlaBreaches } from './opsWorkQueue.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -14,16 +12,12 @@ class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
   private expirationAlertJob: cron.ScheduledTask | null = null;
   private expirationEmailJob: cron.ScheduledTask | null = null;
-  private directoryCheckJob: cron.ScheduledTask | null = null;
   private notificationCleanupJob: cron.ScheduledTask | null = null;
   private caqhSyncJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isExpirationJobRunning = false;
   private isExpirationEmailJobRunning = false;
-  private isDirectoryJobRunning = false;
   private isCaqhSyncJobRunning = false;
-  private slaBreachJob: cron.ScheduledTask | null = null;
-  private isSlaBreachJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -62,17 +56,6 @@ class SchedulerService {
       logger.info('[Scheduler] Email not configured, expiration email reminder job not scheduled.');
     }
 
-    // Schedule weekly directory verification checks
-    if (getConfiguredPayers().length > 0) {
-      const directorySchedule = process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0';
-      this.directoryCheckJob = cron.schedule(directorySchedule, () => {
-        this.runDirectoryCheckJob();
-      });
-      logger.info(`[Scheduler] Directory check job scheduled: ${directorySchedule}`);
-    } else {
-      logger.info('[Scheduler] No directory adapters configured, directory check job not scheduled.');
-    }
-
     // Schedule daily CAQH credential sync (2am)
     if (this.caqhService.isConfigured()) {
       const caqhSchedule = process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *';
@@ -90,12 +73,6 @@ class SchedulerService {
         .catch((err) => logger.error('[Scheduler] Notification cleanup error:', err));
     });
     logger.info('[Scheduler] Notification cleanup job scheduled: 0 4 * * 0');
-
-    // Schedule hourly SLA breach detection
-    this.slaBreachJob = cron.schedule('0 * * * *', () => {
-      this.runSlaBreachJob();
-    });
-    logger.info('[Scheduler] SLA breach detection job scheduled: 0 * * * *');
   }
 
   /**
@@ -203,52 +180,6 @@ class SchedulerService {
   }
 
   /**
-   * Run the directory check job
-   */
-  async runDirectoryCheckJob(): Promise<void> {
-    if (this.isDirectoryJobRunning) {
-      logger.info('[Scheduler] Directory check job already running, skipping...');
-      return;
-    }
-
-    this.isDirectoryJobRunning = true;
-    logger.info('[Scheduler] Starting directory check job...');
-
-    try {
-      const result = await runScheduledDirectoryChecks();
-      logger.info(`[Scheduler] Directory check job completed:`);
-      logger.info(`  - Checked: ${result.checked}`);
-      logger.info(`  - Alerts: ${result.alerts}`);
-      logger.info(`  - Errors: ${result.errors}`);
-    } catch (error) {
-      logger.error('[Scheduler] Directory check job error:', error);
-    } finally {
-      this.isDirectoryJobRunning = false;
-    }
-  }
-
-  /**
-   * Run the SLA breach detection job
-   */
-  private async runSlaBreachJob(): Promise<void> {
-    if (this.isSlaBreachJobRunning) {
-      logger.info('[Scheduler] SLA breach job already running, skipping...');
-      return;
-    }
-    this.isSlaBreachJobRunning = true;
-    try {
-      const count = await checkSlaBreaches();
-      if (count > 0) {
-        logger.info(`[Scheduler] SLA breach job found ${count} new breach(es)`);
-      }
-    } catch (error) {
-      logger.error('[Scheduler] SLA breach job error:', error);
-    } finally {
-      this.isSlaBreachJobRunning = false;
-    }
-  }
-
-  /**
    * Run the CAQH credential sync job for all eligible providers.
    */
   async runCaqhSyncJob(): Promise<{
@@ -351,11 +282,6 @@ class SchedulerService {
       this.expirationEmailJob = null;
       logger.info('[Scheduler] Expiration email reminder job stopped');
     }
-    if (this.directoryCheckJob) {
-      this.directoryCheckJob.stop();
-      this.directoryCheckJob = null;
-      logger.info('[Scheduler] Directory check job stopped');
-    }
     if (this.caqhSyncJob) {
       this.caqhSyncJob.stop();
       this.caqhSyncJob = null;
@@ -365,11 +291,6 @@ class SchedulerService {
       this.notificationCleanupJob.stop();
       this.notificationCleanupJob = null;
       logger.info('[Scheduler] Notification cleanup job stopped');
-    }
-    if (this.slaBreachJob) {
-      this.slaBreachJob.stop();
-      this.slaBreachJob = null;
-      logger.info('[Scheduler] SLA breach detection job stopped');
     }
   }
 
@@ -382,14 +303,11 @@ class SchedulerService {
     followUpJobRunning: boolean;
     expirationAlertJobRunning: boolean;
     expirationEmailJobRunning: boolean;
-    directoryCheckConfigured: boolean;
-    directoryCheckJobRunning: boolean;
     caqhSyncConfigured: boolean;
     caqhSyncJobRunning: boolean;
     followUpSchedule: string;
     expirationAlertSchedule: string;
     expirationEmailSchedule: string;
-    directoryCheckSchedule: string;
     caqhSyncSchedule: string;
   } {
     return {
@@ -398,14 +316,11 @@ class SchedulerService {
       followUpJobRunning: this.isRunning,
       expirationAlertJobRunning: this.isExpirationJobRunning,
       expirationEmailJobRunning: this.isExpirationEmailJobRunning,
-      directoryCheckConfigured: getConfiguredPayers().length > 0,
-      directoryCheckJobRunning: this.isDirectoryJobRunning,
       caqhSyncConfigured: this.caqhService.isConfigured(),
       caqhSyncJobRunning: this.isCaqhSyncJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
       expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
-      directoryCheckSchedule: process.env['DIRECTORY_CHECK_SCHEDULE'] || '0 3 * * 0',
       caqhSyncSchedule: process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *',
     };
   }

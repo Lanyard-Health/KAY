@@ -19,11 +19,6 @@ import {
   BuildingOffice2Icon,
   UserGroupIcon,
   ArrowUpTrayIcon,
-  Cog6ToothIcon,
-  QueueListIcon,
-  ChartBarIcon,
-  WrenchScrewdriverIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -85,20 +80,6 @@ const customerNavGroups: NavGroup[] = [
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
       { name: 'Import Providers', href: '/providers/import', icon: ArrowUpTrayIcon },
-    ],
-  },
-];
-
-const opsNavGroups: NavGroup[] = [
-  {
-    label: 'Operations',
-    items: [
-      { name: 'Ops Dashboard', href: '/ops', icon: HomeIcon },
-      { name: 'Work Queue', href: '/ops/work-queue', icon: QueueListIcon },
-      { name: 'All Practices', href: '/ops/practices', icon: BuildingOffice2Icon },
-      { name: 'Staff', href: '/ops/staff', icon: UserGroupIcon },
-      { name: 'SLA Tracker', href: '/ops/sla', icon: ChartBarIcon },
-      { name: 'Activity Log', href: '/ops/activity', icon: ClipboardDocumentListIcon },
     ],
   },
 ];
@@ -171,67 +152,13 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 }
 
 // ──────────────────────────────────────────────
-// Ops Mode Toggle
-// ──────────────────────────────────────────────
-
-function OpsModeToggle() {
-  const { isOpsMode, toggleOpsMode } = useAuthStore();
-
-  return (
-    <button
-      onClick={toggleOpsMode}
-      className={clsx(
-        'flex items-center gap-2 w-full rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200',
-        isOpsMode
-          ? 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30'
-          : 'bg-white/5 text-primary-200/70 hover:bg-white/10 hover:text-white',
-      )}
-    >
-      {isOpsMode ? (
-        <WrenchScrewdriverIcon className="h-5 w-5" />
-      ) : (
-        <Cog6ToothIcon className="h-5 w-5" />
-      )}
-      {isOpsMode ? 'Ops Mode' : 'Customer Mode'}
-    </button>
-  );
-}
-
-// ──────────────────────────────────────────────
-// Practice Context Banner
-// ──────────────────────────────────────────────
-
-function PracticeContextBanner() {
-  const { opsPracticeContext, exitPracticeContext } = useAuthStore();
-  if (!opsPracticeContext) return null;
-
-  return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
-      <span className="text-sm text-amber-800">
-        Viewing as: <strong>{opsPracticeContext.name}</strong>
-      </span>
-      <button
-        onClick={exitPracticeContext}
-        className="text-sm font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1"
-      >
-        <XMarkIcon className="h-4 w-4" />
-        Exit
-      </button>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
 // Sidebar content (shared between mobile & desktop)
 // ──────────────────────────────────────────────
 
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
-  const { isOpsMode, user } = useAuthStore();
-  const canToggleOps = user?.role === 'admin' || user?.role === 'ops_staff';
+  const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
-  const baseGroups = isOpsMode && canToggleOps
-    ? opsNavGroups
-    : filterNavGroups(customerNavGroups, role);
+  const baseGroups = filterNavGroups(customerNavGroups, role);
 
   // Inject OCR review count badge into OCR Review nav item
   const activeGroups = baseGroups.map(group => ({
@@ -253,12 +180,6 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
         <img src="/logo.png" alt="Lanyard Health" className="h-8 brightness-0 invert" />
         <span className="text-white text-lg font-semibold tracking-tight">Lanyard Health</span>
       </div>
-
-      {canToggleOps && (
-        <div className="-mx-2">
-          <OpsModeToggle />
-        </div>
-      )}
 
       <nav className="flex flex-1 flex-col">
         <ul role="list" className="flex flex-1 flex-col gap-y-4">
@@ -356,9 +277,6 @@ export default function Layout() {
 
       {/* Main content */}
       <div className="lg:pl-72">
-        {/* Practice context banner */}
-        <PracticeContextBanner />
-
         {/* Top navigation */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200/60 bg-white/80 backdrop-blur-xl px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button

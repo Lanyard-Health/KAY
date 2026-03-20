@@ -15,11 +15,11 @@ datasource db {
 // ==========================================
 
 enum UserRole {
+  lanyard_admin
   admin
   credentialing_staff
   provider
   practice_admin
-  ops_staff
 }
 
 enum PracticeStatus {
@@ -32,41 +32,6 @@ enum PracticeRole {
   PRACTICE_ADMIN
   PRACTICE_STAFF
   PROVIDER
-}
-
-enum ServiceTier {
-  full_service
-  white_glove
-  self_serve
-}
-
-enum OpsWorkItemStatus {
-  backlog
-  todo
-  in_progress
-  waiting_external
-  review
-  done
-  cancelled
-}
-
-enum OpsWorkItemPriority {
-  urgent
-  high
-  normal
-  low
-}
-
-enum OpsWorkItemCategory {
-  initial_enrollment
-  re_credentialing
-  follow_up
-  document_collection
-  payer_outreach
-  data_entry
-  verification
-  termination
-  general
 }
 
 enum SubscriptionPlan {
@@ -95,7 +60,7 @@ model User {
   lastLoginAt DateTime? @map("last_login_at")
 
   // Link to provider if role is 'provider'
-  providerId String?   @unique @map("provider_id")
+  providerId String?          @unique @map("provider_id")
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   // Audit
@@ -107,7 +72,6 @@ model User {
   documentsCreated            Document[]               @relation("DocumentCreatedBy")
   documentsReviewed           Document[]               @relation("DocumentReviewedBy")
   documentsReviewedAsReviewer Document[]               @relation("DocumentReviewer")
-  rosterTemplates             RosterTemplate[]
   tasksAssigned               Task[]                   @relation("TaskAssignedTo")
   tasksCompleted              Task[]                   @relation("TaskCompletedBy")
   termLettersReviewed         TerminationLetter[]      @relation("TermLetterReviewedBy")
@@ -117,10 +81,6 @@ model User {
   aetnaEnrollmentRuns         AetnaEnrollmentRun[]
   requestedWorkflows          AgentWorkflow[]          @relation("WorkflowRequester")
   approvalDecisions           PendingApproval[]        @relation("ApprovalDecider")
-  opsAssignments              OpsAssignment[]          @relation("OpsStaff")
-  opsAssignedBy               OpsAssignment[]          @relation("OpsAssigner")
-  opsWorkItems                OpsWorkItem[]
-  opsWorkItemComments         OpsWorkItemComment[]
 
   @@map("users")
 }
@@ -140,16 +100,13 @@ model Practice {
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
-  serviceTier       ServiceTier @default(self_serve) @map("service_tier")
-  primaryOpsStaffId String?     @map("primary_ops_staff_id")
-  slaTargetDays     Int         @default(90) @map("sla_target_days")
-  onboardedAt       DateTime?   @map("onboarded_at")
-  contractStartDate DateTime?   @map("contract_start_date")
-  contractEndDate   DateTime?   @map("contract_end_date")
-  billingEmail      String?     @map("billing_email")
-  taxId             String?     @map("tax_id")
-  groupNpi          String?     @map("group_npi")
-  setupComplete     Boolean     @default(false) @map("setup_complete")
+  onboardedAt       DateTime? @map("onboarded_at")
+  contractStartDate DateTime? @map("contract_start_date")
+  contractEndDate   DateTime? @map("contract_end_date")
+  billingEmail      String?   @map("billing_email")
+  taxId             String?   @map("tax_id")
+  groupNpi          String?   @map("group_npi")
+  setupComplete     Boolean   @default(false) @map("setup_complete")
 
   users                UserPractice[]
   providers            ProviderProfile[]
@@ -157,8 +114,6 @@ model Practice {
   practiceLocations    PracticeLocation[]
   providerImports      ProviderImport[]
   subscription         Subscription?
-  opsAssignments       OpsAssignment[]
-  opsWorkItems         OpsWorkItem[]
 
   @@map("practices")
 }
@@ -352,8 +307,6 @@ model ProviderProfile {
   tasks                  Task[]
   terminationLetters     TerminationLetter[]
   aiRecommendations      AiRecommendation[]
-  directorySnapshots     ProviderDirectorySnapshot[]
-  directoryAlerts        ProviderDirectoryAlert[]
   supervisingPhysicians  SupervisingPhysician[]
   malpracticeClaims      MalpracticeClaim[]
   disclosures            ProviderDisclosure[]
@@ -361,11 +314,8 @@ model ProviderProfile {
   providerIdentifiers    ProviderIdentifier[]
   banking                ProviderBanking[]
   demographics           ProviderDemographics?
-  medicareVerification   MedicareVerification?
   agentWorkflows         AgentWorkflow[]
-  practice               Practice?                   @relation(fields: [practiceId], references: [id])
-  opsAssignments         OpsAssignment[]
-  opsWorkItems           OpsWorkItem[]
+  practice               Practice?               @relation(fields: [practiceId], references: [id])
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
   @@index([status])
@@ -473,8 +423,8 @@ model PracticeLocation {
   practiceId String? @map("practice_id")
 
   // Relations
-  provider ProviderProfile  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  practice Practice? @relation(fields: [practiceId], references: [id])
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice Practice?       @relation(fields: [practiceId], references: [id])
 
   @@map("practice_locations")
 }
@@ -530,7 +480,7 @@ model License {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("licenses")
@@ -571,7 +521,7 @@ model BoardCertification {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("board_certifications")
@@ -609,7 +559,7 @@ model MalpracticeInsurance {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("malpractice_insurances")
@@ -660,7 +610,7 @@ model Education {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("educations")
@@ -828,7 +778,7 @@ model ContinuingEducation {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("continuing_educations")
@@ -1179,7 +1129,7 @@ model Document {
   createdById String?  @map("created_by_id")
 
   // Relations
-  provider             ProviderProfile              @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider             ProviderProfile       @relation(fields: [providerId], references: [id], onDelete: Cascade)
   license              License?              @relation(fields: [linkedLicenseId], references: [id])
   boardCertification   BoardCertification?   @relation(fields: [linkedBoardCertificationId], references: [id])
   malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
@@ -1273,11 +1223,9 @@ model Payer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollments        Enrollment[]
-  directorySnapshots ProviderDirectorySnapshot[]
-  directoryAlerts    ProviderDirectoryAlert[]
-  agentWorkflows     AgentWorkflow[]
-  submissionConfig   PayerSubmissionConfig?
+  enrollments      Enrollment[]
+  agentWorkflows   AgentWorkflow[]
+  submissionConfig PayerSubmissionConfig?
 
   @@map("payers")
 }
@@ -1336,14 +1284,12 @@ model Enrollment {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider          ProviderProfile                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider          ProviderProfile          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer             Payer                    @relation(fields: [payerId], references: [id])
   aiRecommendations AiRecommendation[]
   tasks             Task[]
   workflowSteps     EnrollmentWorkflowStep[]
   aetnaRuns         AetnaEnrollmentRun[]
-  opsAssignments    OpsAssignment[]
-  opsWorkItems      OpsWorkItem[]
 
   @@unique([providerId, payerId])
   @@map("payer_enrollments")
@@ -1386,7 +1332,7 @@ model AiRecommendation {
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
   enrollment Enrollment?      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  provider   ProviderProfile?        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId])
   @@index([providerId])
@@ -1536,26 +1482,6 @@ model Notification {
 }
 
 // ==========================================
-// ROSTER REPORT TEMPLATES
-// ==========================================
-
-model RosterTemplate {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  columns     Json // [{ fieldKey, label, width? }]
-  filters     Json?
-  sortConfig  Json?    @map("sort_config")
-  isShared    Boolean  @default(false) @map("is_shared")
-  createdById String   @map("created_by_id")
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("roster_templates")
-}
-
-// ==========================================
 // PROVIDER PORTAL / SELF-REGISTRATION
 // ==========================================
 
@@ -1603,7 +1529,7 @@ model ProviderApplication {
   reApplication         ProviderApplication? @relation("ReApplication")
 
   // Link to created provider (after approval)
-  providerId String?   @map("provider_id")
+  providerId String?          @map("provider_id")
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   @@index([status])
@@ -1699,7 +1625,7 @@ model Task {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  provider           ProviderProfile            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Cascade)
   enrollment         Enrollment?         @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
@@ -1731,75 +1657,12 @@ model TerminationLetter {
   updatedAt     DateTime                @updatedAt @map("updated_at")
 
   provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  reviewedBy User?    @relation("TermLetterReviewedBy", fields: [reviewedById], references: [id])
+  task       Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reviewedBy User?           @relation("TermLetterReviewedBy", fields: [reviewedById], references: [id])
 
   @@index([providerId])
   @@index([taskId])
   @@map("termination_letters")
-}
-
-// ==========================================
-// PROVIDER DIRECTORY VERIFICATION
-// ==========================================
-
-enum DirectoryListingStatus {
-  listed
-  not_found
-  mismatch
-  error
-}
-
-model ProviderDirectorySnapshot {
-  id         String @id @default(uuid())
-  providerId String @map("provider_id")
-  payerId    String @map("payer_id")
-
-  status       DirectoryListingStatus
-  checkedAt    DateTime               @default(now()) @map("checked_at")
-  fhirResponse Json?                  @map("fhir_response")
-
-  // Parsed fields from FHIR Practitioner resource
-  listedName      String?  @map("listed_name")
-  listedNpi       String?  @map("listed_npi")
-  listedPhone     String?  @map("listed_phone")
-  listedSpecialty String?  @map("listed_specialty")
-  listedAddress   String?  @map("listed_address")
-  networkNames    String[] @default([]) @map("network_names")
-
-  // Mismatch details (JSON array of { field, ours, theirs })
-  mismatches Json? @map("mismatches")
-
-  provider ProviderProfile                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  payer    Payer                    @relation(fields: [payerId], references: [id])
-  alerts   ProviderDirectoryAlert[]
-
-  @@index([providerId, payerId])
-  @@index([checkedAt])
-  @@map("provider_directory_snapshots")
-}
-
-model ProviderDirectoryAlert {
-  id         String @id @default(uuid())
-  providerId String @map("provider_id")
-  payerId    String @map("payer_id")
-  snapshotId String @map("snapshot_id")
-
-  alertType  String
-  message    String
-  details    Json?
-  resolved   Boolean   @default(false)
-  resolvedAt DateTime? @map("resolved_at")
-  resolvedBy String?   @map("resolved_by")
-  createdAt  DateTime  @default(now()) @map("created_at")
-
-  provider ProviderProfile                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  payer    Payer                     @relation(fields: [payerId], references: [id])
-  snapshot ProviderDirectorySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
-
-  @@index([providerId])
-  @@index([resolved])
-  @@map("provider_directory_alerts")
 }
 
 // ==========================================
@@ -1870,8 +1733,8 @@ model EnrollmentWorkflowStep {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollment  Enrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  completedBy User?           @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
+  enrollment  Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  completedBy User?      @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
 
   @@index([enrollmentId])
   @@index([status])
@@ -1884,9 +1747,9 @@ model EnrollmentWorkflowStep {
 // ==========================================
 
 model AetnaEnrollmentRun {
-  id                String          @id @default(uuid())
-  payerEnrollmentId String          @map("payer_enrollment_id")
-  payerEnrollment   Enrollment      @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
+  id                String     @id @default(uuid())
+  payerEnrollmentId String     @map("payer_enrollment_id")
+  payerEnrollment   Enrollment @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
 
   status         AetnaRunStatus @default(pending)
   aetnaRequestId String?        @map("aetna_request_id")
@@ -1911,38 +1774,6 @@ model AetnaEnrollmentRun {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("aetna_enrollment_runs")
-}
-
-// ==========================================
-// MEDICARE VERIFICATION (PECOS)
-// ==========================================
-
-enum MedicareStatus {
-  ENROLLED
-  NOT_ENROLLED
-  UNVERIFIED
-}
-
-model MedicareVerification {
-  id         String   @id @default(uuid())
-  providerId String   @unique @map("provider_id")
-  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  status     MedicareStatus @default(UNVERIFIED)
-  verifiedAt DateTime?      @map("verified_at")
-
-  npi              String?
-  pacId            String?  @map("pac_id")
-  enrollmentCount  Int      @default(0) @map("enrollment_count")
-  enrollmentStates String[] @default([]) @map("enrollment_states")
-  rawData          Json?    @map("raw_data")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@index([verifiedAt])
-  @@map("medicare_verifications")
 }
 
 // ==========================================
@@ -1985,13 +1816,13 @@ model AgentWorkflow {
   plan       Json?
 
   // Relations
-  providerId   String   @map("provider_id")
+  providerId   String          @map("provider_id")
   provider     ProviderProfile @relation(fields: [providerId], references: [id])
-  payerId      String?  @map("payer_id")
-  payer        Payer?   @relation(fields: [payerId], references: [id])
-  enrollmentId String?  @map("enrollment_id")
-  requestedBy  String   @map("requested_by")
-  requester    User     @relation("WorkflowRequester", fields: [requestedBy], references: [id])
+  payerId      String?         @map("payer_id")
+  payer        Payer?          @relation(fields: [payerId], references: [id])
+  enrollmentId String?         @map("enrollment_id")
+  requestedBy  String          @map("requested_by")
+  requester    User            @relation("WorkflowRequester", fields: [requestedBy], references: [id])
 
   // Child relations
   tasks     AgentTask[]
@@ -2173,124 +2004,4 @@ model Invoice {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("invoices")
-}
-
-// =====================
-// Ops Management
-// =====================
-
-model OpsAssignment {
-  id      String @id @default(uuid())
-  staffId String @map("staff_id")
-  staff   User   @relation("OpsStaff", fields: [staffId], references: [id])
-
-  practiceId String?   @map("practice_id")
-  practice   Practice? @relation(fields: [practiceId], references: [id])
-
-  providerId String?   @map("provider_id")
-  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
-
-  enrollmentId String?     @map("enrollment_id")
-  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id])
-
-  isPrimary    Boolean   @default(true) @map("is_primary")
-  assignedAt   DateTime  @default(now()) @map("assigned_at")
-  assignedById String    @map("assigned_by_id")
-  assignedBy   User      @relation("OpsAssigner", fields: [assignedById], references: [id])
-  unassignedAt DateTime? @map("unassigned_at")
-  notes        String?
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("ops_assignments")
-}
-
-model OpsWorkItem {
-  id String @id @default(uuid())
-
-  practiceId String?   @map("practice_id")
-  practice   Practice? @relation(fields: [practiceId], references: [id])
-
-  providerId String?   @map("provider_id")
-  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
-
-  enrollmentId String?     @map("enrollment_id")
-  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id])
-
-  title       String
-  description String?             @db.Text
-  category    OpsWorkItemCategory
-  status      OpsWorkItemStatus   @default(todo)
-  priority    OpsWorkItemPriority @default(normal)
-
-  assignedToId String? @map("assigned_to_id")
-  assignedTo   User?   @relation(fields: [assignedToId], references: [id])
-
-  dueDate          DateTime? @map("due_date")
-  slaDeadline      DateTime? @map("sla_deadline")
-  startedAt        DateTime? @map("started_at")
-  completedAt      DateTime? @map("completed_at")
-  estimatedMinutes Int?      @map("estimated_minutes")
-  actualMinutes    Int?      @map("actual_minutes")
-  blockerNotes     String?   @map("blocker_notes")
-
-  parentWorkItemId String?       @map("parent_work_item_id")
-  parentWorkItem   OpsWorkItem?  @relation("WorkItemHierarchy", fields: [parentWorkItemId], references: [id])
-  childWorkItems   OpsWorkItem[] @relation("WorkItemHierarchy")
-
-  sourceTaskId String? @map("source_task_id")
-
-  comments OpsWorkItemComment[]
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([assignedToId, status])
-  @@index([status, priority])
-  @@index([dueDate])
-  @@index([slaDeadline])
-  @@map("ops_work_items")
-}
-
-model OpsWorkItemComment {
-  id         String      @id @default(uuid())
-  workItemId String      @map("work_item_id")
-  workItem   OpsWorkItem @relation(fields: [workItemId], references: [id], onDelete: Cascade)
-
-  authorId String @map("author_id")
-  author   User   @relation(fields: [authorId], references: [id])
-
-  content    String  @db.Text
-  isInternal Boolean @default(true) @map("is_internal")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([workItemId])
-  @@map("ops_work_item_comments")
-}
-
-model BugFingerprint {
-  id              String    @id @default(uuid())
-  hash            String    @unique
-  source          String
-  title           String
-  errorClass      String?
-  linearIssueId   String?
-  linearIssueUrl  String?
-  currentSeverity String    @default("medium")
-  occurrenceCount Int       @default(1)
-  pendingSync     Boolean   @default(false)
-  firstSeenAt     DateTime  @default(now())
-  lastSeenAt      DateTime  @default(now())
-  resolvedAt      DateTime?
-  metadata        Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@index([hash])
-  @@index([source])
-  @@index([lastSeenAt])
-  @@index([pendingSync])
 }

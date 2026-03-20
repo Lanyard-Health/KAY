@@ -302,7 +302,7 @@ export async function getProviderReadiness(
       malpracticeInsurances: {
         select: { expirationDate: true, status: true },
       },
-      payerEnrollments: {
+      enrollments: {
         select: { status: true },
       },
     },
@@ -317,7 +317,7 @@ export async function getProviderReadiness(
       (m) => m.status === 'active' && m.expirationDate > today,
     );
 
-    const hasActiveEnrollment = p.payerEnrollments.some(
+    const hasActiveEnrollment = p.enrollments.some(
       (e) => ACTIVE_ENROLLMENT_STATUSES.has(e.status),
     );
 

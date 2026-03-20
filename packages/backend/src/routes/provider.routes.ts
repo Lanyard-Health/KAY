@@ -8,7 +8,6 @@ import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
 import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
 import { invalidateCache } from '../utils/cache.js';
-import type { MedicareStatus } from '@prisma/client';
 
 // Fields to NEVER return in API responses
 const SENSITIVE_FIELDS = ['ssnEncrypted', 'caqhPassword', 'caqhUsername'] as const;
@@ -52,11 +51,6 @@ providerRoutes.get(
           ],
         }),
         ...(status && { status: status as 'active' | 'inactive' | 'pending' }),
-        ...(['ENROLLED', 'NOT_ENROLLED', 'UNVERIFIED'].includes(req.query['medicareStatus'] as string)
-          ? req.query['medicareStatus'] === 'UNVERIFIED'
-            ? { OR: [{ medicareVerification: null }, { medicareVerification: { status: 'UNVERIFIED' as MedicareStatus } }] }
-            : { medicareVerification: { status: req.query['medicareStatus'] as MedicareStatus } }
-          : {}),
       };
 
       const [providers, total] = await Promise.all([
@@ -88,12 +82,6 @@ providerRoutes.get(
                 licenses: true,
                 boardCertifications: true,
                 documents: true,
-              },
-            },
-            medicareVerification: {
-              select: {
-                status: true,
-                verifiedAt: true,
               },
             },
           },
@@ -147,7 +135,6 @@ providerRoutes.get(
               createdAt: true,
             },
           },
-          medicareVerification: true,
           practice: { select: { id: true, name: true, status: true } },
         },
       });

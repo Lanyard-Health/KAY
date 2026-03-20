@@ -8,7 +8,7 @@ import { triggerTerminationWorkflow } from '../services/terminationWorkflow.serv
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { autoCreateWorkItems } from '../services/opsWorkQueue.service.js';
+
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
@@ -276,9 +276,9 @@ router.post(
       // Look up practice SLA target days for the SLA deadline
       const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
-        select: { practiceId: true, practice: { select: { slaTargetDays: true } } },
+        select: { practiceId: true },
       });
-      const slaTargetDays = provider?.practice?.slaTargetDays ?? 90;
+      const slaTargetDays = 90;
       const slaTargetDate = new Date(Date.now() + slaTargetDays * 86_400_000);
 
       let enrollment;
@@ -320,14 +320,8 @@ router.post(
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 
-      // Fire-and-forget: auto-create ops work items from workflow steps
-      autoCreateWorkItems(enrollment.id).catch((err) => {
-        logger.error('[Enrollment] Failed to auto-create ops work items:', err);
-      });
-
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');
-      invalidateCache('ops:');
       res.status(201).json({
         success: true,
         data: {

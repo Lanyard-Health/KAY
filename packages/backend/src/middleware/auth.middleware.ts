@@ -253,23 +253,23 @@ export async function authenticate(
         return;
       }
 
-      if (devRole === 'ops_staff') {
-        const DEV_OPS_STAFF_COGNITO_ID = 'dev-ops-staff-cognito-id';
-        const DEV_OPS_STAFF_EMAIL = 'opsstaff@dev.local';
+      if (devRole === 'lanyard_admin') {
+        const DEV_LANYARD_ADMIN_COGNITO_ID = 'dev-lanyard-admin-cognito-id';
+        const DEV_LANYARD_ADMIN_EMAIL = 'lanyard-admin@dev.local';
 
         let user = await prisma.user.findUnique({
-          where: { cognitoId: DEV_OPS_STAFF_COGNITO_ID },
+          where: { cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID },
         });
 
         if (!user) {
           user = await prisma.user.findFirst({
-            where: { email: DEV_OPS_STAFF_EMAIL },
+            where: { email: DEV_LANYARD_ADMIN_EMAIL },
           });
 
           if (user) {
             user = await prisma.user.update({
               where: { id: user.id },
-              data: { cognitoId: DEV_OPS_STAFF_COGNITO_ID, role: 'ops_staff' },
+              data: { cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID, role: 'lanyard_admin' },
             });
           }
         }
@@ -277,15 +277,15 @@ export async function authenticate(
         if (!user) {
           user = await prisma.user.create({
             data: {
-              cognitoId: DEV_OPS_STAFF_COGNITO_ID,
-              email: DEV_OPS_STAFF_EMAIL,
-              firstName: 'Dev',
-              lastName: 'OpsStaff',
-              role: 'ops_staff',
+              cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID,
+              email: DEV_LANYARD_ADMIN_EMAIL,
+              firstName: 'Lanyard',
+              lastName: 'Admin',
+              role: 'lanyard_admin',
               isActive: true,
             },
           });
-          logger.info('Created development ops_staff user');
+          logger.info('Created development lanyard_admin user');
         }
 
         req.user = {
@@ -461,8 +461,8 @@ export function requireProviderAccess(
   const { role, providerId: userProviderId } = req.user;
   const requestedProviderId = req.params['providerId'] || req.body?.providerId;
 
-  // Admins, credentialing staff, and practice admins can access providers (scoped by practice middleware)
-  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin' || role === 'ops_staff') {
+  // Admins, credentialing staff, practice admins, and lanyard admins can access providers (scoped by practice middleware)
+  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin' || role === 'lanyard_admin') {
     next();
     return;
   }
