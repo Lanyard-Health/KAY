@@ -335,11 +335,11 @@ server.listen(PORT, async () => {
       if (providerUser) {
         logger.info(`Dev provider user ready (id: ${providerUser.id}, providerId: ${providerUser.providerId})`);
       } else {
-        let provider = await prisma.provider.findUnique({
+        let provider = await prisma.providerProfile.findUnique({
           where: { npi: '1234567890' },
         });
         if (!provider) {
-          provider = await prisma.provider.create({
+          provider = await prisma.providerProfile.create({
             data: {
               firstName: 'Dev',
               lastName: 'Provider',

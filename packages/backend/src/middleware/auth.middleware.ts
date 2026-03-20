@@ -104,12 +104,12 @@ export async function authenticate(
 
         if (!user) {
           // Find or create a provider record
-          let provider = await prisma.provider.findUnique({
+          let provider = await prisma.providerProfile.findUnique({
             where: { npi: '1234567890' },
           });
 
           if (!provider) {
-            provider = await prisma.provider.create({
+            provider = await prisma.providerProfile.create({
               data: {
                 firstName: 'Dev',
                 lastName: 'Provider',
@@ -138,12 +138,12 @@ export async function authenticate(
           logger.info('Created development provider user with linked provider record');
         } else if (!user.providerId) {
           // User exists but no linked provider — find or create one
-          let provider = await prisma.provider.findUnique({
+          let provider = await prisma.providerProfile.findUnique({
             where: { npi: '1234567890' },
           });
 
           if (!provider) {
-            provider = await prisma.provider.create({
+            provider = await prisma.providerProfile.create({
               data: {
                 firstName: 'Dev',
                 lastName: 'Provider',

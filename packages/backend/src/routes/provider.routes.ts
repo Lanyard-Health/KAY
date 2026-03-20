@@ -60,7 +60,7 @@ providerRoutes.get(
       };
 
       const [providers, total] = await Promise.all([
-        prisma.provider.findMany({
+        prisma.providerProfile.findMany({
           where,
           skip: (page - 1) * pageSize,
           take: pageSize,
@@ -98,7 +98,7 @@ providerRoutes.get(
             },
           },
         }),
-        prisma.provider.count({ where }),
+        prisma.providerProfile.count({ where }),
       ]);
 
       res.json({
@@ -123,7 +123,7 @@ providerRoutes.get(
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
         include: {
           addresses: true,
@@ -180,7 +180,7 @@ providerRoutes.post(
     try {
       const validatedData = createProviderSchema.parse(req.body);
 
-      const provider = await prisma.provider.create({
+      const provider = await prisma.providerProfile.create({
         data: {
           ...validatedData,
           dateOfBirth: new Date(validatedData.dateOfBirth),
@@ -212,7 +212,7 @@ providerRoutes.put(
     try {
       const validatedData = updateProviderSchema.parse(req.body);
 
-      const existing = await prisma.provider.findUnique({
+      const existing = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
 
@@ -220,7 +220,7 @@ providerRoutes.put(
         throw new NotFoundError('Provider');
       }
 
-      const provider = await prisma.provider.update({
+      const provider = await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
           ...validatedData,
@@ -250,7 +250,7 @@ providerRoutes.delete(
   authorize('admin'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const existing = await prisma.provider.findUnique({
+      const existing = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
 
@@ -259,7 +259,7 @@ providerRoutes.delete(
       }
 
       // Soft delete by setting status to inactive
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
           status: 'inactive',
@@ -289,7 +289,7 @@ providerRoutes.get(
     try {
       const format = req.query['format'] as string || 'caqh';
 
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
         include: {
           addresses: true,

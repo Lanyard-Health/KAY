@@ -17,7 +17,7 @@ export interface ProviderAddress {
   isPrimary: boolean;
 }
 
-export interface Provider extends AuditInfo {
+export interface ProviderProfile extends AuditInfo {
   id: UUID;
 
   // Basic Info
@@ -74,6 +74,9 @@ export interface CreateProviderDto {
   specialties?: string[];
   languages?: string[];
 }
+
+// Backward-compat alias — prefer ProviderProfile for new code
+export type Provider = ProviderProfile;
 
 export interface UpdateProviderDto extends Partial<CreateProviderDto> {
   status?: ProviderStatus;

@@ -37,7 +37,7 @@ async function upsertVerification(
  * and persist the result to the database.
  */
 export async function verifyProvider(providerId: string) {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: { npi: true },
   });
@@ -64,7 +64,7 @@ export async function verifyProvider(providerId: string) {
  * Processes in chunks of 5 using Promise.allSettled for resilience.
  */
 export async function verifyProviderBatch(providerIds: string[]) {
-  const providers = await prisma.provider.findMany({
+  const providers = await prisma.providerProfile.findMany({
     where: { id: { in: providerIds } },
     select: { id: true, npi: true },
   });

@@ -1,8 +1,8 @@
-import type { PayerEnrollment, Provider, Payer, PracticeLocation } from '@prisma/client';
+import type { PayerEnrollment, ProviderProfile, Payer, PracticeLocation } from '@prisma/client';
 import { emailService } from './email.service.js';
 import { prisma } from '../utils/prisma.js';
 
-type ProviderWithLocations = Provider & {
+type ProviderWithLocations = ProviderProfile & {
   practiceLocations: PracticeLocation[];
 };
 

@@ -30,7 +30,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const practiceFilter = getPracticeProviderFilter(req);
 
     // Provider counts by status — single groupBy query
-    const statusCounts = await prisma.provider.groupBy({
+    const statusCounts = await prisma.providerProfile.groupBy({
       by: ['status'],
       _count: true,
     });
@@ -45,7 +45,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     }
 
     // Incomplete providers: active/pending providers missing documents, licenses, or certs
-    const incompleteProviders = await prisma.provider.findMany({
+    const incompleteProviders = await prisma.providerProfile.findMany({
       where: {
         status: { in: ['active', 'pending'] },
         OR: [
@@ -64,7 +64,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    const incompleteCount = await prisma.provider.count({
+    const incompleteCount = await prisma.providerProfile.count({
       where: {
         status: { in: ['active', 'pending'] },
         OR: [

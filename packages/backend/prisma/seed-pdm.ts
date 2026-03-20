@@ -22,7 +22,7 @@ async function main() {
   }
 
   // Get existing providers
-  const providers = await prisma.provider.findMany({
+  const providers = await prisma.providerProfile.findMany({
     take: 5,
     include: {
       payerEnrollments: {
@@ -35,7 +35,7 @@ async function main() {
     console.log('No providers found. Creating a test provider...\n');
 
     // Create a test provider
-    const provider = await prisma.provider.create({
+    const provider = await prisma.providerProfile.create({
       data: {
         npi: '1234567890',
         firstName: 'John',
@@ -155,7 +155,7 @@ async function main() {
 
     for (const provider of providers) {
       // Update provider with directory change timestamp
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: provider.id },
         data: {
           lastDirectoryUpdateAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), // 20 days ago

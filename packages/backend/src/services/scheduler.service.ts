@@ -271,7 +271,7 @@ class SchedulerService {
 
     try {
       // Find all providers with verified CAQH credentials
-      const providers = await prisma.provider.findMany({
+      const providers = await prisma.providerProfile.findMany({
         where: {
           caqhProviderId: { not: null },
           caqhCredentialsValid: true,

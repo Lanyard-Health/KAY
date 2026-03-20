@@ -56,7 +56,7 @@ documentRoutes.post(
       const data = uploadUrlRequestSchema.parse(req.body);
 
       // Verify provider access
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: data.providerId },
       });
 

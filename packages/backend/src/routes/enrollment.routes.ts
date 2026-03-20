@@ -36,7 +36,7 @@ const router = Router();
 async function blockPendingVerification(req: Request, res: Response, next: NextFunction) {
   const user = req.user;
   if (user?.role === 'provider' && user.providerId) {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: user.providerId },
       select: { status: true },
     });
@@ -274,7 +274,7 @@ router.post(
       }
 
       // Look up practice SLA target days for the SLA deadline
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
         select: { practiceId: true, practice: { select: { slaTargetDays: true } } },
       });

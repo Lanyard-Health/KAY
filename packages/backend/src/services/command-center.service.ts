@@ -56,7 +56,7 @@ export async function getEnrollmentMatrix(
     });
 
     // Get all active/pending providers with their enrollments
-    const providers = await prisma.provider.findMany({
+    const providers = await prisma.providerProfile.findMany({
       where: {
         status: { in: ['active', 'pending'] },
         ...practiceFilter,

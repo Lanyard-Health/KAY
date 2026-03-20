@@ -26,7 +26,7 @@ export async function globalSearch(
   try {
     const [providers, practices, enrollments, payers, documents] = await Promise.all([
       // Providers
-      prisma.provider.findMany({
+      prisma.providerProfile.findMany({
         where: {
           ...practiceFilter,
           OR: [

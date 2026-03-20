@@ -31,7 +31,7 @@ interface Payer {
   payerType: string;
 }
 
-interface Provider {
+interface ProviderProfile {
   id: string;
   firstName: string;
   lastName: string;
@@ -53,7 +53,7 @@ interface Enrollment {
   providerNumber: string | null;
   notes: string | null;
   payer: Payer;
-  provider: Provider;
+  provider: ProviderProfile;
   workflowProgress?: { total: number; completed: number };
 }
 
@@ -170,7 +170,7 @@ export default function EnrollmentsList() {
 
   // New enrollment modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
   const [providerSearch, setProviderSearch] = useState('');
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [payerSearch, setPayerSearch] = useState('');
@@ -190,7 +190,7 @@ export default function EnrollmentsList() {
   const { data: providersData } = useQuery({
     queryKey: ['all-providers'],
     queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: { data: Provider[]; total: number } }>('/providers?pageSize=100');
+      const response = await api.get<{ success: boolean; data: { data: ProviderProfile[]; total: number } }>('/providers?pageSize=100');
       return response.data;
     },
   });
@@ -205,7 +205,7 @@ export default function EnrollmentsList() {
   });
 
   const enrollments = (data?.data as Enrollment[] | undefined) || [];
-  const providers = (providersData?.data?.data as Provider[] | undefined) || [];
+  const providers = (providersData?.data?.data as ProviderProfile[] | undefined) || [];
   const payers = (payersData?.data as Payer[] | undefined) || [];
 
   // Filter providers based on search
@@ -326,7 +326,7 @@ export default function EnrollmentsList() {
     },
   });
 
-  const openModal = (provider?: Provider) => {
+  const openModal = (provider?: ProviderProfile) => {
     setSelectedProvider(provider || null);
     setProviderSearch('');
     setShowProviderDropdown(false);

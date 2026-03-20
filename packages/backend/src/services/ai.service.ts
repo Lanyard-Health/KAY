@@ -825,7 +825,7 @@ export async function getContextualRecommendations(
   const now = new Date();
 
   if (entityType === 'provider') {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: entityId },
       include: {
         licenses: { where: { status: 'active' } },

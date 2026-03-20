@@ -50,7 +50,7 @@ export async function checkRejectedApplication(npi: string) {
  * Check if a provider with this NPI already exists
  */
 export async function checkExistingProvider(npi: string) {
-  return prisma.provider.findUnique({
+  return prisma.providerProfile.findUnique({
     where: { npi },
     select: { id: true, npi: true },
   });
@@ -258,7 +258,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
 
     // 6. Create Provider + User + Application in a transaction
     const { provider, application, newUser } = await prisma.$transaction(async (tx) => {
-      const provider = await tx.provider.create({
+      const provider = await tx.providerProfile.create({
         data: {
           npi: data.npi,
           firstName: data.firstName,
@@ -427,7 +427,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
   // Self-serve path: provider already has a User + Provider record (created during selfServeSignup)
   if (application.providerId) {
     const updatedApplication = await prisma.$transaction(async (tx) => {
-      await tx.provider.update({
+      await tx.providerProfile.update({
         where: { id: application.providerId! },
         data: { status: 'active' },
       });
@@ -512,7 +512,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
   // 2. Create Provider + User records in a transaction
   try {
     const { provider, updatedApplication, newUser } = await prisma.$transaction(async (tx) => {
-      const provider = await tx.provider.create({
+      const provider = await tx.providerProfile.create({
         data: {
           npi: application.npi,
           firstName: application.firstName,

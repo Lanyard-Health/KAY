@@ -17,7 +17,7 @@ import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList
 import clsx from 'clsx';
 import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
 
-interface Provider {
+interface ProviderProfile {
   id: string;
   npi: string;
   firstName: string;
@@ -37,7 +37,7 @@ interface Provider {
 }
 
 // Calculate provider completion percentage
-function calculateProgress(provider: Provider): { progress: number; details: string[] } {
+function calculateProgress(provider: ProviderProfile): { progress: number; details: string[] } {
   const requirements = [
     { name: 'Documents', met: provider._count.documents > 0, weight: 40 },
     { name: 'Licenses', met: provider._count.licenses > 0, weight: 30 },
@@ -172,7 +172,7 @@ export default function ProviderList() {
             <button
               type="button"
               onClick={() => {
-                const ids = data?.data?.map((p: Provider) => p.id) || [];
+                const ids = data?.data?.map((p: ProviderProfile) => p.id) || [];
                 if (ids.length > 0) verifyBatchMutation.mutate(ids);
               }}
               disabled={verifyBatchMutation.isPending || !data?.data?.length}
@@ -233,7 +233,7 @@ export default function ProviderList() {
       ) : viewMode === 'cards' ? (
         /* Cards View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data?.data?.map((provider: Provider) => {
+          {data?.data?.map((provider: ProviderProfile) => {
             const { progress, details } = calculateProgress(provider);
             const StatusIcon = statusIcons[provider.status];
 
@@ -356,7 +356,7 @@ export default function ProviderList() {
               </tr>
             </thead>
             <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
-              {data?.data?.map((provider: Provider, index: number) => {
+              {data?.data?.map((provider: ProviderProfile, index: number) => {
                 const { progress } = calculateProgress(provider);
                 const StatusIcon = statusIcons[provider.status];
 

@@ -96,8 +96,8 @@ export async function getOpsDashboardStats(): Promise<OpsDashboardStats> {
     ] = await Promise.all([
       prisma.practice.count(),
       prisma.practice.groupBy({ by: ['serviceTier'], _count: true }),
-      prisma.provider.count(),
-      prisma.provider.groupBy({ by: ['status'], _count: true }),
+      prisma.providerProfile.count(),
+      prisma.providerProfile.groupBy({ by: ['status'], _count: true }),
       prisma.payerEnrollment.count(),
       prisma.payerEnrollment.groupBy({ by: ['status'], _count: true }),
       prisma.payerEnrollment.findMany({

@@ -192,7 +192,7 @@ export class CaqhCredentialsService {
    * Verify credentials and update the provider record
    */
   async verifyAndUpdateProvider(providerId: string): Promise<CredentialVerificationResult> {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: {
         id: true,
@@ -240,7 +240,7 @@ export class CaqhCredentialsService {
     );
 
     // Update the provider record with verification result
-    await prisma.provider.update({
+    await prisma.providerProfile.update({
       where: { id: providerId },
       data: {
         caqhCredentialsValid: result.errorType === 'mfa_required' ? null : result.valid,
@@ -259,7 +259,7 @@ export class CaqhCredentialsService {
     username: string,
     password: string
   ): Promise<void> {
-    await prisma.provider.update({
+    await prisma.providerProfile.update({
       where: { id: providerId },
       data: {
         caqhUsername: username,
@@ -282,7 +282,7 @@ export class CaqhCredentialsService {
     caqhStatus: string | null;
     caqhLastSync: Date | null;
   }> {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: {
         caqhUsername: true,

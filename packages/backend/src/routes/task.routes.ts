@@ -100,7 +100,7 @@ router.post(
       const validated = createTaskSchema.parse(req.body);
 
       // Verify provider exists
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
         select: { id: true },
       });

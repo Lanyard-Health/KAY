@@ -474,7 +474,7 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
       });
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       include: {
         payerEnrollments: {
@@ -532,7 +532,7 @@ router.get('/me/completeness', authenticate, authorize('provider'), async (req: 
       });
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       include: {
         practiceLocations: true,

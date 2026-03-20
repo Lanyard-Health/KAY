@@ -106,7 +106,7 @@ export async function generateTerminationLetter(
   taskId: string
 ) {
   // 1. Fetch provider
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: {
       firstName: true,

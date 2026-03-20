@@ -24,7 +24,7 @@ const TASK_TYPE_MAP: Record<string, { agentType: string; queue: string }> = {
 // ==========================================
 
 async function getProviderProfile(input: { providerId: string }) {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: input.providerId },
     include: {
       licenses: true,
@@ -69,7 +69,7 @@ async function getPayerRequirements(input: { payerId: string }) {
 
 async function checkCredentialCompleteness(input: { providerId: string; payerId: string }) {
   // Load provider credentials
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: input.providerId },
     include: {
       licenses: true,

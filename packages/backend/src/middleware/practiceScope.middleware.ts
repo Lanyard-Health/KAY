@@ -110,7 +110,7 @@ export async function requirePracticeProvider(
   if (!providerId) return next();
 
   try {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: { practiceId: true },
     });
@@ -164,7 +164,7 @@ export async function validateProviderPracticeAccess(
 ): Promise<boolean> {
   if (req.practiceScope?.isSuperAdmin) return true;
 
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: { practiceId: true },
   });

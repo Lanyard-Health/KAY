@@ -235,7 +235,7 @@ registerAdapter(new AetnaDirectoryAdapter());
 // ==========================================
 
 export async function verifyProvider(providerId: string, payerId: string) {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
   });
   if (!provider) throw new Error('Provider not found');

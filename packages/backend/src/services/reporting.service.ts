@@ -290,7 +290,7 @@ export async function getProviderReadiness(
   const start = Date.now();
   const today = new Date();
 
-  const providers = await prisma.provider.findMany({
+  const providers = await prisma.providerProfile.findMany({
     where: { practiceId },
     select: {
       id: true,
@@ -365,7 +365,7 @@ export async function getGettingStartedStatus(
   const start = Date.now();
 
   const [providerCount, documentCount, enrollmentCount] = await Promise.all([
-    prisma.provider.count({
+    prisma.providerProfile.count({
       where: { practiceId },
     }),
     prisma.document.count({

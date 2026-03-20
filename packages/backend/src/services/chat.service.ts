@@ -105,7 +105,7 @@ async function fetchProviderContext(req: Request, searchTerms?: string) {
     ];
   }
 
-  return prisma.provider.findMany({
+  return prisma.providerProfile.findMany({
     where,
     select: {
       id: true,

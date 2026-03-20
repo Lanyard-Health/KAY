@@ -12,7 +12,7 @@ function check(condition: boolean, field: string, label: string, fixPath: string
 }
 
 export async function checkAetnaReadiness(providerId: string): Promise<ReadinessResult> {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     include: {
       practice: true,

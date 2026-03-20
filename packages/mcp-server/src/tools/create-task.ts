@@ -29,7 +29,7 @@ export function registerCreateTask(server: McpServer, ctx: UserContext) {
       }
 
       // Verify provider exists and is in practice scope
-      const provider = await prisma.provider.findFirst({
+      const provider = await prisma.providerProfile.findFirst({
         where: {
           id: providerId,
           ...getPracticeProviderFilter(ctx),

@@ -110,7 +110,7 @@ agentRoutes.post(
 
       // Verify provider belongs to caller's practice (multi-tenancy check)
       if (!req.practiceScope?.isSuperAdmin) {
-        const provider = await prisma.provider.findFirst({
+        const provider = await prisma.providerProfile.findFirst({
           where: {
             id: parsed.data.providerId,
             practiceId: { in: req.practiceScope?.practiceIds ?? [] },
@@ -173,7 +173,7 @@ agentRoutes.get(
       }
       // Practice-scope check
       if (!req.practiceScope?.isSuperAdmin) {
-        const provider = await prisma.provider.findFirst({
+        const provider = await prisma.providerProfile.findFirst({
           where: {
             id: workflow.providerId,
             practiceId: { in: req.practiceScope?.practiceIds ?? [] },
@@ -205,7 +205,7 @@ agentRoutes.get(
           select: { providerId: true },
         });
         if (!wf) { res.status(404).json({ error: 'Workflow not found' }); return; }
-        const p = await prisma.provider.findFirst({
+        const p = await prisma.providerProfile.findFirst({
           where: { id: wf.providerId, practiceId: { in: req.practiceScope?.practiceIds ?? [] } },
           select: { id: true },
         });
@@ -240,7 +240,7 @@ agentRoutes.patch(
           select: { providerId: true },
         });
         if (!wf) { res.status(404).json({ error: 'Workflow not found' }); return; }
-        const p = await prisma.provider.findFirst({
+        const p = await prisma.providerProfile.findFirst({
           where: { id: wf.providerId, practiceId: { in: req.practiceScope?.practiceIds ?? [] } },
           select: { id: true },
         });
@@ -327,7 +327,7 @@ async function verifyApprovalAccess(req: Request, approvalId: string): Promise<b
     select: { workflow: { select: { providerId: true } } },
   });
   if (!approval) return false;
-  const provider = await prisma.provider.findFirst({
+  const provider = await prisma.providerProfile.findFirst({
     where: {
       id: approval.workflow.providerId,
       practiceId: { in: req.practiceScope?.practiceIds ?? [] },

@@ -8,7 +8,7 @@ import type { AetnaProviderData } from './types.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 async function loadProviderData(providerId: string, userId: string): Promise<AetnaProviderData> {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     include: {
       practice: true,

@@ -32,7 +32,7 @@ export function registerGetPdmAttestationStatus(server: McpServer, ctx: UserCont
     },
     async ({ providerId }) => {
       // Verify practice access
-      const provider = await prisma.provider.findFirst({
+      const provider = await prisma.providerProfile.findFirst({
         where: {
           id: providerId,
           ...getPracticeProviderFilter(ctx),

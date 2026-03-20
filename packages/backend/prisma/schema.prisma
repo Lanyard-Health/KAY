@@ -96,7 +96,7 @@ model User {
 
   // Link to provider if role is 'provider'
   providerId String?   @unique @map("provider_id")
-  provider   Provider? @relation(fields: [providerId], references: [id])
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
@@ -152,7 +152,7 @@ model Practice {
   setupComplete     Boolean     @default(false) @map("setup_complete")
 
   users                UserPractice[]
-  providers            Provider[]
+  providers            ProviderProfile[]
   providerApplications ProviderApplication[]
   practiceLocations    PracticeLocation[]
   providerImports      ProviderImport[]
@@ -271,7 +271,7 @@ enum AetnaRunStatus {
   timed_out
 }
 
-model Provider {
+model ProviderProfile {
   id String @id @default(uuid())
 
   // Basic Info
@@ -393,7 +393,7 @@ model ProviderAddress {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_addresses")
 }
@@ -473,7 +473,7 @@ model PracticeLocation {
   practiceId String? @map("practice_id")
 
   // Relations
-  provider Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   practice Practice? @relation(fields: [practiceId], references: [id])
 
   @@map("practice_locations")
@@ -530,7 +530,7 @@ model License {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("licenses")
@@ -571,7 +571,7 @@ model BoardCertification {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("board_certifications")
@@ -609,7 +609,7 @@ model MalpracticeInsurance {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("malpractice_insurances")
@@ -660,7 +660,7 @@ model Education {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("educations")
@@ -694,7 +694,7 @@ model WorkHistory {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("work_histories")
 }
@@ -744,7 +744,7 @@ model HospitalAffiliation {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("hospital_affiliations")
 }
@@ -770,7 +770,7 @@ model ProfessionalReference {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("professional_references")
 }
@@ -804,7 +804,7 @@ model DisciplinaryAction {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("disciplinary_actions")
 }
@@ -828,7 +828,7 @@ model ContinuingEducation {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider  Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider  ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
   @@map("continuing_educations")
@@ -931,7 +931,7 @@ model SupervisingPhysician {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("supervising_physicians")
 }
@@ -960,7 +960,7 @@ model MalpracticeClaim {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("malpractice_claims")
 }
@@ -984,7 +984,7 @@ model ProviderDisclosure {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_disclosures")
 }
@@ -1008,7 +1008,7 @@ model DeaRegistration {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("dea_registrations")
 }
@@ -1033,7 +1033,7 @@ model ProviderIdentifier {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_identifiers")
 }
@@ -1062,7 +1062,7 @@ model ProviderBanking {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_banking")
 }
@@ -1091,7 +1091,7 @@ model ProviderDemographics {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_demographics")
 }
@@ -1179,7 +1179,7 @@ model Document {
   createdById String?  @map("created_by_id")
 
   // Relations
-  provider             Provider              @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider             ProviderProfile              @relation(fields: [providerId], references: [id], onDelete: Cascade)
   license              License?              @relation(fields: [linkedLicenseId], references: [id])
   boardCertification   BoardCertification?   @relation(fields: [linkedBoardCertificationId], references: [id])
   malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
@@ -1241,7 +1241,7 @@ model ProviderChecklist {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_checklists")
 }
@@ -1336,7 +1336,7 @@ model PayerEnrollment {
   updatedById String?  @map("updated_by_id")
 
   // Relations
-  provider          Provider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider          ProviderProfile                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer             Payer                    @relation(fields: [payerId], references: [id])
   aiRecommendations AiRecommendation[]
   tasks             Task[]
@@ -1386,7 +1386,7 @@ model AiRecommendation {
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
   enrollment PayerEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  provider   Provider?        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider   ProviderProfile?        @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId])
   @@index([providerId])
@@ -1604,7 +1604,7 @@ model ProviderApplication {
 
   // Link to created provider (after approval)
   providerId String?   @map("provider_id")
-  provider   Provider? @relation(fields: [providerId], references: [id])
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   @@index([status])
   @@index([npi])
@@ -1699,7 +1699,7 @@ model Task {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  provider           Provider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider           ProviderProfile            @relation(fields: [providerId], references: [id], onDelete: Cascade)
   enrollment         PayerEnrollment?    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
@@ -1730,7 +1730,7 @@ model TerminationLetter {
   createdAt     DateTime                @default(now()) @map("created_at")
   updatedAt     DateTime                @updatedAt @map("updated_at")
 
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   reviewedBy User?    @relation("TermLetterReviewedBy", fields: [reviewedById], references: [id])
 
@@ -1770,7 +1770,7 @@ model ProviderDirectorySnapshot {
   // Mismatch details (JSON array of { field, ours, theirs })
   mismatches Json? @map("mismatches")
 
-  provider Provider                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile                 @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer    Payer                    @relation(fields: [payerId], references: [id])
   alerts   ProviderDirectoryAlert[]
 
@@ -1793,7 +1793,7 @@ model ProviderDirectoryAlert {
   resolvedBy String?   @map("resolved_by")
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  provider Provider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider ProviderProfile                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   payer    Payer                     @relation(fields: [payerId], references: [id])
   snapshot ProviderDirectorySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
@@ -1926,7 +1926,7 @@ enum MedicareStatus {
 model MedicareVerification {
   id         String   @id @default(uuid())
   providerId String   @unique @map("provider_id")
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   status     MedicareStatus @default(UNVERIFIED)
   verifiedAt DateTime?      @map("verified_at")
@@ -1986,7 +1986,7 @@ model AgentWorkflow {
 
   // Relations
   providerId   String   @map("provider_id")
-  provider     Provider @relation(fields: [providerId], references: [id])
+  provider     ProviderProfile @relation(fields: [providerId], references: [id])
   payerId      String?  @map("payer_id")
   payer        Payer?   @relation(fields: [payerId], references: [id])
   enrollmentId String?  @map("enrollment_id")
@@ -2188,7 +2188,7 @@ model OpsAssignment {
   practice   Practice? @relation(fields: [practiceId], references: [id])
 
   providerId String?   @map("provider_id")
-  provider   Provider? @relation(fields: [providerId], references: [id])
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   enrollmentId String?          @map("enrollment_id")
   enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])
@@ -2213,7 +2213,7 @@ model OpsWorkItem {
   practice   Practice? @relation(fields: [practiceId], references: [id])
 
   providerId String?   @map("provider_id")
-  provider   Provider? @relation(fields: [providerId], references: [id])
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   enrollmentId String?          @map("enrollment_id")
   enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])

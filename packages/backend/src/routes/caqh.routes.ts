@@ -87,7 +87,7 @@ caqhRoutes.post(
         });
       }
 
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
       });
 
@@ -115,7 +115,7 @@ caqhRoutes.get(
     try {
       const providerId = req.params['providerId']!;
 
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
       });
 
@@ -144,7 +144,7 @@ caqhRoutes.post(
     try {
       const providerId = req.params['providerId']!;
 
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
       });
 
@@ -176,7 +176,7 @@ caqhRoutes.post(
     try {
       const { providerId } = req.body;
 
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
       });
 
@@ -187,7 +187,7 @@ caqhRoutes.post(
       const result = await caqhService.addToRoster(provider);
 
       // Update provider with CAQH ID
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: providerId },
         data: {
           caqhProviderId: result.caqhProviderId,
@@ -208,7 +208,7 @@ caqhRoutes.delete(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
 
@@ -221,7 +221,7 @@ caqhRoutes.delete(
 
       await caqhService.removeFromRoster(provider.caqhProviderId);
 
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
           caqhStatus: 'inactive',
@@ -241,7 +241,7 @@ caqhRoutes.get(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
 
@@ -255,7 +255,7 @@ caqhRoutes.get(
       const status = await caqhService.checkStatus(provider.caqhProviderId);
 
       // Update local status
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
           caqhStatus: status.attestationStatus,
@@ -276,7 +276,7 @@ caqhRoutes.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
 

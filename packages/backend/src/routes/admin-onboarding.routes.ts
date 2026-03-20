@@ -11,7 +11,7 @@ const router = Router();
  */
 router.get('/providers', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
-    const providers = await prisma.provider.findMany({
+    const providers = await prisma.providerProfile.findMany({
       where: { status: 'active' },
       select: {
         id: true,

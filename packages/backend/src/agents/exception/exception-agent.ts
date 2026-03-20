@@ -65,7 +65,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
   }
 
   // 3. Load provider credentials
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: workflow.providerId },
     select: {
       npi: true,

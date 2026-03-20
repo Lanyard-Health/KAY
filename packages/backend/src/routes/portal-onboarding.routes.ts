@@ -41,7 +41,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
       return res.status(404).json({ success: false, error: 'No provider profile linked' });
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: { onboardingCompletedAt: true },
     });
@@ -54,7 +54,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
       return res.json({ success: true, message: 'Onboarding already completed' });
     }
 
-    await prisma.provider.update({
+    await prisma.providerProfile.update({
       where: { id: providerId },
       data: { onboardingCompletedAt: new Date() },
     });
