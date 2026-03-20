@@ -49,6 +49,10 @@ const envSchema = z.object({
   CAQH_ORG_ID: z.string().optional(),
   CAQH_API_KEY: z.string().optional(),
 
+  // Embeddings (optional — knowledge base RAG degrades gracefully)
+  OPENAI_API_KEY: z.string().optional(),
+  EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+
   // Bug Monitor (optional)
   LINEAR_API_KEY: z.string().optional(),
   LINEAR_TEAM_ID: z.string().optional(),
