@@ -50,7 +50,7 @@ async function fetchEnrollmentContext(req: Request, searchTerms?: string) {
     ];
   }
 
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where,
     select: {
       id: true,
@@ -212,7 +212,7 @@ async function fetchPriorityContext(req: Request) {
 
   const [overdueEnrollments, expiringCreds, pendingTasks] = await Promise.all([
     // Enrollments submitted > 30 days ago with no follow-up in 14+ days
-    prisma.payerEnrollment.findMany({
+    prisma.enrollment.findMany({
       where: {
         ...practiceRelFilter,
         status: { in: ['submitted', 'pending_review', 'in_progress'] },

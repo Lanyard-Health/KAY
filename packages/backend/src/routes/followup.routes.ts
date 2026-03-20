@@ -50,7 +50,7 @@ const upload = multer({
 async function checkEnrollmentPracticeAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
   const id = req.params['id'];
   if (!id) return next();
-  const enrollment = await prisma.payerEnrollment.findUnique({ where: { id }, select: { providerId: true } });
+  const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { providerId: true } });
   if (!enrollment) return next(); // Let route handle 404
   if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) {
     res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
@@ -296,7 +296,7 @@ followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing
   try {
     const id = req.params['id']!;
 
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id },
       select: {
         id: true,
@@ -328,7 +328,7 @@ followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing
 // Get all enrollments with follow-up enabled
 followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const enrollments = await prisma.payerEnrollment.findMany({
+    const enrollments = await prisma.enrollment.findMany({
       where: {
         followUpEnabled: true,
         ...getPracticeRelationFilter(req),
@@ -398,7 +398,7 @@ followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_
     const id = req.params['id']!;
 
     // First get the enrollment to find the email
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id },
       include: {
         provider: true,

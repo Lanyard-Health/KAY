@@ -73,7 +73,7 @@ export async function getEnrollmentPipeline(
   const start = Date.now();
 
   // Get all enrollments for providers in this practice, including payer info
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where: {
       provider: { practiceId },
       ...(startDate || endDate
@@ -371,7 +371,7 @@ export async function getGettingStartedStatus(
     prisma.document.count({
       where: { provider: { practiceId } },
     }),
-    prisma.payerEnrollment.count({
+    prisma.enrollment.count({
       where: { provider: { practiceId } },
     }),
   ]);

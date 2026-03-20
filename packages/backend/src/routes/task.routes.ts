@@ -113,7 +113,7 @@ router.post(
 
       // If enrollmentId provided, verify it belongs to this provider
       if (validated.enrollmentId) {
-        const enrollment = await prisma.payerEnrollment.findFirst({
+        const enrollment = await prisma.enrollment.findFirst({
           where: { id: validated.enrollmentId, providerId },
           select: { id: true },
         });

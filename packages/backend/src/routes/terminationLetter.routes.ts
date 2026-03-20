@@ -66,7 +66,7 @@ router.post(
       }
 
       // Verify enrollment belongs to this provider
-      const enrollment = await prisma.payerEnrollment.findFirst({
+      const enrollment = await prisma.enrollment.findFirst({
         where: { id: validated.enrollmentId, providerId },
         select: { id: true },
       });
@@ -89,7 +89,7 @@ router.post(
 
       if (!task) {
         // Create the task if it doesn't exist yet (manual generation flow)
-        const enrollmentWithPayer = await prisma.payerEnrollment.findUnique({
+        const enrollmentWithPayer = await prisma.enrollment.findUnique({
           where: { id: validated.enrollmentId },
           include: { payer: { select: { name: true } } },
         });

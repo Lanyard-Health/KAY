@@ -17,7 +17,7 @@ export function registerGetPrioritySummary(server: McpServer, ctx: UserContext) 
       const thirtyDaysOut = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       const [overdueEnrollments, expiringCreds, pendingTasks] = await Promise.all([
-        prisma.payerEnrollment.findMany({
+        prisma.enrollment.findMany({
           where: {
             ...practiceRelFilter,
             status: { in: ['submitted', 'pending_review', 'in_progress'] },

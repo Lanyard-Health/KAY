@@ -26,7 +26,7 @@ export function registerUpdateEnrollmentStatus(server: McpServer, ctx: UserConte
       }
 
       // Find enrollment within practice scope
-      const enrollment = await prisma.payerEnrollment.findFirst({
+      const enrollment = await prisma.enrollment.findFirst({
         where: {
           id: enrollmentId,
           ...getPracticeRelationFilter(ctx),
@@ -67,7 +67,7 @@ export function registerUpdateEnrollmentStatus(server: McpServer, ctx: UserConte
         updateData['terminationDate'] = new Date();
       }
 
-      const updated = await prisma.payerEnrollment.update({
+      const updated = await prisma.enrollment.update({
         where: { id: enrollmentId },
         data: updateData,
         select: {
@@ -81,7 +81,7 @@ export function registerUpdateEnrollmentStatus(server: McpServer, ctx: UserConte
         },
       });
 
-      await createAuditLog(ctx, 'update', 'PayerEnrollment', enrollmentId, {
+      await createAuditLog(ctx, 'update', 'Enrollment', enrollmentId, {
         previousStatus,
         newStatus: status,
         notes,

@@ -32,7 +32,7 @@ export function registerSearchEnrollments(server: McpServer, ctx: UserContext) {
         ];
       }
 
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where,
         select: {
           id: true,

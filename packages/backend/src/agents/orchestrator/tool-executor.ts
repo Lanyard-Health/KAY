@@ -46,7 +46,7 @@ async function getProviderProfile(input: { providerId: string }) {
 }
 
 async function getPayerRequirements(input: { payerId: string }) {
-  const config = await prisma.payerAdapterConfig.findUnique({
+  const config = await prisma.payerSubmissionConfig.findUnique({
     where: { payerId: input.payerId },
     include: {
       payer: { select: { id: true, name: true } },
@@ -85,7 +85,7 @@ async function checkCredentialCompleteness(input: { providerId: string; payerId:
   }
 
   // Load payer required fields (fall back to standard requirements if no adapter config)
-  const config = await prisma.payerAdapterConfig.findUnique({
+  const config = await prisma.payerSubmissionConfig.findUnique({
     where: { payerId: input.payerId },
   });
 

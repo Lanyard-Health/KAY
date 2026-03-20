@@ -84,7 +84,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
   // 4. Load payer requirements
   let payerRequirements: object = {};
   if (workflow.payerId) {
-    const config = await prisma.payerAdapterConfig.findUnique({
+    const config = await prisma.payerSubmissionConfig.findUnique({
       where: { payerId: workflow.payerId },
       select: { adapterType: true, requiredFields: true },
     });

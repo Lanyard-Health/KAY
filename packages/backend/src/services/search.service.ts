@@ -56,7 +56,7 @@ export async function globalSearch(
         : [],
 
       // Enrollments (via provider practice scope)
-      prisma.payerEnrollment.findMany({
+      prisma.enrollment.findMany({
         where: {
           ...( !isSuperAdmin && req.practiceScope?.practiceIds?.length
             ? { provider: { OR: [{ practiceId: null }, { practiceId: { in: req.practiceScope.practiceIds } }] } }

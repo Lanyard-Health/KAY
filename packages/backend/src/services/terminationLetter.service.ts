@@ -137,7 +137,7 @@ export async function generateTerminationLetter(
   }
 
   // 3. Fetch enrollment with payer
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: {
       effectiveDate: true,

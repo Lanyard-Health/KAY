@@ -44,7 +44,7 @@ export class AetnaPortalAdapter implements PayerAdapter {
     }
 
     // Look up the enrollment to confirm it exists
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id: enrollmentId },
       select: { id: true, providerId: true },
     });

@@ -774,7 +774,7 @@ export default function ProviderDetail() {
             {[
               { label: 'Licenses', value: provider.licenses?.length || 0 },
               { label: 'Certifications', value: provider.boardCertifications?.length || 0 },
-              { label: 'Enrollments', value: provider.payerEnrollments?.length || 0 },
+              { label: 'Enrollments', value: provider.enrollments?.length || 0 },
               { label: 'Documents', value: provider.documents?.length || 0 },
             ].map((stat) => (
               <Fragment key={stat.label}>

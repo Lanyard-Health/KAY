@@ -4,11 +4,11 @@
  * Integrates workflow hydration into the existing enrollment creation flow.
  */
 
-import { PrismaClient, PayerEnrollment, WorkflowType, ProviderType } from '@prisma/client';
+import { PrismaClient, Enrollment, WorkflowType, ProviderType } from '@prisma/client';
 import { hydrateWorkflowSteps } from './workflow-hydration.service.js';
 import { resolveWorkflowType } from '../config/workflow-mapping.js';
 
-interface EnrollmentWithRelations extends PayerEnrollment {
+interface EnrollmentWithRelations extends Enrollment {
   payer?: { workflowKey: string | null; name: string };
   provider?: { providerType: ProviderType };
 }
@@ -36,7 +36,7 @@ export async function onEnrollmentCreated(
   let providerType = enrollment.provider?.providerType;
 
   if (payerWorkflowKey === undefined || providerType === undefined) {
-    const fullEnrollment = await prisma.payerEnrollment.findUnique({
+    const fullEnrollment = await prisma.enrollment.findUnique({
       where: { id: enrollment.id },
       include: {
         payer: { select: { workflowKey: true, name: true } },
@@ -70,7 +70,7 @@ export async function onEnrollmentCreated(
   );
 
   if (result.templateFound) {
-    await prisma.payerEnrollment.update({
+    await prisma.enrollment.update({
       where: { id: enrollment.id },
       data: { workflowType },
     });

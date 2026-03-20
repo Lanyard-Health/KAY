@@ -78,7 +78,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     // Follow-up enrollments: not approved/terminated, stale or no follow-up, top 5
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const needsFollowUp = await prisma.payerEnrollment.findMany({
+    const needsFollowUp = await prisma.enrollment.findMany({
       where: {
         status: { notIn: ['approved', 'terminated'] },
         OR: [
@@ -97,7 +97,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       orderBy: { updatedAt: 'asc' },
     });
 
-    const followUpCount = await prisma.payerEnrollment.count({
+    const followUpCount = await prisma.enrollment.count({
       where: {
         status: { notIn: ['approved', 'terminated'] },
         OR: [
@@ -108,7 +108,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     });
 
     // Active enrollment count
-    const activeEnrollments = await prisma.payerEnrollment.count({
+    const activeEnrollments = await prisma.enrollment.count({
       where: {
         status: { notIn: ['terminated', 'denied'] },
         provider: practiceFilter,

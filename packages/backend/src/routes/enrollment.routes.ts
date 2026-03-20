@@ -15,13 +15,13 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
   if (role === 'credentialing_staff') {
-    const enr = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
     if (!enr) return;
     if (!(await validateProviderPracticeAccess(req, enr.providerId))) throw new ForbiddenError('Access denied to this enrollment');
     return;
   }
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: { providerId: true },
   });
@@ -152,7 +152,7 @@ router.get(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: getPracticeRelationFilter(req),
         include: {
           payer: true,
@@ -194,7 +194,7 @@ router.get(
     try {
       const providerId = req.params['providerId']!;
 
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: { providerId },
         include: { payer: true },
         orderBy: { createdAt: 'desc' },
@@ -216,7 +216,7 @@ router.get(
       const id = req.params['id']!;
       await assertEnrollmentAccess(req, id);
 
-      const enrollment = await prisma.payerEnrollment.findUnique({
+      const enrollment = await prisma.enrollment.findUnique({
         where: { id },
         include: {
           payer: true,
@@ -283,7 +283,7 @@ router.post(
 
       let enrollment;
       try {
-        enrollment = await prisma.payerEnrollment.create({
+        enrollment = await prisma.enrollment.create({
           data: {
             providerId: providerId!,
             payerId: payer.id,
@@ -362,7 +362,7 @@ router.put(
       await assertEnrollmentAccess(req, id);
       const validated = updateEnrollmentSchema.parse(req.body);
 
-      const existing = await prisma.payerEnrollment.findUnique({
+      const existing = await prisma.enrollment.findUnique({
         where: { id },
       });
 
@@ -373,7 +373,7 @@ router.put(
         });
       }
 
-      const enrollment = await prisma.payerEnrollment.update({
+      const enrollment = await prisma.enrollment.update({
         where: { id },
         data: {
           status: validated.status,
@@ -428,7 +428,7 @@ router.delete(
     try {
       const id = req.params['id']!;
 
-      const existing = await prisma.payerEnrollment.findUnique({
+      const existing = await prisma.enrollment.findUnique({
         where: { id },
       });
 
@@ -443,7 +443,7 @@ router.delete(
         return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
       }
 
-      await prisma.payerEnrollment.delete({ where: { id } });
+      await prisma.enrollment.delete({ where: { id } });
 
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');

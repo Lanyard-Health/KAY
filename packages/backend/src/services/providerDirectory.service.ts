@@ -411,7 +411,7 @@ export async function runScheduledDirectoryChecks(): Promise<{ checked: number; 
   }
 
   // Find all active enrollments where payer has a registered adapter
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where: {
       status: { in: ['approved', 'in_progress', 'submitted', 'pending_review'] },
       payer: { payerId: { in: configuredPayers } },

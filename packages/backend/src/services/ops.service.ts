@@ -98,9 +98,9 @@ export async function getOpsDashboardStats(): Promise<OpsDashboardStats> {
       prisma.practice.groupBy({ by: ['serviceTier'], _count: true }),
       prisma.providerProfile.count(),
       prisma.providerProfile.groupBy({ by: ['status'], _count: true }),
-      prisma.payerEnrollment.count(),
-      prisma.payerEnrollment.groupBy({ by: ['status'], _count: true }),
-      prisma.payerEnrollment.findMany({
+      prisma.enrollment.count(),
+      prisma.enrollment.groupBy({ by: ['status'], _count: true }),
+      prisma.enrollment.findMany({
         where: { status: { notIn: TERMINAL_STATUSES } },
         select: { createdAt: true, slaTargetDate: true, slaBreachedAt: true },
       }),
@@ -478,7 +478,7 @@ export async function getSlaSummary(filters?: {
   if (cached) return cached;
 
   try {
-    const where: Prisma.PayerEnrollmentWhereInput = {
+    const where: Prisma.EnrollmentWhereInput = {
       status: { notIn: TERMINAL_STATUSES },
     };
 
@@ -490,7 +490,7 @@ export async function getSlaSummary(filters?: {
       where.provider = { practiceId: filters.practiceId };
     }
 
-    const activeEnrollments = await prisma.payerEnrollment.findMany({
+    const activeEnrollments = await prisma.enrollment.findMany({
       where,
       select: {
         id: true,

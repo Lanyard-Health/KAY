@@ -1,11 +1,11 @@
 /**
- * Seed script: Upsert PayerAdapterConfig records with requiredFields.
+ * Seed script: Upsert PayerSubmissionConfig records with requiredFields.
  *
  * Usage: npx tsx prisma/seeds/payer-adapter-seed.ts
  *
- * This updates existing PayerAdapterConfig records (matched by payerId)
+ * This updates existing PayerSubmissionConfig records (matched by payerId)
  * with the requiredFields appropriate for their adapter type. If no
- * PayerAdapterConfig records exist, it logs a message and exits.
+ * PayerSubmissionConfig records exist, it logs a message and exits.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -29,10 +29,10 @@ const REQUIRED_FIELDS_BY_ADAPTER_TYPE: Record<string, string[]> = {
 };
 
 async function main() {
-  const configs = await prisma.payerAdapterConfig.findMany();
+  const configs = await prisma.payerSubmissionConfig.findMany();
 
   if (configs.length === 0) {
-    console.log('No PayerAdapterConfig records found. Skipping seed.');
+    console.log('No PayerSubmissionConfig records found. Skipping seed.');
     return;
   }
 
@@ -44,7 +44,7 @@ async function main() {
       continue;
     }
 
-    await prisma.payerAdapterConfig.update({
+    await prisma.payerSubmissionConfig.update({
       where: { id: config.id },
       data: { requiredFields },
     });

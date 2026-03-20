@@ -46,7 +46,7 @@ export function registerGetPdmAttestationStatus(server: McpServer, ctx: UserCont
         };
       }
 
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: {
           providerId,
           pdmEnabled: true,

@@ -45,7 +45,7 @@ export function registerCreateTask(server: McpServer, ctx: UserContext) {
 
       // Verify enrollment if provided
       if (enrollmentId) {
-        const enrollment = await prisma.payerEnrollment.findFirst({
+        const enrollment = await prisma.enrollment.findFirst({
           where: { id: enrollmentId, providerId },
         });
         if (!enrollment) {

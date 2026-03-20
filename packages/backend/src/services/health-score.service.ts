@@ -68,7 +68,7 @@ export async function computeHealthScore(
       }),
 
       // Total non-terminated enrollments
-      prisma.payerEnrollment.count({
+      prisma.enrollment.count({
         where: {
           status: { not: 'terminated' },
           provider: providerWhere,
@@ -76,7 +76,7 @@ export async function computeHealthScore(
       }),
 
       // Approved enrollments
-      prisma.payerEnrollment.count({
+      prisma.enrollment.count({
         where: {
           status: 'approved',
           provider: providerWhere,
@@ -228,7 +228,7 @@ async function get7DayEnrollmentTrend(
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const count = await prisma.payerEnrollment.count({
+    const count = await prisma.enrollment.count({
       where: {
         provider: providerWhere,
         createdAt: { gte: dayStart, lte: dayEnd },

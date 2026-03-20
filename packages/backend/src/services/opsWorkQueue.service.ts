@@ -385,7 +385,7 @@ export async function getComments(workItemId: string) {
 // ---------------------------------------------------------------------------
 
 export async function autoCreateWorkItems(enrollmentId: string) {
-  const enrollment = await prisma.payerEnrollment.findUniqueOrThrow({
+  const enrollment = await prisma.enrollment.findUniqueOrThrow({
     where: { id: enrollmentId },
     include: {
       provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
@@ -440,7 +440,7 @@ export async function autoCreateWorkItems(enrollmentId: string) {
 export async function checkSlaBreaches() {
   const now = new Date();
 
-  const breachedEnrollments = await prisma.payerEnrollment.findMany({
+  const breachedEnrollments = await prisma.enrollment.findMany({
     where: {
       slaTargetDate: { lt: now },
       status: { notIn: ['approved', 'denied', 'terminated'] },
@@ -455,7 +455,7 @@ export async function checkSlaBreaches() {
   if (breachedEnrollments.length === 0) return 0;
 
   for (const enrollment of breachedEnrollments) {
-    await prisma.payerEnrollment.update({
+    await prisma.enrollment.update({
       where: { id: enrollment.id },
       data: { slaBreachedAt: now },
     });

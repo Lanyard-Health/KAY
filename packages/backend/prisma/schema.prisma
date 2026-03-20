@@ -346,7 +346,7 @@ model ProviderProfile {
   disciplinaryActions    DisciplinaryAction[]
   continuingEducations   ContinuingEducation[]
   documents              Document[]
-  payerEnrollments       PayerEnrollment[]
+  enrollments            Enrollment[]
   checklist              ProviderChecklist?
   applications           ProviderApplication[]
   tasks                  Task[]
@@ -1273,11 +1273,11 @@ model Payer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollments        PayerEnrollment[]
+  enrollments        Enrollment[]
   directorySnapshots ProviderDirectorySnapshot[]
   directoryAlerts    ProviderDirectoryAlert[]
   agentWorkflows     AgentWorkflow[]
-  adapterConfig      PayerAdapterConfig?
+  submissionConfig   PayerSubmissionConfig?
 
   @@map("payers")
 }
@@ -1292,7 +1292,7 @@ enum EnrollmentStatus {
   terminated
 }
 
-model PayerEnrollment {
+model Enrollment {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
   payerId    String @map("payer_id")
@@ -1385,7 +1385,7 @@ model AiRecommendation {
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
-  enrollment PayerEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment Enrollment?      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   provider   ProviderProfile?        @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([enrollmentId])
@@ -1700,7 +1700,7 @@ model Task {
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
   provider           ProviderProfile            @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  enrollment         PayerEnrollment?    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  enrollment         Enrollment?         @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
   terminationLetters TerminationLetter[]
@@ -1870,7 +1870,7 @@ model EnrollmentWorkflowStep {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollment  PayerEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment  Enrollment      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   completedBy User?           @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
 
   @@index([enrollmentId])
@@ -1886,7 +1886,7 @@ model EnrollmentWorkflowStep {
 model AetnaEnrollmentRun {
   id                String          @id @default(uuid())
   payerEnrollmentId String          @map("payer_enrollment_id")
-  payerEnrollment   PayerEnrollment @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
+  payerEnrollment   Enrollment      @relation(fields: [payerEnrollmentId], references: [id], onDelete: Cascade)
 
   status         AetnaRunStatus @default(pending)
   aetnaRequestId String?        @map("aetna_request_id")
@@ -2101,7 +2101,7 @@ model PendingApproval {
   @@map("pending_approvals")
 }
 
-model PayerAdapterConfig {
+model PayerSubmissionConfig {
   id      String @id @default(uuid())
   payerId String @unique @map("payer_id")
   payer   Payer  @relation(fields: [payerId], references: [id])
@@ -2190,8 +2190,8 @@ model OpsAssignment {
   providerId String?   @map("provider_id")
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
-  enrollmentId String?          @map("enrollment_id")
-  enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])
+  enrollmentId String?     @map("enrollment_id")
+  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id])
 
   isPrimary    Boolean   @default(true) @map("is_primary")
   assignedAt   DateTime  @default(now()) @map("assigned_at")
@@ -2215,8 +2215,8 @@ model OpsWorkItem {
   providerId String?   @map("provider_id")
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
-  enrollmentId String?          @map("enrollment_id")
-  enrollment   PayerEnrollment? @relation(fields: [enrollmentId], references: [id])
+  enrollmentId String?     @map("enrollment_id")
+  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id])
 
   title       String
   description String?             @db.Text
