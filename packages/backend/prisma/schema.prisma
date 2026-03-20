@@ -108,6 +108,15 @@ model Practice {
   groupNpi          String?   @map("group_npi")
   setupComplete     Boolean   @default(false) @map("setup_complete")
 
+  // Intake context fields
+  accountId          String?   @map("account_id")
+  isEnterprise       Boolean   @default(false) @map("is_enterprise")
+  locationName       String?   @map("location_name")
+  isPrimaryLocation  Boolean   @default(true) @map("is_primary_location")
+  states             String[]  @default([])
+  targetPayerIds     String[]  @default([]) @map("target_payer_ids")
+  providerTypes      String[]  @default([]) @map("provider_types")
+
   users                UserPractice[]
   providers            ProviderProfile[]
   providerApplications ProviderApplication[]
@@ -270,6 +279,11 @@ model ProviderProfile {
 
   // Directory change tracking (golden record for PDM)
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
+
+  // Intake fields
+  targetPayers  String[]  @default([]) @map("target_payers")
+  targetStates  String[]  @default([]) @map("target_states")
+  entityType    String?   @map("entity_type")  // individual | group
 
   // Status
   status ProviderStatus @default(pending)
@@ -1277,6 +1291,10 @@ model Enrollment {
   slaTargetDate DateTime? @map("sla_target_date")
   slaBreachedAt DateTime? @map("sla_breached_at")
 
+  // PayerTrack + WorkflowTemplate linkage (relations added when models exist)
+  payerTrackId        String?  @map("payer_track_id")
+  workflowTemplateId  String?  @map("workflow_template_id")
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -1704,8 +1722,9 @@ model EnrollmentWorkflowStep {
   enrollmentId String @map("enrollment_id")
 
   // Template reference
-  templateStepId String @map("template_step_id")
-  stepOrder      Int    @map("step_order")
+  templateStepId String    @map("template_step_id")
+  stepOrder      Int       @map("step_order")
+  dueDate        DateTime? @map("due_date")
 
   // Step details (copied from template at creation time)
   name          String
