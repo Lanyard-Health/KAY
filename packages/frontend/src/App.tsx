@@ -47,6 +47,7 @@ const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'
 const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
 const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
 const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
+const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -143,6 +144,7 @@ export default function App() {
           <Route path="ocr-review" element={<OcrReviewQueue />} />
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
+          <Route path="workflow-queue" element={<WorkflowQueue />} />
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<RosterPage />} />
           <Route path="ai-agent" element={<AiAgentDashboard />} />
