@@ -39,6 +39,14 @@ const NotificationsPage = lazy(() => import('./features/notifications/Notificati
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
 const CommandCenter = lazy(() => import('./features/command-center/CommandCenter'));
 const OcrReviewQueue = lazy(() => import('./features/documents/OcrReviewQueue'));
+const KnowledgeBaseList = lazy(() => import('./features/admin/KnowledgeBaseList'));
+const KnowledgeBaseDetail = lazy(() => import('./features/admin/KnowledgeBaseDetail'));
+const KnowledgeBaseNew = lazy(() => import('./features/admin/KnowledgeBaseNew'));
+const KnowledgeBaseGaps = lazy(() => import('./features/admin/KnowledgeBaseGaps'));
+const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'));
+const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
+const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
+const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -146,6 +154,14 @@ export default function App() {
           <Route path="pending-providers" element={<PendingProviders />} />
           <Route path="onboarding-progress" element={<OnboardingProgress />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="admin/knowledge-base" element={<KnowledgeBaseList />} />
+          <Route path="admin/knowledge-base/new" element={<KnowledgeBaseNew />} />
+          <Route path="admin/knowledge-base/gaps" element={<KnowledgeBaseGaps />} />
+          <Route path="admin/knowledge-base/:id" element={<KnowledgeBaseDetail />} />
+          <Route path="admin/workflow-templates" element={<WorkflowTemplates />} />
+          <Route path="admin/workflow-templates/:id" element={<WorkflowTemplateDetail />} />
+          <Route path="admin/followup-templates" element={<FollowupTemplates />} />
+          <Route path="admin/followup-templates/:id" element={<FollowupTemplateDetail />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

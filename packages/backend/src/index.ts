@@ -60,6 +60,9 @@ import { agentRoutes } from './routes/agent.routes.js';
 // approval.routes.ts removed — agent.routes.ts provides the same endpoints with proper practice scoping
 import searchRoutes from './routes/search.routes.js';
 import commandCenterRoutes from './routes/command-center.routes.js';
+import { knowledgeBaseRoutes } from './routes/knowledgeBase.routes.js';
+import { workflowTemplateRoutes } from './routes/workflowTemplate.routes.js';
+import { followupTemplateRoutes } from './routes/followupTemplate.routes.js';
 import { bugReportRoutes } from './routes/bug-report.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
@@ -219,6 +222,9 @@ app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/command-center', commandCenterRoutes);
 app.use('/api/v1/agent', agentRoutes);
 // approval.routes.ts removed — agent.routes.ts handles /api/v1/agent/approvals with practice scoping
+app.use('/api/v1/knowledge-base', knowledgeBaseRoutes);
+app.use('/api/v1/workflow-templates', workflowTemplateRoutes);
+app.use('/api/v1/followup-templates', followupTemplateRoutes);
 app.use('/api/v1/bugs', bugReportRoutes);
 
 // Error handling — Sentry captures before our handler responds

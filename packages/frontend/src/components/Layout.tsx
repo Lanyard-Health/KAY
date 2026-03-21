@@ -19,6 +19,10 @@ import {
   BuildingOffice2Icon,
   UserGroupIcon,
   ArrowUpTrayIcon,
+  BookOpenIcon,
+  ExclamationTriangleIcon,
+  Cog6ToothIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -84,6 +88,17 @@ const customerNavGroups: NavGroup[] = [
   },
 ];
 
+// Lanyard Admin nav group (lanyard_admin only)
+const lanyardAdminNavGroup: NavGroup = {
+  label: 'Lanyard Admin',
+  items: [
+    { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: BookOpenIcon },
+    { name: 'KB Gaps', href: '/admin/knowledge-base/gaps', icon: ExclamationTriangleIcon },
+    { name: 'Workflow Templates', href: '/admin/workflow-templates', icon: Cog6ToothIcon },
+    { name: 'Follow-up Templates', href: '/admin/followup-templates', icon: EnvelopeIcon },
+  ],
+};
+
 // Items hidden from practice_admin role
 const practiceAdminHidden = new Set([
   'Practices', 'Users', 'AI Agent', 'Payer Intelligence',
@@ -110,7 +125,7 @@ function filterNavGroups(groups: NavGroup[], role: string | undefined): NavGroup
 // ──────────────────────────────────────────────
 
 function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: string }) {
-  const hasActive = group.items.some((item) => item.href === pathname);
+  const hasActive = group.items.some((item) => item.href === pathname || (item.href !== '/' && pathname.startsWith(item.href)));
 
   return (
     <Disclosure as="div" defaultOpen={hasActive || group.label === 'Core' || group.label === 'Operations'}>
@@ -158,7 +173,10 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
-  const baseGroups = filterNavGroups(customerNavGroups, role);
+  const filteredGroups = filterNavGroups(customerNavGroups, role);
+  const baseGroups = role === 'lanyard_admin'
+    ? [...filteredGroups, lanyardAdminNavGroup]
+    : filteredGroups;
 
   // Inject OCR review count badge into OCR Review nav item
   const activeGroups = baseGroups.map(group => ({
