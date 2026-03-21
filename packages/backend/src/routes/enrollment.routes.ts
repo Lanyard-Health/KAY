@@ -80,6 +80,7 @@ const createEnrollmentSchema = z.object({
   groupNumber: z.string().max(50).optional(),
   notes: z.string().optional(),
   workflowType: z.enum(['medical', 'behavioral_health']).optional().nullable(),
+  payerTrackId: z.string().uuid().optional().nullable(),
 });
 
 const updateEnrollmentSchema = createEnrollmentSchema.partial();
@@ -299,6 +300,7 @@ router.post(
             providerNumber: validated.providerNumber,
             groupNumber: validated.groupNumber,
             notes: validated.notes,
+            payerTrackId: validated.payerTrackId || null,
             createdById: req.user?.id,
             slaTargetDate,
           },
