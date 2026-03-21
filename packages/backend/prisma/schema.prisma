@@ -1760,6 +1760,7 @@ model EnrollmentWorkflowStep {
   // Relations
   enrollment  Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   completedBy User?      @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
+  approvals   PendingApproval[]
 
   @@index([enrollmentId])
   @@index([status])
@@ -1936,16 +1937,27 @@ model AgentEvent {
 
 model PendingApproval {
   id         String        @id @default(uuid())
-  workflowId String        @map("workflow_id")
-  workflow   AgentWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  taskId  String         @map("task_id")
+  // Agent workflow approval (original use case — now optional)
+  workflowId String?       @map("workflow_id")
+  workflow   AgentWorkflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  taskId     String?        @map("task_id")
+  expiresAt  DateTime?      @map("expires_at")
+
+  // Enrollment workflow step approval (Step 11)
+  enrollmentWorkflowStepId String?                 @map("enrollment_workflow_step_id")
+  enrollmentWorkflowStep   EnrollmentWorkflowStep? @relation(fields: [enrollmentWorkflowStepId], references: [id], onDelete: Cascade)
+
+  // Follow-up outreach approval (Step 11)
+  followUpRunId     String?      @map("follow_up_run_id")
+  followUpRun       FollowUpRun? @relation(fields: [followUpRunId], references: [id], onDelete: Cascade)
+  followUpStepOrder Int?         @map("follow_up_step_order")
+
   type    String
   status  ApprovalStatus @default(pending)
   context Json
 
   requestedAt DateTime @default(now()) @map("requested_at")
-  expiresAt   DateTime @map("expires_at")
 
   decidedBy     String?   @map("decided_by")
   decider       User?     @relation("ApprovalDecider", fields: [decidedBy], references: [id])
@@ -1954,6 +1966,8 @@ model PendingApproval {
 
   @@index([status])
   @@index([workflowId])
+  @@index([enrollmentWorkflowStepId])
+  @@index([followUpRunId])
   @@map("pending_approvals")
 }
 
@@ -2341,6 +2355,7 @@ model FollowUpRun {
   completedAt       DateTime?         @map("completed_at")
 
   callLogs          RetellCallLog[]
+  approvals         PendingApproval[]
 
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
