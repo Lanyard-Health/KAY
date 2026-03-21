@@ -7,6 +7,8 @@
 import { PrismaClient, Enrollment, WorkflowType, ProviderType } from '@prisma/client';
 import { hydrateWorkflowSteps } from './workflow-hydration.service.js';
 import { resolveWorkflowType } from '../config/workflow-mapping.js';
+import { instantiateWorkflow } from './workflow-instantiation.service.js';
+import { logger } from '../utils/logger.js';
 
 interface EnrollmentWithRelations extends Enrollment {
   payer?: { workflowKey: string | null; name: string };
@@ -32,6 +34,53 @@ export async function onEnrollmentCreated(
   enrollment: EnrollmentWithRelations,
   explicitWorkflowType?: WorkflowType | null
 ): Promise<WorkflowResult> {
+  // ─── Path A: DB-driven templates (new system) ───────────
+  if (enrollment.payerTrackId) {
+    try {
+      // Gather context for condition evaluation
+      let providerType = enrollment.provider?.providerType;
+      if (!providerType) {
+        const provider = await prisma.providerProfile.findUnique({
+          where: { id: enrollment.providerId },
+          select: { providerType: true },
+        });
+        providerType = provider?.providerType ?? undefined;
+      }
+
+      // Get the PayerTrack's stateRegion for condition evaluation
+      const payerTrack = await prisma.payerTrack.findUnique({
+        where: { id: enrollment.payerTrackId },
+        select: { stateRegion: true },
+      });
+
+      const result = await instantiateWorkflow(
+        prisma,
+        enrollment.id,
+        enrollment.payerTrackId,
+        {
+          state: payerTrack?.stateRegion ?? undefined,
+          providerType: providerType ?? undefined,
+        }
+      );
+
+      if (result.templateFound) {
+        logger.info(
+          `Enrollment ${enrollment.id}: instantiated from DB template "${result.templateName}"`
+        );
+        return {
+          stepsCreated: result.stepsCreated,
+          templateFound: true,
+          workflowType: null, // DB templates don't use the old workflow type enum
+        };
+      }
+    } catch (error) {
+      logger.error(`DB workflow instantiation failed for enrollment ${enrollment.id}, falling back to JSON`, error);
+    }
+
+    // If no DB template found for this PayerTrack, fall through to JSON path
+  }
+
+  // ─── Path B: JSON-based hydration (legacy system) ───────
   let payerWorkflowKey = enrollment.payer?.workflowKey;
   let providerType = enrollment.provider?.providerType;
 
