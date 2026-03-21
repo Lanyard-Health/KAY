@@ -6,6 +6,7 @@ import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
+import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -397,6 +398,21 @@ router.put(
       ) {
         triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
           .catch((err) => logger.error('Termination workflow trigger failed:', err));
+      }
+
+      // Trigger follow-up instantiation when status transitions to 'submitted'
+      if (
+        validated.status === 'submitted' &&
+        existing.status !== 'submitted' &&
+        existing.payerTrackId
+      ) {
+        instantiateFollowUp(prisma, enrollment.id, existing.payerTrackId)
+          .then((result) => {
+            if (result.runCreated) {
+              logger.info(`Follow-up run created for enrollment ${enrollment.id}: ${result.runId}`);
+            }
+          })
+          .catch((err) => logger.error(`Follow-up instantiation failed for enrollment ${enrollment.id}:`, err));
       }
 
       invalidateCache('dashboard');
