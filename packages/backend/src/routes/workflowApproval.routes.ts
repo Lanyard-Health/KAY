@@ -14,6 +14,8 @@ import {
   listWorkflowApprovals,
   resolveApproval,
 } from '../services/workflow-approval.service.js';
+import { initiateCall, isRetellEnabled } from '../services/retell.service.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
@@ -69,6 +71,13 @@ router.post(
         });
       }
 
+      // Trigger Retell call when a phone_call follow-up step is approved
+      if (validated.decision === 'approved') {
+        triggerRetellIfPhoneCall(prisma, id!).catch((err) =>
+          logger.error(`Retell trigger failed for approval ${id}:`, err)
+        );
+      }
+
       res.json({ success: true, data: { status: result.status } });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -81,5 +90,83 @@ router.post(
     }
   }
 );
+
+// ─── Retell Trigger Helper ─────────────────────────────
+
+/**
+ * After a follow-up approval is approved, check if the step is a phone_call
+ * and initiate a Retell AI call. Fire-and-forget (non-blocking).
+ */
+async function triggerRetellIfPhoneCall(
+  db: import('@prisma/client').PrismaClient,
+  approvalId: string
+): Promise<void> {
+  if (!isRetellEnabled()) return;
+
+  const approval = await db.pendingApproval.findUnique({
+    where: { id: approvalId },
+    include: {
+      followUpRun: {
+        include: {
+          template: {
+            include: { steps: true },
+          },
+          enrollment: {
+            include: {
+              payer: true,
+              payerTrack: { include: { contacts: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!approval?.followUpRunId || !approval.followUpRun) return;
+
+  const run = approval.followUpRun;
+  const stepOrder = approval.followUpStepOrder ?? run.currentStepOrder;
+
+  // Find the template step for this approval
+  const templateStep = run.template.steps.find(
+    (s) => s.stepOrder === stepOrder
+  );
+
+  if (!templateStep || templateStep.channel !== 'phone_call') return;
+
+  const agentId = templateStep.retellAgentId;
+  if (!agentId) {
+    logger.warn(`No retellAgentId configured for template step ${templateStep.id}`);
+    return;
+  }
+
+  // Find the payer contact phone number
+  const contacts = run.enrollment.payerTrack?.contacts || [];
+  const contact = contacts.find((c) => c.phone) || contacts[0];
+  const phoneNumber = contact?.phone;
+
+  if (!phoneNumber) {
+    logger.warn(`No phone number found for follow-up run ${run.id} — cannot initiate Retell call`);
+    return;
+  }
+
+  const result = await initiateCall(db, {
+    followUpRunId: run.id,
+    agentId,
+    phoneNumber,
+    payerContactId: contact?.id,
+    metadata: {
+      enrollment_id: run.enrollmentId,
+      payer_name: run.enrollment.payer?.name || '',
+      step_name: templateStep.name,
+    },
+  });
+
+  if (result.success) {
+    logger.info(`Retell call ${result.callId} initiated for approval ${approvalId}`);
+  } else {
+    logger.error(`Retell call failed for approval ${approvalId}: ${result.error}`);
+  }
+}
 
 export { router as workflowApprovalRoutes };

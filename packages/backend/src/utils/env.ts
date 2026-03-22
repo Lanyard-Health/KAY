@@ -59,6 +59,10 @@ const envSchema = z.object({
   LINEAR_BUG_MONITOR_ENABLED: z.string().optional(),
   BUG_MONITOR_SECRET: z.string().optional(),
 
+  // Retell AI (optional — phone call follow-up feature disabled if missing)
+  RETELL_API_KEY: z.string().optional(),
+  RETELL_WEBHOOK_SECRET: z.string().optional(),
+
   // Sentry (optional)
   SENTRY_DSN: z.string().optional(),
 });
