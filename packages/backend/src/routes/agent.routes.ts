@@ -327,6 +327,7 @@ async function verifyApprovalAccess(req: Request, approvalId: string): Promise<b
     select: { workflow: { select: { providerId: true } } },
   });
   if (!approval) return false;
+  if (!approval.workflow) return false;
   const provider = await prisma.providerProfile.findFirst({
     where: {
       id: approval.workflow.providerId,

@@ -86,7 +86,7 @@ export async function requestApproval(input: RequestApprovalInput) {
     workflowId,
     taskId,
     type,
-    expiresAt: approval.expiresAt.toISOString(),
+    expiresAt: approval.expiresAt?.toISOString() ?? null,
   });
 
   logger.info('Approval requested', { approvalId: approval.id, workflowId, type });
@@ -131,55 +131,55 @@ export async function decideApproval(id: string, input: DecideApprovalInput) {
   });
 
   const workflowId = approval.workflowId;
+  const taskId = approval.taskId;
 
-  if (decision === 'approved') {
-    // Resume the workflow
-    await prisma.agentWorkflow.update({
-      where: { id: workflowId },
-      data: { status: 'active' },
-    });
+  // Only manage agent workflow if this is a workflow_step approval (not follow-up)
+  if (workflowId && taskId) {
+    if (decision === 'approved') {
+      await prisma.agentWorkflow.update({
+        where: { id: workflowId },
+        data: { status: 'active' },
+      });
 
-    await logAgentEvent({
-      workflowId,
-      taskId: approval.taskId,
-      agent: 'coordinator',
-      action: 'approval_granted',
-      data: { approvalId: id, decidedBy },
-    });
-
-    // Notify orchestrator to resume processing
-    await notifyTaskCompletion(workflowId, approval.taskId, 'task_completed');
-  } else {
-    // Deny — mark workflow as failed and cancel pending tasks
-    await prisma.agentWorkflow.update({
-      where: { id: workflowId },
-      data: { status: 'failed' },
-    });
-
-    await prisma.agentTask.updateMany({
-      where: {
+      await logAgentEvent({
         workflowId,
-        status: { in: ['pending', 'queued'] },
-      },
-      data: { status: 'cancelled' },
-    });
+        taskId,
+        agent: 'coordinator',
+        action: 'approval_granted',
+        data: { approvalId: id, decidedBy },
+      });
 
-    await logAgentEvent({
-      workflowId,
-      taskId: approval.taskId,
-      agent: 'coordinator',
-      action: 'approval_denied',
-      data: { approvalId: id, decidedBy, notes },
-    });
+      await notifyTaskCompletion(workflowId, taskId, 'task_completed');
+    } else {
+      await prisma.agentWorkflow.update({
+        where: { id: workflowId },
+        data: { status: 'failed' },
+      });
 
-    // Notify orchestrator about failure
-    await notifyTaskCompletion(workflowId, approval.taskId, 'task_failed');
+      await prisma.agentTask.updateMany({
+        where: {
+          workflowId,
+          status: { in: ['pending', 'queued'] },
+        },
+        data: { status: 'cancelled' },
+      });
+
+      await logAgentEvent({
+        workflowId,
+        taskId,
+        agent: 'coordinator',
+        action: 'approval_denied',
+        data: { approvalId: id, decidedBy, notes },
+      });
+
+      await notifyTaskCompletion(workflowId, taskId, 'task_failed');
+    }
   }
 
   // Push via WebSocket
   emitApprovalDecision({
     approvalId: id,
-    workflowId,
+    workflowId: workflowId ?? undefined,
     decision,
     decidedBy,
   });
