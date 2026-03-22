@@ -24,6 +24,7 @@ import {
   Cog6ToothIcon,
   EnvelopeIcon,
   QueueListIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -67,6 +68,7 @@ const customerNavGroups: NavGroup[] = [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
       { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
       { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
+      { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
       { name: 'Roster', href: '/roster', icon: TableCellsIcon },
       { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },

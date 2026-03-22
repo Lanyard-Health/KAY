@@ -48,6 +48,7 @@ const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTempl
 const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
 const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
 const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
+const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -145,6 +146,7 @@ export default function App() {
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
           <Route path="workflow-queue" element={<WorkflowQueue />} />
+          <Route path="denials" element={<DenialsList />} />
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<RosterPage />} />
           <Route path="ai-agent" element={<AiAgentDashboard />} />

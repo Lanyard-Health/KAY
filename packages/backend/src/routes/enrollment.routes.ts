@@ -7,6 +7,7 @@ import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPra
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
+import { triggerDenialTriage } from '../services/denial-triage.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 
@@ -413,6 +414,24 @@ router.put(
             }
           })
           .catch((err) => logger.error(`Follow-up instantiation failed for enrollment ${enrollment.id}:`, err));
+      }
+
+      // Trigger denial triage when status transitions to 'denied'
+      if (
+        validated.status === 'denied' &&
+        existing.status !== 'denied'
+      ) {
+        triggerDenialTriage(prisma, {
+          enrollmentId: enrollment.id,
+          denialReason: validated.notes || 'No denial reason provided',
+          denialDate: new Date(),
+        })
+          .then((result) => {
+            if (result.triageCreated) {
+              logger.info(`Denial triage created for enrollment ${enrollment.id}: ${result.triageId}`);
+            }
+          })
+          .catch((err) => logger.error(`Denial triage failed for enrollment ${enrollment.id}:`, err));
       }
 
       invalidateCache('dashboard');

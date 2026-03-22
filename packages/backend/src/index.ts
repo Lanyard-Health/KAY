@@ -65,6 +65,7 @@ import { workflowTemplateRoutes } from './routes/workflowTemplate.routes.js';
 import { followupTemplateRoutes } from './routes/followupTemplate.routes.js';
 import { workflowApprovalRoutes } from './routes/workflowApproval.routes.js';
 import { retellRoutes } from './routes/retell.routes.js';
+import { denialTriageRoutes } from './routes/denial-triage.routes.js';
 import { bugReportRoutes } from './routes/bug-report.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
@@ -229,6 +230,7 @@ app.use('/api/v1/workflow-templates', workflowTemplateRoutes);
 app.use('/api/v1/followup-templates', followupTemplateRoutes);
 app.use('/api/v1/workflow-approvals', workflowApprovalRoutes);
 app.use('/api/v1/retell', retellRoutes);
+app.use('/api/v1/denials', denialTriageRoutes);
 app.use('/api/v1/bugs', bugReportRoutes);
 
 // Error handling — Sentry captures before our handler responds
