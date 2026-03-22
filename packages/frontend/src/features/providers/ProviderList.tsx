@@ -15,7 +15,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import ProgressRing from '../../components/ui/ProgressRing';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import clsx from 'clsx';
-import { useVerifyMedicareBatch } from '../../hooks/useMedicareVerification';
+
 
 interface ProviderProfile {
   id: string;
@@ -57,7 +57,6 @@ export default function ProviderList() {
   const status = searchParams.get('status') || '';
   const medicareStatus = searchParams.get('medicareStatus') || '';
   const page = parseInt(searchParams.get('page') || '1');
-  const verifyBatchMutation = useVerifyMedicareBatch();
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['providers', { search, status, medicareStatus, page }],
@@ -168,17 +167,6 @@ export default function ProviderList() {
             </select>
             <button type="submit" className="btn-secondary">
               Search
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const ids = data?.data?.map((p: ProviderProfile) => p.id) || [];
-                if (ids.length > 0) verifyBatchMutation.mutate(ids);
-              }}
-              disabled={verifyBatchMutation.isPending || !data?.data?.length}
-              className="btn-secondary whitespace-nowrap"
-            >
-              {verifyBatchMutation.isPending ? 'Verifying...' : 'Verify All'}
             </button>
           </form>
 

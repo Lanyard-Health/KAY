@@ -2,39 +2,20 @@ import { useState, useMemo, useCallback } from 'react';
 import PageTransition from '../../components/ui/PageTransition';
 import {
   ArrowDownTrayIcon,
-  BookmarkIcon,
-  FolderOpenIcon,
 } from '@heroicons/react/24/outline';
 import { notify } from '../../utils/notify';
 import FieldPicker from './FieldPicker';
 import SelectedColumns from './SelectedColumns';
 import RosterPreviewTable from './RosterPreviewTable';
-import SaveTemplateModal from './SaveTemplateModal';
-import LoadTemplateModal from './LoadTemplateModal';
 import {
   useRosterPreview,
-  useRosterTemplates,
-  useCreateRosterTemplate,
-  useUpdateRosterTemplate,
-  useDeleteRosterTemplate,
   exportRosterToExcel,
 } from '../../hooks/useRoster';
-import type { RosterColumn, RosterTemplate } from '../../hooks/useRoster';
-import { useAuthStore } from '../../stores/auth.store';
-
+import type { RosterColumn } from '../../hooks/useRoster';
 export default function RosterPage() {
-  const { user } = useAuthStore();
-
   // Column state
   const [columns, setColumns] = useState<RosterColumn[]>([]);
   const [page, setPage] = useState(1);
-
-  // Modal state
-  const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const [loadModalOpen, setLoadModalOpen] = useState(false);
-
-  // Track which template is loaded (for "update" vs "save new")
-  const [activeTemplate, setActiveTemplate] = useState<RosterTemplate | null>(null);
 
   // Exporting state
   const [isExporting, setIsExporting] = useState(false);
@@ -47,12 +28,6 @@ export default function RosterPage() {
 
   // Preview data
   const { data: preview, isLoading: previewLoading } = useRosterPreview(columns, page);
-
-  // Templates
-  const { data: templates = [], isLoading: templatesLoading } = useRosterTemplates();
-  const createTemplate = useCreateRosterTemplate();
-  const updateTemplate = useUpdateRosterTemplate();
-  const deleteTemplate = useDeleteRosterTemplate();
 
   // Handlers
   const handleAddField = useCallback((column: RosterColumn) => {
@@ -76,10 +51,7 @@ export default function RosterPage() {
     }
     setIsExporting(true);
     try {
-      await exportRosterToExcel(
-        columns,
-        activeTemplate?.name || 'Roster Report'
-      );
+      await exportRosterToExcel(columns, 'Roster Report');
       notify.success('Export complete', { description: 'Excel file downloaded' });
     } catch {
       notify.error('Export failed', { description: 'Please try again' });
@@ -88,93 +60,21 @@ export default function RosterPage() {
     }
   };
 
-  const handleSave = async (data: {
-    name: string;
-    description?: string;
-    isShared: boolean;
-  }) => {
-    try {
-      if (activeTemplate) {
-        await updateTemplate.mutateAsync({
-          id: activeTemplate.id,
-          ...data,
-          columns,
-        });
-        notify.success('Template updated');
-      } else {
-        const created = await createTemplate.mutateAsync({
-          ...data,
-          columns,
-        });
-        setActiveTemplate(created);
-        notify.success('Template saved');
-      }
-      setSaveModalOpen(false);
-    } catch {
-      notify.error('Save failed', { description: 'Could not save template' });
-    }
-  };
-
-  const handleLoad = (template: RosterTemplate) => {
-    setColumns(template.columns);
-    setActiveTemplate(template);
-    setPage(1);
-    notify.success('Template loaded', { description: `"${template.name}" applied` });
-  };
-
-  const handleDeleteTemplate = async (id: string) => {
-    try {
-      await deleteTemplate.mutateAsync(id);
-      if (activeTemplate?.id === id) {
-        setActiveTemplate(null);
-      }
-      notify.success('Template deleted');
-    } catch {
-      notify.error('Delete failed', { description: 'Could not delete template' });
-    }
-  };
-
   return (
     <PageTransition>
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Roster Report Builder</h1>
-          {activeTemplate && (
-            <p className="text-sm text-gray-500 mt-1">
-              Template: {activeTemplate.name}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setLoadModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <FolderOpenIcon className="h-4 w-4" />
-            Load
-          </button>
-          <button
-            type="button"
-            onClick={() => setSaveModalOpen(true)}
-            disabled={columns.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <BookmarkIcon className="h-4 w-4" />
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={columns.length === 0 || isExporting}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ArrowDownTrayIcon className="h-4 w-4" />
-            {isExporting ? 'Exporting...' : 'Export'}
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Roster Report Builder</h1>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={columns.length === 0 || isExporting}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ArrowDownTrayIcon className="h-4 w-4" />
+          {isExporting ? 'Exporting...' : 'Export'}
+        </button>
       </div>
 
       {/* Builder area: field picker + selected columns */}
@@ -208,25 +108,6 @@ export default function RosterPage() {
         />
       </div>
 
-      {/* Modals */}
-      <SaveTemplateModal
-        isOpen={saveModalOpen}
-        onClose={() => setSaveModalOpen(false)}
-        onSave={handleSave}
-        columns={columns}
-        existingTemplate={activeTemplate}
-        isSaving={createTemplate.isPending || updateTemplate.isPending}
-      />
-
-      <LoadTemplateModal
-        isOpen={loadModalOpen}
-        onClose={() => setLoadModalOpen(false)}
-        templates={templates}
-        onLoad={handleLoad}
-        onDelete={handleDeleteTemplate}
-        isLoading={templatesLoading}
-        currentUserId={user?.id}
-      />
     </div>
     </PageTransition>
   );

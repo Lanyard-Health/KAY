@@ -53,8 +53,8 @@ export function useWorkflowApprovals(filters?: { status?: string; type?: string 
   return useQuery<WorkflowApproval[]>({
     queryKey: ['workflow-approvals', filters],
     queryFn: async () => {
-      const res = await api.get(`/workflow-approvals${qs ? `?${qs}` : ''}`);
-      return res.data;
+      const res = await api.get<{ success: boolean; data: WorkflowApproval[] }>(`/workflow-approvals${qs ? `?${qs}` : ''}`);
+      return res.data.data;
     },
   });
 }
