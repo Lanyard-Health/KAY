@@ -406,7 +406,8 @@ export default function DocumentList() {
       <OcrReviewModal
         isOpen={!!reviewingDoc}
         onClose={() => setReviewingDoc(null)}
-        document={reviewingDoc}
+        documentId={reviewingDoc?.id ?? null}
+        onApproved={() => { setReviewingDoc(null); refetch(); }}
       />
 
       {/* Document Preview Modal */}
