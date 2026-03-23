@@ -6,22 +6,24 @@ import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
+import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
+import { triggerDenialTriage } from '../services/denial-triage.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { autoCreateWorkItems } from '../services/opsWorkQueue.service.js';
+
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
   if (role === 'credentialing_staff') {
-    const enr = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
     if (!enr) return;
     if (!(await validateProviderPracticeAccess(req, enr.providerId))) throw new ForbiddenError('Access denied to this enrollment');
     return;
   }
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: { providerId: true },
   });
@@ -36,7 +38,7 @@ const router = Router();
 async function blockPendingVerification(req: Request, res: Response, next: NextFunction) {
   const user = req.user;
   if (user?.role === 'provider' && user.providerId) {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: user.providerId },
       select: { status: true },
     });
@@ -80,6 +82,7 @@ const createEnrollmentSchema = z.object({
   groupNumber: z.string().max(50).optional(),
   notes: z.string().optional(),
   workflowType: z.enum(['medical', 'behavioral_health']).optional().nullable(),
+  payerTrackId: z.string().uuid().optional().nullable(),
 });
 
 const updateEnrollmentSchema = createEnrollmentSchema.partial();
@@ -152,7 +155,7 @@ router.get(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: getPracticeRelationFilter(req),
         include: {
           payer: true,
@@ -194,7 +197,7 @@ router.get(
     try {
       const providerId = req.params['providerId']!;
 
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: { providerId },
         include: { payer: true },
         orderBy: { createdAt: 'desc' },
@@ -216,7 +219,7 @@ router.get(
       const id = req.params['id']!;
       await assertEnrollmentAccess(req, id);
 
-      const enrollment = await prisma.payerEnrollment.findUnique({
+      const enrollment = await prisma.enrollment.findUnique({
         where: { id },
         include: {
           payer: true,
@@ -274,16 +277,16 @@ router.post(
       }
 
       // Look up practice SLA target days for the SLA deadline
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
-        select: { practiceId: true, practice: { select: { slaTargetDays: true } } },
+        select: { practiceId: true },
       });
-      const slaTargetDays = provider?.practice?.slaTargetDays ?? 90;
+      const slaTargetDays = 90;
       const slaTargetDate = new Date(Date.now() + slaTargetDays * 86_400_000);
 
       let enrollment;
       try {
-        enrollment = await prisma.payerEnrollment.create({
+        enrollment = await prisma.enrollment.create({
           data: {
             providerId: providerId!,
             payerId: payer.id,
@@ -299,6 +302,7 @@ router.post(
             providerNumber: validated.providerNumber,
             groupNumber: validated.groupNumber,
             notes: validated.notes,
+            payerTrackId: validated.payerTrackId || null,
             createdById: req.user?.id,
             slaTargetDate,
           },
@@ -320,14 +324,8 @@ router.post(
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 
-      // Fire-and-forget: auto-create ops work items from workflow steps
-      autoCreateWorkItems(enrollment.id).catch((err) => {
-        logger.error('[Enrollment] Failed to auto-create ops work items:', err);
-      });
-
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');
-      invalidateCache('ops:');
       res.status(201).json({
         success: true,
         data: {
@@ -362,7 +360,7 @@ router.put(
       await assertEnrollmentAccess(req, id);
       const validated = updateEnrollmentSchema.parse(req.body);
 
-      const existing = await prisma.payerEnrollment.findUnique({
+      const existing = await prisma.enrollment.findUnique({
         where: { id },
       });
 
@@ -373,7 +371,7 @@ router.put(
         });
       }
 
-      const enrollment = await prisma.payerEnrollment.update({
+      const enrollment = await prisma.enrollment.update({
         where: { id },
         data: {
           status: validated.status,
@@ -403,6 +401,39 @@ router.put(
           .catch((err) => logger.error('Termination workflow trigger failed:', err));
       }
 
+      // Trigger follow-up instantiation when status transitions to 'submitted'
+      if (
+        validated.status === 'submitted' &&
+        existing.status !== 'submitted' &&
+        existing.payerTrackId
+      ) {
+        instantiateFollowUp(prisma, enrollment.id, existing.payerTrackId)
+          .then((result) => {
+            if (result.runCreated) {
+              logger.info(`Follow-up run created for enrollment ${enrollment.id}: ${result.runId}`);
+            }
+          })
+          .catch((err) => logger.error(`Follow-up instantiation failed for enrollment ${enrollment.id}:`, err));
+      }
+
+      // Trigger denial triage when status transitions to 'denied'
+      if (
+        validated.status === 'denied' &&
+        existing.status !== 'denied'
+      ) {
+        triggerDenialTriage(prisma, {
+          enrollmentId: enrollment.id,
+          denialReason: validated.notes || 'No denial reason provided',
+          denialDate: new Date(),
+        })
+          .then((result) => {
+            if (result.triageCreated) {
+              logger.info(`Denial triage created for enrollment ${enrollment.id}: ${result.triageId}`);
+            }
+          })
+          .catch((err) => logger.error(`Denial triage failed for enrollment ${enrollment.id}:`, err));
+      }
+
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');
       res.json({ success: true, data: enrollment });
@@ -428,7 +459,7 @@ router.delete(
     try {
       const id = req.params['id']!;
 
-      const existing = await prisma.payerEnrollment.findUnique({
+      const existing = await prisma.enrollment.findUnique({
         where: { id },
       });
 
@@ -443,7 +474,7 @@ router.delete(
         return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
       }
 
-      await prisma.payerEnrollment.delete({ where: { id } });
+      await prisma.enrollment.delete({ where: { id } });
 
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');

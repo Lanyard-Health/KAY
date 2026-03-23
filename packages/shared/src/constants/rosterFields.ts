@@ -139,13 +139,13 @@ export const ROSTER_FIELDS: RosterField[] = [
   // ==========================================
   // Payer Enrollment
   // ==========================================
-  { key: 'payerEnrollments.payer.name', label: 'Payer Name', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'payerEnrollments.payer.name' },
-  { key: 'payerEnrollments.status', label: 'Enrollment Status', category: 'Payer Enrollment', dataType: 'enum', prismaPath: 'payerEnrollments.status' },
-  { key: 'payerEnrollments.providerNumber', label: 'Provider Number', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'payerEnrollments.providerNumber' },
-  { key: 'payerEnrollments.groupNumber', label: 'Group Number', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'payerEnrollments.groupNumber' },
-  { key: 'payerEnrollments.applicationDate', label: 'Application Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'payerEnrollments.applicationDate' },
-  { key: 'payerEnrollments.effectiveDate', label: 'Enrollment Effective Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'payerEnrollments.effectiveDate' },
-  { key: 'payerEnrollments.recredentialingDate', label: 'Recredentialing Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'payerEnrollments.recredentialingDate' },
+  { key: 'enrollments.payer.name', label: 'Payer Name', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'enrollments.payer.name' },
+  { key: 'enrollments.status', label: 'Enrollment Status', category: 'Payer Enrollment', dataType: 'enum', prismaPath: 'enrollments.status' },
+  { key: 'enrollments.providerNumber', label: 'Provider Number', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'enrollments.providerNumber' },
+  { key: 'enrollments.groupNumber', label: 'Group Number', category: 'Payer Enrollment', dataType: 'string', prismaPath: 'enrollments.groupNumber' },
+  { key: 'enrollments.applicationDate', label: 'Application Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'enrollments.applicationDate' },
+  { key: 'enrollments.effectiveDate', label: 'Enrollment Effective Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'enrollments.effectiveDate' },
+  { key: 'enrollments.recredentialingDate', label: 'Recredentialing Date', category: 'Payer Enrollment', dataType: 'date', prismaPath: 'enrollments.recredentialingDate' },
 
   // ==========================================
   // Practice Location
@@ -205,7 +205,7 @@ export const ROSTER_RELATIONS = [
   'educations',
   'workHistories',
   'hospitalAffiliations',
-  'payerEnrollments',
+  'enrollments',
   'practiceLocations',
   'professionalReferences',
   'disciplinaryActions',

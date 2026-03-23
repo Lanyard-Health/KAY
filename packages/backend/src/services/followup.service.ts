@@ -1,12 +1,12 @@
-import type { PayerEnrollment, Provider, Payer, PracticeLocation } from '@prisma/client';
+import type { Enrollment, ProviderProfile, Payer, PracticeLocation } from '@prisma/client';
 import { emailService } from './email.service.js';
 import { prisma } from '../utils/prisma.js';
 
-type ProviderWithLocations = Provider & {
+type ProviderWithLocations = ProviderProfile & {
   practiceLocations: PracticeLocation[];
 };
 
-type EnrollmentWithRelations = PayerEnrollment & {
+type EnrollmentWithRelations = Enrollment & {
   provider: ProviderWithLocations;
   payer: Payer;
 };
@@ -42,7 +42,7 @@ class FollowUpService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    return prisma.payerEnrollment.findMany({
+    return prisma.enrollment.findMany({
       where: {
         followUpEnabled: true,
         followUpEmail: { not: null },
@@ -336,7 +336,7 @@ class FollowUpService {
       const nextFollowUpDate = new Date();
       nextFollowUpDate.setDate(nextFollowUpDate.getDate() + enrollment.followUpFrequencyDays);
 
-      await prisma.payerEnrollment.update({
+      await prisma.enrollment.update({
         where: { id: enrollment.id },
         data: {
           lastFollowUpSentAt: new Date(),
@@ -393,7 +393,7 @@ class FollowUpService {
       };
     }
   ): Promise<FollowUpResult> {
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id: enrollmentId },
       include: {
         provider: {
@@ -445,7 +445,7 @@ class FollowUpService {
 
     // Update last follow-up date if successful
     if (emailResult.success) {
-      await prisma.payerEnrollment.update({
+      await prisma.enrollment.update({
         where: { id: enrollmentId },
         data: {
           lastFollowUpSentAt: new Date(),
@@ -468,7 +468,7 @@ class FollowUpService {
    * Get enrollment data for preview (includes all provider details)
    */
   async getEnrollmentEmailData(enrollmentId: string): Promise<FollowUpEmailData | null> {
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id: enrollmentId },
       include: {
         provider: {
@@ -502,12 +502,12 @@ class FollowUpService {
       email?: string;
       frequencyDays?: number;
     }
-  ): Promise<PayerEnrollment | null> {
+  ): Promise<Enrollment | null> {
     const nextFollowUpDate = settings.enabled
       ? new Date(Date.now() + (settings.frequencyDays || 14) * 24 * 60 * 60 * 1000)
       : null;
 
-    return prisma.payerEnrollment.update({
+    return prisma.enrollment.update({
       where: { id: enrollmentId },
       data: {
         followUpEnabled: settings.enabled,

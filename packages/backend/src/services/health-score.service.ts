@@ -56,10 +56,10 @@ export async function computeHealthScore(
       enrollments7d,
     ] = await Promise.all([
       // Total active/pending providers
-      prisma.provider.count({ where: providerWhere }),
+      prisma.providerProfile.count({ where: providerWhere }),
 
       // Providers with at least 1 active license AND 1 cert
-      prisma.provider.count({
+      prisma.providerProfile.count({
         where: {
           ...providerWhere,
           licenses: { some: { status: 'active' } },
@@ -68,7 +68,7 @@ export async function computeHealthScore(
       }),
 
       // Total non-terminated enrollments
-      prisma.payerEnrollment.count({
+      prisma.enrollment.count({
         where: {
           status: { not: 'terminated' },
           provider: providerWhere,
@@ -76,7 +76,7 @@ export async function computeHealthScore(
       }),
 
       // Approved enrollments
-      prisma.payerEnrollment.count({
+      prisma.enrollment.count({
         where: {
           status: 'approved',
           provider: providerWhere,
@@ -97,7 +97,7 @@ export async function computeHealthScore(
       }),
 
       // Providers with CAQH synced in last 90 days
-      prisma.provider.count({
+      prisma.providerProfile.count({
         where: {
           ...providerWhere,
           caqhLastSync: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
@@ -105,7 +105,7 @@ export async function computeHealthScore(
       }),
 
       // Providers with at least 1 doc + 1 license + 1 cert
-      prisma.provider.count({
+      prisma.providerProfile.count({
         where: {
           ...providerWhere,
           documents: { some: {} },
@@ -205,7 +205,7 @@ async function get7DayTrend(
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const count = await prisma.provider.count({
+    const count = await prisma.providerProfile.count({
       where: {
         ...providerWhere,
         createdAt: { gte: dayStart, lte: dayEnd },
@@ -228,7 +228,7 @@ async function get7DayEnrollmentTrend(
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const count = await prisma.payerEnrollment.count({
+    const count = await prisma.enrollment.count({
       where: {
         provider: providerWhere,
         createdAt: { gte: dayStart, lte: dayEnd },

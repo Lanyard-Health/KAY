@@ -20,7 +20,7 @@ export class ManualSubmissionAdapter implements PayerAdapter {
 
   async submit(input: SubmissionInput): Promise<PayerAdapterResult> {
     // Gather provider credentials for the manifest
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: input.providerId },
       select: {
         id: true,

@@ -38,16 +38,17 @@ const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuc
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
 const CommandCenter = lazy(() => import('./features/command-center/CommandCenter'));
-const OpsDashboard = lazy(() => import('./features/ops/OpsDashboard'));
-const OpsWorkQueue = lazy(() => import('./features/ops/OpsWorkQueue'));
-const OpsWorkItemDetail = lazy(() => import('./features/ops/OpsWorkItemDetail'));
-const OpsPracticesList = lazy(() => import('./features/ops/OpsPracticesList'));
-const OpsPracticeDetail = lazy(() => import('./features/ops/OpsPracticeDetail'));
-const OpsStaffPage = lazy(() => import('./features/ops/OpsStaffPage'));
-const OpsStaffDetail = lazy(() => import('./features/ops/OpsStaffDetail'));
-const OpsSlaDashboard = lazy(() => import('./features/ops/OpsSlaDashboard'));
-const OpsActivityLog = lazy(() => import('./features/ops/OpsActivityLog'));
 const OcrReviewQueue = lazy(() => import('./features/documents/OcrReviewQueue'));
+const KnowledgeBaseList = lazy(() => import('./features/admin/KnowledgeBaseList'));
+const KnowledgeBaseDetail = lazy(() => import('./features/admin/KnowledgeBaseDetail'));
+const KnowledgeBaseNew = lazy(() => import('./features/admin/KnowledgeBaseNew'));
+const KnowledgeBaseGaps = lazy(() => import('./features/admin/KnowledgeBaseGaps'));
+const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'));
+const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
+const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
+const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
+const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
+const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -144,6 +145,8 @@ export default function App() {
           <Route path="ocr-review" element={<OcrReviewQueue />} />
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
+          <Route path="workflow-queue" element={<WorkflowQueue />} />
+          <Route path="denials" element={<DenialsList />} />
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<RosterPage />} />
           <Route path="ai-agent" element={<AiAgentDashboard />} />
@@ -155,15 +158,14 @@ export default function App() {
           <Route path="pending-providers" element={<PendingProviders />} />
           <Route path="onboarding-progress" element={<OnboardingProgress />} />
           <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="ops" element={<OpsDashboard />} />
-          <Route path="ops/work-queue" element={<OpsWorkQueue />} />
-          <Route path="ops/work-queue/:id" element={<OpsWorkItemDetail />} />
-          <Route path="ops/practices" element={<OpsPracticesList />} />
-          <Route path="ops/practices/:id" element={<OpsPracticeDetail />} />
-          <Route path="ops/staff" element={<OpsStaffPage />} />
-          <Route path="ops/staff/:id" element={<OpsStaffDetail />} />
-          <Route path="ops/sla" element={<OpsSlaDashboard />} />
-          <Route path="ops/activity" element={<OpsActivityLog />} />
+          <Route path="admin/knowledge-base" element={<KnowledgeBaseList />} />
+          <Route path="admin/knowledge-base/new" element={<KnowledgeBaseNew />} />
+          <Route path="admin/knowledge-base/gaps" element={<KnowledgeBaseGaps />} />
+          <Route path="admin/knowledge-base/:id" element={<KnowledgeBaseDetail />} />
+          <Route path="admin/workflow-templates" element={<WorkflowTemplates />} />
+          <Route path="admin/workflow-templates/:id" element={<WorkflowTemplateDetail />} />
+          <Route path="admin/followup-templates" element={<FollowupTemplates />} />
+          <Route path="admin/followup-templates/:id" element={<FollowupTemplateDetail />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

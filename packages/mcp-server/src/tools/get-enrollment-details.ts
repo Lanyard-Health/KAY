@@ -13,7 +13,7 @@ export function registerGetEnrollmentDetails(server: McpServer, ctx: UserContext
       enrollmentId: z.string().uuid().describe('The enrollment ID'),
     },
     async ({ enrollmentId }) => {
-      const enrollment = await prisma.payerEnrollment.findFirst({
+      const enrollment = await prisma.enrollment.findFirst({
         where: {
           id: enrollmentId,
           ...getPracticeRelationFilter(ctx),

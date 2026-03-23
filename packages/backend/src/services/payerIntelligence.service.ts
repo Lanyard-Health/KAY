@@ -76,7 +76,7 @@ export async function getPayerAnalytics(payerId?: string): Promise<PayerAnalytic
   if (payerIds.length === 0) return [];
 
   // Get all enrollments for these payers
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where: { payerId: { in: payerIds } },
     select: {
       id: true,

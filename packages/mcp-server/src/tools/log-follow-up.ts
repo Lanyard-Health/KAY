@@ -24,7 +24,7 @@ export function registerLogFollowUp(server: McpServer, ctx: UserContext) {
       }
 
       // Find enrollment within practice scope
-      const enrollment = await prisma.payerEnrollment.findFirst({
+      const enrollment = await prisma.enrollment.findFirst({
         where: {
           id: enrollmentId,
           ...getPracticeRelationFilter(ctx),
@@ -55,7 +55,7 @@ export function registerLogFollowUp(server: McpServer, ctx: UserContext) {
         ? `${enrollment.notes}\n\n${newNote}`
         : newNote;
 
-      const updated = await prisma.payerEnrollment.update({
+      const updated = await prisma.enrollment.update({
         where: { id: enrollmentId },
         data: {
           lastFollowUpDate: now,
@@ -71,7 +71,7 @@ export function registerLogFollowUp(server: McpServer, ctx: UserContext) {
         },
       });
 
-      await createAuditLog(ctx, 'update', 'PayerEnrollment', enrollmentId, {
+      await createAuditLog(ctx, 'update', 'Enrollment', enrollmentId, {
         action: 'follow_up',
         contactMethod,
         notes,

@@ -28,7 +28,7 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
       };
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: input.providerId },
       select: { id: true, caqhProviderId: true, npi: true, firstName: true, lastName: true, dateOfBirth: true },
     });
@@ -54,7 +54,7 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
   }
 
   async submit(input: SubmissionInput): Promise<PayerAdapterResult> {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: input.providerId },
       select: {
         id: true,
@@ -94,7 +94,7 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
       caqhProviderId = rosterResult.caqhProviderId;
 
       // Persist the CAQH provider ID
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: provider.id },
         data: { caqhProviderId },
       });

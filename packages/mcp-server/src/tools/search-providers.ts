@@ -37,7 +37,7 @@ export function registerSearchProviders(server: McpServer, ctx: UserContext) {
         ];
       }
 
-      const providers = await prisma.provider.findMany({
+      const providers = await prisma.providerProfile.findMany({
         where,
         select: {
           id: true,

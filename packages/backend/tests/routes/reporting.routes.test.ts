@@ -483,7 +483,7 @@ describe('Reporting Routes', () => {
     it('does not leak database error details to client', async () => {
       mockGetProviderReadiness.mockRejectedValueOnce(
         new Error(
-          'PrismaClientKnownRequestError: Invalid `prisma.provider.findMany()` invocation',
+          'PrismaClientKnownRequestError: Invalid `prisma.providerProfile.findMany()` invocation',
         ),
       );
       const app = createApp({

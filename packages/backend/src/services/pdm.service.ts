@@ -75,7 +75,7 @@ function checkNeedsUpdate(
 export async function getAttestationStatuses(
   providerId: string
 ): Promise<PdmAttestationStatus[]> {
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where: {
       providerId,
       pdmEnabled: true,
@@ -156,7 +156,7 @@ export async function recordAttestation(
 ): Promise<void> {
   const now = new Date();
 
-  await prisma.payerEnrollment.updateMany({
+  await prisma.enrollment.updateMany({
     where: {
       id: {
         in: enrollmentIds,

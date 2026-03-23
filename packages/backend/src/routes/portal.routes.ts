@@ -474,10 +474,10 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
       });
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       include: {
-        payerEnrollments: {
+        enrollments: {
           include: {
             payer: true,
           },
@@ -496,7 +496,6 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
     // Map to the shape the frontend expects
     const providerData = {
       ...provider,
-      enrollments: provider.payerEnrollments,
       locations: provider.practiceLocations,
     };
 
@@ -504,7 +503,7 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
       success: true,
       data: {
         provider: providerData,
-        enrollmentCount: provider.payerEnrollments.length,
+        enrollmentCount: provider.enrollments.length,
         locationCount: provider.practiceLocations.length,
       },
     });
@@ -532,11 +531,11 @@ router.get('/me/completeness', authenticate, authorize('provider'), async (req: 
       });
     }
 
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       include: {
         practiceLocations: true,
-        payerEnrollments: true,
+        enrollments: true,
       },
     });
 

@@ -12,15 +12,11 @@ interface SearchResult {
 
 export function useSearch() {
   const token = useAuthStore((s) => s.token);
-  const opsPracticeContext = useAuthStore((s) => s.opsPracticeContext);
 
   async function search(query: string): Promise<SearchResult[]> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
     };
-    if (opsPracticeContext) {
-      headers['X-Ops-Practice-Context'] = opsPracticeContext.id;
-    }
 
     const res = await fetch(
       `${API_BASE_URL}/search?q=${encodeURIComponent(query)}`,

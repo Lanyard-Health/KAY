@@ -8,7 +8,7 @@ import type { AetnaProviderData } from './types.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 async function loadProviderData(providerId: string, userId: string): Promise<AetnaProviderData> {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     include: {
       practice: true,
@@ -131,7 +131,7 @@ export async function startAetnaEnrollment(enrollmentId: string, runId: string, 
   let browser;
   try {
     // Load data and build payload
-    const enrollment = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId } });
+    const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId } });
     if (!enrollment) throw new Error('Enrollment not found');
 
     const data = await loadProviderData(enrollment.providerId, userId);
@@ -243,7 +243,7 @@ export async function approveAndSubmit(runId: string): Promise<void> {
     // Update parent enrollment status to submitted
     const completedRun = await prisma.aetnaEnrollmentRun.findUnique({ where: { id: runId }, select: { payerEnrollmentId: true } });
     if (completedRun) {
-      await prisma.payerEnrollment.update({
+      await prisma.enrollment.update({
         where: { id: completedRun.payerEnrollmentId },
         data: { status: 'submitted', applicationDate: new Date() },
       });

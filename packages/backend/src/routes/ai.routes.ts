@@ -37,13 +37,13 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
   if (role === 'credentialing_staff') {
-    const enrollment = await prisma.payerEnrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
     if (!enrollment) return;
     if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) throw new ForbiddenError('Access denied to this enrollment');
     return;
   }
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: { providerId: true },
   });

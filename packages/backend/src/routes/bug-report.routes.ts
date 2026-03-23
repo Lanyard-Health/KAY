@@ -111,6 +111,8 @@ function handleBugReport(req: Request, res: Response): void {
 }
 
 // --- POST /api/v1/bugs/maintenance ---
+// NOTE: retryPendingSyncs was removed from BugMonitorService.
+// This endpoint is kept as a no-op placeholder for future maintenance tasks.
 
 router.post('/maintenance', (req: Request, res: Response) => {
   const authHeader = req.headers['authorization'];
@@ -121,13 +123,7 @@ router.post('/maintenance', (req: Request, res: Response) => {
     return;
   }
 
-  bugMonitor.retryPendingSyncs()
-    .then(() => {
-      res.status(200).json({ status: 'ok' });
-    })
-    .catch(() => {
-      res.status(500).json({ error: 'Maintenance operation failed' });
-    });
+  res.status(200).json({ status: 'ok', message: 'No maintenance tasks configured' });
 });
 
 export const bugReportRoutes = router;

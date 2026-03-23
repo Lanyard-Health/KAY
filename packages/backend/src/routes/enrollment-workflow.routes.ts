@@ -32,7 +32,7 @@ router.get('/:id/workflow', authenticate, async (req: Request, res: Response) =>
   try {
     const id = req.params['id']!;
 
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id },
       include: {
         payer: { select: { id: true, name: true, workflowKey: true } },
@@ -158,7 +158,7 @@ router.post(
       const id = req.params['id']!;
       const { workflowType } = req.body;
 
-      const enrollment = await prisma.payerEnrollment.findUnique({
+      const enrollment = await prisma.enrollment.findUnique({
         where: { id },
         include: {
           payer: true,
@@ -198,7 +198,7 @@ router.post(
         resolvedType
       );
 
-      await prisma.payerEnrollment.update({
+      await prisma.enrollment.update({
         where: { id },
         data: { workflowType: resolvedType },
       });
@@ -251,7 +251,7 @@ async function syncEnrollmentStatus(enrollmentId: string): Promise<void> {
 
   if (steps.length === 0) return;
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
   });
 
@@ -279,7 +279,7 @@ async function syncEnrollmentStatus(enrollmentId: string): Promise<void> {
   }
 
   if (newStatus) {
-    await prisma.payerEnrollment.update({
+    await prisma.enrollment.update({
       where: { id: enrollmentId },
       data: { status: newStatus as any },
     });

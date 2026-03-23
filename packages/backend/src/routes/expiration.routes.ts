@@ -27,7 +27,7 @@ expirationRoutes.get(
       if (!req.practiceScope?.isSuperAdmin) {
         const practiceIds = req.practiceScope?.practiceIds ?? [];
         const providerIds = new Set(
-          (await prisma.provider.findMany({
+          (await prisma.providerProfile.findMany({
             where: { practiceId: { in: practiceIds } },
             select: { id: true },
           })).map(p => p.id)

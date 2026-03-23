@@ -98,6 +98,6 @@ describe('EmptyState', () => {
 
   it('applies custom className', () => {
     const { container } = render(<EmptyState title="Empty" className="my-class" />);
-    expect(container.firstChild?.className).toContain('my-class');
+    expect((container.firstChild as HTMLElement)?.className).toContain('my-class');
   });
 });

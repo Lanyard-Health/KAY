@@ -22,7 +22,7 @@ export function registerRecordPdmAttestation(server: McpServer, ctx: UserContext
       }
 
       // Verify all enrollments exist and are within practice scope
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: {
           id: { in: enrollmentIds },
           ...getPracticeRelationFilter(ctx),
@@ -46,7 +46,7 @@ export function registerRecordPdmAttestation(server: McpServer, ctx: UserContext
 
       const now = new Date();
 
-      await prisma.payerEnrollment.updateMany({
+      await prisma.enrollment.updateMany({
         where: { id: { in: foundIds } },
         data: {
           pdmLastAttestedAt: now,
@@ -56,7 +56,7 @@ export function registerRecordPdmAttestation(server: McpServer, ctx: UserContext
 
       // Audit each attestation
       for (const enrollment of enrollments) {
-        await createAuditLog(ctx, 'update', 'PayerEnrollment', enrollment.id, {
+        await createAuditLog(ctx, 'update', 'Enrollment', enrollment.id, {
           action: 'pdm_attestation',
           attestedAt: now.toISOString(),
         });

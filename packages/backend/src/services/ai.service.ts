@@ -135,7 +135,7 @@ export async function generateFollowUpEmail(
     throw new Error(`Daily token budget exceeded. Used ${budget.used}/${budget.budget} tokens today.`);
   }
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     include: {
       provider: true,
@@ -267,7 +267,7 @@ export async function analyzeEnrollment(enrollmentId: string): Promise<{ analysi
     throw new Error(`Daily token budget exceeded. Used ${budget.used}/${budget.budget} tokens today.`);
   }
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     include: { provider: true, payer: true },
   });
@@ -386,7 +386,7 @@ export async function analyzePortfolio(): Promise<{ analysis: PortfolioAnalysis;
     throw new Error(`Daily token budget exceeded. Used ${budget.used}/${budget.budget} tokens today.`);
   }
 
-  const enrollments = await prisma.payerEnrollment.findMany({
+  const enrollments = await prisma.enrollment.findMany({
     where: {
       status: { in: ['not_started', 'in_progress', 'submitted', 'pending_review'] },
     },
@@ -825,7 +825,7 @@ export async function getContextualRecommendations(
   const now = new Date();
 
   if (entityType === 'provider') {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: entityId },
       include: {
         licenses: { where: { status: 'active' } },
@@ -970,7 +970,7 @@ export async function getContextualRecommendations(
     }
   } else {
     // entityType === 'enrollment'
-    const enrollment = await prisma.payerEnrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { id: entityId },
       include: {
         payer: { select: { name: true, averageProcessingDays: true } },

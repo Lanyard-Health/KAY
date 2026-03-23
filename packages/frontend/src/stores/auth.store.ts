@@ -45,7 +45,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'ops_staff';
+  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'lanyard_admin';
   providerId?: string;
   practices?: UserPractice[];
 }
@@ -58,22 +58,15 @@ interface AuthState {
   error: string | null;
   isDevMode: boolean;
 
-  // Ops mode state
-  isOpsMode: boolean;
-  opsPracticeContext: { id: string; name: string } | null;
-
   // Actions
   checkAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   devLogin: () => Promise<void>;
   devProviderLogin: () => Promise<void>;
   devPracticeAdminLogin: () => Promise<void>;
-  devOpsStaffLogin: () => Promise<void>;
+  devLanyardAdminLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
-  toggleOpsMode: () => void;
-  enterPracticeContext: (id: string, name: string) => void;
-  exitPracticeContext: () => void;
 
   // Challenge flow
   challengeName: string | null;
@@ -95,8 +88,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   error: null,
   isDevMode: DEV_BYPASS_ENABLED,
-  isOpsMode: false,
-  opsPracticeContext: null,
   challengeName: null,
   challengeSession: null,
   challengeEmail: null,
@@ -145,9 +136,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             } catch {
               // Recovery failed — fall through to unauthenticated state
             }
-          } else if (devSession === 'ops_staff') {
+          } else if (devSession === 'lanyard_admin') {
             try {
-              await get().devOpsStaffLogin();
+              await get().devLanyardAdminLogin();
               return;
             } catch {
               // Recovery failed — fall through to unauthenticated state
@@ -336,8 +327,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Development ops_staff login bypass
-  devOpsStaffLogin: async () => {
+  // Development lanyard_admin login bypass
+  devLanyardAdminLogin: async () => {
     if (!DEV_BYPASS_ENABLED) {
       throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
     }
@@ -345,13 +336,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      localStorage.setItem('dev_session', 'ops_staff');
+      localStorage.setItem('dev_session', 'lanyard_admin');
 
       const response = await fetchWithDevRetry(
         `${API_BASE_URL}/users/me`,
         {
           Authorization: 'Bearer dev-token',
-          'X-Dev-Role': 'ops_staff',
+          'X-Dev-Role': 'lanyard_admin',
         },
       );
 
@@ -362,15 +353,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           token: 'dev-token',
           isLoading: false,
-          isOpsMode: true,
         });
       } else {
-        throw new Error('Failed to fetch dev ops_staff user');
+        throw new Error('Failed to fetch dev lanyard_admin user');
       }
     } catch (error) {
       localStorage.removeItem('dev_session');
       set({
-        error: error instanceof Error ? error.message : 'Dev ops_staff login failed',
+        error: error instanceof Error ? error.message : 'Dev lanyard_admin login failed',
         isLoading: false,
       });
       throw error;
@@ -560,26 +550,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         isAuthenticated: false,
         token: null,
-        isOpsMode: false,
-        opsPracticeContext: null,
       });
     } catch (error) {
       console.error('Logout error:', error);
     }
-  },
-
-  toggleOpsMode: () => {
-    const { isOpsMode, user } = get();
-    if (user?.role !== 'admin' && user?.role !== 'ops_staff') return;
-    set({ isOpsMode: !isOpsMode, opsPracticeContext: null });
-  },
-
-  enterPracticeContext: (id: string, name: string) => {
-    set({ opsPracticeContext: { id, name } });
-  },
-
-  exitPracticeContext: () => {
-    set({ opsPracticeContext: null });
   },
 
   setUser: (user) => {

@@ -382,7 +382,7 @@ export class CaqhService {
         changes,
       });
 
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: providerId },
         data: { caqhLastSync: new Date() },
       });

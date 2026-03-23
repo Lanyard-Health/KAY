@@ -29,7 +29,7 @@ function getS3Client(): S3Client {
 async function loadAndAuthorizeEnrollment(req: Request, res: Response): Promise<any | null> {
   const enrollmentId = req.params['enrollmentId']!;
 
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     include: { payer: true },
   });

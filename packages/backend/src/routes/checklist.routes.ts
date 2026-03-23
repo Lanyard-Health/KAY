@@ -75,7 +75,7 @@ router.put(
       const validated = updateChecklistSchema.parse(req.body);
 
       // Check if provider exists
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
       });
 
