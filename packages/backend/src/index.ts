@@ -72,7 +72,7 @@ import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
-import { closeRedisConnection } from './utils/redis.js';
+import { closeRedisConnection, isRedisConfigured } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -279,14 +279,18 @@ server.listen(PORT, async () => {
   // Initialize scheduled jobs
   schedulerService.initialize();
 
-  // Initialize agent workers (BullMQ)
-  try {
-    initializeWorkers();
-    logger.info('Agent workers initialized');
-  } catch (err) {
-    logger.warn('Agent workers failed to initialize — agent features disabled', {
-      error: err instanceof Error ? err.message : 'unknown',
-    });
+  // Initialize agent workers (BullMQ) — requires Redis
+  if (isRedisConfigured()) {
+    try {
+      initializeWorkers();
+      logger.info('Agent workers initialized');
+    } catch (err) {
+      logger.warn('Agent workers failed to initialize — agent features disabled', {
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+  } else {
+    logger.info('Redis not configured (REDIS_URL/REDIS_HOST) — agent workers disabled');
   }
 
   // Initialize bug monitor
