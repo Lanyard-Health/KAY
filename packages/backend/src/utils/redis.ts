@@ -7,12 +7,45 @@ const MAX_RETRIES = 10;
 const MAX_DELAY_MS = 5000;
 
 let connection: Redis | null = null;
+let redisAvailable = false;
+
+/**
+ * Returns true if a REDIS_URL or REDIS_HOST is configured.
+ * When false, Redis-dependent features (BullMQ workers) should be skipped.
+ */
+export function isRedisConfigured(): boolean {
+  return !!(process.env['REDIS_URL'] || process.env['REDIS_HOST']);
+}
+
+/**
+ * Returns true if Redis has successfully connected at least once.
+ */
+export function isRedisAvailable(): boolean {
+  return redisAvailable;
+}
 
 /**
  * Returns Redis connection config using environment variables with sensible defaults.
  * maxRetriesPerRequest is null as required by BullMQ.
  */
 export function getRedisConfig(): RedisOptions {
+  // If REDIS_URL is set (e.g. from Render), parse it
+  if (process.env['REDIS_URL']) {
+    return {
+      ...parseRedisUrl(process.env['REDIS_URL']),
+      maxRetriesPerRequest: null,
+      enableReadyCheck: true,
+      retryStrategy(times: number): number | null {
+        if (times > MAX_RETRIES) {
+          logger.error(`Redis: max retries (${MAX_RETRIES}) exceeded, giving up`);
+          return null;
+        }
+        const delay = Math.min(Math.pow(2, times) * 100, MAX_DELAY_MS);
+        return delay;
+      },
+    };
+  }
+
   const config: RedisOptions = {
     host: process.env['REDIS_HOST'] ?? 'localhost',
     port: parseInt(process.env['REDIS_PORT'] ?? '6379', 10),
@@ -36,6 +69,25 @@ export function getRedisConfig(): RedisOptions {
   return config;
 }
 
+function parseRedisUrl(url: string): RedisOptions {
+  const parsed = new URL(url);
+  const opts: RedisOptions = {
+    host: parsed.hostname,
+    port: parseInt(parsed.port || '6379', 10),
+  };
+  if (parsed.password) {
+    opts.password = decodeURIComponent(parsed.password);
+  }
+  if (parsed.username) {
+    opts.username = decodeURIComponent(parsed.username);
+  }
+  // Render Redis uses TLS on rediss:// URLs
+  if (parsed.protocol === 'rediss:') {
+    opts.tls = {};
+  }
+  return opts;
+}
+
 /**
  * Returns a shared Redis singleton connection.
  * Logs connect and error events.
@@ -49,6 +101,7 @@ export function getRedisConnection(): Redis {
   connection = new Redis(config);
 
   connection.on('connect', () => {
+    redisAvailable = true;
     logger.info('Redis: connected');
   });
 
@@ -67,7 +120,12 @@ export async function closeRedisConnection(): Promise<void> {
     return;
   }
 
-  await connection.quit();
+  try {
+    await connection.quit();
+  } catch {
+    // Connection may already be dead
+  }
   connection = null;
+  redisAvailable = false;
   logger.info('Redis: connection closed');
 }
