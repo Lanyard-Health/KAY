@@ -17,12 +17,16 @@
 import { PrismaClient } from '@prisma/client';
 import XLSX from 'xlsx';
 import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
 
-const SPREADSHEET_PATH = path.resolve(
-  '/Users/kay/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/payer_knowledge_base.xlsx'
-);
+// Check for spreadsheet in multiple locations:
+// 1. Bundled in repo (for Render/CI)
+// 2. Local iCloud path (for dev)
+const BUNDLED_PATH = path.resolve(import.meta.dirname, '../../data/payer_knowledge_base.xlsx');
+const LOCAL_PATH = '/Users/kay/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/payer_knowledge_base.xlsx';
+const SPREADSHEET_PATH = fs.existsSync(BUNDLED_PATH) ? BUNDLED_PATH : path.resolve(LOCAL_PATH);
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const SKIP_EMBEDDINGS = process.argv.includes('--skip-embeddings');
