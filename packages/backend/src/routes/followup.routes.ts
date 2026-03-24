@@ -437,4 +437,98 @@ followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_
   }
 });
 
+// ==========================================
+// Cross-enrollment FollowUpRun endpoints
+// ==========================================
+
+// List all follow-up runs (cross-enrollment)
+followUpRoutes.get('/runs', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status, search } = req.query;
+    const where: any = { enrollment: {} };
+
+    if (status && typeof status === 'string') {
+      where.status = status;
+    }
+
+    if (search && typeof search === 'string') {
+      where.enrollment.provider = {
+        OR: [
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // Practice scoping via existing middleware helper
+    const practiceFilter = getPracticeRelationFilter(req);
+    if (practiceFilter['provider']) {
+      where.enrollment.provider = {
+        ...where.enrollment.provider,
+        ...(practiceFilter['provider'] as Record<string, unknown>),
+      };
+    }
+
+    // Clean up empty enrollment filter
+    if (Object.keys(where.enrollment).length === 0) {
+      delete where.enrollment;
+    }
+
+    const runs = await prisma.followUpRun.findMany({
+      where,
+      include: {
+        enrollment: {
+          include: {
+            provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            payer: { select: { id: true, name: true } },
+          },
+        },
+        template: { include: { steps: { orderBy: { stepOrder: 'asc' } } } },
+        _count: { select: { callLogs: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    res.json({ success: true, data: runs });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pause/resume a follow-up run
+followUpRoutes.patch('/runs/:id', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status } = req.body;
+    if (!status || !['active', 'paused'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Status must be "active" or "paused"' });
+    }
+
+    // Verify run exists and check practice access
+    const existing = await prisma.followUpRun.findUnique({
+      where: { id: req.params['id'] },
+      include: { enrollment: { include: { provider: { select: { practiceId: true } } } } },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+    }
+
+    // Practice scoping check
+    if (existing.enrollment.provider.practiceId) {
+      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
+        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+      }
+    }
+
+    const run = await prisma.followUpRun.update({
+      where: { id: req.params['id'] },
+      data: { status },
+    });
+
+    res.json({ success: true, data: run });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default followUpRoutes;
