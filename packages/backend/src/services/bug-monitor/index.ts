@@ -1,11 +1,25 @@
-import type { PrismaClient } from '@prisma/client';
 import { bugSanitizer } from './sanitizer.js';
 import { bugFingerprintService } from './fingerprint.js';
 import { noiseFilter } from './noise-filter.js';
 import { bugTriager } from './triage.js';
 import { linearClient } from './linear-client.js';
 import { alertRouter } from './alert-router.js';
+import { logger } from '../../utils/logger.js';
 import type { BugReport, BugSeverity, BugSource, SanitizedBugReport, TriageResult } from './types.js';
+
+interface InMemoryFingerprint {
+  hash: string;
+  source: string;
+  title: string;
+  errorClass: string | null;
+  linearIssueId: string | null;
+  linearIssueUrl: string | null;
+  currentSeverity: string;
+  occurrenceCount: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  metadata: Record<string, string> | null;
+}
 
 class BugMonitorService {
   private sanitizer = bugSanitizer;
@@ -14,16 +28,13 @@ class BugMonitorService {
   private triager = bugTriager;
   private linearClient = linearClient;
   private alertRouter = alertRouter;
-  private prisma: PrismaClient;
-
-  constructor(prisma: PrismaClient) {
-    this.prisma = prisma;
-  }
+  // In-memory fingerprint store (BugFingerprint model was removed — Sentry handles persistence)
+  private fingerprints = new Map<string, InMemoryFingerprint>();
 
   async report(bug: BugReport): Promise<void> {
     // Kill switch
     if (process.env['LINEAR_BUG_MONITOR_ENABLED'] !== 'true') {
-      console.log(JSON.stringify({ service: 'bugMonitor', action: 'skipped', reason: 'disabled', title: bug.title }));
+      logger.debug(JSON.stringify({ service: 'bugMonitor', action: 'skipped', reason: 'disabled', title: bug.title }));
       return;
     }
 
@@ -34,8 +45,8 @@ class BugMonitorService {
       // 2. Generate fingerprint
       const hash = this.fingerprinter.generate(sanitized);
 
-      // 3. Check for existing fingerprint in DB
-      const existing = await this.prisma.bugFingerprint.findUnique({ where: { hash } });
+      // 3. Check for existing fingerprint
+      const existing = this.fingerprints.get(hash);
 
       if (existing) {
         await this.handleDuplicate(existing, sanitized, hash);
@@ -44,7 +55,7 @@ class BugMonitorService {
       }
     } catch (error) {
       // Bug monitor should NEVER crash the app
-      console.error(JSON.stringify({
+      logger.error(JSON.stringify({
         service: 'bugMonitor',
         action: 'reportFailed',
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -53,50 +64,42 @@ class BugMonitorService {
     }
   }
 
-  private async handleDuplicate(existing: any, report: SanitizedBugReport, hash: string): Promise<void> {
+  private async handleDuplicate(existing: InMemoryFingerprint, report: SanitizedBugReport, hash: string): Promise<void> {
     // 1. Increment occurrence count and update lastSeenAt
-    const updated = await this.prisma.bugFingerprint.update({
-      where: { hash },
-      data: {
-        occurrenceCount: { increment: 1 },
-        lastSeenAt: new Date(),
-        metadata: report.metadata as any,
-      },
-    });
+    existing.occurrenceCount += 1;
+    existing.lastSeenAt = new Date();
+    existing.metadata = report.metadata as Record<string, string>;
 
     // 2. Check escalation
-    const hourlyRate = updated.occurrenceCount;
-    const daysSinceFirst = Math.max(1, Math.ceil((Date.now() - updated.firstSeenAt.getTime()) / 86400000));
-    const dailyAvgRate = Math.max(1, updated.occurrenceCount / daysSinceFirst);
+    const hourlyRate = existing.occurrenceCount;
+    const daysSinceFirst = Math.max(1, Math.ceil((Date.now() - existing.firstSeenAt.getTime()) / 86400000));
+    const dailyAvgRate = Math.max(1, existing.occurrenceCount / daysSinceFirst);
     const newSeverity = this.noiseFilter.checkEscalation(
-      updated.currentSeverity as BugSeverity,
+      existing.currentSeverity as BugSeverity,
       hourlyRate,
       dailyAvgRate,
     );
 
     // 3. If severity escalated, update Linear issue
-    if (newSeverity !== updated.currentSeverity && existing.linearIssueId) {
+    if (newSeverity !== existing.currentSeverity && existing.linearIssueId) {
       const priorityMap: Record<BugSeverity, number> = { urgent: 1, high: 2, medium: 3, low: 4 };
       await this.linearClient.updateIssue(existing.linearIssueId, {
         priority: priorityMap[newSeverity],
         title: newSeverity === 'urgent' ? `[URGENT] ${existing.title}` : undefined,
       });
-      await this.prisma.bugFingerprint.update({
-        where: { hash },
-        data: { currentSeverity: newSeverity },
-      });
+      existing.currentSeverity = newSeverity;
     }
 
     // 4. Add comment to Linear issue with occurrence count
     if (existing.linearIssueId) {
       await this.linearClient.addComment(
         existing.linearIssueId,
-        `**Occurrence #${updated.occurrenceCount}** at ${new Date().toISOString()}\n\nLatest error: ${report.errorMessage.substring(0, 200)}`,
+        `**Occurrence #${existing.occurrenceCount}** at ${new Date().toISOString()}\n\nLatest error: ${report.errorMessage.substring(0, 200)}`,
       );
     }
 
     // 5. Alert if escalated to urgent
-    if (newSeverity === 'urgent' && updated.currentSeverity !== 'urgent') {
+    if (newSeverity === 'urgent' && existing.currentSeverity !== 'urgent') {
       await this.alertRouter.sendUrgentAlert(report, existing.linearIssueUrl);
     }
   }
@@ -108,19 +111,19 @@ class BugMonitorService {
     // 2. Create Linear issue
     const issue = await this.linearClient.createIssue(report, triage);
 
-    // 3. Save fingerprint to DB
-    await this.prisma.bugFingerprint.create({
-      data: {
-        hash,
-        source: report.source,
-        title: report.title,
-        errorClass: report.errorClass || null,
-        linearIssueId: issue?.id || null,
-        linearIssueUrl: issue?.url || null,
-        currentSeverity: triage.severity,
-        pendingSync: issue === null, // If Linear was unreachable, mark for retry
-        metadata: report.metadata as any,
-      },
+    // 3. Save fingerprint in memory
+    this.fingerprints.set(hash, {
+      hash,
+      source: report.source,
+      title: report.title,
+      errorClass: report.errorClass || null,
+      linearIssueId: issue?.id || null,
+      linearIssueUrl: issue?.url || null,
+      currentSeverity: triage.severity,
+      occurrenceCount: 1,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+      metadata: report.metadata as Record<string, string>,
     });
 
     // 4. Alert if urgent
@@ -128,7 +131,7 @@ class BugMonitorService {
       await this.alertRouter.sendUrgentAlert(report, issue?.url || null);
     }
 
-    console.log(JSON.stringify({
+    logger.info(JSON.stringify({
       service: 'bugMonitor',
       action: 'newIssue',
       hash,
@@ -137,69 +140,12 @@ class BugMonitorService {
       title: report.title,
     }));
   }
-
-  // --- Background Jobs ---
-
-  async retryPendingSyncs(): Promise<void> {
-    const pending = await this.prisma.bugFingerprint.findMany({
-      where: { pendingSync: true },
-      take: 20,
-    });
-
-    for (const fp of pending) {
-      const triage: TriageResult = {
-        severity: fp.currentSeverity as BugSeverity,
-        rootCause: 'Retried from pending sync queue',
-      };
-      const fakeReport: SanitizedBugReport = {
-        source: fp.source as BugSource,
-        title: fp.title,
-        errorMessage: fp.title,
-        errorClass: fp.errorClass || undefined,
-        metadata: (fp.metadata as Record<string, string>) || {},
-        occurredAt: fp.firstSeenAt,
-        environment: 'production',
-        _sanitized: true,
-      };
-
-      const issue = await this.linearClient.createIssue(fakeReport, triage);
-      if (issue) {
-        await this.prisma.bugFingerprint.update({
-          where: { id: fp.id },
-          data: {
-            pendingSync: false,
-            linearIssueId: issue.id,
-            linearIssueUrl: issue.url,
-          },
-        });
-      }
-    }
-  }
-
-  async archiveOldFingerprints(): Promise<void> {
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    await this.prisma.bugFingerprint.deleteMany({
-      where: {
-        resolvedAt: { not: null, lt: ninetyDaysAgo },
-      },
-    });
-  }
 }
 
 export let bugMonitor: BugMonitorService;
 
-export function initBugMonitor(prisma: PrismaClient): void {
-  bugMonitor = new BugMonitorService(prisma);
+export function initBugMonitor(): void {
+  bugMonitor = new BugMonitorService();
 
-  // Retry pending Linear syncs every 15 minutes
-  setInterval(() => bugMonitor.retryPendingSyncs(), 15 * 60 * 1000);
-
-  // Archive old resolved fingerprints weekly (Sunday 4am UTC)
-  setInterval(() => {
-    if (new Date().getUTCHours() === 4 && new Date().getUTCDay() === 0) {
-      bugMonitor.archiveOldFingerprints();
-    }
-  }, 60 * 60 * 1000);
-
-  console.log(JSON.stringify({ service: 'bugMonitor', action: 'initialized' }));
+  logger.info(JSON.stringify({ service: 'bugMonitor', action: 'initialized' }));
 }

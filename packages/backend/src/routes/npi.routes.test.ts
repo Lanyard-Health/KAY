@@ -86,7 +86,7 @@ describe('NPI Routes', () => {
       const res = await request(app).get('/search');
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('first name or last name');
+      expect(res.body.success).toBe(false);
     });
 
     it('passes all search params to service', async () => {

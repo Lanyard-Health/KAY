@@ -100,18 +100,34 @@ auditRoutes.get(
   '/user/:userId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const targetUserId = req.params['userId']!;
+
+      // practice_admin can only view audit logs for users in their own practice(s)
+      if (req.user?.role === 'practice_admin') {
+        const practiceIds = req.practiceScope?.practiceIds ?? [];
+        if (practiceIds.length === 0) {
+          return res.status(403).json({ success: false, error: 'Access denied' });
+        }
+        const targetInPractice = await prisma.userPractice.findFirst({
+          where: { userId: targetUserId, practiceId: { in: practiceIds } },
+        });
+        if (!targetInPractice) {
+          return res.status(403).json({ success: false, error: 'Access denied — user not in your practice' });
+        }
+      }
+
       const { page, pageSize } = parseQuery(req.query, paginationSchema.extend({
         pageSize: z.coerce.number().int().min(1).max(100).default(50),
       }));
 
       const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
-          where: { userId: req.params['userId'] },
+          where: { userId: targetUserId },
           skip: (page - 1) * pageSize,
           take: pageSize,
           orderBy: { timestamp: 'desc' },
         }),
-        prisma.auditLog.count({ where: { userId: req.params['userId'] } }),
+        prisma.auditLog.count({ where: { userId: targetUserId } }),
       ]);
 
       res.json({

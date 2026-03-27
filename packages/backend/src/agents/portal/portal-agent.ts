@@ -45,7 +45,7 @@ export async function processPortalJob(data: PortalJobData): Promise<PortalJobRe
 
   try {
     // Load adapter config for this payer
-    const adapterConfig = await prisma.payerAdapterConfig.findUnique({
+    const adapterConfig = await prisma.payerSubmissionConfig.findUnique({
       where: { payerId },
     });
 

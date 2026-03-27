@@ -507,7 +507,7 @@ async function detectDuplicates(rows: ValidatedRow[], practiceId: string): Promi
   if (npisToCheck.length === 0) return;
 
   // Single query: find all existing providers in this practice matching any of these NPIs
-  const existingProviders = await prisma.provider.findMany({
+  const existingProviders = await prisma.providerProfile.findMany({
     where: {
       practiceId,
       npi: { in: npisToCheck },
@@ -643,7 +643,7 @@ export async function executeImport(
     // Single transaction with 2-minute timeout for up to 500 rows
     await prisma.$transaction(async (tx) => {
       for (const row of rows) {
-        const provider = await tx.provider.create({
+        const provider = await tx.providerProfile.create({
           data: {
             npi: row.data['npi']!,
             firstName: row.data['firstName']!,

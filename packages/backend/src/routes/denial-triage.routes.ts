@@ -1,0 +1,142 @@
+/**
+ * Denial Triage Routes
+ *
+ * GET    /denials           — list denial triages (filter by status)
+ * GET    /denials/:id       — get single denial triage with enrollment context
+ * PATCH  /denials/:id       — mark as reviewed or actioned
+ */
+
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { prisma } from '../utils/prisma.js';
+
+const router = Router();
+
+// ─── List denial triages ────────────────────────────────
+
+router.get(
+  '/',
+  authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const status = req.query['status'] as string | undefined;
+
+      const where: any = {};
+      if (status) where.status = status;
+
+      const triages = await prisma.denialTriage.findMany({
+        where,
+        include: {
+          enrollment: {
+            include: {
+              provider: { select: { id: true, firstName: true, lastName: true, npi: true } },
+              payer: { select: { id: true, name: true } },
+              payerTrack: { select: { id: true, track: true, stateRegion: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ success: true, data: triages });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── Get single denial triage ───────────────────────────
+
+router.get(
+  '/:id',
+  authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      const triage = await prisma.denialTriage.findUnique({
+        where: { id },
+        include: {
+          enrollment: {
+            include: {
+              provider: { select: { id: true, firstName: true, lastName: true, npi: true, entityType: true } },
+              payer: { select: { id: true, name: true } },
+              payerTrack: {
+                select: {
+                  id: true, payerName: true, track: true, stateRegion: true,
+                  submissionMethod: true, enrollmentLink: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!triage) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Denial triage not found' },
+        });
+      }
+
+      res.json({ success: true, data: triage });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── Update denial triage (review / action) ─────────────
+
+const updateSchema = z.object({
+  status: z.enum(['reviewed', 'actioned']),
+  reviewNotes: z.string().optional(),
+});
+
+router.patch(
+  '/:id',
+  authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const validated = updateSchema.parse(req.body);
+
+      const existing = await prisma.denialTriage.findUnique({
+        where: { id },
+      });
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Denial triage not found' },
+        });
+      }
+
+      const triage = await prisma.denialTriage.update({
+        where: { id },
+        data: {
+          status: validated.status,
+          reviewedBy: req.user!.id,
+          reviewedAt: new Date(),
+          reviewNotes: validated.reviewNotes || null,
+        },
+      });
+
+      res.json({ success: true, data: triage });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Validation failed', details: error.errors },
+        });
+      }
+      next(error);
+    }
+  }
+);
+
+export { router as denialTriageRoutes };

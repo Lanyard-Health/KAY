@@ -13,7 +13,7 @@ export function registerGetProviderProfile(server: McpServer, ctx: UserContext) 
       providerId: z.string().uuid().describe('The provider ID'),
     },
     async ({ providerId }) => {
-      const provider = await prisma.provider.findFirst({
+      const provider = await prisma.providerProfile.findFirst({
         where: {
           id: providerId,
           ...getPracticeProviderFilter(ctx),

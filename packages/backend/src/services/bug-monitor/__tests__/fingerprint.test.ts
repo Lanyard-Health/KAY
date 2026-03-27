@@ -79,7 +79,7 @@ describe('BugFingerprintService', () => {
 
   it('extracts function names from realistic V8 stack traces', () => {
     const stack = [
-      'PrismaClientKnownRequestError: Invalid `prisma.provider.findUnique()` invocation',
+      'PrismaClientKnownRequestError: Invalid `prisma.providerProfile.findUnique()` invocation',
       '    at ProviderService.getById (/app/src/services/provider.service.ts:42:5)',
       '    at EnrollmentService.validateProvider (/app/src/services/enrollment.service.ts:88:12)',
       '    at Router.handle (/app/node_modules/express/lib/router/index.js:300:14)',

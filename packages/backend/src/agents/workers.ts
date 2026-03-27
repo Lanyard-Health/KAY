@@ -4,7 +4,8 @@ import { getRedisConfig } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitWorkflowEvent } from './websocket.js';
-import { QUEUE_NAMES } from './queues.js';
+import { QUEUE_NAMES, QUEUE_LOCK_DURATIONS } from './queues.js';
+import type { QueueName } from './queues.js';
 import { processPortalJob } from './portal/portal-agent.js';
 import type { PortalJobData } from './portal/portal-agent.js';
 import { registerPortalAdapters } from './portal/index.js';
@@ -142,12 +143,15 @@ export function initializeWorkers(): void {
   const connection = getRedisConfig();
 
   for (const config of WORKER_CONFIGS) {
+    const lockDuration = QUEUE_LOCK_DURATIONS[config.queueName as QueueName] ?? 30_000;
     const worker = new Worker(
       config.queueName,
       getProcessor(config.agentName),
       {
         connection,
         concurrency: config.concurrency,
+        lockDuration,
+        stalledInterval: lockDuration + 30_000, // check for stalled jobs slightly after lock expires
       }
     );
 

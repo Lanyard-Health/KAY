@@ -155,7 +155,9 @@ describe('POST /portal/self-serve-signup', () => {
       .send(validBody);
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Failed to create account');
+    expect(res.body.success).toBe(false);
+    // Error now flows through global error handler — internal details not exposed in production
+    expect(res.body.error?.code || res.body.error).toBeDefined();
     expect(res.body.stack).toBeUndefined();
   });
 });

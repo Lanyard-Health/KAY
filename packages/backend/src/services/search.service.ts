@@ -26,7 +26,7 @@ export async function globalSearch(
   try {
     const [providers, practices, enrollments, payers, documents] = await Promise.all([
       // Providers
-      prisma.provider.findMany({
+      prisma.providerProfile.findMany({
         where: {
           ...practiceFilter,
           OR: [
@@ -40,7 +40,7 @@ export async function globalSearch(
         take: MAX_RESULTS_PER_TYPE,
       }),
 
-      // Practices (admin/ops_staff only)
+      // Practices (super admin only)
       isSuperAdmin
         ? prisma.practice.findMany({
             where: {
@@ -56,7 +56,7 @@ export async function globalSearch(
         : [],
 
       // Enrollments (via provider practice scope)
-      prisma.payerEnrollment.findMany({
+      prisma.enrollment.findMany({
         where: {
           ...( !isSuperAdmin && req.practiceScope?.practiceIds?.length
             ? { provider: { OR: [{ practiceId: null }, { practiceId: { in: req.practiceScope.practiceIds } }] } }

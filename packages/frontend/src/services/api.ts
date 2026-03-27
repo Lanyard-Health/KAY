@@ -1,4 +1,3 @@
-import { useAuthStore } from '../stores/auth.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -35,14 +34,10 @@ class ApiClient {
       ? localStorage.getItem('dev_session')
       : null;
 
-    // If ops user is viewing a specific practice, include the context header
-    const opsPracticeContext = useAuthStore.getState().opsPracticeContext;
-
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
-      ...(opsPracticeContext && { 'X-Ops-Practice-Context': opsPracticeContext.id }),
       ...options.headers,
     };
 
@@ -116,12 +111,9 @@ class ApiClient {
       ? localStorage.getItem('dev_session')
       : null;
 
-    const opsCtx = useAuthStore.getState().opsPracticeContext;
-
     const headers: HeadersInit = {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
-      ...(opsCtx && { 'X-Ops-Practice-Context': opsCtx.id }),
     };
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {

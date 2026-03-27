@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, ArrowPathIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 // jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
@@ -45,9 +45,7 @@ import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import PdmComplianceCard from '../../components/PdmComplianceCard';
 import { CaqhCard } from '../../components/CaqhCard';
-import DirectoryStatusCard from '../../components/DirectoryStatusCard';
 import { usePdmAlerts } from '../../hooks/usePdmStatus';
-import { useVerifyMedicare } from '../../hooks/useMedicareVerification';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
@@ -205,7 +203,6 @@ export default function ProviderDetail() {
   const { data: providerIdentifiersList } = useListProviderIdentifiers(id || '');
   const { data: bankingList } = useListBanking(id || '');
 
-  const verifyMedicareMutation = useVerifyMedicare();
 
   // Existing delete mutations
   const deleteLocationMutation = useMutation({
@@ -774,7 +771,7 @@ export default function ProviderDetail() {
             {[
               { label: 'Licenses', value: provider.licenses?.length || 0 },
               { label: 'Certifications', value: provider.boardCertifications?.length || 0 },
-              { label: 'Enrollments', value: provider.payerEnrollments?.length || 0 },
+              { label: 'Enrollments', value: provider.enrollments?.length || 0 },
               { label: 'Documents', value: provider.documents?.length || 0 },
             ].map((stat) => (
               <Fragment key={stat.label}>
@@ -1170,78 +1167,7 @@ export default function ProviderDetail() {
                   }}
                 />
 
-                {/* Medicare Enrollment */}
-                <div className="card card-body">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">Medicare</h3>
-                    <button
-                      onClick={() => verifyMedicareMutation.mutate(id!)}
-                      disabled={verifyMedicareMutation.isPending}
-                      className="text-xs text-primary-600 hover:text-primary-500 flex items-center gap-1"
-                      title="Re-verify with CMS"
-                    >
-                      <ArrowPathIcon className={clsx('h-3 w-3', verifyMedicareMutation.isPending && 'animate-spin')} />
-                      {verifyMedicareMutation.isPending ? 'Verifying...' : 'Verify'}
-                    </button>
-                  </div>
-                  {provider.medicareVerification ? (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={clsx(
-                          'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                          provider.medicareVerification.status === 'ENROLLED' && 'bg-green-100 text-green-800',
-                          provider.medicareVerification.status === 'NOT_ENROLLED' && 'bg-yellow-100 text-yellow-800',
-                          provider.medicareVerification.status === 'UNVERIFIED' && 'bg-gray-100 text-gray-600',
-                        )}>
-                          {provider.medicareVerification.status === 'ENROLLED' ? 'Enrolled' :
-                           provider.medicareVerification.status === 'NOT_ENROLLED' ? 'Not Enrolled' : 'Unverified'}
-                        </span>
-                        {provider.medicareVerification.verifiedAt && (() => {
-                          const daysSince = Math.floor((Date.now() - new Date(provider.medicareVerification.verifiedAt).getTime()) / 86400000);
-                          return daysSince > 30 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Stale</span>
-                          ) : null;
-                        })()}
-                      </div>
-                      {provider.medicareVerification.rawData?.pacId && (
-                        <p className="text-xs text-gray-500 mb-1">PAC ID: {provider.medicareVerification.rawData.pacId}</p>
-                      )}
-                      {provider.medicareVerification.rawData?.enrollments?.length > 0 && (
-                        <div className="text-xs text-gray-600 space-y-0.5 mb-1">
-                          {provider.medicareVerification.rawData.enrollments.map((enrollment: any, idx: number) => (
-                            <p key={idx} className="truncate" title={enrollment.providerTypeDesc}>
-                              &bull; {enrollment.state}: {enrollment.providerTypeDesc?.replace('PRACTITIONER - ', '')}
-                              {enrollment.enrollmentDate && ` (${enrollment.enrollmentDate})`}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      {provider.medicareVerification.rawData?.orderingPrivileges && (
-                        <div className="text-xs text-gray-500 space-y-0.5 mb-1">
-                          <p className="font-medium text-gray-600">Ordering Privileges:</p>
-                          {provider.medicareVerification.rawData.orderingPrivileges.partB && <p>&#10003; Part B</p>}
-                          {provider.medicareVerification.rawData.orderingPrivileges.dme && <p>&#10003; DME</p>}
-                          {provider.medicareVerification.rawData.orderingPrivileges.hha && <p>&#10003; Home Health</p>}
-                          {provider.medicareVerification.rawData.orderingPrivileges.pmd && <p>&#10003; PMD</p>}
-                          {provider.medicareVerification.rawData.orderingPrivileges.hospice && <p>&#10003; Hospice</p>}
-                        </div>
-                      )}
-                      {provider.medicareVerification.verifiedAt && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          Verified: {format(new Date(provider.medicareVerification.verifiedAt), 'MMM d, yyyy')}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Unverified</span>
-                      <p className="text-xs text-gray-500 mt-1">Click Verify to check Medicare enrollment status.</p>
-                    </div>
-                  )}
-                </div>
-
                 <PdmComplianceCard providerId={id!} />
-                <DirectoryStatusCard providerId={id!} />
 
                 {/* Documents */}
                 <div className="card px-4 py-3">

@@ -86,10 +86,10 @@ payerRoutes.get(
   }
 );
 
-// POST /api/v1/payers - Create payer (admin only)
+// POST /api/v1/payers - Create payer
 payerRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);
@@ -135,7 +135,7 @@ payerRoutes.get(
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: { providerId: req.params['providerId'] },
         include: {
           payer: true,
@@ -158,7 +158,7 @@ payerRoutes.post(
     try {
       const data = createEnrollmentSchema.parse(req.body);
 
-      const enrollment = await prisma.payerEnrollment.create({
+      const enrollment = await prisma.enrollment.create({
         data: {
           providerId: req.params['providerId']!,
           payerId: data.payerId,
@@ -190,11 +190,11 @@ payerRoutes.put(
     try {
       const data = createEnrollmentSchema.partial().parse(req.body);
 
-      const existing = await prisma.payerEnrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
 
-      const enrollment = await prisma.payerEnrollment.update({
+      const enrollment = await prisma.enrollment.update({
         where: { id: req.params['id'] },
         data: {
           ...data,
@@ -220,11 +220,11 @@ payerRoutes.delete(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const existing = await prisma.payerEnrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
 
-      await prisma.payerEnrollment.delete({
+      await prisma.enrollment.delete({
         where: { id: req.params['id'] },
       });
 

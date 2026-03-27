@@ -405,7 +405,7 @@ jobs:
       summary: ${{ steps.check.outputs.summary }}
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: credentials
           POSTGRES_PASSWORD: credentials_dev_password
@@ -558,7 +558,7 @@ jobs:
       summary: ${{ steps.parse.outputs.summary }}
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: credentials
           POSTGRES_PASSWORD: credentials_dev_password

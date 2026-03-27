@@ -46,7 +46,7 @@ function getAnthropicClient(): Anthropic {
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY is not configured');
     }
-    anthropicClient = new Anthropic({ apiKey });
+    anthropicClient = new Anthropic({ apiKey, timeout: 60_000 });
   }
   return anthropicClient;
 }
@@ -201,18 +201,21 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       }
     }
   } catch (err) {
-    // Log the error but rethrow so BullMQ can retry the job
     const errorMessage = err instanceof Error ? err.message : String(err);
-    logger.error('Orchestrator job failed', { workflowId, error: errorMessage });
+    const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('timed out');
+
+    logger.error('Orchestrator job failed', { workflowId, error: errorMessage, isTimeout });
 
     await logAgentEvent({
       workflowId,
       agent: 'orchestrator',
-      action: 'orchestrator_error',
-      data: { error: errorMessage },
+      action: isTimeout ? 'orchestrator_timeout' : 'orchestrator_error',
+      data: { error: errorMessage, isTimeout },
       level: 'error',
     });
 
+    // On timeout, keep workflow active so BullMQ retry picks it up (don't mark failed on transient timeout)
+    // For other errors, rethrow as before
     throw err;
   }
 

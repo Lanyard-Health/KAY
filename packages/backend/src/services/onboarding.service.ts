@@ -17,7 +17,7 @@ interface OnboardingProgress {
  * Checks 5 steps: Profile, Documents, Licenses, Locations, Review.
  */
 export async function computeOnboardingProgress(providerId: string): Promise<OnboardingProgress> {
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: {
       firstName: true,
@@ -74,7 +74,7 @@ export async function computeOnboardingProgress(providerId: string): Promise<Onb
 
   // Auto-set onboardingCompletedAt when all steps are complete
   if (isComplete && !provider.onboardingCompletedAt) {
-    await prisma.provider.update({
+    await prisma.providerProfile.update({
       where: { id: providerId },
       data: { onboardingCompletedAt: new Date() },
     });

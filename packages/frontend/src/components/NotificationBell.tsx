@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 import { useAuthStore } from '../stores/auth.store';
+import { isSafeNavigationPath } from '../utils/safe-navigation';
 import {
   useUnreadNotificationCount,
   useNotifications,
@@ -27,7 +28,7 @@ export default function NotificationBell() {
     if (!notification.read) {
       markRead.mutate([notification.id]);
     }
-    if (notification.actionUrl) {
+    if (notification.actionUrl && isSafeNavigationPath(notification.actionUrl)) {
       navigate(notification.actionUrl);
     }
     close();

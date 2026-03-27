@@ -16,7 +16,7 @@ export function registerGetOverdueEnrollments(server: McpServer, ctx: UserContex
       const now = new Date();
       const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-      const enrollments = await prisma.payerEnrollment.findMany({
+      const enrollments = await prisma.enrollment.findMany({
         where: {
           ...getPracticeRelationFilter(ctx),
           status: { in: ['submitted', 'pending_review', 'in_progress'] },

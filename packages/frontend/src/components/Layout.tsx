@@ -7,6 +7,7 @@ import {
   HomeIcon,
   UsersIcon,
   DocumentDuplicateIcon,
+  DocumentMagnifyingGlassIcon,
   ClockIcon,
   ClipboardDocumentListIcon,
   ClipboardDocumentCheckIcon,
@@ -18,11 +19,12 @@ import {
   BuildingOffice2Icon,
   UserGroupIcon,
   ArrowUpTrayIcon,
+  BookOpenIcon,
+  ExclamationTriangleIcon,
   Cog6ToothIcon,
+  EnvelopeIcon,
   QueueListIcon,
-  ChartBarIcon,
-  WrenchScrewdriverIcon,
-  XMarkIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -31,6 +33,8 @@ import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
 import ApprovalToasts from './ApprovalToasts';
 import { useSearch } from '../hooks/useSearch';
+import { useOcrReviewCount } from '../hooks/useOcrReviewCount';
+import { isSafeNavigationPath } from '../utils/safe-navigation';
 
 // ──────────────────────────────────────────────
 // Nav group definitions
@@ -40,6 +44,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  badge?: number;
 }
 
 interface NavGroup {
@@ -61,6 +66,9 @@ const customerNavGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
+      { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
+      { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
+      { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
       { name: 'Roster', href: '/roster', icon: TableCellsIcon },
       { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
@@ -84,19 +92,16 @@ const customerNavGroups: NavGroup[] = [
   },
 ];
 
-const opsNavGroups: NavGroup[] = [
-  {
-    label: 'Operations',
-    items: [
-      { name: 'Ops Dashboard', href: '/ops', icon: HomeIcon },
-      { name: 'Work Queue', href: '/ops/work-queue', icon: QueueListIcon },
-      { name: 'All Practices', href: '/ops/practices', icon: BuildingOffice2Icon },
-      { name: 'Staff', href: '/ops/staff', icon: UserGroupIcon },
-      { name: 'SLA Tracker', href: '/ops/sla', icon: ChartBarIcon },
-      { name: 'Activity Log', href: '/ops/activity', icon: ClipboardDocumentListIcon },
-    ],
-  },
-];
+// Lanyard Admin nav group (lanyard_admin only)
+const lanyardAdminNavGroup: NavGroup = {
+  label: 'Lanyard Admin',
+  items: [
+    { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: BookOpenIcon },
+    { name: 'KB Gaps', href: '/admin/knowledge-base/gaps', icon: ExclamationTriangleIcon },
+    { name: 'Workflow Templates', href: '/admin/workflow-templates', icon: Cog6ToothIcon },
+    { name: 'Follow-up Templates', href: '/admin/followup-templates', icon: EnvelopeIcon },
+  ],
+};
 
 // Items hidden from practice_admin role
 const practiceAdminHidden = new Set([
@@ -124,7 +129,7 @@ function filterNavGroups(groups: NavGroup[], role: string | undefined): NavGroup
 // ──────────────────────────────────────────────
 
 function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: string }) {
-  const hasActive = group.items.some((item) => item.href === pathname);
+  const hasActive = group.items.some((item) => item.href === pathname || (item.href !== '/' && pathname.startsWith(item.href)));
 
   return (
     <Disclosure as="div" defaultOpen={hasActive || group.label === 'Core' || group.label === 'Operations'}>
@@ -149,7 +154,12 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -161,66 +171,26 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 }
 
 // ──────────────────────────────────────────────
-// Ops Mode Toggle
-// ──────────────────────────────────────────────
-
-function OpsModeToggle() {
-  const { isOpsMode, toggleOpsMode } = useAuthStore();
-
-  return (
-    <button
-      onClick={toggleOpsMode}
-      className={clsx(
-        'flex items-center gap-2 w-full rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200',
-        isOpsMode
-          ? 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30'
-          : 'bg-white/5 text-primary-200/70 hover:bg-white/10 hover:text-white',
-      )}
-    >
-      {isOpsMode ? (
-        <WrenchScrewdriverIcon className="h-5 w-5" />
-      ) : (
-        <Cog6ToothIcon className="h-5 w-5" />
-      )}
-      {isOpsMode ? 'Ops Mode' : 'Customer Mode'}
-    </button>
-  );
-}
-
-// ──────────────────────────────────────────────
-// Practice Context Banner
-// ──────────────────────────────────────────────
-
-function PracticeContextBanner() {
-  const { opsPracticeContext, exitPracticeContext } = useAuthStore();
-  if (!opsPracticeContext) return null;
-
-  return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
-      <span className="text-sm text-amber-800">
-        Viewing as: <strong>{opsPracticeContext.name}</strong>
-      </span>
-      <button
-        onClick={exitPracticeContext}
-        className="text-sm font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1"
-      >
-        <XMarkIcon className="h-4 w-4" />
-        Exit
-      </button>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
 // Sidebar content (shared between mobile & desktop)
 // ──────────────────────────────────────────────
 
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
-  const { isOpsMode, user } = useAuthStore();
-  const canToggleOps = user?.role === 'admin' || user?.role === 'ops_staff';
-  const activeGroups = isOpsMode && canToggleOps
-    ? opsNavGroups
-    : filterNavGroups(customerNavGroups, role);
+  const { user } = useAuthStore();
+  const { data: ocrReviewCount } = useOcrReviewCount();
+  const filteredGroups = filterNavGroups(customerNavGroups, role);
+  const baseGroups = role === 'lanyard_admin'
+    ? [...filteredGroups, lanyardAdminNavGroup]
+    : filteredGroups;
+
+  // Inject OCR review count badge into OCR Review nav item
+  const activeGroups = baseGroups.map(group => ({
+    ...group,
+    items: group.items.map(item =>
+      item.name === 'OCR Review' && ocrReviewCount
+        ? { ...item, badge: ocrReviewCount }
+        : item
+    ),
+  }));
 
   return (
     <div className="relative flex grow flex-col gap-y-5 overflow-y-auto bg-gradient-to-b from-primary-700 to-primary-800 px-6 pb-4">
@@ -232,12 +202,6 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
         <img src="/logo.png" alt="Lanyard Health" className="h-8 brightness-0 invert" />
         <span className="text-white text-lg font-semibold tracking-tight">Lanyard Health</span>
       </div>
-
-      {canToggleOps && (
-        <div className="-mx-2">
-          <OpsModeToggle />
-        </div>
-      )}
 
       <nav className="flex flex-1 flex-col">
         <ul role="list" className="flex flex-1 flex-col gap-y-4">
@@ -287,7 +251,7 @@ export default function Layout() {
 
   const handleSearchSelect = useCallback(
     (result: { url: string }) => {
-      navigate(result.url);
+      if (isSafeNavigationPath(result.url)) navigate(result.url);
     },
     [navigate],
   );
@@ -335,9 +299,6 @@ export default function Layout() {
 
       {/* Main content */}
       <div className="lg:pl-72">
-        {/* Practice context banner */}
-        <PracticeContextBanner />
-
         {/* Top navigation */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200/60 bg-white/80 backdrop-blur-xl px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button

@@ -22,7 +22,7 @@ async function main() {
   }
 
   // Get existing providers
-  const providers = await prisma.provider.findMany({
+  const providers = await prisma.providerProfile.findMany({
     take: 5,
     include: {
       payerEnrollments: {
@@ -35,7 +35,7 @@ async function main() {
     console.log('No providers found. Creating a test provider...\n');
 
     // Create a test provider
-    const provider = await prisma.provider.create({
+    const provider = await prisma.providerProfile.create({
       data: {
         npi: '1234567890',
         firstName: 'John',
@@ -78,7 +78,7 @@ async function main() {
 
     // Create enrollments with various PDM states
     // 1. Current (attested 30 days ago)
-    await prisma.payerEnrollment.create({
+    await prisma.enrollment.create({
       data: {
         providerId: provider.id,
         payerId: payers[0].id,
@@ -92,7 +92,7 @@ async function main() {
     });
 
     // 2. Due Soon (attested 80 days ago)
-    await prisma.payerEnrollment.create({
+    await prisma.enrollment.create({
       data: {
         providerId: provider.id,
         payerId: payers[1].id,
@@ -106,7 +106,7 @@ async function main() {
     });
 
     // 3. Overdue (attested 120 days ago)
-    await prisma.payerEnrollment.create({
+    await prisma.enrollment.create({
       data: {
         providerId: provider.id,
         payerId: payers[2].id,
@@ -120,7 +120,7 @@ async function main() {
     });
 
     // 4. Never Attested
-    await prisma.payerEnrollment.create({
+    await prisma.enrollment.create({
       data: {
         providerId: provider.id,
         payerId: payers[3].id,
@@ -134,7 +134,7 @@ async function main() {
     });
 
     // 5. Current but needs update (attested before directory change)
-    await prisma.payerEnrollment.create({
+    await prisma.enrollment.create({
       data: {
         providerId: provider.id,
         payerId: payers[4].id,
@@ -155,7 +155,7 @@ async function main() {
 
     for (const provider of providers) {
       // Update provider with directory change timestamp
-      await prisma.provider.update({
+      await prisma.providerProfile.update({
         where: { id: provider.id },
         data: {
           lastDirectoryUpdateAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), // 20 days ago
@@ -206,7 +206,7 @@ async function main() {
             };
         }
 
-        await prisma.payerEnrollment.update({
+        await prisma.enrollment.update({
           where: { id: enrollment.id },
           data: pdmData,
         });

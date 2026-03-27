@@ -26,7 +26,7 @@ function getAnthropicClient(): Anthropic {
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY is not configured');
     }
-    anthropicClient = new Anthropic({ apiKey });
+    anthropicClient = new Anthropic({ apiKey, timeout: 60_000 });
   }
   return anthropicClient;
 }
@@ -65,7 +65,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
   }
 
   // 3. Load provider credentials
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: workflow.providerId },
     select: {
       npi: true,
@@ -84,7 +84,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
   // 4. Load payer requirements
   let payerRequirements: object = {};
   if (workflow.payerId) {
-    const config = await prisma.payerAdapterConfig.findUnique({
+    const config = await prisma.payerSubmissionConfig.findUnique({
       where: { payerId: workflow.payerId },
       select: { adapterType: true, requiredFields: true },
     });

@@ -100,7 +100,7 @@ router.post(
       const validated = createTaskSchema.parse(req.body);
 
       // Verify provider exists
-      const provider = await prisma.provider.findUnique({
+      const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
         select: { id: true },
       });
@@ -113,7 +113,7 @@ router.post(
 
       // If enrollmentId provided, verify it belongs to this provider
       if (validated.enrollmentId) {
-        const enrollment = await prisma.payerEnrollment.findFirst({
+        const enrollment = await prisma.enrollment.findFirst({
           where: { id: validated.enrollmentId, providerId },
           select: { id: true },
         });

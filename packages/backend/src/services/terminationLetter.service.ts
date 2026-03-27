@@ -106,7 +106,7 @@ export async function generateTerminationLetter(
   taskId: string
 ) {
   // 1. Fetch provider
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: {
       firstName: true,
@@ -137,7 +137,7 @@ export async function generateTerminationLetter(
   }
 
   // 3. Fetch enrollment with payer
-  const enrollment = await prisma.payerEnrollment.findUnique({
+  const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: {
       effectiveDate: true,

@@ -11,20 +11,7 @@ import { ForbiddenError } from './error.middleware.js';
 export async function initPracticeScope(req: Request): Promise<void> {
   if (req.practiceScope || !req.user) return;
 
-  if (req.user.role === 'admin' || req.user.role === 'ops_staff') {
-    // Check for X-Ops-Practice-Context header to narrow scope
-    const opsPracticeId = req.headers['x-ops-practice-context'] as string | undefined;
-    if (opsPracticeId && (req.user.role === 'admin' || req.user.role === 'ops_staff')) {
-      // Validate practice exists
-      const practice = await prisma.practice.findUnique({
-        where: { id: opsPracticeId },
-        select: { id: true },
-      });
-      if (practice) {
-        req.practiceScope = { isSuperAdmin: false, practiceIds: [opsPracticeId] };
-        return;
-      }
-    }
+  if (req.user.role === 'admin' || req.user.role === 'lanyard_admin') {
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return;
   }
@@ -58,18 +45,7 @@ export async function attachPracticeScope(
 ): Promise<void> {
   if (!req.user) return next();
 
-  if (req.user.role === 'admin' || req.user.role === 'ops_staff') {
-    const opsPracticeId = req.headers['x-ops-practice-context'] as string | undefined;
-    if (opsPracticeId) {
-      const practice = await prisma.practice.findUnique({
-        where: { id: opsPracticeId },
-        select: { id: true },
-      });
-      if (practice) {
-        req.practiceScope = { isSuperAdmin: false, practiceIds: [opsPracticeId] };
-        return next();
-      }
-    }
+  if (req.user.role === 'admin' || req.user.role === 'lanyard_admin') {
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return next();
   }
@@ -110,7 +86,7 @@ export async function requirePracticeProvider(
   if (!providerId) return next();
 
   try {
-    const provider = await prisma.provider.findUnique({
+    const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: { practiceId: true },
     });
@@ -119,8 +95,19 @@ export async function requirePracticeProvider(
 
     const practiceIds = req.practiceScope?.practiceIds ?? [];
 
-    // If provider has no practice assigned, allow access (no scope to enforce)
-    if (!provider.practiceId) return next();
+    // If provider has no practice assigned, only admins/lanyard_admin and the provider themselves can access
+    if (!provider.practiceId) {
+      if (req.user?.role === 'admin' || req.user?.role === 'lanyard_admin') return next();
+      if (req.user?.role === 'provider' && req.user?.providerId === providerId) return next();
+      logger.warn(
+        `Practice access denied: user=${req.user?.id} tried to access unassigned provider=${providerId}`
+      );
+      res.status(403).json({
+        success: false,
+        error: { message: 'Access denied — unassigned provider' },
+      });
+      return;
+    }
 
     // If provider IS assigned to a practice, staff must belong to that practice
     if (!practiceIds.includes(provider.practiceId)) {
@@ -153,15 +140,19 @@ export async function validateProviderPracticeAccess(
 ): Promise<boolean> {
   if (req.practiceScope?.isSuperAdmin) return true;
 
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: { practiceId: true },
   });
 
   if (!provider) return true; // Let route handler deal with 404
 
-  // No practice assigned → no scope to enforce, allow access
-  if (!provider.practiceId) return true;
+  // No practice assigned → only admins/lanyard_admin and the provider themselves can access
+  if (!provider.practiceId) {
+    if (req.user?.role === 'admin' || req.user?.role === 'lanyard_admin') return true;
+    if (req.user?.role === 'provider' && req.user?.providerId === providerId) return true;
+    return false;
+  }
 
   // Provider IS assigned to a practice — staff must belong to that practice
   const practiceIds = req.practiceScope?.practiceIds ?? [];
@@ -188,8 +179,9 @@ export function getPracticeProviderFilter(
 ): Record<string, unknown> {
   if (req.practiceScope?.isSuperAdmin) return {};
   const ids = req.practiceScope?.practiceIds ?? [];
-  if (ids.length === 0) return { practiceId: null };
-  return { OR: [{ practiceId: null }, { practiceId: { in: ids } }] };
+  // Non-admin users only see providers assigned to their practices (not unassigned ones)
+  if (ids.length === 0) return { id: '__no_access__' }; // matches nothing
+  return { practiceId: { in: ids } };
 }
 
 /**
@@ -202,8 +194,9 @@ export function getPracticeRelationFilter(
 ): Record<string, unknown> {
   if (req.practiceScope?.isSuperAdmin) return {};
   const ids = req.practiceScope?.practiceIds ?? [];
+  // Non-admin users only see resources for providers in their practices
   if (ids.length === 0) {
-    return { provider: { practiceId: null } };
+    return { provider: { id: '__no_access__' } }; // matches nothing
   }
-  return { provider: { OR: [{ practiceId: null }, { practiceId: { in: ids } }] } };
+  return { provider: { practiceId: { in: ids } } };
 }

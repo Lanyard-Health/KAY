@@ -77,17 +77,8 @@ router.post('/', async (req: Request, res: Response) => {
   const authHeader = req.headers['authorization'];
   const bugMonitorSecret = process.env['BUG_MONITOR_SECRET'];
 
-  // Path 2: Bearer token matches BUG_MONITOR_SECRET
+  // Path 2: Bearer token matches BUG_MONITOR_SECRET (used by CI, frontend error boundary)
   if (authHeader && bugMonitorSecret && authHeader === `Bearer ${bugMonitorSecret}`) {
-    handleBugReport(req, res);
-    return;
-  }
-
-  // Path 3: Frontend CORS origin with rate limiting
-  const origin = req.headers['origin'] || req.headers['referer'] || '';
-  const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
-
-  if (origin && origin.startsWith(frontendUrl)) {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     if (!checkRateLimit(ip)) {
       res.status(429).json({ error: 'Too many requests' });
@@ -97,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  // Path 4: None of the above — reject
+  // No valid auth — reject
   res.status(401).json({ error: 'Unauthorized' });
 });
 
@@ -120,6 +111,8 @@ function handleBugReport(req: Request, res: Response): void {
 }
 
 // --- POST /api/v1/bugs/maintenance ---
+// NOTE: retryPendingSyncs was removed from BugMonitorService.
+// This endpoint is kept as a no-op placeholder for future maintenance tasks.
 
 router.post('/maintenance', (req: Request, res: Response) => {
   const authHeader = req.headers['authorization'];
@@ -130,13 +123,7 @@ router.post('/maintenance', (req: Request, res: Response) => {
     return;
   }
 
-  bugMonitor.retryPendingSyncs()
-    .then(() => {
-      res.status(200).json({ status: 'ok' });
-    })
-    .catch((error) => {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
-    });
+  res.status(200).json({ status: 'ok', message: 'No maintenance tasks configured' });
 });
 
 export const bugReportRoutes = router;

@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 import { PECOSService } from '../services/pecos.service.js';
-import { verifyProvider, verifyProviderBatch } from '../services/medicareVerification.service.js';
 
 export const pecosRoutes = Router();
 
@@ -166,57 +165,4 @@ pecosRoutes.post(
   }
 );
 
-// POST /api/v1/pecos/verify/:providerId
-pecosRoutes.post(
-  '/verify/:providerId',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const providerId = req.params['providerId']!;
-      const result = await verifyProvider(providerId);
-      res.json({ success: true, data: result });
-    } catch (error: any) {
-      if (error.message === 'Provider not found' || error.message === 'Provider has no NPI') {
-        return res.status(400).json({ success: false, error: { message: error.message } });
-      }
-      next(error);
-    }
-  }
-);
-
-// POST /api/v1/pecos/verify-batch
-pecosRoutes.post(
-  '/verify-batch',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { providerIds } = req.body;
-
-      if (!Array.isArray(providerIds) || providerIds.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'providerIds must be a non-empty array.' },
-        });
-      }
-
-      if (providerIds.some((id: unknown) => typeof id !== 'string')) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'All providerIds must be strings.' },
-        });
-      }
-
-      if (providerIds.length > 50) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Maximum 50 providers per batch request.' },
-        });
-      }
-
-      const summary = await verifyProviderBatch(providerIds);
-      res.json({ success: true, data: summary });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+// NOTE: /verify/:providerId and /verify-batch routes removed — medicareVerification service was deleted.

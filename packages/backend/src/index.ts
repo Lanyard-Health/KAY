@@ -39,7 +39,6 @@ import followUpRoutes from './routes/followup.routes.js';
 import { npiRoutes } from './routes/npi.routes.js';
 import { pecosRoutes } from './routes/pecos.routes.js';
 import { pdmRoutes } from './routes/pdm.routes.js';
-import { rosterRoutes } from './routes/roster.routes.js';
 import { aiRoutes } from './routes/ai.routes.js';
 import portalOnboardingRoutes from './routes/portal-onboarding.routes.js';
 import portalDocumentRoutes from './routes/portal-documents.routes.js';
@@ -50,7 +49,6 @@ import terminationLetterRoutes from './routes/terminationLetter.routes.js';
 import practiceSignupRoutes from './routes/practiceSignup.routes.js';
 import practiceRoutes from './routes/practice.routes.js';
 import emailRoutes from './routes/email.routes.js';
-import providerDirectoryRoutes from './routes/providerDirectory.routes.js';
 import { payerIntelligenceRoutes } from './routes/payerIntelligence.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import { payerEnrollmentDataRoutes } from './routes/payerEnrollmentData.routes.js';
@@ -59,26 +57,31 @@ import providerImportRoutes from './routes/providerImport.routes.js';
 import reportingRoutes from './routes/reporting.routes.js';
 import { aetnaRoutes } from './routes/aetna.routes.js';
 import { agentRoutes } from './routes/agent.routes.js';
-import { approvalRoutes } from './routes/approval.routes.js';
+// approval.routes.ts removed — agent.routes.ts provides the same endpoints with proper practice scoping
 import searchRoutes from './routes/search.routes.js';
 import commandCenterRoutes from './routes/command-center.routes.js';
-import opsRoutes from './routes/ops.routes.js';
-import opsWorkQueueRoutes from './routes/opsWorkQueue.routes.js';
-import opsAssignmentRoutes from './routes/opsAssignment.routes.js';
-import opsActivityRoutes from './routes/ops-activity.routes.js';
+import { knowledgeBaseRoutes } from './routes/knowledgeBase.routes.js';
+import { workflowTemplateRoutes } from './routes/workflowTemplate.routes.js';
+import { followupTemplateRoutes } from './routes/followupTemplate.routes.js';
+import { workflowApprovalRoutes } from './routes/workflowApproval.routes.js';
+import { retellRoutes } from './routes/retell.routes.js';
+import { denialTriageRoutes } from './routes/denial-triage.routes.js';
 import { bugReportRoutes } from './routes/bug-report.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
-import { closeRedisConnection } from './utils/redis.js';
+import { closeRedisConnection, isRedisConfigured } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
 const app = express();
 const PORT = process.env['PORT'] || 3002;
 let serverReady = false;
+
+// Trust first proxy (Render) so rate limiter sees real client IPs, not proxy IP
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet({
@@ -117,7 +120,12 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Ops-Practice-Context', 'X-Dev-Role'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    // X-Dev-Role only in non-production — prevents header injection in staging/prod
+    ...(process.env['NODE_ENV'] !== 'production' ? ['X-Dev-Role'] : []),
+  ],
   maxAge: 600, // Cache preflight for 10 minutes
 }));
 
@@ -196,7 +204,6 @@ app.use('/api/v1/follow-up', followUpRoutes);
 app.use('/api/v1/npi', npiRoutes);
 app.use('/api/v1/pecos', pecosRoutes);
 app.use('/api/v1/pdm', pdmRoutes);
-app.use('/api/v1/roster', rosterRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/portal/onboarding', portalOnboardingRoutes);
 app.use('/api/v1/portal/documents', portalDocumentRoutes);
@@ -207,7 +214,6 @@ app.use('/api/v1', terminationLetterRoutes);
 app.use('/api/v1/practices', practiceSignupRoutes);
 app.use('/api/v1/practices', practiceRoutes);
 app.use('/api/v1/email', emailRoutes);
-app.use('/api/v1/provider-directory', providerDirectoryRoutes);
 app.use('/api/v1/payer-intelligence', payerIntelligenceRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
@@ -217,12 +223,14 @@ app.use('/api/v1/enrollments/:enrollmentId/aetna', aetnaRoutes);
 
 app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/command-center', commandCenterRoutes);
-app.use('/api/v1/ops', opsRoutes);
-app.use('/api/v1/ops/work-items', opsWorkQueueRoutes);
-app.use('/api/v1/ops/assignments', opsAssignmentRoutes);
-app.use('/api/v1/ops/activity', opsActivityRoutes);
 app.use('/api/v1/agent', agentRoutes);
-app.use('/api/v1/agent/approvals', approvalRoutes);
+// approval.routes.ts removed — agent.routes.ts handles /api/v1/agent/approvals with practice scoping
+app.use('/api/v1/knowledge-base', knowledgeBaseRoutes);
+app.use('/api/v1/workflow-templates', workflowTemplateRoutes);
+app.use('/api/v1/followup-templates', followupTemplateRoutes);
+app.use('/api/v1/workflow-approvals', workflowApprovalRoutes);
+app.use('/api/v1/retell', retellRoutes);
+app.use('/api/v1/denials', denialTriageRoutes);
 app.use('/api/v1/bugs', bugReportRoutes);
 
 // Error handling — Sentry captures before our handler responds
@@ -271,18 +279,22 @@ server.listen(PORT, async () => {
   // Initialize scheduled jobs
   schedulerService.initialize();
 
-  // Initialize agent workers (BullMQ)
-  try {
-    initializeWorkers();
-    logger.info('Agent workers initialized');
-  } catch (err) {
-    logger.warn('Agent workers failed to initialize — agent features disabled', {
-      error: err instanceof Error ? err.message : 'unknown',
-    });
+  // Initialize agent workers (BullMQ) — requires Redis
+  if (isRedisConfigured()) {
+    try {
+      initializeWorkers();
+      logger.info('Agent workers initialized');
+    } catch (err) {
+      logger.warn('Agent workers failed to initialize — agent features disabled', {
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+  } else {
+    logger.info('Redis not configured (REDIS_URL/REDIS_HOST) — agent workers disabled');
   }
 
   // Initialize bug monitor
-  initBugMonitor(prisma);
+  initBugMonitor();
   registerProcessHandlers();
 
   // Keep-alive: ping /health every 5 minutes to prevent idle shutdown
@@ -326,11 +338,11 @@ server.listen(PORT, async () => {
       if (providerUser) {
         logger.info(`Dev provider user ready (id: ${providerUser.id}, providerId: ${providerUser.providerId})`);
       } else {
-        let provider = await prisma.provider.findUnique({
+        let provider = await prisma.providerProfile.findUnique({
           where: { npi: '1234567890' },
         });
         if (!provider) {
-          provider = await prisma.provider.create({
+          provider = await prisma.providerProfile.create({
             data: {
               firstName: 'Dev',
               lastName: 'Provider',
@@ -391,6 +403,26 @@ server.listen(PORT, async () => {
           },
         });
         logger.info(`Created dev practice admin user on startup (id: ${newPracticeAdmin.id})`);
+      }
+
+      // Ensure dev lanyard admin user exists
+      const lanyardAdminUser = await prisma.user.findUnique({
+        where: { cognitoId: 'dev-lanyard-admin-cognito-id' },
+      });
+      if (lanyardAdminUser) {
+        logger.info(`Dev lanyard admin user ready (id: ${lanyardAdminUser.id})`);
+      } else {
+        const newLanyardAdmin = await prisma.user.create({
+          data: {
+            cognitoId: 'dev-lanyard-admin-cognito-id',
+            email: 'lanyard-admin@dev.local',
+            firstName: 'Lanyard',
+            lastName: 'Admin',
+            role: 'lanyard_admin',
+            isActive: true,
+          },
+        });
+        logger.info(`Created dev lanyard admin user on startup (id: ${newLanyardAdmin.id})`);
       }
 
       logger.info('DEV_AUTH_BYPASS=true — dev users validated and ready');

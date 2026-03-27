@@ -31,7 +31,7 @@ export const providerTypeSchema = z.enum([
 
 export const providerStatusSchema = z.enum(['active', 'inactive', 'pending']);
 
-export const createProviderSchema = z.object({
+export const createProviderProfileSchema = z.object({
   npi: npiSchema,
   firstName: z.string().min(1, 'First name is required').max(100),
   lastName: z.string().min(1, 'Last name is required').max(100),
@@ -49,7 +49,10 @@ export const createProviderSchema = z.object({
   languages: z.array(z.string()).optional(),
 });
 
-export const updateProviderSchema = createProviderSchema.partial().extend({
+// Backward-compat alias — prefer createProviderProfileSchema for new code
+export const createProviderSchema = createProviderProfileSchema;
+
+export const updateProviderSchema = createProviderProfileSchema.partial().extend({
   status: providerStatusSchema.optional(),
   caqhProviderId: z.union([z.string().max(50), z.null()]).optional().transform(val => val === null ? undefined : val),
   practiceId: z.union([z.string().uuid(), z.null()]).optional(),

@@ -16,7 +16,7 @@ export async function triggerTerminationWorkflow(
 ): Promise<void> {
   try {
     // 1. Fetch all enrollments with an effectiveDate (active/relevant ones)
-    const enrollments = await prisma.payerEnrollment.findMany({
+    const enrollments = await prisma.enrollment.findMany({
       where: {
         providerId,
         effectiveDate: { not: null },

@@ -3,6 +3,15 @@ import { Server as SocketServer } from 'socket.io';
 import type { Socket } from 'socket.io';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { logger } from '../utils/logger.js';
+import { prisma } from '../utils/prisma.js';
+
+interface SocketUser {
+  id: string;
+  email: string;
+  role: string;
+  providerId: string | null;
+  practiceIds: string[];
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,9 +45,8 @@ async function authenticateSocket(
   next: (err?: Error) => void
 ): Promise<void> {
   try {
-    const token =
-      (socket.handshake.auth?.['token'] as string | undefined) ||
-      (socket.handshake.query?.['token'] as string | undefined);
+    // Only accept tokens from the auth object (not query string — tokens in URLs get logged by proxies)
+    const token = socket.handshake.auth?.['token'] as string | undefined;
 
     if (!token) {
       next(new Error('Authentication required'));
@@ -47,27 +55,45 @@ async function authenticateSocket(
 
     // Dev bypass (mirrors auth.middleware.ts pattern)
     const devBypass = process.env['DEV_AUTH_BYPASS'] === 'true';
+    let cognitoId: string;
+
     if (devBypass && token === 'dev-bypass') {
       if (process.env['NODE_ENV'] === 'production') {
         next(new Error('Authentication required'));
         return;
       }
-      (socket as any).user = {
-        id: 'dev-user-id',
-        email: 'admin@dev.local',
-        role: 'admin',
-      };
-      next();
+      cognitoId = 'dev-cognito-id';
+    } else {
+      // Production: validate Cognito JWT
+      const payload = await getVerifier().verify(token);
+      cognitoId = payload.sub;
+    }
+
+    // Enrich with DB user data for authorization
+    const dbUser = await prisma.user.findUnique({
+      where: { cognitoId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        providerId: true,
+        practices: { select: { practiceId: true } },
+      },
+    });
+
+    if (!dbUser) {
+      next(new Error('Authentication required'));
       return;
     }
 
-    // Production: validate Cognito JWT
-    const payload = await getVerifier().verify(token);
-    (socket as any).user = {
-      id: payload.sub,
-      email: (payload as any)['email'] ?? '',
-      role: (payload as any)['custom:role'] ?? 'unknown',
+    const socketUser: SocketUser = {
+      id: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role,
+      providerId: dbUser.providerId ?? null,
+      practiceIds: dbUser.practices.map((p) => p.practiceId),
     };
+    (socket as any).user = socketUser;
     next();
   } catch {
     next(new Error('Authentication required'));
@@ -96,12 +122,46 @@ export function initializeWebSocket(httpServer: HttpServer): SocketServer {
   io.on('connection', (socket) => {
     logger.info(`WebSocket client connected: ${socket.id}`);
 
-    socket.on('subscribe:workflow', (workflowId: string) => {
+    socket.on('subscribe:workflow', async (workflowId: string) => {
       if (typeof workflowId !== 'string' || !UUID_RE.test(workflowId)) {
         logger.warn(`Client ${socket.id} sent invalid workflowId: ${workflowId}`);
         socket.emit('error', { message: 'Invalid workflowId — must be a UUID' });
         return;
       }
+
+      const user = (socket as any).user as SocketUser;
+
+      // Verify the user has access to this workflow
+      const workflow = await prisma.agentWorkflow.findUnique({
+        where: { id: workflowId },
+        select: { providerId: true, provider: { select: { practiceId: true } } },
+      });
+
+      if (!workflow) {
+        socket.emit('error', { message: 'Workflow not found' });
+        return;
+      }
+
+      if (user.role === 'provider') {
+        // Providers can only subscribe to their own workflows
+        if (user.providerId !== workflow.providerId) {
+          socket.emit('error', { message: 'Access denied' });
+          return;
+        }
+      } else if (user.role === 'admin' || user.role === 'lanyard_admin') {
+        // Global admins: unrestricted access
+      } else if (user.practiceIds.length > 0) {
+        // Staff scoped to practices — workflow's provider must belong to one of their practices
+        if (workflow.provider?.practiceId && !user.practiceIds.includes(workflow.provider.practiceId)) {
+          socket.emit('error', { message: 'Access denied' });
+          return;
+        }
+      } else {
+        // Non-admin with no practice assignments — deny access
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
+
       const room = `workflow:${workflowId}`;
       socket.join(room);
       logger.info(`Client ${socket.id} joined room ${room}`);
@@ -114,6 +174,12 @@ export function initializeWebSocket(httpServer: HttpServer): SocketServer {
     });
 
     socket.on('subscribe:approvals', () => {
+      const user = (socket as any).user as SocketUser;
+      const allowedRoles = ['admin', 'credentialing_staff', 'practice_admin'];
+      if (!allowedRoles.includes(user.role)) {
+        socket.emit('error', { message: 'Access denied' });
+        return;
+      }
       socket.join('approvals');
       logger.info(`Client ${socket.id} joined room approvals`);
     });

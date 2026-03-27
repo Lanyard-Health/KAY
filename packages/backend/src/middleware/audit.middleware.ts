@@ -111,6 +111,56 @@ function extractResourceId(path: string): string | undefined {
   return match?.[0];
 }
 
+// Keys whose values must NEVER appear in audit logs (PII / sensitive data)
+const SENSITIVE_KEYS = new Set([
+  'ssn', 'socialSecurityNumber', 'social_security_number',
+  'taxId', 'tax_id', 'taxIdentificationNumber', 'ein',
+  'bankAccountNumber', 'bank_account_number', 'accountNumber', 'account_number',
+  'routingNumber', 'routing_number',
+  'password', 'passwordHash', 'password_hash', 'newPassword', 'oldPassword',
+  'secret', 'token', 'accessToken', 'refreshToken',
+  'encryptionKey', 'apiKey', 'api_key',
+  'creditCard', 'cardNumber', 'card_number', 'cvv', 'cvc',
+]);
+
+// Regex patterns to redact values that look like PII regardless of key name
+const PII_VALUE_PATTERNS = [
+  /^\d{3}-\d{2}-\d{4}$/, // SSN format
+  /^\d{9}$/,              // SSN without dashes or tax ID
+  /^\d{2}-\d{7}$/,        // EIN format
+];
+
+function sanitizeAuditChanges(
+  changes: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!changes) return undefined;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(changes)) {
+    const lowerKey = key.toLowerCase();
+
+    // Redact by key name
+    if (SENSITIVE_KEYS.has(key) || SENSITIVE_KEYS.has(lowerKey)) {
+      sanitized[key] = '[REDACTED]';
+      continue;
+    }
+
+    // Redact string values matching PII patterns
+    if (typeof value === 'string' && PII_VALUE_PATTERNS.some((p) => p.test(value))) {
+      sanitized[key] = '[REDACTED]';
+      continue;
+    }
+
+    // Recursively sanitize nested objects
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      sanitized[key] = sanitizeAuditChanges(value as Record<string, unknown>);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 async function createAuditLog(data: {
   userId?: string;
   action: AuditAction;
@@ -126,7 +176,7 @@ async function createAuditLog(data: {
       action: data.action,
       resourceType: data.resourceType,
       resourceId: data.resourceId,
-      changes: (data.changes as any) ?? undefined,
+      changes: (sanitizeAuditChanges(data.changes) as any) ?? undefined,
       ipAddress: data.ipAddress,
       userAgent: data.userAgent,
     },
