@@ -21,7 +21,7 @@ const router = Router();
 
 // All routes require auth + admin/staff
 router.use(authenticate);
-router.use(authorize('admin', 'credentialing_staff'));
+router.use(authorize('admin', 'lanyard_admin', 'credentialing_staff'));
 
 /**
  * GET /api/v1/payer-intelligence/analytics

@@ -89,7 +89,7 @@ payerRoutes.get(
 // POST /api/v1/payers - Create payer
 payerRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);
@@ -108,7 +108,7 @@ payerRoutes.post(
 // PUT /api/v1/payers/:id - Update payer
 payerRoutes.put(
   '/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.partial().parse(req.body);
@@ -185,7 +185,7 @@ payerRoutes.post(
 // PUT /api/v1/payers/enrollments/:id - Update enrollment
 payerRoutes.put(
   '/enrollments/update/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEnrollmentSchema.partial().parse(req.body);
@@ -217,7 +217,7 @@ payerRoutes.put(
 // DELETE /api/v1/payers/enrollments/:id - Delete enrollment
 payerRoutes.delete(
   '/enrollments/delete/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });

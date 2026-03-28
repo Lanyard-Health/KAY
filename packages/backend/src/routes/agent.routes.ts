@@ -93,7 +93,7 @@ function practiceFilter(req: Request) {
 
 const auth = [
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
 ];
 
 // POST /workflows — create a new agent workflow

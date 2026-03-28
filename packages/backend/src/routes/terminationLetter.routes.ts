@@ -47,7 +47,7 @@ const updateLetterSchema = z.object({
 router.post(
   '/providers/:providerId/termination-letters/generate',
   authenticate,
-  authorize('admin', 'credentialing_staff'), requirePracticeProvider,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -217,7 +217,7 @@ router.get(
 router.patch(
   '/termination-letters/:letterId',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;
@@ -287,7 +287,7 @@ router.patch(
 router.post(
   '/termination-letters/:letterId/send',
   authenticate,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;
