@@ -205,7 +205,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

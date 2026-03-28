@@ -13,7 +13,7 @@ export const aetnaRoutes = Router({ mergeParams: true });
 
 // All routes require auth + staff role
 aetnaRoutes.use(authenticate);
-aetnaRoutes.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
+aetnaRoutes.use(authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'));
 
 function getS3Client(): S3Client {
   return new S3Client({

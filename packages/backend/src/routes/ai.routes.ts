@@ -66,7 +66,7 @@ router.use(authenticate);
 /**
  * GET /api/v1/ai/status
  */
-router.get('/status', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const modelInfo = getModelInfo();
     const usage = await getTodayTokenUsage();
@@ -79,7 +79,7 @@ router.get('/status', authorize('admin', 'credentialing_staff', 'practice_admin'
 /**
  * POST /api/v1/ai/enrollment/:id/generate-email
  */
-router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/generate-email', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service is not available.' });
@@ -100,7 +100,7 @@ router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_
 /**
  * POST /api/v1/ai/enrollment/:id/analyze
  */
-router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service is not available.' });
@@ -119,7 +119,7 @@ router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff',
 /**
  * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service is not available.' });
@@ -136,7 +136,7 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'pra
 /**
  * POST /api/v1/ai/expiration-alerts/generate (admin/staff only)
  */
-router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/expiration-alerts/generate', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service is not available.' });
@@ -155,7 +155,7 @@ router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_sta
 /**
  * GET /api/v1/ai/recommendations (admin/staff only)
  */
-router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { type, status, enrollmentId } = recommendationsQuerySchema.parse(req.query);
     const providerId = typeof req.query['providerId'] === 'string' ? req.query['providerId'] : undefined;
@@ -175,7 +175,7 @@ router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practi
 /**
  * PATCH /api/v1/ai/recommendations/:id (admin/staff only)
  */
-router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/recommendations/:id', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { status } = updateRecommendationSchema.parse(req.body);
@@ -195,7 +195,7 @@ router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', '
 /**
  * GET /api/v1/ai/usage
  */
-router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const usage = await getTodayTokenUsage();
     const budget = await checkTokenBudget();
@@ -220,7 +220,7 @@ router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin')
 /**
  * GET /api/v1/ai/contextual-recommendations — Data-driven recommendations for a provider or enrollment
  */
-router.get('/contextual-recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const entityType = req.query['entityType'];
     const entityId = req.query['entityId'];
@@ -244,7 +244,7 @@ router.get('/contextual-recommendations', authorize('admin', 'credentialing_staf
 /**
  * POST /api/v1/ai/chat — Send a chat message
  */
-router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/chat', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service is not available.' });
@@ -268,7 +268,7 @@ router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin')
 /**
  * GET /api/v1/ai/chat/conversations — List user's conversations
  */
-router.get('/chat/conversations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/chat/conversations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { limit, offset } = chatConversationsQuerySchema.parse(req.query);
     const conversations = await getUserConversations(req.user!.id, limit, offset);
@@ -282,7 +282,7 @@ router.get('/chat/conversations', authorize('admin', 'credentialing_staff', 'pra
 /**
  * GET /api/v1/ai/chat/conversations/:id/messages — Get conversation messages
  */
-router.get('/chat/conversations/:id/messages', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/chat/conversations/:id/messages', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await getConversationMessages(id!, req.user!.id);

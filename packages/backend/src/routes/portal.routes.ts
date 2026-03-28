@@ -209,7 +209,7 @@ router.get('/practice/:practiceId/info', portalLookupLimit, async (req: Request,
  * GET /api/v1/portal/admin/applications
  * List all applications
  */
-router.get('/admin/applications', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/admin/applications', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
     const statusParam = req.query['status'] as string | undefined;
     let status: 'pending' | 'approved' | 'rejected' | undefined;
@@ -249,7 +249,7 @@ router.get('/admin/applications', authenticate, authorize('admin', 'credentialin
  * GET /api/v1/portal/admin/applications/:id
  * Get single application
  */
-router.get('/admin/applications/:id', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/admin/applications/:id', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
     const id = req.params['id']!;
     const application = await getApplicationById(id);
@@ -278,7 +278,7 @@ router.get('/admin/applications/:id', authenticate, authorize('admin', 'credenti
  * POST /api/v1/portal/admin/applications/:id/approve
  * Approve an application
  */
-router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { notes } = req.body;
@@ -311,7 +311,7 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
  * POST /api/v1/portal/admin/applications/:id/reject
  * Reject an application
  */
-router.post('/admin/applications/:id/reject', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/admin/applications/:id/reject', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { notes } = req.body;
@@ -351,7 +351,7 @@ router.post('/admin/applications/:id/reject', authenticate, authorize('admin', '
  * GET /api/v1/portal/admin/notifications
  * Get admin notifications
  */
-router.get('/admin/notifications', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/admin/notifications', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response) => {
   try {
     const unreadOnly = req.query['unreadOnly'] === 'true';
 
@@ -380,7 +380,7 @@ router.get('/admin/notifications', authenticate, authorize('admin', 'credentiali
  * POST /api/v1/portal/admin/notifications/mark-read
  * Mark notifications as read
  */
-router.post('/admin/notifications/mark-read', authenticate, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/admin/notifications/mark-read', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { notificationIds } = markNotificationsReadSchema.parse(req.body);
     await markNotificationsAsRead(notificationIds);

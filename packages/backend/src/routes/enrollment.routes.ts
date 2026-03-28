@@ -152,7 +152,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.enrollment.findMany({
@@ -454,7 +454,7 @@ router.delete(
   '/:id',
   authenticate,
   blockPendingVerification,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

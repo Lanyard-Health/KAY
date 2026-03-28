@@ -63,7 +63,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/supervising-physicians/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createSupervisingPhysicianSchema.partial().parse(req.body);
@@ -89,7 +89,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/supervising-physicians/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.supervisingPhysician.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -149,7 +149,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/malpractice-claims/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeClaimSchema.partial().parse(req.body);
@@ -176,7 +176,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/malpractice-claims/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.malpracticeClaim.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -234,7 +234,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/disclosures/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDisclosureSchema.partial().parse(req.body);
@@ -259,7 +259,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/disclosures/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.providerDisclosure.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -318,7 +318,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/dea-registrations/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDeaRegistrationSchema.partial().parse(req.body);
@@ -344,7 +344,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/dea-registrations/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.deaRegistration.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -403,7 +403,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/identifiers/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createProviderIdentifierSchema.partial().parse(req.body);
@@ -429,7 +429,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/identifiers/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.providerIdentifier.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -520,7 +520,7 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/banking/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBankingSchema.partial().parse(req.body);
@@ -566,7 +566,7 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/banking/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.providerBanking.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });

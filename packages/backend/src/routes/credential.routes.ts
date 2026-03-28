@@ -66,7 +66,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/licenses/:id
 credentialRoutes.put(
   '/licenses/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createLicenseSchema.partial().parse(req.body);
@@ -95,7 +95,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/licenses/:id
 credentialRoutes.delete(
   '/licenses/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.license.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -163,7 +163,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/certifications/:id
 credentialRoutes.put(
   '/certifications/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBoardCertificationSchema.partial().parse(req.body);
@@ -192,7 +192,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/certifications/:id
 credentialRoutes.delete(
   '/certifications/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.boardCertification.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -260,7 +260,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/malpractice/:id
 credentialRoutes.put(
   '/malpractice/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeInsuranceSchema.partial().parse(req.body);
@@ -290,7 +290,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/malpractice/:id
 credentialRoutes.delete(
   '/malpractice/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.malpracticeInsurance.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -359,7 +359,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/education/:id
 credentialRoutes.put(
   '/education/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEducationSchema.partial().parse(req.body);
@@ -389,7 +389,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/education/:id
 credentialRoutes.delete(
   '/education/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.education.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
@@ -457,7 +457,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/work-history/:id
 credentialRoutes.put(
   '/work-history/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createWorkHistorySchema.partial().parse(req.body);
@@ -486,7 +486,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/work-history/:id
 credentialRoutes.delete(
   '/work-history/:id',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.workHistory.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
