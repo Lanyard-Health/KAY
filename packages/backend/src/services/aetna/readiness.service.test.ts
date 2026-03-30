@@ -44,7 +44,7 @@ function makeFullProvider() {
       county: 'Hartford',
       phone: '555-111-2222',
       fax: '555-111-2223',
-      taxId: '12-3456789',
+      taxIdEncrypted: '12-3456789',
       groupNpi: '9876543210',
       acceptingNewPatients: true,
       languagesSpoken: ['English'],
@@ -125,7 +125,7 @@ describe('checkAetnaReadiness', () => {
 
   it('returns ready=false when tax ID is missing from primary location', async () => {
     const provider = makeFullProvider();
-    provider.practiceLocations[0]!.taxId = null;
+    provider.practiceLocations[0]!.taxIdEncrypted = null;
     prismaMock.provider.findUnique.mockResolvedValue(provider as any);
 
     const result = await checkAetnaReadiness('provider-1');

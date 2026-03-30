@@ -77,7 +77,7 @@ function setupHappyPathMocks() {
     practiceLocations: [{
       isPrimary: true, isActive: true, addressLine1: '123 Main St', addressLine2: null,
       city: 'Hartford', state: 'CT', zipCode: '06101', county: 'Hartford',
-      phone: '555-111-2222', fax: null, taxId: '12-3456789', groupNpi: null,
+      phone: '555-111-2222', fax: null, taxIdEncrypted: '12-3456789', groupNpi: null,
       acceptingNewPatients: true, languagesSpoken: ['English'], officeHours: null,
       billingAddressLine1: null, billingCity: null, billingState: null, billingZipCode: null,
     }],

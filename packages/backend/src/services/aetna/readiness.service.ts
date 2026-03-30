@@ -39,7 +39,7 @@ export async function checkAetnaReadiness(providerId: string): Promise<Readiness
   const page3Missing: MissingField[] = [];
   check(!!loc?.state, 'state', 'Applying State', `${basePath}#locations`, page3Missing);
   check(!!loc?.zipCode, 'zipCode', 'Primary Location Zip Code', `${basePath}#locations`, page3Missing);
-  check(!!loc?.taxId, 'taxID', 'Tax ID (TIN/EIN)', `${basePath}#locations`, page3Missing);
+  check(!!loc?.taxIdEncrypted, 'taxID', 'Tax ID (TIN/EIN)', `${basePath}#locations`, page3Missing);
   check(!!provider.practice?.name, 'taxIDName', 'Tax ID Name (Practice Name)', `${basePath}#practice`, page3Missing);
 
   // Page 4: Degree & Specialty

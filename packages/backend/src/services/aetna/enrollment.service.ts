@@ -65,7 +65,7 @@ async function loadProviderData(providerId: string, userId: string): Promise<Aet
       county: loc.county,
       phone: loc.phone,
       fax: loc.fax,
-      taxId: loc.taxId,
+      taxIdEncrypted: loc.taxIdEncrypted,
       groupNpi: loc.groupNpi,
       acceptingNewPatients: loc.acceptingNewPatients,
       languagesSpoken: loc.languagesSpoken,
