@@ -4,6 +4,7 @@ import { logAgentEvent } from './event-logger.js';
 import { emitApprovalRequest, emitApprovalDecision } from './websocket.js';
 import { notifyTaskCompletion } from './coordinator.service.js';
 import { getQueue, QUEUE_NAMES } from './queues.js';
+import { resolveApproval } from '../services/workflow-approval.service.js';
 
 // ==========================================
 // Types
@@ -101,33 +102,23 @@ export async function requestApproval(input: RequestApprovalInput) {
 export async function decideApproval(id: string, input: DecideApprovalInput) {
   const { decision, decidedBy, notes } = input;
 
-  // Fetch the approval first to check status and expiry
-  const existing = await prisma.pendingApproval.findUnique({
+  // Delegate core approval resolution (status update, expiry check, Retell trigger)
+  const result = await resolveApproval(prisma, id, decision, decidedBy, notes ?? undefined);
+
+  if (!result.resolved) {
+    if (result.error === 'Approval not found') {
+      throw new Error('Approval not found');
+    }
+    if (result.error === 'Approval has expired') {
+      throw new Error('Approval has expired and can no longer be decided');
+    }
+    // "Approval already approved/denied"
+    throw new Error(`Approval has already been decided (status: ${result.status})`);
+  }
+
+  // Fetch the resolved approval for workflow context
+  const approval = await prisma.pendingApproval.findUniqueOrThrow({
     where: { id },
-    select: { status: true, expiresAt: true },
-  });
-
-  if (!existing) {
-    throw new Error('Approval not found');
-  }
-
-  if (existing.status !== 'pending') {
-    throw new Error(`Approval has already been decided (status: ${existing.status})`);
-  }
-
-  if (existing.expiresAt && existing.expiresAt < new Date()) {
-    throw new Error('Approval has expired and can no longer be decided');
-  }
-
-  // Update approval record
-  const approval = await prisma.pendingApproval.update({
-    where: { id },
-    data: {
-      status: decision,
-      decidedBy,
-      decidedAt: new Date(),
-      decisionNotes: notes ?? null,
-    },
   });
 
   const workflowId = approval.workflowId;

@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger.js';
 import { logAgentEvent } from '../event-logger.js';
 import { emitWorkflowEvent } from '../websocket.js';
 import { getAdapter } from './payer-adapter.js';
+import { decryptSafe } from '../../utils/crypto.js';
 
 // ==========================================
 // Types
@@ -72,7 +73,9 @@ export async function processPortalJob(data: PortalJobData): Promise<PortalJobRe
       payerId,
       enrollmentId: data.enrollmentId,
       config: (adapterConfig.config ?? {}) as Record<string, unknown>,
-      credentials: (adapterConfig.credentials ?? undefined) as Record<string, unknown> | undefined,
+      credentials: adapterConfig.credentialsEncrypted
+        ? JSON.parse(decryptSafe(adapterConfig.credentialsEncrypted)) as Record<string, unknown>
+        : undefined,
     };
 
     if (action === 'check_readiness') {
