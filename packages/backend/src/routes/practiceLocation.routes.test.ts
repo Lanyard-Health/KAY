@@ -44,7 +44,7 @@ const mockLocation = {
   phone: '555-0100',
   fax: null,
   email: null,
-  taxId: null,
+  taxIdEncrypted: null,
   npi: null,
   groupNpi: null,
   officeHours: null,

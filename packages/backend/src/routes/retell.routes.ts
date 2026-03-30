@@ -29,14 +29,16 @@ router.post(
         return res.status(503).json({ error: 'Retell AI not configured' });
       }
 
-      // Verify webhook signature
+      // Verify webhook signature — reject if header is missing
       const signature = req.headers['x-retell-signature'] as string;
-      if (signature) {
-        const rawBody = JSON.stringify(req.body);
-        if (!verifyWebhookSignature(rawBody, signature)) {
-          logger.warn('Retell webhook signature verification failed');
-          return res.status(401).json({ error: 'Invalid signature' });
-        }
+      if (!signature) {
+        logger.warn('Retell webhook rejected: missing x-retell-signature header');
+        return res.status(401).json({ error: 'Missing signature' });
+      }
+      const rawBody = JSON.stringify(req.body);
+      if (!verifyWebhookSignature(rawBody, signature)) {
+        logger.warn('Retell webhook signature verification failed');
+        return res.status(401).json({ error: 'Invalid signature' });
       }
 
       const payload = req.body as RetellWebhookPayload;

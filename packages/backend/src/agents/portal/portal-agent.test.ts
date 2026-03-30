@@ -51,7 +51,7 @@ const fakeAdapterConfig = {
   adapterType: 'caqh_directassure',
   submissionMethod: 'api',
   config: {},
-  credentials: null,
+  credentialsEncrypted: null,
   requiredFields: [],
   isActive: true,
   lastTestedAt: null,
