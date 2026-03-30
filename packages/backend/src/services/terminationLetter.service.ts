@@ -1,5 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 
 /**
  * Configurable termination letter template.
@@ -125,13 +126,13 @@ export async function generateTerminationLetter(
   //    Prefer isPrimary=true, fall back to first active location
   let location = await prisma.practiceLocation.findFirst({
     where: { providerId, isPrimary: true, isActive: true },
-    select: { taxId: true, groupNpi: true },
+    select: { taxIdEncrypted: true, groupNpi: true },
   });
 
   if (!location) {
     location = await prisma.practiceLocation.findFirst({
       where: { providerId, isActive: true },
-      select: { taxId: true, groupNpi: true },
+      select: { taxIdEncrypted: true, groupNpi: true },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -153,7 +154,7 @@ export async function generateTerminationLetter(
 
   // 4. Assemble values
   const providerName = buildProviderFullName(provider);
-  const taxIdRaw = location?.taxId || '';
+  const taxIdRaw = location?.taxIdEncrypted ? decryptSafe(location.taxIdEncrypted) : '';
   const maskedTaxId = taxIdRaw ? maskTaxId(taxIdRaw) : 'N/A';
   const groupNpi = location?.groupNpi || 'N/A';
   const payerName = enrollment.payer.name;
@@ -185,7 +186,7 @@ export async function generateTerminationLetter(
       providerName,
       npi: provider.npi,
       groupNpi: location?.groupNpi ?? null,
-      taxId: maskedTaxId,
+      taxIdEncrypted: encryptSafe(maskedTaxId),
       letterContent,
     },
   });

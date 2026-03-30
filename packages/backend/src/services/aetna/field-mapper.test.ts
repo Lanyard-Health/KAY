@@ -40,7 +40,7 @@ function makeProviderData(overrides: Partial<AetnaProviderData> = {}): AetnaProv
       county: 'Hartford',
       phone: '555-111-2222',
       fax: '555-111-2223',
-      taxId: '12-3456789',
+      taxIdEncrypted: '12-3456789',
       groupNpi: '9876543210',
       acceptingNewPatients: true,
       languagesSpoken: ['English', 'Spanish'],

@@ -87,8 +87,8 @@ describe('generateTerminationLetter', () => {
     await generateTerminationLetter(PROVIDER_ID, ENROLLMENT_ID, TASK_ID);
 
     const createCall = prismaMock.terminationLetter.create.mock.calls[0]![0] as any;
-    // taxId "12-3456789" should be masked to "XX-XXX6789"
-    expect(createCall.data.taxId).toBe('XX-XXX6789');
+    // taxIdEncrypted stores the masked value (plaintext in test — no ENCRYPTION_KEY)
+    expect(createCall.data.taxIdEncrypted).toBe('XX-XXX6789');
     // Letter content should also contain the masked version
     expect(createCall.data.letterContent).toContain('XX-XXX6789');
     expect(createCall.data.letterContent).not.toContain('12-3456789');
@@ -166,7 +166,7 @@ describe('generateTerminationLetter', () => {
     await generateTerminationLetter(PROVIDER_ID, ENROLLMENT_ID, TASK_ID);
 
     const createCall = prismaMock.terminationLetter.create.mock.calls[0]![0] as any;
-    expect(createCall.data.taxId).toBe('N/A');
+    expect(createCall.data.taxIdEncrypted).toBe('N/A');
     expect(createCall.data.groupNpi).toBeNull();
     expect(createCall.data.letterContent).toContain('Group NPI: N/A');
     expect(createCall.data.letterContent).toContain('Tax ID: N/A');

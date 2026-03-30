@@ -1,4 +1,5 @@
 import type { AetnaProviderData, AetnaFormPayload } from './types.js';
+import { decryptSafe } from '../../utils/crypto.js';
 
 const DEGREE_MAP: Record<string, string> = {
   md: 'MD', do: 'DO', phd: 'PhD', psyd: 'PsyD', msw: 'MSW',
@@ -109,7 +110,7 @@ function formatLicenseExpiration(date: Date): string {
 export function mapProviderToAetnaPayload(data: AetnaProviderData): AetnaFormPayload {
   const { provider, practice, primaryLocation, primaryLicense, education, hospitalAffiliations, submitter, aetnaOverrides } = data;
   const loc = primaryLocation;
-  const taxId = loc?.taxId ?? '';
+  const taxId = loc?.taxIdEncrypted ? decryptSafe(loc.taxIdEncrypted) : '';
   const overrides = aetnaOverrides ?? {};
 
   return {
