@@ -83,6 +83,44 @@ model User {
   requestedWorkflows          AgentWorkflow[]          @relation("WorkflowRequester")
   approvalDecisions           PendingApproval[]        @relation("ApprovalDecider")
 
+  // Audit trail back-references (createdBy / updatedBy)
+  providersCreated            ProviderProfile[]        @relation("ProviderCreatedBy")
+  providersUpdated            ProviderProfile[]        @relation("ProviderUpdatedBy")
+  practiceLocationsCreated    PracticeLocation[]       @relation("PracticeLocationCreatedBy")
+  practiceLocationsUpdated    PracticeLocation[]       @relation("PracticeLocationUpdatedBy")
+  licensesCreated             License[]                @relation("LicenseCreatedBy")
+  licensesUpdated             License[]                @relation("LicenseUpdatedBy")
+  boardCertsCreated           BoardCertification[]     @relation("BoardCertCreatedBy")
+  boardCertsUpdated           BoardCertification[]     @relation("BoardCertUpdatedBy")
+  malpracticeCreated          MalpracticeInsurance[]   @relation("MalpracticeCreatedBy")
+  malpracticeUpdated          MalpracticeInsurance[]   @relation("MalpracticeUpdatedBy")
+  educationsCreated           Education[]              @relation("EducationCreatedBy")
+  educationsUpdated           Education[]              @relation("EducationUpdatedBy")
+  workHistoriesCreated        WorkHistory[]            @relation("WorkHistoryCreatedBy")
+  workHistoriesUpdated        WorkHistory[]            @relation("WorkHistoryUpdatedBy")
+  hospitalAffiliationsCreated HospitalAffiliation[]    @relation("HospitalAffiliationCreatedBy")
+  hospitalAffiliationsUpdated HospitalAffiliation[]    @relation("HospitalAffiliationUpdatedBy")
+  profRefsCreated             ProfessionalReference[]  @relation("ProfRefCreatedBy")
+  profRefsUpdated             ProfessionalReference[]  @relation("ProfRefUpdatedBy")
+  disciplinaryCreated         DisciplinaryAction[]     @relation("DisciplinaryCreatedBy")
+  disciplinaryUpdated         DisciplinaryAction[]     @relation("DisciplinaryUpdatedBy")
+  contEdCreated               ContinuingEducation[]    @relation("ContEdCreatedBy")
+  contEdUpdated               ContinuingEducation[]    @relation("ContEdUpdatedBy")
+  supervisingPhysCreated      SupervisingPhysician[]   @relation("SupervisingPhysCreatedBy")
+  supervisingPhysUpdated      SupervisingPhysician[]   @relation("SupervisingPhysUpdatedBy")
+  malClaimsCreated            MalpracticeClaim[]       @relation("MalClaimCreatedBy")
+  malClaimsUpdated            MalpracticeClaim[]       @relation("MalClaimUpdatedBy")
+  disclosuresCreated          ProviderDisclosure[]     @relation("DisclosureCreatedBy")
+  disclosuresUpdated          ProviderDisclosure[]     @relation("DisclosureUpdatedBy")
+  deaRegsCreated              DeaRegistration[]        @relation("DeaRegCreatedBy")
+  deaRegsUpdated              DeaRegistration[]        @relation("DeaRegUpdatedBy")
+  providerIdsCreated          ProviderIdentifier[]     @relation("ProviderIdCreatedBy")
+  providerIdsUpdated          ProviderIdentifier[]     @relation("ProviderIdUpdatedBy")
+  bankingCreated              ProviderBanking[]        @relation("BankingCreatedBy")
+  bankingUpdated              ProviderBanking[]        @relation("BankingUpdatedBy")
+  enrollmentsCreated          Enrollment[]             @relation("EnrollmentCreatedBy")
+  enrollmentsUpdated          Enrollment[]             @relation("EnrollmentUpdatedBy")
+
   @@map("users")
 }
 
@@ -105,7 +143,7 @@ model Practice {
   contractStartDate DateTime? @map("contract_start_date")
   contractEndDate   DateTime? @map("contract_end_date")
   billingEmail      String?   @map("billing_email")
-  taxId             String?   @map("tax_id")
+  taxIdEncrypted    String?   @map("tax_id_encrypted") // Encrypted AES-256-GCM
   groupNpi          String?   @map("group_npi")
   setupComplete     Boolean   @default(false) @map("setup_complete")
 
@@ -298,6 +336,8 @@ model ProviderProfile {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("ProviderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("ProviderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Multi-tenant
   practiceId String? @map("practice_id")
@@ -361,6 +401,7 @@ model ProviderAddress {
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("provider_addresses")
 }
 
@@ -400,8 +441,8 @@ model PracticeLocation {
   email String?
 
   // Business Info
-  taxId    String? @map("tax_id")
-  npi      String? // Location-specific NPI if different from provider
+  taxIdEncrypted String? @map("tax_id_encrypted") // Encrypted AES-256-GCM
+  npi            String? // Location-specific NPI if different from provider
   groupNpi String? @map("group_npi")
 
   // Hours (JSON object with day: {open, close} format)
@@ -434,6 +475,8 @@ model PracticeLocation {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("PracticeLocationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("PracticeLocationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Multi-tenant
   practiceId String? @map("practice_id")
@@ -494,11 +537,15 @@ model License {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("LicenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("LicenseUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
+  @@index([providerId])
+  @@index([expirationDate])
   @@map("licenses")
 }
 
@@ -535,11 +582,15 @@ model BoardCertification {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("BoardCertCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("BoardCertUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
+  @@index([providerId])
+  @@index([expirationDate])
   @@map("board_certifications")
 }
 
@@ -573,11 +624,15 @@ model MalpracticeInsurance {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("MalpracticeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("MalpracticeUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
+  @@index([providerId])
+  @@index([expirationDate])
   @@map("malpractice_insurances")
 }
 
@@ -624,11 +679,14 @@ model Education {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("EducationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("EducationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
+  @@index([providerId])
   @@map("educations")
 }
 
@@ -658,10 +716,13 @@ model WorkHistory {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("WorkHistoryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("WorkHistoryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("work_histories")
 }
 
@@ -708,10 +769,13 @@ model HospitalAffiliation {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("HospitalAffiliationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("HospitalAffiliationUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("hospital_affiliations")
 }
 
@@ -734,10 +798,13 @@ model ProfessionalReference {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("ProfRefCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("ProfRefUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("professional_references")
 }
 
@@ -768,10 +835,13 @@ model DisciplinaryAction {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("DisciplinaryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("DisciplinaryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("disciplinary_actions")
 }
 
@@ -792,11 +862,14 @@ model ContinuingEducation {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("ContEdCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("ContEdUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   documents Document[]
 
+  @@index([providerId])
   @@map("continuing_educations")
 }
 
@@ -895,10 +968,13 @@ model SupervisingPhysician {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("SupervisingPhysCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("SupervisingPhysUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("supervising_physicians")
 }
 
@@ -924,10 +1000,13 @@ model MalpracticeClaim {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("MalClaimCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("MalClaimUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("malpractice_claims")
 }
 
@@ -948,10 +1027,13 @@ model ProviderDisclosure {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("DisclosureCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("DisclosureUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("provider_disclosures")
 }
 
@@ -972,10 +1054,13 @@ model DeaRegistration {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("DeaRegCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("DeaRegUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("dea_registrations")
 }
 
@@ -997,10 +1082,13 @@ model ProviderIdentifier {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("ProviderIdCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("ProviderIdUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("provider_identifiers")
 }
 
@@ -1026,10 +1114,13 @@ model ProviderBanking {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("BankingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("BankingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("provider_banking")
 }
 
@@ -1155,6 +1246,8 @@ model Document {
   ocrReviewer          User?                 @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
   documentReviewer     User?                 @relation("DocumentReviewer", fields: [reviewedById], references: [id])
 
+  @@index([providerId])
+  @@index([ocrStatus])
   @@map("documents")
 }
 
@@ -1302,6 +1395,8 @@ model Enrollment {
   updatedAt   DateTime @updatedAt @map("updated_at")
   createdById String?  @map("created_by_id")
   updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("EnrollmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("EnrollmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
   provider          ProviderProfile          @relation(fields: [providerId], references: [id], onDelete: Cascade)
@@ -1316,6 +1411,8 @@ model Enrollment {
   denialTriages     DenialTriage[]
 
   @@unique([providerId, payerId])
+  @@index([status])
+  @@index([payerId])
   @@map("payer_enrollments")
 }
 
@@ -1671,7 +1768,7 @@ model TerminationLetter {
   providerName  String                  @map("provider_name")
   npi           String
   groupNpi      String?                 @map("group_npi")
-  taxId         String                  @map("tax_id")
+  taxIdEncrypted String                 @map("tax_id_encrypted") // Encrypted AES-256-GCM
   letterContent String                  @map("letter_content") @db.Text
   status        TerminationLetterStatus @default(DRAFT)
   reviewedById  String?                 @map("reviewed_by_id")
@@ -1799,6 +1896,7 @@ model AetnaEnrollmentRun {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([status])
   @@map("aetna_enrollment_runs")
 }
 
@@ -1978,9 +2076,9 @@ model PayerSubmissionConfig {
 
   adapterType      String @map("adapter_type")
   submissionMethod String @map("submission_method")
-  config           Json
-  credentials      Json?
-  requiredFields   Json   @map("required_fields")
+  config               Json
+  credentialsEncrypted String?  @map("credentials_encrypted")
+  requiredFields       Json     @map("required_fields")
 
   isActive       Boolean   @default(true) @map("is_active")
   lastTestedAt   DateTime? @map("last_tested_at")
@@ -2360,6 +2458,7 @@ model FollowUpRun {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
+  @@index([status])
   @@map("follow_up_runs")
 }
 
