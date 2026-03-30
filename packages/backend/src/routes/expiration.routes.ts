@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { ExpirationService } from '../services/expiration.service.js';
 import { expirationQuerySchema, parseQuery } from '../utils/queryValidation.js';
@@ -86,7 +87,7 @@ expirationRoutes.get(
 // POST /api/v1/expirations/send-reminders - Manually trigger reminder emails
 expirationRoutes.post(
   '/send-reminders',
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { days } = req.body;

@@ -12,6 +12,7 @@ import { Router, Request, Response } from 'express';
 import { WorkflowStepStatus, WorkflowType } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   hydrateWorkflowSteps,
@@ -34,7 +35,7 @@ const router = Router();
 router.get(
   '/workflow/templates/:payerWorkflowKey',
   authenticate,
-  authorize('practice_admin', 'credentialing_staff'),
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response) => {
     try {
       const payerWorkflowKey = req.params['payerWorkflowKey']!;
@@ -58,7 +59,7 @@ router.get(
 // GET /:id/workflow
 // Returns all workflow steps + progress summary for an enrollment
 // ============================================================
-router.get('/:id/workflow', authenticate, authorize('practice_admin', 'credentialing_staff'), async (req: Request, res: Response) => {
+router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req: Request, res: Response) => {
   try {
     const id = req.params['id']!;
 
@@ -118,7 +119,7 @@ router.get('/:id/workflow', authenticate, authorize('practice_admin', 'credentia
 router.put(
   '/:id/workflow/:stepId',
   authenticate,
-  authorize('practice_admin', 'credentialing_staff'),
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;
@@ -202,7 +203,7 @@ router.put(
 router.post(
   '/:id/workflow/hydrate',
   authenticate,
-  authorize('practice_admin', 'credentialing_staff'),
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;

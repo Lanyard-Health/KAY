@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { decryptSafe, encryptSafe } from '../utils/crypto.js';
 
@@ -46,7 +47,7 @@ const assignUserSchema = z.object({
 router.get(
   '/',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practices = await prisma.practice.findMany({
@@ -73,7 +74,7 @@ router.get(
 router.get(
   '/:practiceId',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -109,7 +110,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPracticeSchema.parse(req.body);
@@ -147,7 +148,7 @@ router.post(
 router.patch(
   '/:practiceId',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -201,7 +202,7 @@ router.patch(
 router.get(
   '/:practiceId/users',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -246,7 +247,7 @@ router.get(
 router.post(
   '/:practiceId/users',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -332,7 +333,7 @@ router.post(
 router.delete(
   '/:practiceId/users/:userId',
   authenticate,
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;

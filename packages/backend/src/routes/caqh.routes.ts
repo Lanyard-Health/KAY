@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
@@ -298,7 +299,7 @@ caqhRoutes.post(
 // POST /api/v1/caqh/sync-all - Trigger bulk sync for all eligible providers (admin only)
 caqhRoutes.post(
   '/sync-all',
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const { schedulerService } = await import('../services/scheduler.service.js');

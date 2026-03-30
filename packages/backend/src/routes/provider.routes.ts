@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { NotFoundError, ValidationError } from '../middleware/error.middleware.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -234,7 +235,7 @@ providerRoutes.put(
 // DELETE /api/v1/providers/:id - Soft delete provider
 providerRoutes.delete(
   '/:providerId',
-  authorize('admin'), requirePracticeProvider,
+  authorize(...ADMIN_ROLES), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const existing = await prisma.providerProfile.findUnique({
