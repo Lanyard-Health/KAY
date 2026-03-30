@@ -320,7 +320,8 @@ payerEnrollmentDataRoutes.get(
         where: { providerId: req.params['providerId'] },
         orderBy: { expirationDate: 'asc' },
       });
-      res.json({ success: true, data: records });
+      const decrypted = records.map((r) => ({ ...r, deaNumberEncrypted: undefined, deaNumber: decryptSafe(r.deaNumberEncrypted) }));
+      res.json({ success: true, data: decrypted });
     } catch (error) {
       next(error);
     }
@@ -337,16 +338,18 @@ payerEnrollmentDataRoutes.post(
 
       setAuditContext(req, { resourceType: 'dea_registration', action: 'create' });
 
+      const { deaNumber, ...rest } = data;
       const record = await prisma.deaRegistration.create({
         data: {
           providerId: req.params['providerId']!,
-          ...data,
+          ...rest,
+          deaNumberEncrypted: encryptSafe(deaNumber),
           issueDate: new Date(data.issueDate),
           expirationDate: new Date(data.expirationDate),
           createdById: req.user?.id,
         },
       });
-      res.status(201).json({ success: true, data: record });
+      res.status(201).json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
     } catch (error) {
       next(error);
     }
@@ -366,16 +369,18 @@ payerEnrollmentDataRoutes.put(
       if (!existing) throw new NotFoundError('DEA registration');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('DEA registration');
 
+      const { deaNumber, ...rest } = data;
       const record = await prisma.deaRegistration.update({
         where: { id: req.params['id'] },
         data: {
-          ...data,
+          ...rest,
+          ...(deaNumber !== undefined && { deaNumberEncrypted: encryptSafe(deaNumber) }),
           ...(data.issueDate && { issueDate: new Date(data.issueDate) }),
           ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
           updatedById: req.user?.id,
         },
       });
-      res.json({ success: true, data: record });
+      res.json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
     } catch (error) {
       next(error);
     }
@@ -559,14 +564,16 @@ payerEnrollmentDataRoutes.post(
         },
       });
 
-      // Return masked response
+      // Return masked response — decrypt first, then mask to last 4
+      const routingPlain = decryptSafe(record.routingNumberEncrypted);
+      const taxIdPlain = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
       res.status(201).json({
         success: true,
         data: {
           ...record,
-          routingNumberEncrypted: '****' + record.routingNumberEncrypted.slice(-4),
+          routingNumberEncrypted: '****' + routingPlain.slice(-4),
           accountNumberEncrypted: '****' + record.accountNumberLast4,
-          accountHolderTaxId: record.accountHolderTaxId ? '****' + record.accountHolderTaxId.slice(-4) : null,
+          accountHolderTaxId: taxIdPlain ? '****' + taxIdPlain.slice(-4) : null,
         },
       });
     } catch (error) {
@@ -609,13 +616,15 @@ payerEnrollmentDataRoutes.put(
         data: updateData,
       });
 
+      const routingPlainUpd = decryptSafe(record.routingNumberEncrypted);
+      const taxIdPlainUpd = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
       res.json({
         success: true,
         data: {
           ...record,
-          routingNumberEncrypted: '****' + record.routingNumberEncrypted.slice(-4),
+          routingNumberEncrypted: '****' + routingPlainUpd.slice(-4),
           accountNumberEncrypted: '****' + record.accountNumberLast4,
-          accountHolderTaxId: record.accountHolderTaxId ? '****' + record.accountHolderTaxId.slice(-4) : null,
+          accountHolderTaxId: taxIdPlainUpd ? '****' + taxIdPlainUpd.slice(-4) : null,
         },
       });
     } catch (error) {

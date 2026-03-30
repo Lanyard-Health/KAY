@@ -1041,7 +1041,7 @@ model DeaRegistration {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  deaNumber      String           @map("dea_number")
+  deaNumberEncrypted String        @map("dea_number_encrypted")
   deaState       String?          @map("dea_state")
   deaSchedules   String[]         @default([]) @map("dea_schedules") // e.g. ["II", "III", "IV", "V"]
   issueDate      DateTime         @map("issue_date")

@@ -5,6 +5,7 @@ import { getQueue, QUEUE_NAMES } from '../queues.js';
 import { logAgentEvent } from '../event-logger.js';
 import { emitWorkflowEvent } from '../websocket.js';
 import { buildExceptionSystemPrompt, buildExceptionUserMessage } from './prompt.js';
+import { decryptSafe } from '../../utils/crypto.js';
 import type { ExceptionJobData, ExceptionJobResult, ExceptionAnalysis } from './types.js';
 
 // ==========================================
@@ -74,12 +75,21 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
       licenses: { select: { state: true, licenseNumber: true, status: true, expirationDate: true } },
       boardCertifications: { select: { specialty: true, status: true, expirationDate: true } },
       malpracticeInsurances: { select: { carrierName: true, status: true, expirationDate: true } },
-      deaRegistrations: { select: { deaNumber: true, status: true, expirationDate: true } },
+      deaRegistrations: { select: { deaNumberEncrypted: true, status: true, expirationDate: true } },
       educations: { select: { institutionName: true, degree: true } },
     },
   });
 
-  const providerCredentials = provider ?? {};
+  const providerCredentials = provider
+    ? {
+        ...provider,
+        deaRegistrations: provider.deaRegistrations.map((d) => ({
+          ...d,
+          deaNumberEncrypted: undefined,
+          deaNumber: decryptSafe(d.deaNumberEncrypted),
+        })),
+      }
+    : {};
 
   // 4. Load payer requirements
   let payerRequirements: object = {};
