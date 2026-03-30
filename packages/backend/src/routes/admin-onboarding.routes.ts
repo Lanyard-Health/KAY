@@ -9,7 +9,7 @@ const router = Router();
  * GET /api/v1/portal/admin/onboarding/providers
  * List approved providers with onboarding status (single query with _count)
  */
-router.get('/providers', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const providers = await prisma.providerProfile.findMany({
       where: { status: 'active' },
@@ -82,7 +82,7 @@ router.get('/providers', authenticate, authorize('admin', 'credentialing_staff',
     });
   } catch (error) {
     logger.error('Error listing onboarding providers:', error);
-    res.status(500).json({ success: false, error: 'Failed to list providers' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list providers' } });
   }
 });
 
@@ -90,7 +90,7 @@ router.get('/providers', authenticate, authorize('admin', 'credentialing_staff',
  * GET /api/v1/portal/admin/onboarding/providers/:id/documents
  * List provider's portal-uploaded documents for review
  */
-router.get('/providers/:id/documents', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const providerId = req.params['id']!;
 
@@ -115,7 +115,7 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'credent
     res.json({ success: true, data: documents });
   } catch (error) {
     logger.error('Error listing provider documents:', error);
-    res.status(500).json({ success: false, error: 'Failed to list documents' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list documents' } });
   }
 });
 
@@ -123,13 +123,13 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'credent
  * PUT /api/v1/portal/admin/onboarding/providers/:id/documents/:docId/review
  * Approve or reject a portal-uploaded document
  */
-router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id: providerId, docId } = req.params;
     const { status, notes } = req.body;
 
     if (!status || !['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, error: 'status must be "approved" or "rejected"' });
+      return res.status(400).json({ success: false, error: { message: 'status must be "approved" or "rejected"' } });
     }
 
     // Verify document exists and belongs to this provider
@@ -139,7 +139,7 @@ router.put('/providers/:id/documents/:docId/review', authenticate, authorize('ad
     });
 
     if (!doc || doc.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'Document not found' });
+      return res.status(404).json({ success: false, error: { message: 'Document not found' } });
     }
 
     const updated = await prisma.document.update({
@@ -155,7 +155,7 @@ router.put('/providers/:id/documents/:docId/review', authenticate, authorize('ad
     res.json({ success: true, data: updated });
   } catch (error) {
     logger.error('Error reviewing document:', error);
-    res.status(500).json({ success: false, error: 'Failed to review document' });
+    res.status(500).json({ success: false, error: { message: 'Failed to review document' } });
   }
 });
 

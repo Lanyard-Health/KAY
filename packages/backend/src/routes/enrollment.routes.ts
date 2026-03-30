@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
@@ -10,6 +11,7 @@ import { instantiateFollowUp } from '../services/followup-instantiation.service.
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
@@ -95,6 +97,7 @@ const updateEnrollmentSchema = createEnrollmentSchema.partial();
 router.get(
   '/payers',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
@@ -120,9 +123,12 @@ router.get(
 router.post(
   '/payers',
   authenticate,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPayerSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'payer', action: 'create' });
 
       const payer = await prisma.payer.create({
         data: {
@@ -152,7 +158,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.enrollment.findMany({
@@ -214,6 +220,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
@@ -253,6 +260,8 @@ router.post(
     try {
       const providerId = req.params['providerId']!;
       const validated = createEnrollmentSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', action: 'create' });
 
       // First, find or create the payer
       let payer = validated.payerId
@@ -360,6 +369,8 @@ router.put(
       await assertEnrollmentAccess(req, id);
       const validated = updateEnrollmentSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'update' });
+
       const existing = await prisma.enrollment.findUnique({
         where: { id },
       });
@@ -454,10 +465,12 @@ router.delete(
   '/:id',
   authenticate,
   blockPendingVerification,
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
+
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'delete' });
 
       const existing = await prisma.enrollment.findUnique({
         where: { id },

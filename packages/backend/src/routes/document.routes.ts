@@ -2,11 +2,13 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
-import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
 import { createCredentialFromOcr } from '../services/ocr-credential.service.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 
 // Validation schemas for document endpoints
 const updateDocumentSchema = z.object({
@@ -26,6 +28,7 @@ const updateOcrResultsSchema = z.object({
 export const documentRoutes = Router();
 
 documentRoutes.use(authenticate);
+documentRoutes.use(authorize(...ALL_AUTHENTICATED_ROLES));
 
 // Lazy-load DocumentService (heavy S3/Textract SDKs) on first use
 let _documentService: import('../services/document.service.js').DocumentService | null = null;
@@ -66,6 +69,8 @@ documentRoutes.post(
 
       await assertDocumentAccess(req, { providerId: data.providerId });
 
+      setAuditContext(req, { resourceType: 'document', action: 'create' });
+
       const result = await (await getDocumentService()).getUploadUrl(data, req.user!.id);
 
       res.json({ success: true, data: result });
@@ -83,7 +88,7 @@ documentRoutes.post(
       const { documentId } = req.body;
 
       if (!documentId || typeof documentId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) {
-        return res.status(400).json({ success: false, error: 'Valid documentId is required' });
+        return res.status(400).json({ success: false, error: { message: 'Valid documentId is required' } });
       }
 
       const existing = await prisma.document.findUnique({
@@ -91,6 +96,8 @@ documentRoutes.post(
       });
       if (!existing) throw new NotFoundError('Document');
       await assertDocumentAccess(req, existing);
+
+      setAuditContext(req, { resourceType: 'document', resourceId: documentId, action: 'update' });
 
       const document = await (await getDocumentService()).confirmUpload(documentId);
 
@@ -129,7 +136,7 @@ documentRoutes.get(
     try {
       const { role } = req.user!;
       if (role !== 'admin' && role !== 'credentialing_staff' && role !== 'practice_admin') {
-        return res.status(403).json({ success: false, error: 'Access denied' });
+        return res.status(403).json({ success: false, error: { message: 'Access denied' } });
       }
 
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
@@ -160,6 +167,53 @@ documentRoutes.get(
       ]);
 
       res.json({ success: true, data: { items, total, page, pageSize } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/documents/provider/:providerId - List documents for a provider
+documentRoutes.get(
+  '/provider/:providerId',
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const documents = await prisma.document.findMany({
+        where: { providerId: req.params['providerId'] },
+        select: {
+          id: true,
+          providerId: true,
+          fileName: true,
+          originalFileName: true,
+          fileSize: true,
+          mimeType: true,
+          documentType: true,
+          description: true,
+          linkedLicenseId: true,
+          linkedBoardCertificationId: true,
+          linkedMalpracticeInsuranceId: true,
+          linkedEducationId: true,
+          linkedContinuingEducationId: true,
+          expirationDate: true,
+          isVerified: true,
+          verifiedAt: true,
+          verifiedBy: true,
+          reviewStatus: true,
+          reviewedById: true,
+          reviewedAt: true,
+          reviewNotes: true,
+          uploadedViaPortal: true,
+          createdAt: true,
+          updatedAt: true,
+          createdById: true,
+          ocrStatus: true,
+          ocrConfidence: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({ success: true, data: documents });
     } catch (error) {
       next(error);
     }
@@ -260,6 +314,8 @@ documentRoutes.put(
       if (!existing) throw new NotFoundError('Document');
       await assertDocumentAccess(req, existing);
 
+      setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'update' });
+
       const document = await prisma.document.update({
         where: { id: req.params['id'] },
         data: {
@@ -316,6 +372,8 @@ documentRoutes.put(
 
       await assertDocumentAccess(req, document);
 
+      setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'update' });
+
       const updatedDocument = await prisma.document.update({
         where: { id: req.params['id'] },
         data: {
@@ -348,6 +406,8 @@ documentRoutes.delete(
 
       await assertDocumentAccess(req, document);
 
+      setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'delete' });
+
       // Delete from S3 (ignore errors for orphaned records)
       try {
         await (await getDocumentService()).deleteDocument(document.s3Key);
@@ -367,49 +427,3 @@ documentRoutes.delete(
   }
 );
 
-// GET /api/v1/documents/provider/:providerId - List documents for a provider
-documentRoutes.get(
-  '/provider/:providerId',
-  requireProviderAccess, requirePracticeProvider,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const documents = await prisma.document.findMany({
-        where: { providerId: req.params['providerId'] },
-        select: {
-          id: true,
-          providerId: true,
-          fileName: true,
-          originalFileName: true,
-          fileSize: true,
-          mimeType: true,
-          documentType: true,
-          description: true,
-          linkedLicenseId: true,
-          linkedBoardCertificationId: true,
-          linkedMalpracticeInsuranceId: true,
-          linkedEducationId: true,
-          linkedContinuingEducationId: true,
-          expirationDate: true,
-          isVerified: true,
-          verifiedAt: true,
-          verifiedBy: true,
-          reviewStatus: true,
-          reviewedById: true,
-          reviewedAt: true,
-          reviewNotes: true,
-          uploadedViaPortal: true,
-          createdAt: true,
-          updatedAt: true,
-          createdById: true,
-          ocrStatus: true,
-          ocrConfidence: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      res.json({ success: true, data: documents });
-    } catch (error) {
-      next(error);
-    }
-  }
-);

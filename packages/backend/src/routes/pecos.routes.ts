@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
+import { isValidNpi } from '../constants/validation.js';
 import { PECOSService } from '../services/pecos.service.js';
 
 export const pecosRoutes = Router();
 
 pecosRoutes.use(authenticate);
+pecosRoutes.use(authorize(...STAFF_ROLES));
 
 const pecosService = new PECOSService();
 
@@ -16,7 +19,7 @@ pecosRoutes.get(
     try {
       const { npiNumber } = req.params;
 
-      if (!npiNumber || !/^\d{10}$/.test(npiNumber)) {
+      if (!npiNumber || !isValidNpi(npiNumber)) {
         return res.status(400).json({
           success: false,
           error: { message: 'Invalid NPI number. Must be 10 digits.' },
@@ -39,7 +42,7 @@ pecosRoutes.get(
     try {
       const { npiNumber } = req.params;
 
-      if (!npiNumber || !/^\d{10}$/.test(npiNumber)) {
+      if (!npiNumber || !isValidNpi(npiNumber)) {
         return res.status(400).json({
           success: false,
           error: { message: 'Invalid NPI number. Must be 10 digits.' },
@@ -68,7 +71,7 @@ pecosRoutes.get(
     try {
       const { npiNumber } = req.params;
 
-      if (!npiNumber || !/^\d{10}$/.test(npiNumber)) {
+      if (!npiNumber || !isValidNpi(npiNumber)) {
         return res.status(400).json({
           success: false,
           error: { message: 'Invalid NPI number. Must be 10 digits.' },
@@ -97,7 +100,7 @@ pecosRoutes.get(
     try {
       const { npiNumber } = req.params;
 
-      if (!npiNumber || !/^\d{10}$/.test(npiNumber)) {
+      if (!npiNumber || !isValidNpi(npiNumber)) {
         return res.status(400).json({
           success: false,
           error: { message: 'Invalid NPI number. Must be 10 digits.' },
@@ -141,7 +144,7 @@ pecosRoutes.post(
       }
 
       // Validate all NPIs
-      const invalidNpis = npis.filter(npi => !/^\d{10}$/.test(npi));
+      const invalidNpis = npis.filter(npi => !isValidNpi(npi));
       if (invalidNpis.length > 0) {
         return res.status(400).json({
           success: false,

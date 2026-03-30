@@ -8,7 +8,7 @@ import { auditQuerySchema, paginationSchema, parseQuery } from '../utils/queryVa
 export const auditRoutes = Router();
 
 auditRoutes.use(authenticate);
-auditRoutes.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
+auditRoutes.use(authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'));
 
 // GET /api/v1/audit - Query audit logs
 auditRoutes.get(
@@ -106,13 +106,13 @@ auditRoutes.get(
       if (req.user?.role === 'practice_admin') {
         const practiceIds = req.practiceScope?.practiceIds ?? [];
         if (practiceIds.length === 0) {
-          return res.status(403).json({ success: false, error: 'Access denied' });
+          return res.status(403).json({ success: false, error: { message: 'Access denied' } });
         }
         const targetInPractice = await prisma.userPractice.findFirst({
           where: { userId: targetUserId, practiceId: { in: practiceIds } },
         });
         if (!targetInPractice) {
-          return res.status(403).json({ success: false, error: 'Access denied — user not in your practice' });
+          return res.status(403).json({ success: false, error: { message: 'Access denied — user not in your practice' } });
         }
       }
 

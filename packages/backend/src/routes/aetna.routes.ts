@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { checkAetnaReadiness } from '../services/aetna/readiness.service.js';
@@ -13,7 +14,7 @@ export const aetnaRoutes = Router({ mergeParams: true });
 
 // All routes require auth + staff role
 aetnaRoutes.use(authenticate);
-aetnaRoutes.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
+aetnaRoutes.use(authorize(...STAFF_ROLES));
 
 function getS3Client(): S3Client {
   return new S3Client({

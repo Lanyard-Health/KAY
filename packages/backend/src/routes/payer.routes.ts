@@ -5,6 +5,9 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { z } from 'zod';
+import { setAuditContext } from '../middleware/audit.middleware.js';
+import { logger } from '../utils/logger.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 
 export const payerRoutes = Router();
 
@@ -48,6 +51,7 @@ const createEnrollmentSchema = z.object({
 // GET /api/v1/payers - List all payers
 payerRoutes.get(
   '/',
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const payers = await prisma.payer.findMany({
@@ -64,6 +68,7 @@ payerRoutes.get(
 // GET /api/v1/payers/:id - Get payer details
 payerRoutes.get(
   '/:id',
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const payer = await prisma.payer.findUnique({
@@ -89,10 +94,12 @@ payerRoutes.get(
 // POST /api/v1/payers - Create payer
 payerRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'payer', action: 'create' });
 
       const payer = await prisma.payer.create({
         data,
@@ -108,10 +115,12 @@ payerRoutes.post(
 // PUT /api/v1/payers/:id - Update payer
 payerRoutes.put(
   '/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'payer', resourceId: req.params['id'], action: 'update' });
 
       const payer = await prisma.payer.update({
         where: { id: req.params['id'] },
@@ -129,12 +138,14 @@ payerRoutes.put(
 // ENROLLMENTS
 // ==========================================
 
-// GET /api/v1/payers/enrollments/:providerId - Get provider enrollments
+// @deprecated 2026-03-26 — Use GET /api/v1/enrollments/:providerId instead (includes workflow, SLA, denial triage)
 payerRoutes.get(
   '/enrollments/:providerId',
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      logger.warn('Deprecated endpoint called: GET /payers/enrollments/:providerId — use GET /enrollments/:providerId', { user: req.user?.id });
+      res.setHeader('X-Deprecated', 'Use GET /api/v1/enrollments/:providerId instead');
       const enrollments = await prisma.enrollment.findMany({
         where: { providerId: req.params['providerId'] },
         include: {
@@ -150,13 +161,17 @@ payerRoutes.get(
   }
 );
 
-// POST /api/v1/payers/enrollments/:providerId - Create enrollment
+// @deprecated 2026-03-26 — Use POST /api/v1/enrollments/:providerId instead (includes workflow, SLA, denial triage)
 payerRoutes.post(
   '/enrollments/:providerId',
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      logger.warn('Deprecated endpoint called: POST /payers/enrollments/:providerId — use POST /enrollments/:providerId', { user: req.user?.id });
+      res.setHeader('X-Deprecated', 'Use POST /api/v1/enrollments/:providerId instead');
       const data = createEnrollmentSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', action: 'create' });
 
       const enrollment = await prisma.enrollment.create({
         data: {
@@ -182,13 +197,17 @@ payerRoutes.post(
   }
 );
 
-// PUT /api/v1/payers/enrollments/:id - Update enrollment
+// @deprecated 2026-03-26 — Use PUT /api/v1/enrollments/:id instead (includes workflow, SLA, denial triage)
 payerRoutes.put(
   '/enrollments/update/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      logger.warn('Deprecated endpoint called: PUT /payers/enrollments/update/:id — use PUT /enrollments/:id', { user: req.user?.id });
+      res.setHeader('X-Deprecated', 'Use PUT /api/v1/enrollments/:id instead');
       const data = createEnrollmentSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
@@ -214,12 +233,16 @@ payerRoutes.put(
   }
 );
 
-// DELETE /api/v1/payers/enrollments/:id - Delete enrollment
+// @deprecated 2026-03-26 — Use DELETE /api/v1/enrollments/:id instead (includes workflow, SLA, denial triage)
 payerRoutes.delete(
   '/enrollments/delete/:id',
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      logger.warn('Deprecated endpoint called: DELETE /payers/enrollments/delete/:id — use DELETE /enrollments/:id', { user: req.user?.id });
+      res.setHeader('X-Deprecated', 'Use DELETE /api/v1/enrollments/:id instead');
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');

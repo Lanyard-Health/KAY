@@ -30,7 +30,7 @@ providerRoutes.use(authenticate);
 // GET /api/v1/providers - List all providers
 providerRoutes.get(
   '/',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, pageSize, search, status } = parseQuery(req.query, providerListQuerySchema);
@@ -162,7 +162,7 @@ providerRoutes.get(
 // POST /api/v1/providers - Create provider
 providerRoutes.post(
   '/',
-  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validatedData = createProviderSchema.parse(req.body);

@@ -3,6 +3,17 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
+import { decryptSafe, encryptSafe } from '../utils/crypto.js';
+
+function maskPractice(practice: any) {
+  if (!practice) return practice;
+  const { taxIdEncrypted, ...rest } = practice;
+  const plain = taxIdEncrypted ? decryptSafe(taxIdEncrypted) : null;
+  return {
+    ...rest,
+    taxId: plain ? '****' + plain.slice(-4) : null,
+  };
+}
 
 const router = Router();
 
@@ -13,6 +24,7 @@ const createPracticeSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().max(500).optional().or(z.literal('')),
   notes: z.string().max(2000).optional(),
+  taxId: z.string().max(20).optional(),
 });
 
 const updatePracticeSchema = z.object({
@@ -22,6 +34,7 @@ const updatePracticeSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().max(500).optional().or(z.literal('')),
   notes: z.string().max(2000).optional(),
+  taxId: z.string().max(20).optional(),
 });
 
 const assignUserSchema = z.object({
@@ -49,7 +62,7 @@ router.get(
         orderBy: { name: 'asc' },
       });
 
-      res.json({ success: true, data: practices });
+      res.json({ success: true, data: practices.map(maskPractice) });
     } catch (error) {
       next(error);
     }
@@ -85,7 +98,7 @@ router.get(
         });
       }
 
-      res.json({ success: true, data: practice });
+      res.json({ success: true, data: maskPractice(practice) });
     } catch (error) {
       next(error);
     }
@@ -113,10 +126,11 @@ router.post(
           email: validated.email || null,
           website: validated.website || null,
           notes: validated.notes || null,
+          ...(validated.taxId ? { taxIdEncrypted: encryptSafe(validated.taxId) } : {}),
         },
       });
 
-      res.status(201).json({ success: true, data: practice });
+      res.status(201).json({ success: true, data: maskPractice(practice) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({
@@ -163,13 +177,14 @@ router.patch(
       if (validated.email !== undefined) updateData['email'] = validated.email || null;
       if (validated.website !== undefined) updateData['website'] = validated.website || null;
       if (validated.notes !== undefined) updateData['notes'] = validated.notes || null;
+      if (validated.taxId !== undefined) updateData['taxIdEncrypted'] = validated.taxId ? encryptSafe(validated.taxId) : null;
 
       const practice = await prisma.practice.update({
         where: { id: practiceId },
         data: updateData,
       });
 
-      res.json({ success: true, data: practice });
+      res.json({ success: true, data: maskPractice(practice) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({

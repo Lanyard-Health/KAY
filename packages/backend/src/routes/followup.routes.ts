@@ -60,7 +60,7 @@ async function checkEnrollmentPracticeAccess(req: Request, res: Response, next: 
 }
 
 // Get email service status and config
-followUpRoutes.get('/status', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const emailConfig = emailService.getConfig();
     const schedulerStatus = schedulerService.getStatus();
@@ -88,7 +88,7 @@ followUpRoutes.get('/status', authorize('admin', 'credentialing_staff'), async (
 });
 
 // Send test email to verify SMTP configuration
-followUpRoutes.post('/test-email', emailSendLimiter, authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/test-email', emailSendLimiter, authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email } = req.body;
 
@@ -121,7 +121,7 @@ followUpRoutes.post('/test-email', emailSendLimiter, authorize('admin', 'credent
 });
 
 // Get enrollment data for email preview
-followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const data = await followUpService.getEnrollmentEmailData(id);
@@ -143,7 +143,7 @@ followUpRoutes.get('/enrollment/:id/preview', authorize('admin', 'credentialing_
 });
 
 // Generate email HTML preview
-followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { customMessage } = req.body;
@@ -175,7 +175,7 @@ followUpRoutes.post('/enrollment/:id/preview-html', authorize('admin', 'credenti
 followUpRoutes.post(
   '/enrollment/:id/send',
   emailSendLimiter,
-  authorize('admin', 'credentialing_staff'),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   checkEnrollmentPracticeAccess,
   upload.single('attachment'),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -222,7 +222,7 @@ followUpRoutes.post(
 );
 
 // Legacy: Send test follow-up for a specific enrollment
-followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { email } = req.body;
@@ -250,7 +250,7 @@ followUpRoutes.post('/enrollment/:id/test', authorize('admin', 'credentialing_st
 });
 
 // Configure follow-up settings for an enrollment
-followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
     const { enabled, email, frequencyDays } = req.body;
@@ -292,7 +292,7 @@ followUpRoutes.put('/enrollment/:id/settings', authorize('admin', 'credentialing
 });
 
 // Get follow-up settings for an enrollment
-followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
 
@@ -326,7 +326,7 @@ followUpRoutes.get('/enrollment/:id/settings', authorize('admin', 'credentialing
 });
 
 // Get all enrollments with follow-up enabled
-followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollments', authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const enrollments = await prisma.enrollment.findMany({
       where: {
@@ -364,7 +364,7 @@ followUpRoutes.get('/enrollments', authorize('admin', 'credentialing_staff'), as
 });
 
 // Get enrollments due for follow-up
-followUpRoutes.get('/due', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/due', authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const enrollments = await followUpService.getEnrollmentsDueForFollowUp();
 
@@ -379,7 +379,7 @@ followUpRoutes.get('/due', authorize('admin', 'credentialing_staff'), async (_re
 });
 
 // Manually trigger follow-up processing (for testing or manual runs)
-followUpRoutes.post('/run', authorize('admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.post('/run', authorize('admin', 'lanyard_admin', 'credentialing_staff'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await schedulerService.runFollowUpJob();
 
@@ -393,7 +393,7 @@ followUpRoutes.post('/run', authorize('admin', 'credentialing_staff'), async (_r
 });
 
 // Get follow-up history (notifications) for an enrollment
-followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
+followUpRoutes.get('/enrollment/:id/history', authorize('admin', 'lanyard_admin', 'credentialing_staff'), checkEnrollmentPracticeAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params['id']!;
 

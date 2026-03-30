@@ -10,7 +10,7 @@ import rateLimit from 'express-rate-limit';
 export const caqhRoutes = Router();
 
 caqhRoutes.use(authenticate);
-caqhRoutes.use(authorize('admin', 'credentialing_staff'));
+caqhRoutes.use(authorize('admin', 'lanyard_admin', 'credentialing_staff'));
 caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();
@@ -18,7 +18,7 @@ const caqhService = new CaqhService();
 const credentialVerifyLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
-  message: { success: false, error: 'Too many credential verification requests, please try again later' },
+  message: { success: false, error: { message: 'Too many credential verification requests, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
 });

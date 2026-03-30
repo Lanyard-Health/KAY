@@ -11,7 +11,7 @@ const router = Router();
 const signupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env['NODE_ENV'] === 'development' ? 100 : 5,
-  message: { error: 'Too many signup attempts, please try again later.' },
+  message: { success: false, error: { message: 'Too many signup attempts, please try again later.' } },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -22,8 +22,8 @@ router.post('/register', signupLimiter, async (req: Request, res: Response) => {
     const parsed = practiceSignupSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: 'Validation failed',
-        details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })),
+        success: false,
+        error: { message: 'Validation failed', details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })) },
       });
       return;
     }
@@ -32,18 +32,18 @@ router.post('/register', signupLimiter, async (req: Request, res: Response) => {
     res.status(201).json({ data: result });
   } catch (err) {
     if (err instanceof Error && err.message === 'EMAIL_EXISTS') {
-      res.status(409).json({ error: 'An account with this email already exists' });
+      res.status(409).json({ success: false, error: { message: 'An account with this email already exists' } });
       return;
     }
 
     // ZodError from shared package (cross-package instanceof may fail)
     if (err && typeof err === 'object' && 'name' in err && (err as any).name === 'ZodError') {
-      res.status(400).json({ error: 'Validation failed' });
+      res.status(400).json({ success: false, error: { message: 'Validation failed' } });
       return;
     }
 
     logger.error('Practice signup failed:', err);
-    res.status(500).json({ error: 'Registration failed. Please try again.' });
+    res.status(500).json({ success: false, error: { message: 'Registration failed. Please try again.' } });
   }
 });
 

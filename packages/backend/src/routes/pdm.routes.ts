@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { parseQuery } from '../utils/queryValidation.js';
-import { authenticate, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import {
   getAttestationStatuses,
   getEnrollmentsNeedingAttestation,
@@ -13,6 +14,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
+router.use(authorize(...STAFF_ROLES));
 
 /**
  * GET /api/v1/pdm/provider/:providerId/status

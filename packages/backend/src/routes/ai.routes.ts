@@ -55,7 +55,7 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
 const aiMutationLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
-  message: { success: false, error: 'Too many AI requests. Please wait before trying again.' },
+  message: { success: false, error: { message: 'Too many AI requests. Please wait before trying again.' } },
 });
 
 const router = Router();
@@ -66,23 +66,23 @@ router.use(authenticate);
 /**
  * GET /api/v1/ai/status
  */
-router.get('/status', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const modelInfo = getModelInfo();
     const usage = await getTodayTokenUsage();
     res.json({ success: true, data: { ...modelInfo, todayUsage: usage } });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch AI status' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch AI status' } });
   }
 });
 
 /**
  * POST /api/v1/ai/enrollment/:id/generate-email
  */
-router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/generate-email', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -100,10 +100,10 @@ router.post('/enrollment/:id/generate-email', authorize('admin', 'credentialing_
 /**
  * POST /api/v1/ai/enrollment/:id/analyze
  */
-router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/enrollment/:id/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -119,10 +119,10 @@ router.post('/enrollment/:id/analyze', authorize('admin', 'credentialing_staff',
 /**
  * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const result = await analyzePortfolio();
     res.json({ success: true, data: result });
@@ -136,10 +136,10 @@ router.post('/portfolio/analyze', authorize('admin', 'credentialing_staff', 'pra
 /**
  * POST /api/v1/ai/expiration-alerts/generate (admin/staff only)
  */
-router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/expiration-alerts/generate', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { days } = expirationAlertSchema.parse(req.body || {});
     const result = await generateExpirationAlerts(days);
@@ -155,7 +155,7 @@ router.post('/expiration-alerts/generate', authorize('admin', 'credentialing_sta
 /**
  * GET /api/v1/ai/recommendations (admin/staff only)
  */
-router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { type, status, enrollmentId } = recommendationsQuerySchema.parse(req.query);
     const providerId = typeof req.query['providerId'] === 'string' ? req.query['providerId'] : undefined;
@@ -168,14 +168,14 @@ router.get('/recommendations', authorize('admin', 'credentialing_staff', 'practi
     res.json({ success: true, data: recommendations });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch recommendations' } });
   }
 });
 
 /**
  * PATCH /api/v1/ai/recommendations/:id (admin/staff only)
  */
-router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/recommendations/:id', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { status } = updateRecommendationSchema.parse(req.body);
@@ -195,7 +195,7 @@ router.patch('/recommendations/:id', authorize('admin', 'credentialing_staff', '
 /**
  * GET /api/v1/ai/usage
  */
-router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
   try {
     const usage = await getTodayTokenUsage();
     const budget = await checkTokenBudget();
@@ -213,23 +213,23 @@ router.get('/usage', authorize('admin', 'credentialing_staff', 'practice_admin')
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch usage stats' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch usage stats' } });
   }
 });
 
 /**
  * GET /api/v1/ai/contextual-recommendations — Data-driven recommendations for a provider or enrollment
  */
-router.get('/contextual-recommendations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const entityType = req.query['entityType'];
     const entityId = req.query['entityId'];
 
     if (entityType !== 'provider' && entityType !== 'enrollment') {
-      return res.status(400).json({ success: false, error: 'entityType must be "provider" or "enrollment"' });
+      return res.status(400).json({ success: false, error: { message: 'entityType must be "provider" or "enrollment"' } });
     }
     if (typeof entityId !== 'string' || !entityId) {
-      return res.status(400).json({ success: false, error: 'entityId is required' });
+      return res.status(400).json({ success: false, error: { message: 'entityId is required' } });
     }
 
     const recommendations = await getContextualRecommendations(entityType, entityId);
@@ -244,10 +244,10 @@ router.get('/contextual-recommendations', authorize('admin', 'credentialing_staf
 /**
  * POST /api/v1/ai/chat — Send a chat message
  */
-router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/chat', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { message, conversationId } = chatMessageSchema.parse(req.body || {});
     const result = await sendChatMessage({
@@ -268,21 +268,21 @@ router.post('/chat', authorize('admin', 'credentialing_staff', 'practice_admin')
 /**
  * GET /api/v1/ai/chat/conversations — List user's conversations
  */
-router.get('/chat/conversations', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+router.get('/chat/conversations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { limit, offset } = chatConversationsQuerySchema.parse(req.query);
     const conversations = await getUserConversations(req.user!.id, limit, offset);
     res.json({ success: true, data: conversations });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: 'Failed to fetch conversations' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch conversations' } });
   }
 });
 
 /**
  * GET /api/v1/ai/chat/conversations/:id/messages — Get conversation messages
  */
-router.get('/chat/conversations/:id/messages', authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/chat/conversations/:id/messages', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await getConversationMessages(id!, req.user!.id);

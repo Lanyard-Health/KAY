@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z, ZodError } from 'zod';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { notificationService } from '../services/notification.service.js';
 import { markNotificationsReadSchema } from '@credential-management/shared';
 import { parseQuery, limitOffsetSchema } from '../utils/queryValidation.js';
@@ -13,6 +14,7 @@ const router = Router();
 
 // All routes require authentication (any role)
 router.use(authenticate);
+router.use(authorize(...ALL_AUTHENTICATED_ROLES));
 
 /**
  * GET /api/v1/notifications

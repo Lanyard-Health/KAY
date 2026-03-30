@@ -14,7 +14,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
+router.use(authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'));
 
 // ==========================================
 // Zod schemas for query parameter validation
@@ -83,7 +83,7 @@ router.get('/enrollment-pipeline', async (req: Request, res: Response, next: Nex
       return;
     }
     logger.error({ event: 'reporting_query_error', endpoint, practiceId: req.query['practiceId'], error });
-    res.status(500).json({ success: false, error: 'Failed to load report data' });
+    res.status(500).json({ success: false, error: { message: 'Failed to load report data' } });
   }
 });
 
@@ -114,7 +114,7 @@ router.get('/expiration-forecast', async (req: Request, res: Response, next: Nex
       return;
     }
     logger.error({ event: 'reporting_query_error', endpoint, practiceId: req.query['practiceId'], error });
-    res.status(500).json({ success: false, error: 'Failed to load report data' });
+    res.status(500).json({ success: false, error: { message: 'Failed to load report data' } });
   }
 });
 
@@ -145,7 +145,7 @@ router.get('/provider-readiness', async (req: Request, res: Response, next: Next
       return;
     }
     logger.error({ event: 'reporting_query_error', endpoint, practiceId: req.query['practiceId'], error });
-    res.status(500).json({ success: false, error: 'Failed to load report data' });
+    res.status(500).json({ success: false, error: { message: 'Failed to load report data' } });
   }
 });
 
@@ -176,7 +176,7 @@ router.get('/getting-started', async (req: Request, res: Response, next: NextFun
       return;
     }
     logger.error({ event: 'reporting_query_error', endpoint, practiceId: req.query['practiceId'], error });
-    res.status(500).json({ success: false, error: 'Failed to load report data' });
+    res.status(500).json({ success: false, error: { message: 'Failed to load report data' } });
   }
 });
 
