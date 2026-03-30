@@ -72,7 +72,7 @@ import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
 import { closeAllQueues } from './agents/queues.js';
-import { closeRedisConnection, isRedisConfigured } from './utils/redis.js';
+import { closeRedisConnection, isRedisConfigured, getRedisConnection } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
 import { prisma } from './utils/prisma.js';
 
@@ -164,17 +164,53 @@ app.get('/', (_req, res) => {
   res.redirect(process.env['FRONTEND_URL'] || 'http://localhost:5190');
 });
 
-// Health check (with readiness info)
-app.get('/health', (_req, res) => {
-  const payload = { status: serverReady ? 'ok' : 'starting', ready: serverReady, timestamp: new Date().toISOString() };
-  res.status(serverReady ? 200 : 503).json(payload);
-});
+// Health check (with readiness + connectivity info)
+async function healthCheck(_req: express.Request, res: express.Response) {
+  const raceTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
-// Health check alias under /api (registered before the readiness gate)
-app.get('/api/health', (_req, res) => {
-  const payload = { status: serverReady ? 'ok' : 'starting', ready: serverReady, timestamp: new Date().toISOString() };
-  res.status(serverReady ? 200 : 503).json(payload);
-});
+  // Database check
+  let database: 'ok' | 'error' = 'error';
+  try {
+    await raceTimeout(prisma.$queryRaw`SELECT 1`, 3000);
+    database = 'ok';
+  } catch {
+    database = 'error';
+  }
+
+  // Redis check
+  let redis: 'ok' | 'error' | 'not_configured' = 'not_configured';
+  if (isRedisConfigured()) {
+    try {
+      const client = getRedisConnection();
+      await raceTimeout(client.ping(), 3000);
+      redis = 'ok';
+    } catch {
+      redis = 'error';
+    }
+  }
+
+  const checks = { database, redis };
+
+  let status: 'healthy' | 'degraded' | 'unhealthy';
+  let statusCode: number;
+
+  if (!serverReady || database === 'error') {
+    status = 'unhealthy';
+    statusCode = 503;
+  } else if (redis === 'error') {
+    status = 'degraded';
+    statusCode = 200;
+  } else {
+    status = 'healthy';
+    statusCode = 200;
+  }
+
+  res.status(statusCode).json({ status, ready: serverReady, checks, timestamp: new Date().toISOString() });
+}
+
+app.get('/health', healthCheck);
+app.get('/api/health', healthCheck);
 
 // Readiness gate — block /api requests until server is fully initialized
 app.use('/api', (_req, res, next) => {
