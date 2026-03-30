@@ -18,6 +18,7 @@ import { PrismaClient } from '@prisma/client';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import { VALID_EMBEDDING_COLUMNS } from '../../src/services/knowledgeBase.embedding.service.js';
 
 const prisma = new PrismaClient();
 
@@ -157,6 +158,9 @@ async function upsertEmbedding(
   sourceId: string,
   contentText: string
 ): Promise<void> {
+  if (!VALID_EMBEDDING_COLUMNS.has(sourceColumn)) {
+    throw new Error('Invalid embedding column: ' + sourceColumn);
+  }
   const embedding = await generateEmbedding(contentText);
   if (!embedding) return;
 
@@ -766,6 +770,9 @@ async function runEmbeddingsOnly(): Promise<void> {
   let totalFailed = 0;
 
   for (const source of EMBEDDING_SOURCES) {
+    if (!VALID_EMBEDDING_COLUMNS.has(source.fkColumn)) {
+      throw new Error('Invalid embedding column: ' + source.fkColumn);
+    }
     const findArgs: any = {};
     if ('include' in source && source.include) {
       findArgs.include = source.include;

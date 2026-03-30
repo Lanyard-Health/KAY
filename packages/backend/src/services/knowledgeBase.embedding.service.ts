@@ -6,6 +6,15 @@ const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
 const EMBEDDING_MODEL = process.env['EMBEDDING_MODEL'] || 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
 
+export const VALID_EMBEDDING_COLUMNS = new Set([
+  'payer_track_id',
+  'payer_timeline_id',
+  'payer_state_rule_id',
+  'payer_form_id',
+  'payer_requirement_id',
+  'requirement_universal_id',
+]);
+
 // Source types map to the FK columns on KnowledgeBaseEmbedding
 export type EmbeddingSourceType =
   | 'payerTrack'
@@ -97,6 +106,10 @@ export async function upsertEmbedding(
   const prismaField = SOURCE_TYPE_TO_PRISMA_FIELD[sourceType];
   const dbColumn = SOURCE_TYPE_TO_COLUMN[sourceType];
 
+  if (!VALID_EMBEDDING_COLUMNS.has(dbColumn)) {
+    throw new Error('Invalid embedding column: ' + dbColumn);
+  }
+
   // Delete existing embedding for this source record
   await prisma.$executeRaw`
     DELETE FROM knowledge_base_embeddings
@@ -131,6 +144,10 @@ export async function deleteEmbeddings(
   sourceId: string
 ): Promise<void> {
   const dbColumn = SOURCE_TYPE_TO_COLUMN[sourceType];
+
+  if (!VALID_EMBEDDING_COLUMNS.has(dbColumn)) {
+    throw new Error('Invalid embedding column: ' + dbColumn);
+  }
 
   await prisma.$executeRaw`
     DELETE FROM knowledge_base_embeddings
