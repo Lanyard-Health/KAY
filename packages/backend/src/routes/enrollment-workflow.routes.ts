@@ -9,6 +9,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { WorkflowStepStatus, WorkflowType } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
@@ -26,6 +27,16 @@ import { logger } from '../utils/logger.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 
 const router = Router();
+
+const updateStepSchema = z.object({
+  status: z.enum(['not_started', 'in_progress', 'completed', 'skipped', 'blocked']),
+  notes: z.string().max(2000).optional(),
+  skippedReason: z.string().max(500).optional(),
+});
+
+const hydrateWorkflowSchema = z.object({
+  workflowType: z.enum(['medical', 'behavioral_health']).optional(),
+});
 
 // ============================================================
 // GET /workflow/templates/:payerWorkflowKey
@@ -124,7 +135,7 @@ router.put(
     try {
       const id = req.params['id']!;
       const stepId = req.params['stepId']!;
-      const { status, notes, skippedReason } = req.body;
+      const { status, notes, skippedReason } = updateStepSchema.parse(req.body);
       setAuditContext(req, { resourceType: 'workflow_step', resourceId: stepId, action: 'update' });
       const userId = (req as any).user?.id;
 
@@ -207,7 +218,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;
-      const { workflowType } = req.body;
+      const { workflowType } = hydrateWorkflowSchema.parse(req.body);
       setAuditContext(req, { resourceType: 'workflow_step', resourceId: id, action: 'create' });
 
       const enrollment = await prisma.enrollment.findUnique({

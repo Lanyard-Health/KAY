@@ -49,7 +49,17 @@ expirationRoutes.get(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const dashboard = await expirationService.getDashboardData();
+      let scopedProviderIds: string[] | undefined;
+      if (!req.practiceScope?.isSuperAdmin) {
+        const practiceIds = req.practiceScope?.practiceIds ?? [];
+        const providers = await prisma.providerProfile.findMany({
+          where: { practiceId: { in: practiceIds } },
+          select: { id: true },
+        });
+        scopedProviderIds = providers.map(p => p.id);
+      }
+
+      const dashboard = await expirationService.getDashboardData(scopedProviderIds);
 
       res.json({ success: true, data: dashboard });
     } catch (error) {

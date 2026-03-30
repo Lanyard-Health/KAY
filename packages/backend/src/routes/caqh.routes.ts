@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
@@ -15,6 +16,10 @@ caqhRoutes.use(authorize('admin', 'lanyard_admin', 'credentialing_staff'));
 caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();
+
+const addToRosterSchema = z.object({
+  providerId: z.string().uuid(),
+});
 
 const credentialVerifyLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -175,7 +180,7 @@ caqhRoutes.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.body;
+      const { providerId } = addToRosterSchema.parse(req.body);
 
       const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },

@@ -1,9 +1,15 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+const reviewDocumentSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  notes: z.string().max(2000).optional(),
+});
 
 /**
  * GET /api/v1/portal/admin/onboarding/providers
@@ -126,11 +132,7 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
 router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id: providerId, docId } = req.params;
-    const { status, notes } = req.body;
-
-    if (!status || !['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, error: { message: 'status must be "approved" or "rejected"' } });
-    }
+    const { status, notes } = reviewDocumentSchema.parse(req.body);
 
     // Verify document exists and belongs to this provider
     const doc = await prisma.document.findUnique({
