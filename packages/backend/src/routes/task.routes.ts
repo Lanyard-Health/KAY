@@ -164,6 +164,7 @@ router.post(
 router.get(
   '/tasks/:taskId',
   authenticate,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const taskId = req.params['taskId']!;

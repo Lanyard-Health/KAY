@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { ExpirationService } from '../services/expiration.service.js';
 import { expirationQuerySchema, parseQuery } from '../utils/queryValidation.js';
@@ -48,7 +49,17 @@ expirationRoutes.get(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const dashboard = await expirationService.getDashboardData();
+      let scopedProviderIds: string[] | undefined;
+      if (!req.practiceScope?.isSuperAdmin) {
+        const practiceIds = req.practiceScope?.practiceIds ?? [];
+        const providers = await prisma.providerProfile.findMany({
+          where: { practiceId: { in: practiceIds } },
+          select: { id: true },
+        });
+        scopedProviderIds = providers.map(p => p.id);
+      }
+
+      const dashboard = await expirationService.getDashboardData(scopedProviderIds);
 
       res.json({ success: true, data: dashboard });
     } catch (error) {
@@ -86,7 +97,7 @@ expirationRoutes.get(
 // POST /api/v1/expirations/send-reminders - Manually trigger reminder emails
 expirationRoutes.post(
   '/send-reminders',
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { days } = req.body;

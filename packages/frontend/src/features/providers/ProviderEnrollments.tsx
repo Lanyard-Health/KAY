@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import DOMPurify from 'dompurify';
+import { Combobox } from '@headlessui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
+import { usePayerTrackOptions } from '../../hooks/usePayerTrackOptions';
+import type { PayerTrackOption } from '../../hooks/usePayerTrackOptions';
 import {
   PlusIcon,
   PencilIcon,
@@ -104,6 +107,7 @@ const PRODUCT_TYPE_OPTIONS = [
 
 interface EnrollmentFormData {
   payerName: string;
+  payerTrackId: string | null;
   status: string;
   productTypes: string[];
   applicationDate: string;
@@ -121,6 +125,7 @@ interface EnrollmentFormData {
 
 const initialFormData: EnrollmentFormData = {
   payerName: '',
+  payerTrackId: null,
   status: 'not_started',
   productTypes: [],
   applicationDate: '',
@@ -165,7 +170,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [terminationConfirm, setTerminationConfirm] = useState(false);
   const [payerSearch, setPayerSearch] = useState('');
-  const [showPayerDropdown, setShowPayerDropdown] = useState(false);
+  const [isCustomPayer, setIsCustomPayer] = useState(false);
+  const [selectedPayerTrack, setSelectedPayerTrack] = useState<PayerTrackOption | null>(null);
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
   const [launchAgentFor, setLaunchAgentFor] = useState<Enrollment | null>(null);
   const launchWorkflow = useLaunchWorkflow();
@@ -182,25 +188,9 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const { data: pdmData } = usePdmStatus(providerId);
   const pdmStatuses = pdmData?.data?.statuses || [];
 
-  // Fetch all payers for dropdown
-  const { data: payersData } = useQuery({
-    queryKey: ['payers'],
-    queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: Payer[] }>('/enrollments/payers');
-      return response.data;
-    },
-  });
-
-  const payers = (payersData?.data as Payer[] | undefined) || [];
-
-  // Filter payers based on search
-  const filteredPayers = useMemo(() => {
-    if (!payerSearch.trim()) return payers.slice(0, 50); // Show first 50 if no search
-    const search = payerSearch.toLowerCase();
-    return payers
-      .filter((p) => p.name.toLowerCase().includes(search))
-      .slice(0, 50); // Limit to 50 results
-  }, [payers, payerSearch]);
+  // Fetch payer track options for the Combobox dropdown
+  const { data: payerTrackData } = usePayerTrackOptions(payerSearch);
+  const payerTrackOptions = payerTrackData?.data || [];
 
   const createMutation = useMutation({
     mutationFn: (data: EnrollmentFormData) =>
@@ -367,7 +357,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setEditingEnrollment(null);
     setFormData(initialFormData);
     setPayerSearch('');
-    setShowPayerDropdown(false);
+    setIsCustomPayer(false);
+    setSelectedPayerTrack(null);
     setIsModalOpen(true);
   };
 
@@ -375,6 +366,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setEditingEnrollment(enrollment);
     setFormData({
       payerName: enrollment.payer.name,
+      payerTrackId: null,
       status: enrollment.status,
       productTypes: enrollment.productTypes || [],
       applicationDate: enrollment.applicationDate?.split('T')[0] || '',
@@ -397,7 +389,8 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
     setEditingEnrollment(null);
     setFormData(initialFormData);
     setPayerSearch('');
-    setShowPayerDropdown(false);
+    setIsCustomPayer(false);
+    setSelectedPayerTrack(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -752,7 +745,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
               <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payer Name *
+                    Payer *
                   </label>
                   {editingEnrollment ? (
                     <input
@@ -761,66 +754,94 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600"
                       disabled
                     />
-                  ) : (
-                    <div className="relative">
-                      <div className="relative">
-                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <input
-                          type="text"
-                          value={payerSearch}
-                          onChange={(e) => {
-                            setPayerSearch(e.target.value);
-                            setShowPayerDropdown(true);
+                  ) : isCustomPayer ? (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs text-gray-500">Custom payer</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomPayer(false);
+                            setFormData({ ...formData, payerName: '', payerTrackId: null });
+                            setSelectedPayerTrack(null);
+                            setPayerSearch('');
                           }}
-                          onFocus={() => setShowPayerDropdown(true)}
-                          placeholder="Search payers..."
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
+                          className="text-xs text-primary-600 hover:text-primary-800 underline"
+                        >
+                          Back to search
+                        </button>
                       </div>
-                      {formData.payerName && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="text-sm text-gray-600">Selected:</span>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
-                            {formData.payerName}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, payerName: '' });
-                                setPayerSearch('');
-                              }}
-                              className="ml-2 text-primary-600 hover:text-primary-800"
-                            >
-                              &times;
-                            </button>
-                          </span>
-                        </div>
-                      )}
-                      {showPayerDropdown && !formData.payerName && (
-                        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                          {filteredPayers.length > 0 ? (
-                            filteredPayers.map((payer) => (
-                              <button
-                                key={payer.id}
-                                type="button"
-                                onClick={() => {
-                                  setFormData({ ...formData, payerName: payer.name });
-                                  setPayerSearch('');
-                                  setShowPayerDropdown(false);
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                      <input
+                        type="text"
+                        value={formData.payerName}
+                        onChange={(e) => setFormData({ ...formData, payerName: e.target.value, payerTrackId: null })}
+                        placeholder="Enter payer name..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  ) : (
+                    <Combobox
+                      value={selectedPayerTrack}
+                      onChange={(option: PayerTrackOption | { id: 'custom' } | null) => {
+                        if (!option) return;
+                        if (option.id === 'custom') {
+                          setIsCustomPayer(true);
+                          setSelectedPayerTrack(null);
+                          setFormData({ ...formData, payerName: '', payerTrackId: null });
+                        } else {
+                          const track = option as PayerTrackOption;
+                          setSelectedPayerTrack(track);
+                          setFormData({
+                            ...formData,
+                            payerName: track.payerName,
+                            payerTrackId: track.id,
+                          });
+                        }
+                        setPayerSearch('');
+                      }}
+                    >
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
+                        <Combobox.Input
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          placeholder="Search payers..."
+                          displayValue={(opt: PayerTrackOption | null) =>
+                            opt ? `${opt.payerName} \u2014 ${opt.track} (${opt.stateRegion})` : ''
+                          }
+                          onChange={(e) => setPayerSearch(e.target.value)}
+                        />
+                        <Combobox.Options className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {payerTrackOptions.length > 0 ? (
+                            payerTrackOptions.map((opt) => (
+                              <Combobox.Option
+                                key={opt.id}
+                                value={opt}
+                                className={({ active }) =>
+                                  `cursor-pointer select-none px-4 py-2 ${active ? 'bg-primary-50' : ''}`
+                                }
                               >
-                                <div className="font-medium text-gray-900">{payer.name}</div>
-                                <div className="text-xs text-gray-500">{payer.payerType}</div>
-                              </button>
+                                <div className="font-medium text-gray-900">{opt.payerName}</div>
+                                <div className="text-xs text-gray-500">
+                                  {opt.track} &middot; {opt.stateRegion} &middot; {opt.submissionMethod}
+                                </div>
+                              </Combobox.Option>
                             ))
                           ) : (
                             <div className="px-4 py-3 text-sm text-gray-500">
-                              No payers found. Type to search from 3,000+ payers.
+                              No payer tracks found. Try a different search or use &ldquo;Custom&rdquo; below.
                             </div>
                           )}
-                        </div>
-                      )}
-                    </div>
+                          <Combobox.Option
+                            value={{ id: 'custom' as const }}
+                            className={({ active }) =>
+                              `cursor-pointer select-none px-4 py-2 border-t border-gray-200 ${active ? 'bg-gray-50' : ''}`
+                            }
+                          >
+                            <div className="text-sm text-gray-500 italic">Custom / Not Listed</div>
+                          </Combobox.Option>
+                        </Combobox.Options>
+                      </div>
+                    </Combobox>
                   )}
                 </div>
 

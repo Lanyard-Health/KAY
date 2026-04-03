@@ -11,6 +11,7 @@ import {
   createEducationSchema,
   createWorkHistorySchema,
 } from '@credential-management/shared';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 
 export const credentialRoutes = Router();
 
@@ -46,6 +47,8 @@ credentialRoutes.post(
     try {
       const data = createLicenseSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'license', action: 'create' });
+
       const license = await prisma.license.create({
         data: {
           providerId: req.params['providerId']!,
@@ -70,6 +73,8 @@ credentialRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createLicenseSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'license', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.license.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('License');
@@ -98,6 +103,8 @@ credentialRoutes.delete(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'license', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.license.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('License');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('License');
@@ -143,6 +150,8 @@ credentialRoutes.post(
     try {
       const data = createBoardCertificationSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'board_certification', action: 'create' });
+
       const certification = await prisma.boardCertification.create({
         data: {
           providerId: req.params['providerId']!,
@@ -167,6 +176,8 @@ credentialRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBoardCertificationSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'board_certification', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.boardCertification.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Board certification');
@@ -195,6 +206,8 @@ credentialRoutes.delete(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'board_certification', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.boardCertification.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Board certification');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Board certification');
@@ -240,6 +253,8 @@ credentialRoutes.post(
     try {
       const data = createMalpracticeInsuranceSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'malpractice_insurance', action: 'create' });
+
       const insurance = await prisma.malpracticeInsurance.create({
         data: {
           providerId: req.params['providerId']!,
@@ -264,6 +279,8 @@ credentialRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeInsuranceSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'malpractice_insurance', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.malpracticeInsurance.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Malpractice insurance');
@@ -293,6 +310,8 @@ credentialRoutes.delete(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'malpractice_insurance', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.malpracticeInsurance.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Malpractice insurance');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice insurance');
@@ -338,6 +357,8 @@ credentialRoutes.post(
     try {
       const data = createEducationSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'education', action: 'create' });
+
       const education = await prisma.education.create({
         data: {
           providerId: req.params['providerId']!,
@@ -363,6 +384,8 @@ credentialRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEducationSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'education', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.education.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Education');
@@ -392,6 +415,8 @@ credentialRoutes.delete(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'education', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.education.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Education');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Education');
@@ -437,6 +462,8 @@ credentialRoutes.post(
     try {
       const data = createWorkHistorySchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'work_history', action: 'create' });
+
       const workHistory = await prisma.workHistory.create({
         data: {
           providerId: req.params['providerId']!,
@@ -461,6 +488,8 @@ credentialRoutes.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createWorkHistorySchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'work_history', resourceId: req.params['id'], action: 'update' });
 
       const existing = await prisma.workHistory.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Work history');
@@ -489,6 +518,8 @@ credentialRoutes.delete(
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'work_history', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.workHistory.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Work history');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Work history');

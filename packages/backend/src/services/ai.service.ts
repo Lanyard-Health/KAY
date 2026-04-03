@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getCached, setCache } from '../utils/cache.js';
+import { decryptSafe } from '../utils/crypto.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
@@ -890,7 +891,7 @@ export async function getContextualRecommendations(
           type: 'dea_expiration',
           severity,
           title: `DEA registration expiring in ${daysUntilExpiration} days`,
-          description: `DEA ${dea.deaNumber} expires on ${new Date(dea.expirationDate).toLocaleDateString()}.`,
+          description: `DEA ${decryptSafe(dea.deaNumberEncrypted)} expires on ${new Date(dea.expirationDate).toLocaleDateString()}.`,
           actionUrl: `/providers/${entityId}?tab=credentials`,
           actionLabel: 'View credentials',
         });

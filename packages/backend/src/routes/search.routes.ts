@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import { globalSearch } from '../services/search.service.js';
 import { getCached, setCache } from '../utils/cache.js';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(authorize(...STAFF_ROLES));
 
 // GET /api/v1/search?q=term
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {

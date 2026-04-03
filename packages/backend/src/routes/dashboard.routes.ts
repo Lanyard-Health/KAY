@@ -21,17 +21,25 @@ const CACHE_TTL = 60_000; // 60 seconds
  */
 router.get('/stats', async (req: Request, res: Response) => {
   try {
-    const cached = getCached<Record<string, unknown>>(CACHE_KEY);
+    const practiceFilter = getPracticeProviderFilter(req);
+
+    // Scope cache per practice so different practices don't share results
+    const practiceIds = req.practiceScope?.practiceIds ?? [];
+    const cacheKeySuffix = req.practiceScope?.isSuperAdmin
+      ? 'global'
+      : practiceIds.sort().join(',');
+    const scopedCacheKey = `${CACHE_KEY}:${cacheKeySuffix}`;
+
+    const cached = getCached<Record<string, unknown>>(scopedCacheKey);
     if (cached) {
       res.json({ success: true, data: cached });
       return;
     }
 
-    const practiceFilter = getPracticeProviderFilter(req);
-
     // Provider counts by status — single groupBy query
     const statusCounts = await prisma.providerProfile.groupBy({
       by: ['status'],
+      where: practiceFilter,
       _count: true,
     });
 
@@ -47,6 +55,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     // Incomplete providers: active/pending providers missing documents, licenses, or certs
     const incompleteProviders = await prisma.providerProfile.findMany({
       where: {
+        ...practiceFilter,
         status: { in: ['active', 'pending'] },
         OR: [
           { documents: { none: {} } },
@@ -66,6 +75,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     const incompleteCount = await prisma.providerProfile.count({
       where: {
+        ...practiceFilter,
         status: { in: ['active', 'pending'] },
         OR: [
           { documents: { none: {} } },
@@ -80,6 +90,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     const needsFollowUp = await prisma.enrollment.findMany({
       where: {
+        provider: practiceFilter,
         status: { notIn: ['approved', 'terminated'] },
         OR: [
           { lastFollowUpDate: null },
@@ -99,6 +110,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     const followUpCount = await prisma.enrollment.count({
       where: {
+        provider: practiceFilter,
         status: { notIn: ['approved', 'terminated'] },
         OR: [
           { lastFollowUpDate: null },
@@ -134,12 +146,12 @@ router.get('/stats', async (req: Request, res: Response) => {
       healthBreakdown: healthData.breakdown,
     };
 
-    setCache(CACHE_KEY, result, CACHE_TTL);
+    setCache(scopedCacheKey, result, CACHE_TTL);
 
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch dashboard stats' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch dashboard stats' } });
   }
 });
 

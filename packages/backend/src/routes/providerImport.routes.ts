@@ -4,6 +4,7 @@ import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { NPI_REGEX } from '../constants/validation.js';
 import { ValidationError, NotFoundError } from '../middleware/error.middleware.js';
 import {
   validateFile,
@@ -58,7 +59,7 @@ const executeBodySchema = z.object({
     data: z.object({
       firstName: z.string().min(1),
       lastName: z.string().min(1),
-      npi: z.string().regex(/^\d{10}$/),
+      npi: z.string().regex(NPI_REGEX),
       email: z.string().email(),
       providerType: z.string().min(1),
     }).catchall(z.string()),

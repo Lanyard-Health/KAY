@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
@@ -10,6 +11,7 @@ import { instantiateFollowUp } from '../services/followup-instantiation.service.
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 
 
 // Helper to check enrollment access (staff/admin can access all, providers only their own)
@@ -88,6 +90,44 @@ const createEnrollmentSchema = z.object({
 const updateEnrollmentSchema = createEnrollmentSchema.partial();
 
 // ==========================================
+// PAYER TRACK OPTIONS (for enrollment form dropdown)
+// ==========================================
+
+router.get(
+  '/payer-track-options',
+  authenticate,
+  authorize(...STAFF_ROLES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const search = (req.query['search'] as string || '').trim();
+
+      const where: Record<string, unknown> = { isActive: true };
+      if (search) {
+        where['payerName'] = { contains: search, mode: 'insensitive' };
+      }
+
+      const tracks = await prisma.payerTrack.findMany({
+        where,
+        select: {
+          id: true,
+          payerName: true,
+          track: true,
+          stateRegion: true,
+          payerType: true,
+          submissionMethod: true,
+        },
+        orderBy: [{ payerName: 'asc' }, { track: 'asc' }, { stateRegion: 'asc' }],
+        take: 100,
+      });
+
+      res.json({ success: true, data: tracks });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
 // PAYER ROUTES
 // ==========================================
 
@@ -95,6 +135,7 @@ const updateEnrollmentSchema = createEnrollmentSchema.partial();
 router.get(
   '/payers',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
@@ -120,9 +161,12 @@ router.get(
 router.post(
   '/payers',
   authenticate,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPayerSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'payer', action: 'create' });
 
       const payer = await prisma.payer.create({
         data: {
@@ -214,6 +258,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
@@ -254,6 +299,8 @@ router.post(
       const providerId = req.params['providerId']!;
       const validated = createEnrollmentSchema.parse(req.body);
 
+      setAuditContext(req, { resourceType: 'enrollment', action: 'create' });
+
       // First, find or create the payer
       let payer = validated.payerId
         ? await prisma.payer.findUnique({ where: { id: validated.payerId } })
@@ -274,6 +321,21 @@ router.post(
             payerType: 'insurance',
           },
         });
+      }
+
+      // Resolve payerTrackId: use explicit value, or fuzzy-match by payer name
+      let resolvedPayerTrackId = validated.payerTrackId || null;
+      if (!resolvedPayerTrackId && validated.payerName) {
+        const matches = await prisma.payerTrack.findMany({
+          where: {
+            payerName: { equals: validated.payerName, mode: 'insensitive' },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        if (matches.length === 1) {
+          resolvedPayerTrackId = matches[0]!.id;
+        }
       }
 
       // Look up practice SLA target days for the SLA deadline
@@ -302,7 +364,7 @@ router.post(
             providerNumber: validated.providerNumber,
             groupNumber: validated.groupNumber,
             notes: validated.notes,
-            payerTrackId: validated.payerTrackId || null,
+            payerTrackId: resolvedPayerTrackId,
             createdById: req.user?.id,
             slaTargetDate,
           },
@@ -359,6 +421,8 @@ router.put(
       const id = req.params['id']!;
       await assertEnrollmentAccess(req, id);
       const validated = updateEnrollmentSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'update' });
 
       const existing = await prisma.enrollment.findUnique({
         where: { id },
@@ -458,6 +522,8 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
+
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'delete' });
 
       const existing = await prisma.enrollment.findUnique({
         where: { id },

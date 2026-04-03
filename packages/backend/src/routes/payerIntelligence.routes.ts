@@ -14,7 +14,7 @@ import {
 const aiMutationLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
-  message: { success: false, error: 'Too many AI requests. Please wait before trying again.' },
+  message: { success: false, error: { message: 'Too many AI requests. Please wait before trying again.' } },
 });
 
 const router = Router();
@@ -58,7 +58,7 @@ router.post('/:payerId/analyze', aiMutationLimit, async (req: Request, res: Resp
   try {
     const { payerId } = req.params;
     if (!payerId) {
-      res.status(400).json({ success: false, error: 'payerId is required' });
+      res.status(400).json({ success: false, error: { message: 'payerId is required' } });
       return;
     }
     const result = await analyzePayerWithAI(payerId);
@@ -77,7 +77,7 @@ router.get('/:payerId/insights', async (req: Request, res: Response) => {
   try {
     const { payerId } = req.params;
     if (!payerId) {
-      res.status(400).json({ success: false, error: 'payerId is required' });
+      res.status(400).json({ success: false, error: { message: 'payerId is required' } });
       return;
     }
     const insights = await getPayerInsights(payerId);

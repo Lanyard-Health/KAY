@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
@@ -15,10 +17,14 @@ caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();
 
+const addToRosterSchema = z.object({
+  providerId: z.string().uuid(),
+});
+
 const credentialVerifyLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
-  message: { success: false, error: 'Too many credential verification requests, please try again later' },
+  message: { success: false, error: { message: 'Too many credential verification requests, please try again later' } },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -174,7 +180,7 @@ caqhRoutes.post(
   requireProviderAccess,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { providerId } = req.body;
+      const { providerId } = addToRosterSchema.parse(req.body);
 
       const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
@@ -298,7 +304,7 @@ caqhRoutes.post(
 // POST /api/v1/caqh/sync-all - Trigger bulk sync for all eligible providers (admin only)
 caqhRoutes.post(
   '/sync-all',
-  authorize('admin'),
+  authorize(...ADMIN_ROLES),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const { schedulerService } = await import('../services/scheduler.service.js');

@@ -2,22 +2,23 @@
  * Knowledge Base Seed Script
  *
  * Reads payer_knowledge_base.xlsx and imports every row into the knowledge base tables.
- * After each record is saved, generates and stores an embedding vector.
+ * Two independent modes prevent embedding failures from wiping data:
+ *
+ * Usage:
+ *   npx tsx prisma/seeds/knowledgeBase.seed.ts                    # data-only (safe, no API calls)
+ *   npx tsx prisma/seeds/knowledgeBase.seed.ts --dry-run           # parse only, no DB writes
+ *   npx tsx prisma/seeds/knowledgeBase.seed.ts --embeddings-only   # generate embeddings for existing records (no cleanup, no data writes)
  *
  * Idempotent — safe to run multiple times without creating duplicates.
  * Uses upsert on unique keys (PayerTrack: payerName+track+stateRegion).
- * Child records are deleted and re-created on each run for simplicity.
- *
- * Usage:
- *   npx tsx prisma/seeds/knowledgeBase.seed.ts                    # full run with embeddings
- *   npx tsx prisma/seeds/knowledgeBase.seed.ts --dry-run           # parse only, no DB writes
- *   npx tsx prisma/seeds/knowledgeBase.seed.ts --skip-embeddings   # seed data without embeddings
+ * Child records are deleted and re-created on each data run.
  */
 
 import { PrismaClient } from '@prisma/client';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import { VALID_EMBEDDING_COLUMNS } from '../../src/services/knowledgeBase.embedding.service.js';
 
 const prisma = new PrismaClient();
 
@@ -29,7 +30,7 @@ const LOCAL_PATH = '/Users/kay/Library/Mobile Documents/com~apple~CloudDocs/Lany
 const SPREADSHEET_PATH = fs.existsSync(BUNDLED_PATH) ? BUNDLED_PATH : path.resolve(LOCAL_PATH);
 
 const DRY_RUN = process.argv.includes('--dry-run');
-const SKIP_EMBEDDINGS = process.argv.includes('--skip-embeddings');
+const EMBEDDINGS_ONLY = process.argv.includes('--embeddings-only');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -104,30 +105,52 @@ function cuid(): string {
 const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
 const EMBEDDING_MODEL = process.env['EMBEDDING_MODEL'] || 'text-embedding-3-small';
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!OPENAI_API_KEY || SKIP_EMBEDDINGS) return null;
+  if (!OPENAI_API_KEY) return null;
 
   const trimmed = text.slice(0, 8000);
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      input: trimmed,
-      model: EMBEDDING_MODEL,
-      dimensions: 1536,
-    }),
-  });
+  const MAX_RETRIES = 5;
 
-  if (!response.ok) {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Throttle: wait 1.5s between calls to stay under free-tier rate limits
+    if (attempt > 0) {
+      const backoff = Math.min(2000 * Math.pow(2, attempt - 1), 30000);
+      console.warn(`  ⏳ Rate limited — retrying in ${backoff / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await sleep(backoff);
+    } else {
+      await sleep(1500);
+    }
+
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: trimmed,
+        model: EMBEDDING_MODEL,
+        dimensions: 1536,
+      }),
+    });
+
+    if (response.ok) {
+      const result = (await response.json()) as { data: Array<{ embedding: number[] }> };
+      return result.data[0]?.embedding ?? null;
+    }
+
+    if (response.status === 429) {
+      continue; // retry after backoff
+    }
+
     console.warn(`  ⚠ Embedding API error: ${response.status}`);
     return null;
   }
 
-  const result = (await response.json()) as { data: Array<{ embedding: number[] }> };
-  return result.data[0]?.embedding ?? null;
+  console.warn(`  ⚠ Embedding failed after ${MAX_RETRIES} retries`);
+  return null;
 }
 
 async function upsertEmbedding(
@@ -135,6 +158,9 @@ async function upsertEmbedding(
   sourceId: string,
   contentText: string
 ): Promise<void> {
+  if (!VALID_EMBEDDING_COLUMNS.has(sourceColumn)) {
+    throw new Error('Invalid embedding column: ' + sourceColumn);
+  }
   const embedding = await generateEmbedding(contentText);
   if (!embedding) return;
 
@@ -236,10 +262,6 @@ async function seedPayerTracks(wb: XLSX.WorkBook): Promise<number> {
     });
 
     payerTrackIdMap.set(payerTrackKey(payerName, track, stateRegion), record.id);
-
-    const embText = buildEmbeddingText('PayerTrack', data);
-    await upsertEmbedding('payer_track_id', record.id, embText);
-
     count++;
   }
 
@@ -301,11 +323,8 @@ async function seedContacts(wb: XLSX.WorkBook): Promise<number> {
       continue;
     }
 
-    const record = await prisma.payerContact.create({ data });
-    const embText = buildEmbeddingText('PayerContact', { payerName, ...data });
-    await upsertEmbedding('payer_form_id', record.id, embText);
-    // Note: PayerContact doesn't have its own embedding FK, so we skip embedding for contacts
-    // (they're discoverable through their parent PayerTrack embedding)
+    await prisma.payerContact.create({ data });
+    // Contacts don't have a dedicated embedding FK — discoverable through parent PayerTrack
     count++;
   }
 
@@ -371,8 +390,6 @@ async function seedTimelines(wb: XLSX.WorkBook): Promise<number> {
     }
 
     const record = await prisma.payerTimeline.create({ data });
-    const embText = buildEmbeddingText('PayerTimeline', { payerName, track, ...data });
-    await upsertEmbedding('payer_timeline_id', record.id, embText);
     count++;
   }
 
@@ -428,8 +445,6 @@ async function seedStateRules(wb: XLSX.WorkBook): Promise<number> {
     }
 
     const record = await prisma.payerStateRule.create({ data });
-    const embText = buildEmbeddingText('PayerStateRule', { payerName, track, ...data });
-    await upsertEmbedding('payer_state_rule_id', record.id, embText);
     count++;
   }
 
@@ -488,8 +503,6 @@ async function seedForms(wb: XLSX.WorkBook): Promise<number> {
     }
 
     const record = await prisma.payerForm.create({ data });
-    const embText = buildEmbeddingText('PayerForm', { payerName, track, ...data });
-    await upsertEmbedding('payer_form_id', record.id, embText);
     count++;
   }
 
@@ -540,18 +553,15 @@ async function seedUniversalRequirements(wb: XLSX.WorkBook): Promise<number> {
       where: { name },
     });
 
-    let record;
     if (existing) {
-      record = await prisma.requirementUniversal.update({
+      await prisma.requirementUniversal.update({
         where: { id: existing.id },
         data,
       });
     } else {
-      record = await prisma.requirementUniversal.create({ data });
+      await prisma.requirementUniversal.create({ data });
     }
 
-    const embText = buildEmbeddingText('RequirementUniversal', data);
-    await upsertEmbedding('requirement_universal_id', record.id, embText);
     count++;
   }
 
@@ -609,8 +619,6 @@ async function seedPayerRequirements(wb: XLSX.WorkBook): Promise<number> {
     }
 
     const record = await prisma.payerRequirement.create({ data });
-    const embText = buildEmbeddingText('PayerRequirement', { payerName, track, ...data });
-    await upsertEmbedding('payer_requirement_id', record.id, embText);
     count++;
   }
 
@@ -736,16 +744,108 @@ function findPayerTrackId(payerName: string | null, track: string | null): strin
   return null;
 }
 
+// ─── Embeddings-only mode ──────────────────────────────────────────────────
+
+/** Source type → DB table → FK column mapping for embedding generation */
+const EMBEDDING_SOURCES = [
+  { label: 'PayerTrack', table: 'payerTrack', fkColumn: 'payer_track_id', buildText: (r: any) => buildEmbeddingText('PayerTrack', { payerName: r.payerName, track: r.track, stateRegion: r.stateRegion, payerType: r.payerType, submissionMethod: r.submissionMethod, enrollmentLink: r.enrollmentLink, portalUrl: r.portalUrl, notes: r.notes }) },
+  { label: 'PayerTimeline', table: 'payerTimeline', fkColumn: 'payer_timeline_id', include: { payerTrack: true }, buildText: (r: any) => buildEmbeddingText('PayerTimeline', { payerName: r.payerTrack?.payerName, track: r.payerTrack?.track, processType: r.processType, minDays: r.minDays, maxDays: r.maxDays, notes: r.notes }) },
+  { label: 'PayerStateRule', table: 'payerStateRule', fkColumn: 'payer_state_rule_id', include: { payerTrack: true }, buildText: (r: any) => buildEmbeddingText('PayerStateRule', { payerName: r.payerTrack?.payerName, track: r.payerTrack?.track, state: r.state, ruleType: r.ruleType, description: r.description }) },
+  { label: 'PayerForm', table: 'payerForm', fkColumn: 'payer_form_id', include: { payerTrack: true }, buildText: (r: any) => buildEmbeddingText('PayerForm', { payerName: r.payerTrack?.payerName, track: r.payerTrack?.track, formName: r.formName, format: r.format, url: r.url, destination: r.destination, notes: r.notes }) },
+  { label: 'RequirementUniversal', table: 'requirementUniversal', fkColumn: 'requirement_universal_id', buildText: (r: any) => buildEmbeddingText('RequirementUniversal', { name: r.name, description: r.description, appliesTo: r.appliesTo, isBlocking: r.isBlocking, standardMinimum: r.standardMinimum, notes: r.notes }) },
+  { label: 'PayerRequirement', table: 'payerRequirement', fkColumn: 'payer_requirement_id', include: { payerTrack: true }, buildText: (r: any) => buildEmbeddingText('PayerRequirement', { payerName: r.payerTrack?.payerName, track: r.payerTrack?.track, name: r.name, overrideType: r.overrideType, rule: r.rule, appliesTo: r.appliesTo, isBlocking: r.isBlocking, source: r.source }) },
+] as const;
+
+async function runEmbeddingsOnly(): Promise<void> {
+  if (!OPENAI_API_KEY) {
+    console.error('OPENAI_API_KEY is required for --embeddings-only mode');
+    process.exit(1);
+  }
+
+  console.log('\n🔍 Reading existing records from database...\n');
+
+  let totalRecords = 0;
+  let totalEmbedded = 0;
+  let totalSkipped = 0;
+  let totalFailed = 0;
+
+  for (const source of EMBEDDING_SOURCES) {
+    if (!VALID_EMBEDDING_COLUMNS.has(source.fkColumn)) {
+      throw new Error('Invalid embedding column: ' + source.fkColumn);
+    }
+    const findArgs: any = {};
+    if ('include' in source && source.include) {
+      findArgs.include = source.include;
+    }
+    const records = await (prisma as any)[source.table].findMany(findArgs);
+    console.log(`\n📎 ${source.label}: ${records.length} records`);
+    totalRecords += records.length;
+
+    // Check which already have embeddings
+    const existingResult = await prisma.$queryRawUnsafe<Array<{ source_id: string }>>(
+      `SELECT "${source.fkColumn}" as source_id FROM knowledge_base_embeddings WHERE "${source.fkColumn}" IS NOT NULL`
+    );
+    const existingIds = new Set(existingResult.map((r: any) => r.source_id));
+
+    let embedded = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const record of records) {
+      if (existingIds.has(record.id)) {
+        skipped++;
+        continue;
+      }
+
+      const text = source.buildText(record);
+      try {
+        await upsertEmbedding(source.fkColumn, record.id, text);
+        embedded++;
+      } catch (err) {
+        console.warn(`  ⚠ Failed to embed ${source.label} ${record.id}: ${err}`);
+        failed++;
+      }
+    }
+
+    console.log(`  ✓ ${embedded} embedded, ${skipped} already existed, ${failed} failed`);
+    totalEmbedded += embedded;
+    totalSkipped += skipped;
+    totalFailed += failed;
+  }
+
+  // Final count from DB
+  const embCount = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    `SELECT count(*) FROM knowledge_base_embeddings`
+  );
+
+  console.log('\n═══════════════════════════════════════════════');
+  console.log('  EMBEDDING SUMMARY');
+  console.log('═══════════════════════════════════════════════');
+  console.log(`  Records scanned:    ${totalRecords}`);
+  console.log(`  Newly embedded:     ${totalEmbedded}`);
+  console.log(`  Already existed:    ${totalSkipped}`);
+  console.log(`  Failed:             ${totalFailed}`);
+  console.log(`  Total in DB:        ${embCount[0]?.count ?? '?'}`);
+  console.log('═══════════════════════════════════════════════');
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log('═══════════════════════════════════════════════');
   console.log('  LANYARD HEALTH — Knowledge Base Seed Script');
   console.log('═══════════════════════════════════════════════');
+
+  if (EMBEDDINGS_ONLY) {
+    console.log('  Mode: EMBEDDINGS ONLY (no data changes)');
+    console.log(`  Embedding API configured: ${!!OPENAI_API_KEY}`);
+    await runEmbeddingsOnly();
+    return;
+  }
+
   console.log(`  Spreadsheet: ${SPREADSHEET_PATH}`);
+  console.log(`  Mode: DATA ONLY (no embedding calls)`);
   console.log(`  Dry run: ${DRY_RUN}`);
-  console.log(`  Skip embeddings: ${SKIP_EMBEDDINGS}`);
-  console.log(`  Embedding API configured: ${!!OPENAI_API_KEY}`);
   console.log('');
 
   const wb = XLSX.readFile(SPREADSHEET_PATH);
@@ -761,7 +861,7 @@ async function main() {
     await prisma.payerContact.deleteMany({});
     // Don't delete PayerTracks — they're upserted
     // Don't delete RequirementUniversal — they're upserted by name
-    // Clean embeddings for child types (PayerTrack embeddings are handled by upsert)
+    // Clean embeddings for child types (PayerTrack + RequirementUniversal embeddings preserved)
     await prisma.$executeRawUnsafe(`DELETE FROM knowledge_base_embeddings WHERE payer_requirement_id IS NOT NULL`);
     await prisma.$executeRawUnsafe(`DELETE FROM knowledge_base_embeddings WHERE payer_form_id IS NOT NULL`);
     await prisma.$executeRawUnsafe(`DELETE FROM knowledge_base_embeddings WHERE payer_state_rule_id IS NOT NULL`);

@@ -31,7 +31,7 @@ router.get('/', authenticate, authorize('provider'), async (req: Request, res: R
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const documents = await prisma.document.findMany({
@@ -56,7 +56,7 @@ router.get('/', authenticate, authorize('provider'), async (req: Request, res: R
     res.json({ success: true, data: documents });
   } catch (error) {
     logger.error('Error listing portal documents:', error);
-    res.status(500).json({ success: false, error: 'Failed to list documents' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list documents' } });
   }
 });
 
@@ -68,19 +68,19 @@ router.post('/upload-url', authenticate, authorize('provider'), async (req: Requ
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const { fileName, contentType, documentType } = req.body;
 
     if (!fileName || typeof fileName !== 'string') {
-      return res.status(400).json({ success: false, error: 'fileName is required' });
+      return res.status(400).json({ success: false, error: { message: 'fileName is required' } });
     }
     if (!contentType || typeof contentType !== 'string') {
-      return res.status(400).json({ success: false, error: 'contentType is required' });
+      return res.status(400).json({ success: false, error: { message: 'contentType is required' } });
     }
     if (!documentType || !ALLOWED_DOCUMENT_TYPES.includes(documentType)) {
-      return res.status(400).json({ success: false, error: 'Invalid documentType' });
+      return res.status(400).json({ success: false, error: { message: 'Invalid documentType' } });
     }
 
     const uploadInput: UploadUrlRequestInput = {
@@ -101,7 +101,7 @@ router.post('/upload-url', authenticate, authorize('provider'), async (req: Requ
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Error generating upload URL:', error);
-    res.status(500).json({ success: false, error: 'Failed to generate upload URL' });
+    res.status(500).json({ success: false, error: { message: 'Failed to generate upload URL' } });
   }
 });
 
@@ -113,12 +113,12 @@ router.post('/confirm', authenticate, authorize('provider'), async (req: Request
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const { documentId } = req.body;
     if (!documentId || typeof documentId !== 'string') {
-      return res.status(400).json({ success: false, error: 'documentId is required' });
+      return res.status(400).json({ success: false, error: { message: 'documentId is required' } });
     }
 
     // Verify the document belongs to this provider
@@ -128,7 +128,7 @@ router.post('/confirm', authenticate, authorize('provider'), async (req: Request
     });
 
     if (!doc || doc.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'Document not found' });
+      return res.status(404).json({ success: false, error: { message: 'Document not found' } });
     }
 
     const result = await getDocumentService().confirmUpload(documentId);
@@ -136,7 +136,7 @@ router.post('/confirm', authenticate, authorize('provider'), async (req: Request
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Error confirming upload:', error);
-    res.status(500).json({ success: false, error: 'Failed to confirm upload' });
+    res.status(500).json({ success: false, error: { message: 'Failed to confirm upload' } });
   }
 });
 
@@ -148,7 +148,7 @@ router.delete('/:id', authenticate, authorize('provider'), async (req: Request, 
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const docId = req.params['id']!;
@@ -158,11 +158,11 @@ router.delete('/:id', authenticate, authorize('provider'), async (req: Request, 
     });
 
     if (!doc || doc.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'Document not found' });
+      return res.status(404).json({ success: false, error: { message: 'Document not found' } });
     }
 
     if (doc.reviewStatus === 'approved') {
-      return res.status(403).json({ success: false, error: 'Cannot delete an approved document' });
+      return res.status(403).json({ success: false, error: { message: 'Cannot delete an approved document' } });
     }
 
     // Delete from S3 and database
@@ -172,7 +172,7 @@ router.delete('/:id', authenticate, authorize('provider'), async (req: Request, 
     res.json({ success: true, message: 'Document deleted' });
   } catch (error) {
     logger.error('Error deleting document:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete document' });
+    res.status(500).json({ success: false, error: { message: 'Failed to delete document' } });
   }
 });
 

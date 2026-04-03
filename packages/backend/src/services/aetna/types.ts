@@ -39,7 +39,7 @@ export interface AetnaProviderData {
     county: string | null;
     phone: string;
     fax: string | null;
-    taxId: string | null;
+    taxIdEncrypted: string | null;
     groupNpi: string | null;
     acceptingNewPatients: boolean;
     languagesSpoken: string[];

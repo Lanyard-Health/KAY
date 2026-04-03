@@ -55,7 +55,7 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
 const aiMutationLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
-  message: { success: false, error: 'Too many AI requests. Please wait before trying again.' },
+  message: { success: false, error: { message: 'Too many AI requests. Please wait before trying again.' } },
 });
 
 const router = Router();
@@ -72,7 +72,7 @@ router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff',
     const usage = await getTodayTokenUsage();
     res.json({ success: true, data: { ...modelInfo, todayUsage: usage } });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch AI status' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch AI status' } });
   }
 });
 
@@ -82,7 +82,7 @@ router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff',
 router.post('/enrollment/:id/generate-email', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -103,7 +103,7 @@ router.post('/enrollment/:id/generate-email', authorize('admin', 'lanyard_admin'
 router.post('/enrollment/:id/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { id } = req.params;
     await assertEnrollmentAccess(req, id!);
@@ -122,7 +122,7 @@ router.post('/enrollment/:id/analyze', authorize('admin', 'lanyard_admin', 'cred
 router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const result = await analyzePortfolio();
     res.json({ success: true, data: result });
@@ -139,7 +139,7 @@ router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentia
 router.post('/expiration-alerts/generate', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { days } = expirationAlertSchema.parse(req.body || {});
     const result = await generateExpirationAlerts(days);
@@ -168,7 +168,7 @@ router.get('/recommendations', authorize('admin', 'lanyard_admin', 'credentialin
     res.json({ success: true, data: recommendations });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch recommendations' } });
   }
 });
 
@@ -213,7 +213,7 @@ router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Failed to fetch usage stats' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch usage stats' } });
   }
 });
 
@@ -226,10 +226,10 @@ router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'c
     const entityId = req.query['entityId'];
 
     if (entityType !== 'provider' && entityType !== 'enrollment') {
-      return res.status(400).json({ success: false, error: 'entityType must be "provider" or "enrollment"' });
+      return res.status(400).json({ success: false, error: { message: 'entityType must be "provider" or "enrollment"' } });
     }
     if (typeof entityId !== 'string' || !entityId) {
-      return res.status(400).json({ success: false, error: 'entityId is required' });
+      return res.status(400).json({ success: false, error: { message: 'entityId is required' } });
     }
 
     const recommendations = await getContextualRecommendations(entityType, entityId);
@@ -247,7 +247,7 @@ router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'c
 router.post('/chat', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
-      return res.status(503).json({ success: false, error: 'AI service is not available.' });
+      return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const { message, conversationId } = chatMessageSchema.parse(req.body || {});
     const result = await sendChatMessage({
@@ -275,7 +275,7 @@ router.get('/chat/conversations', authorize('admin', 'lanyard_admin', 'credentia
     res.json({ success: true, data: conversations });
   } catch (error) {
     if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: 'Failed to fetch conversations' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch conversations' } });
   }
 });
 

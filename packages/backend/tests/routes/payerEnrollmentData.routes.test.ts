@@ -253,7 +253,7 @@ describe('Payer Enrollment Data Routes', () => {
         {
           id: RECORD_ID,
           providerId: PROVIDER_ID,
-          deaNumber: 'AB1234563',
+          deaNumberEncrypted: 'AB1234563',
           issueDate: new Date('2023-01-01'),
           expirationDate: new Date('2026-01-01'),
           status: 'active',
@@ -282,7 +282,7 @@ describe('Payer Enrollment Data Routes', () => {
       const created = {
         id: RECORD_ID,
         providerId: PROVIDER_ID,
-        ...input,
+        deaNumberEncrypted: 'AB1234563',
         issueDate: new Date('2023-01-01'),
         expirationDate: new Date('2026-01-01'),
         status: 'active',

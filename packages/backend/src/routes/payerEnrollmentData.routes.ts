@@ -3,8 +3,10 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
+import { STAFF_ROLES, ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 import {
   createSupervisingPhysicianSchema,
   createMalpracticeClaimSchema,
@@ -25,6 +27,7 @@ payerEnrollmentDataRoutes.use(authenticate);
 
 payerEnrollmentDataRoutes.get(
   '/supervising-physicians/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -41,10 +44,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/supervising-physicians/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createSupervisingPhysicianSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'supervising_physician', action: 'create' });
+
       const record = await prisma.supervisingPhysician.create({
         data: {
           providerId: req.params['providerId']!,
@@ -63,10 +70,14 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/supervising-physicians/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createSupervisingPhysicianSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'supervising_physician', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.supervisingPhysician.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Supervising physician');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Supervising physician');
@@ -89,9 +100,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/supervising-physicians/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'supervising_physician', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.supervisingPhysician.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Supervising physician');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Supervising physician');
@@ -110,6 +124,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/malpractice-claims/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -126,10 +141,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/malpractice-claims/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeClaimSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'malpractice_claim', action: 'create' });
+
       const record = await prisma.malpracticeClaim.create({
         data: {
           providerId: req.params['providerId']!,
@@ -149,10 +168,14 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/malpractice-claims/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeClaimSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'malpractice_claim', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.malpracticeClaim.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Malpractice claim');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice claim');
@@ -176,9 +199,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/malpractice-claims/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'malpractice_claim', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.malpracticeClaim.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Malpractice claim');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice claim');
@@ -197,6 +223,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/disclosures/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -213,10 +240,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/disclosures/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDisclosureSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_disclosure', action: 'create' });
+
       const record = await prisma.providerDisclosure.create({
         data: {
           providerId: req.params['providerId']!,
@@ -234,10 +265,14 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/disclosures/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDisclosureSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_disclosure', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.providerDisclosure.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Disclosure');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Disclosure');
@@ -259,9 +294,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/disclosures/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'provider_disclosure', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.providerDisclosure.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Disclosure');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Disclosure');
@@ -280,6 +318,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/dea-registrations/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -287,7 +326,8 @@ payerEnrollmentDataRoutes.get(
         where: { providerId: req.params['providerId'] },
         orderBy: { expirationDate: 'asc' },
       });
-      res.json({ success: true, data: records });
+      const decrypted = records.map((r) => ({ ...r, deaNumberEncrypted: undefined, deaNumber: decryptSafe(r.deaNumberEncrypted) }));
+      res.json({ success: true, data: decrypted });
     } catch (error) {
       next(error);
     }
@@ -296,20 +336,26 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/dea-registrations/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDeaRegistrationSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'dea_registration', action: 'create' });
+
+      const { deaNumber, ...rest } = data;
       const record = await prisma.deaRegistration.create({
         data: {
           providerId: req.params['providerId']!,
-          ...data,
+          ...rest,
+          deaNumberEncrypted: encryptSafe(deaNumber),
           issueDate: new Date(data.issueDate),
           expirationDate: new Date(data.expirationDate),
           createdById: req.user?.id,
         },
       });
-      res.status(201).json({ success: true, data: record });
+      res.status(201).json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
     } catch (error) {
       next(error);
     }
@@ -318,24 +364,30 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/dea-registrations/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createDeaRegistrationSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'dea_registration', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.deaRegistration.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('DEA registration');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('DEA registration');
 
+      const { deaNumber, ...rest } = data;
       const record = await prisma.deaRegistration.update({
         where: { id: req.params['id'] },
         data: {
-          ...data,
+          ...rest,
+          ...(deaNumber !== undefined && { deaNumberEncrypted: encryptSafe(deaNumber) }),
           ...(data.issueDate && { issueDate: new Date(data.issueDate) }),
           ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
           updatedById: req.user?.id,
         },
       });
-      res.json({ success: true, data: record });
+      res.json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
     } catch (error) {
       next(error);
     }
@@ -344,9 +396,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/dea-registrations/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'dea_registration', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.deaRegistration.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('DEA registration');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('DEA registration');
@@ -365,6 +420,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/identifiers/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -381,10 +437,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/identifiers/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createProviderIdentifierSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_identifier', action: 'create' });
+
       const record = await prisma.providerIdentifier.create({
         data: {
           providerId: req.params['providerId']!,
@@ -403,10 +463,14 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/identifiers/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createProviderIdentifierSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_identifier', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.providerIdentifier.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Provider identifier');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Provider identifier');
@@ -429,9 +493,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/identifiers/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'provider_identifier', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.providerIdentifier.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Provider identifier');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Provider identifier');
@@ -450,6 +517,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/banking/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -479,10 +547,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.post(
   '/banking/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBankingSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_banking', action: 'create' });
+
       const record = await prisma.providerBanking.create({
         data: {
           providerId: req.params['providerId']!,
@@ -502,14 +574,16 @@ payerEnrollmentDataRoutes.post(
         },
       });
 
-      // Return masked response
+      // Return masked response — decrypt first, then mask to last 4
+      const routingPlain = decryptSafe(record.routingNumberEncrypted);
+      const taxIdPlain = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
       res.status(201).json({
         success: true,
         data: {
           ...record,
-          routingNumberEncrypted: '****' + record.routingNumberEncrypted.slice(-4),
+          routingNumberEncrypted: '****' + routingPlain.slice(-4),
           accountNumberEncrypted: '****' + record.accountNumberLast4,
-          accountHolderTaxId: record.accountHolderTaxId ? '****' + record.accountHolderTaxId.slice(-4) : null,
+          accountHolderTaxId: taxIdPlain ? '****' + taxIdPlain.slice(-4) : null,
         },
       });
     } catch (error) {
@@ -520,10 +594,14 @@ payerEnrollmentDataRoutes.post(
 
 payerEnrollmentDataRoutes.put(
   '/banking/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBankingSchema.partial().parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_banking', resourceId: req.params['id'], action: 'update' });
+
       const existing = await prisma.providerBanking.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Banking record');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Banking record');
@@ -549,13 +627,15 @@ payerEnrollmentDataRoutes.put(
         data: updateData,
       });
 
+      const routingPlainUpd = decryptSafe(record.routingNumberEncrypted);
+      const taxIdPlainUpd = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
       res.json({
         success: true,
         data: {
           ...record,
-          routingNumberEncrypted: '****' + record.routingNumberEncrypted.slice(-4),
+          routingNumberEncrypted: '****' + routingPlainUpd.slice(-4),
           accountNumberEncrypted: '****' + record.accountNumberLast4,
-          accountHolderTaxId: record.accountHolderTaxId ? '****' + record.accountHolderTaxId.slice(-4) : null,
+          accountHolderTaxId: taxIdPlainUpd ? '****' + taxIdPlainUpd.slice(-4) : null,
         },
       });
     } catch (error) {
@@ -566,9 +646,12 @@ payerEnrollmentDataRoutes.put(
 
 payerEnrollmentDataRoutes.delete(
   '/banking/:id',
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      setAuditContext(req, { resourceType: 'provider_banking', resourceId: req.params['id'], action: 'delete' });
+
       const existing = await prisma.providerBanking.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
       if (!existing) throw new NotFoundError('Banking record');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Banking record');
@@ -587,6 +670,7 @@ payerEnrollmentDataRoutes.delete(
 
 payerEnrollmentDataRoutes.get(
   '/demographics/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -602,10 +686,14 @@ payerEnrollmentDataRoutes.get(
 
 payerEnrollmentDataRoutes.put(
   '/demographics/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = upsertDemographicsSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'provider_demographics', action: 'update' });
+
       const record = await prisma.providerDemographics.upsert({
         where: { providerId: req.params['providerId'] },
         create: {

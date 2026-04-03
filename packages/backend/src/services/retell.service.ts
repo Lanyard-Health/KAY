@@ -30,6 +30,11 @@ export function isRetellEnabled(): boolean {
   return getRetellApiKey().length > 0;
 }
 
+// Reject missing webhook secret in production when Retell is enabled
+if (isRetellEnabled() && !getWebhookSecret() && process.env['NODE_ENV'] === 'production') {
+  throw new Error('FATAL: RETELL_WEBHOOK_SECRET must be set in production when RETELL_API_KEY is configured');
+}
+
 // ─── Types ───────────────────────────────────────────────
 
 export interface InitiateCallParams {
@@ -75,8 +80,8 @@ export function verifyWebhookSignature(
 ): boolean {
   const secret = getWebhookSecret();
   if (!secret) {
-    logger.warn('RETELL_WEBHOOK_SECRET not set — skipping signature verification');
-    return true; // Allow in dev
+    logger.error('RETELL_WEBHOOK_SECRET not set — rejecting webhook');
+    return false;
   }
 
   const expected = crypto

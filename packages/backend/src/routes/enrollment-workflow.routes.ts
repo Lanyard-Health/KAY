@@ -9,9 +9,12 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { WorkflowStepStatus, WorkflowType } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
+import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   hydrateWorkflowSteps,
   updateStepStatus,
@@ -21,14 +24,53 @@ import {
 } from '../services/workflow-hydration.service.js';
 import { resolveWorkflowType } from '../config/workflow-mapping.js';
 import { logger } from '../utils/logger.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
 
 const router = Router();
+
+const updateStepSchema = z.object({
+  status: z.enum(['not_started', 'in_progress', 'completed', 'skipped', 'blocked']),
+  notes: z.string().max(2000).optional(),
+  skippedReason: z.string().max(500).optional(),
+});
+
+const hydrateWorkflowSchema = z.object({
+  workflowType: z.enum(['medical', 'behavioral_health']).optional(),
+});
+
+// ============================================================
+// GET /workflow/templates/:payerWorkflowKey
+// Preview available workflow templates for a payer
+// (Must be above /:id routes to avoid "workflow" being caught as :id)
+// ============================================================
+router.get(
+  '/workflow/templates/:payerWorkflowKey',
+  authenticate,
+  authorize(...STAFF_ROLES),
+  async (req: Request, res: Response) => {
+    try {
+      const payerWorkflowKey = req.params['payerWorkflowKey']!;
+      const workflows = getAvailableWorkflows(payerWorkflowKey);
+
+      if (!workflows) {
+        return res.status(404).json({
+          error: `No workflow templates found for key "${payerWorkflowKey}"`,
+        });
+      }
+
+      return res.json({ payerWorkflowKey, workflows });
+    } catch (error) {
+      logger.error('Error fetching templates:', error);
+      return res.status(500).json({ error: 'Failed to fetch templates' });
+    }
+  }
+);
 
 // ============================================================
 // GET /:id/workflow
 // Returns all workflow steps + progress summary for an enrollment
 // ============================================================
-router.get('/:id/workflow', authenticate, async (req: Request, res: Response) => {
+router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req: Request, res: Response) => {
   try {
     const id = req.params['id']!;
 
@@ -42,6 +84,11 @@ router.get('/:id/workflow', authenticate, async (req: Request, res: Response) =>
 
     if (!enrollment) {
       return res.status(404).json({ error: 'Enrollment not found' });
+    }
+
+    // Verify user has access to this enrollment's provider's practice
+    if (!(await validateProviderPracticeAccess(req, enrollment.provider.id))) {
+      return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
     }
 
     const steps = await prisma.enrollmentWorkflowStep.findMany({
@@ -83,12 +130,26 @@ router.get('/:id/workflow', authenticate, async (req: Request, res: Response) =>
 router.put(
   '/:id/workflow/:stepId',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;
       const stepId = req.params['stepId']!;
-      const { status, notes, skippedReason } = req.body;
+      const { status, notes, skippedReason } = updateStepSchema.parse(req.body);
+      setAuditContext(req, { resourceType: 'workflow_step', resourceId: stepId, action: 'update' });
       const userId = (req as any).user?.id;
+
+      // Verify practice access via the enrollment's provider
+      const enrollment = await prisma.enrollment.findUnique({
+        where: { id },
+        select: { providerId: true },
+      });
+      if (!enrollment) {
+        return res.status(404).json({ error: 'Enrollment not found' });
+      }
+      if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) {
+        return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
+      }
 
       const step = await prisma.enrollmentWorkflowStep.findFirst({
         where: { id: stepId, enrollmentId: id },
@@ -153,10 +214,12 @@ router.put(
 router.post(
   '/:id/workflow/hydrate',
   authenticate,
+  authorize(...STAFF_ROLES),
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;
-      const { workflowType } = req.body;
+      const { workflowType } = hydrateWorkflowSchema.parse(req.body);
+      setAuditContext(req, { resourceType: 'workflow_step', resourceId: id, action: 'create' });
 
       const enrollment = await prisma.enrollment.findUnique({
         where: { id },
@@ -169,6 +232,11 @@ router.post(
 
       if (!enrollment) {
         return res.status(404).json({ error: 'Enrollment not found' });
+      }
+
+      // Verify practice access via the enrollment's provider
+      if (!(await validateProviderPracticeAccess(req, enrollment.provider.id))) {
+        return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
       }
 
       if (enrollment.workflowSteps && enrollment.workflowSteps.length > 0) {
@@ -211,32 +279,6 @@ router.post(
     } catch (error) {
       logger.error('Error hydrating workflow:', error);
       return res.status(500).json({ error: 'Failed to hydrate workflow' });
-    }
-  }
-);
-
-// ============================================================
-// GET /workflow/templates/:payerWorkflowKey
-// Preview available workflow templates for a payer
-// ============================================================
-router.get(
-  '/workflow/templates/:payerWorkflowKey',
-  authenticate,
-  async (req: Request, res: Response) => {
-    try {
-      const payerWorkflowKey = req.params['payerWorkflowKey']!;
-      const workflows = getAvailableWorkflows(payerWorkflowKey);
-
-      if (!workflows) {
-        return res.status(404).json({
-          error: `No workflow templates found for key "${payerWorkflowKey}"`,
-        });
-      }
-
-      return res.json({ payerWorkflowKey, workflows });
-    } catch (error) {
-      logger.error('Error fetching templates:', error);
-      return res.status(500).json({ error: 'Failed to fetch templates' });
     }
   }
 );

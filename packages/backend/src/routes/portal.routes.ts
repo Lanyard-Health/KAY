@@ -19,17 +19,18 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { portalRegistrationSchema, markNotificationsReadSchema, selfServeSignupSchema } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { isValidNpi } from '../constants/validation.js';
 
 const portalRegistrationLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  message: { success: false, error: 'Too many registration attempts. Please try again later.' },
+  message: { success: false, error: { message: 'Too many registration attempts. Please try again later.' } },
 });
 
 const portalLookupLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: { success: false, error: 'Too many lookup requests. Please try again later.' },
+  message: { success: false, error: { message: 'Too many lookup requests. Please try again later.' } },
 });
 
 const router = Router();
@@ -57,7 +58,7 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
         select: { id: true, status: true },
       });
       if (!practice || practice.status !== 'ACTIVE') {
-        return res.status(400).json({ success: false, error: 'Practice not found or inactive' });
+        return res.status(400).json({ success: false, error: { message: 'Practice not found or inactive' } });
       }
     }
 
@@ -142,7 +143,7 @@ router.get('/status/:npi', portalLookupLimit, async (req: Request, res: Response
   try {
     const npi = req.params['npi']!;
 
-    if (!/^\d{10}$/.test(npi)) {
+    if (!isValidNpi(npi)) {
       return res.status(400).json({
         success: false,
         error: 'NPI must be exactly 10 digits',
@@ -182,7 +183,7 @@ router.get('/practice/:practiceId/info', portalLookupLimit, async (req: Request,
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!practiceId || !uuidRegex.test(practiceId)) {
-      return res.status(400).json({ success: false, error: 'Invalid practice ID format' });
+      return res.status(400).json({ success: false, error: { message: 'Invalid practice ID format' } });
     }
 
     const practice = await prisma.practice.findUnique({
@@ -191,13 +192,13 @@ router.get('/practice/:practiceId/info', portalLookupLimit, async (req: Request,
     });
 
     if (!practice || practice.status !== 'ACTIVE') {
-      return res.status(404).json({ success: false, error: 'Practice not found' });
+      return res.status(404).json({ success: false, error: { message: 'Practice not found' } });
     }
 
     res.json({ success: true, data: { name: practice.name, status: practice.status } });
   } catch (error) {
     logger.error('Error fetching practice info:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch practice info' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch practice info' } });
   }
 });
 
@@ -296,10 +297,10 @@ router.post('/admin/applications/:id/approve', authenticate, authorize('admin', 
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
-        return res.status(404).json({ success: false, error: 'Application not found' });
+        return res.status(404).json({ success: false, error: { message: 'Application not found' } });
       }
       if (error.message.includes('already been reviewed') || error.message.includes('already exists')) {
-        return res.status(409).json({ success: false, error: 'This application has already been reviewed' });
+        return res.status(409).json({ success: false, error: { message: 'This application has already been reviewed' } });
       }
     }
 
@@ -336,10 +337,10 @@ router.post('/admin/applications/:id/reject', authenticate, authorize('admin', '
 
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
-        return res.status(404).json({ success: false, error: 'Application not found' });
+        return res.status(404).json({ success: false, error: { message: 'Application not found' } });
       }
       if (error.message.includes('already been reviewed')) {
-        return res.status(409).json({ success: false, error: 'This application has already been reviewed' });
+        return res.status(409).json({ success: false, error: { message: 'This application has already been reviewed' } });
       }
     }
 
@@ -411,8 +412,8 @@ router.get('/npi-lookup/:npi', portalLookupLimit, async (req: Request, res: Resp
   try {
     const npi = req.params['npi']!;
 
-    if (!/^\d{10}$/.test(npi)) {
-      return res.status(400).json({ success: false, error: 'NPI must be exactly 10 digits' });
+    if (!isValidNpi(npi)) {
+      return res.status(400).json({ success: false, error: { message: 'NPI must be exactly 10 digits' } });
     }
 
     const nppes = await fetch(
@@ -421,7 +422,7 @@ router.get('/npi-lookup/:npi', portalLookupLimit, async (req: Request, res: Resp
     const data: any = await nppes.json();
 
     if (!data.results || data.results.length === 0) {
-      return res.status(404).json({ success: false, error: 'NPI not found in NPPES registry' });
+      return res.status(404).json({ success: false, error: { message: 'NPI not found in NPPES registry' } });
     }
 
     const result: any = data.results[0];
@@ -451,7 +452,7 @@ router.get('/npi-lookup/:npi', portalLookupLimit, async (req: Request, res: Resp
     });
   } catch (error) {
     logger.error('NPI lookup error:', error);
-    res.status(500).json({ success: false, error: 'Failed to lookup NPI' });
+    res.status(500).json({ success: false, error: { message: 'Failed to lookup NPI' } });
   }
 });
 

@@ -19,14 +19,14 @@ router.get('/progress', authenticate, authorize('provider'), async (req: Request
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const progress = await computeOnboardingProgress(providerId);
     res.json({ success: true, data: progress });
   } catch (error) {
     logger.error('Error fetching onboarding progress:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch onboarding progress' });
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch onboarding progress' } });
   }
 });
 
@@ -38,7 +38,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const provider = await prisma.providerProfile.findUnique({
@@ -47,7 +47,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
     });
 
     if (!provider) {
-      return res.status(404).json({ success: false, error: 'Provider not found' });
+      return res.status(404).json({ success: false, error: { message: 'Provider not found' } });
     }
 
     if (provider.onboardingCompletedAt) {
@@ -62,7 +62,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
     res.json({ success: true, message: 'Onboarding marked as complete' });
   } catch (error) {
     logger.error('Error completing onboarding:', error);
-    res.status(500).json({ success: false, error: 'Failed to complete onboarding' });
+    res.status(500).json({ success: false, error: { message: 'Failed to complete onboarding' } });
   }
 });
 
@@ -74,29 +74,29 @@ router.post('/licenses', authenticate, authorize('provider'), async (req: Reques
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const { state, licenseNumber, licenseType, expirationDate, issueDate } = req.body;
 
     if (!licenseNumber || typeof licenseNumber !== 'string') {
-      return res.status(400).json({ success: false, error: 'licenseNumber is required' });
+      return res.status(400).json({ success: false, error: { message: 'licenseNumber is required' } });
     }
     if (!licenseType || !VALID_LICENSE_TYPES.includes(licenseType)) {
-      return res.status(400).json({ success: false, error: 'Invalid licenseType' });
+      return res.status(400).json({ success: false, error: { message: 'Invalid licenseType' } });
     }
     if (!expirationDate) {
-      return res.status(400).json({ success: false, error: 'expirationDate is required' });
+      return res.status(400).json({ success: false, error: { message: 'expirationDate is required' } });
     }
 
     const expDate = new Date(expirationDate);
     if (isNaN(expDate.getTime())) {
-      return res.status(400).json({ success: false, error: 'Invalid expirationDate' });
+      return res.status(400).json({ success: false, error: { message: 'Invalid expirationDate' } });
     }
 
     const issueDateVal = issueDate ? new Date(issueDate) : new Date();
     if (isNaN(issueDateVal.getTime())) {
-      return res.status(400).json({ success: false, error: 'Invalid issueDate' });
+      return res.status(400).json({ success: false, error: { message: 'Invalid issueDate' } });
     }
 
     const license = await prisma.license.create({
@@ -115,7 +115,7 @@ router.post('/licenses', authenticate, authorize('provider'), async (req: Reques
     res.status(201).json({ success: true, data: license });
   } catch (error) {
     logger.error('Error creating license:', error);
-    res.status(500).json({ success: false, error: 'Failed to create license' });
+    res.status(500).json({ success: false, error: { message: 'Failed to create license' } });
   }
 });
 
@@ -127,7 +127,7 @@ router.get('/licenses', authenticate, authorize('provider'), async (req: Request
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const licenses = await prisma.license.findMany({
@@ -147,7 +147,7 @@ router.get('/licenses', authenticate, authorize('provider'), async (req: Request
     res.json({ success: true, data: licenses });
   } catch (error) {
     logger.error('Error listing licenses:', error);
-    res.status(500).json({ success: false, error: 'Failed to list licenses' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list licenses' } });
   }
 });
 
@@ -159,7 +159,7 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const existing = await prisma.license.findUnique({
@@ -168,7 +168,7 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
     });
 
     if (!existing || existing.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'License not found' });
+      return res.status(404).json({ success: false, error: { message: 'License not found' } });
     }
 
     const { state, licenseNumber, licenseType, expirationDate, issueDate } = req.body;
@@ -176,13 +176,13 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
     const updateData: Record<string, unknown> = {};
     if (licenseNumber !== undefined) {
       if (typeof licenseNumber !== 'string' || !licenseNumber.trim()) {
-        return res.status(400).json({ success: false, error: 'licenseNumber must be a non-empty string' });
+        return res.status(400).json({ success: false, error: { message: 'licenseNumber must be a non-empty string' } });
       }
       updateData['licenseNumber'] = licenseNumber;
     }
     if (licenseType !== undefined) {
       if (!VALID_LICENSE_TYPES.includes(licenseType)) {
-        return res.status(400).json({ success: false, error: 'Invalid licenseType' });
+        return res.status(400).json({ success: false, error: { message: 'Invalid licenseType' } });
       }
       updateData['licenseType'] = licenseType;
     }
@@ -190,14 +190,14 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
     if (expirationDate !== undefined) {
       const expDate = new Date(expirationDate);
       if (isNaN(expDate.getTime())) {
-        return res.status(400).json({ success: false, error: 'Invalid expirationDate' });
+        return res.status(400).json({ success: false, error: { message: 'Invalid expirationDate' } });
       }
       updateData['expirationDate'] = expDate;
     }
     if (issueDate !== undefined) {
       const issueDateVal = new Date(issueDate);
       if (isNaN(issueDateVal.getTime())) {
-        return res.status(400).json({ success: false, error: 'Invalid issueDate' });
+        return res.status(400).json({ success: false, error: { message: 'Invalid issueDate' } });
       }
       updateData['issueDate'] = issueDateVal;
     }
@@ -212,7 +212,7 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
     res.json({ success: true, data: license });
   } catch (error) {
     logger.error('Error updating license:', error);
-    res.status(500).json({ success: false, error: 'Failed to update license' });
+    res.status(500).json({ success: false, error: { message: 'Failed to update license' } });
   }
 });
 
@@ -224,7 +224,7 @@ router.delete('/licenses/:id', authenticate, authorize('provider'), async (req: 
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
-      return res.status(404).json({ success: false, error: 'No provider profile linked' });
+      return res.status(404).json({ success: false, error: { message: 'No provider profile linked' } });
     }
 
     const existing = await prisma.license.findUnique({
@@ -233,7 +233,7 @@ router.delete('/licenses/:id', authenticate, authorize('provider'), async (req: 
     });
 
     if (!existing || existing.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'License not found' });
+      return res.status(404).json({ success: false, error: { message: 'License not found' } });
     }
 
     await prisma.license.delete({ where: { id: req.params['id'] } });
@@ -241,7 +241,7 @@ router.delete('/licenses/:id', authenticate, authorize('provider'), async (req: 
     res.json({ success: true, message: 'License deleted' });
   } catch (error) {
     logger.error('Error deleting license:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete license' });
+    res.status(500).json({ success: false, error: { message: 'Failed to delete license' } });
   }
 });
 

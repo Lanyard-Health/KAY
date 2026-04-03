@@ -4,6 +4,20 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { encryptSafe, decryptSafe } from '../utils/crypto.js';
+import { STAFF_ROLES, ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
+import { NPI_REGEX } from '../constants/validation.js';
+import { setAuditContext } from '../middleware/audit.middleware.js';
+
+function maskLocation(location: any) {
+  if (!location) return location;
+  const { taxIdEncrypted, ...rest } = location;
+  const plain = taxIdEncrypted ? decryptSafe(taxIdEncrypted) : null;
+  return {
+    ...rest,
+    taxId: plain ? '****' + plain.slice(-4) : null,
+  };
+}
 
 // Helper to check location access
 async function assertLocationAccess(req: Request, locationId: string): Promise<{ providerId: string } | null> {
@@ -42,8 +56,8 @@ const createPracticeLocationSchema = z.object({
   fax: z.string().max(20).optional(),
   email: z.string().email().optional().or(z.literal('')),
   taxId: z.string().max(20).optional(),
-  npi: z.string().regex(/^\d{10}$/).optional().or(z.literal('')),
-  groupNpi: z.string().regex(/^\d{10}$/).optional().or(z.literal('')),
+  npi: z.string().regex(NPI_REGEX).optional().or(z.literal('')),
+  groupNpi: z.string().regex(NPI_REGEX).optional().or(z.literal('')),
   officeHours: z.record(z.object({
     open: z.string(),
     close: z.string(),
@@ -74,7 +88,7 @@ router.get(
         orderBy: [{ isPrimary: 'desc' }, { locationName: 'asc' }],
       });
 
-      res.json({ success: true, data: locations });
+      res.json({ success: true, data: locations.map(maskLocation) });
     } catch (error) {
       next(error);
     }
@@ -85,6 +99,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
+  authorize(...ALL_AUTHENTICATED_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
@@ -101,7 +116,7 @@ router.get(
         where: { id },
       });
 
-      res.json({ success: true, data: fullLocation });
+      res.json({ success: true, data: maskLocation(fullLocation) });
     } catch (error) {
       next(error);
     }
@@ -112,11 +127,14 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
+  authorize(...STAFF_ROLES),
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
       const validated = createPracticeLocationSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'practice_location', action: 'create' });
 
       // If this is set as primary, unset other primary locations
       if (validated.isPrimary) {
@@ -126,17 +144,19 @@ router.post(
         });
       }
 
+      const { taxId, ...rest } = validated;
       const location = await prisma.practiceLocation.create({
         data: {
-          ...validated,
+          ...rest,
+          taxIdEncrypted: taxId ? encryptSafe(taxId) : null,
           providerId: providerId!,
-          email: validated.email || null,
-          npi: validated.npi || null,
+          email: rest.email || null,
+          npi: rest.npi || null,
           createdById: req.user?.id,
         },
       });
 
-      res.status(201).json({ success: true, data: location });
+      res.status(201).json({ success: true, data: maskLocation(location) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({
@@ -153,10 +173,13 @@ router.post(
 router.put(
   '/:id',
   authenticate,
+  authorize(...ALL_AUTHENTICATED_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
       const validated = updatePracticeLocationSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'practice_location', resourceId: req.params['id'], action: 'update' });
 
       const existing = await assertLocationAccess(req, id!);
       if (!existing) {
@@ -178,17 +201,19 @@ router.put(
         });
       }
 
+      const { taxId: updateTaxId, ...updateRest } = validated;
       const location = await prisma.practiceLocation.update({
         where: { id },
         data: {
-          ...validated,
-          email: validated.email || null,
-          npi: validated.npi || null,
+          ...updateRest,
+          ...(updateTaxId !== undefined ? { taxIdEncrypted: updateTaxId ? encryptSafe(updateTaxId) : null } : {}),
+          email: updateRest.email || null,
+          npi: updateRest.npi || null,
           updatedById: req.user?.id,
         },
       });
 
-      res.json({ success: true, data: location });
+      res.json({ success: true, data: maskLocation(location) });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({
@@ -205,10 +230,13 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
+  authorize(...STAFF_ROLES),
   authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
+
+      setAuditContext(req, { resourceType: 'practice_location', resourceId: req.params['id'], action: 'delete' });
 
       const existing = await prisma.practiceLocation.findUnique({
         where: { id },

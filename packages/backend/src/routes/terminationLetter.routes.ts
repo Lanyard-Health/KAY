@@ -182,6 +182,7 @@ router.get(
 router.get(
   '/termination-letters/:letterId',
   authenticate,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;

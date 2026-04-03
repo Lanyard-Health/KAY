@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { authenticate } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { STAFF_ROLES } from '../constants/roles.js';
+import { isValidNpi } from '../constants/validation.js';
 import { NPIService } from '../services/npi.service.js';
 
 const npiSearchSchema = z.object({
@@ -16,6 +18,7 @@ const npiSearchSchema = z.object({
 export const npiRoutes = Router();
 
 npiRoutes.use(authenticate);
+npiRoutes.use(authorize(...STAFF_ROLES));
 
 const npiService = new NPIService();
 
@@ -26,7 +29,7 @@ npiRoutes.get(
     try {
       const { npiNumber } = req.params;
 
-      if (!npiNumber || !/^\d{10}$/.test(npiNumber)) {
+      if (!npiNumber || !isValidNpi(npiNumber)) {
         return res.status(400).json({
           success: false,
           error: { message: 'Invalid NPI number. Must be 10 digits.' },

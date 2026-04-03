@@ -23,7 +23,7 @@ export const mockPrimaryLocation = {
   providerId: PROVIDER_UUID,
   isPrimary: true,
   isActive: true,
-  taxId: '12-3456789',
+  taxIdEncrypted: '12-3456789', // plaintext in tests (no ENCRYPTION_KEY)
   groupNpi: '1112223334',
   createdAt: new Date('2024-01-15T12:00:00Z'),
 };
@@ -100,7 +100,7 @@ export const mockTerminationLetter = {
   providerName: 'Sheree Ann Mitchell MD',
   npi: '9876543210',
   groupNpi: '1112223334',
-  taxId: 'XX-XXX6789',
+  taxIdEncrypted: 'XX-XXX6789',
   letterContent: 'Generated letter content...',
   status: 'DRAFT' as const,
   reviewedById: null,

@@ -244,5 +244,12 @@ Tests: `packages/backend/src/services/bug-monitor/__tests__/`
 ### Testing requirements
 Sanitizer tests (`__tests__/sanitizer.test.ts`) are **mandatory** for any changes to PII redaction patterns. If you add, remove, or reorder regex patterns in `sanitizer.ts`, you must update and verify the corresponding tests. Pattern ordering matters — see the NPI-before-phone fix for why.
 
+## Prompt Discipline Rules
+1. **One prompt = one task.** Never combine schema changes with service logic with UI work.
+2. **"Show me the diff"** at the end of every prompt. Be surgical — no extraneous changes.
+3. **"Do not touch any other files"** — respect this every time. Never "improve" adjacent code unprompted.
+4. **Verify at each gate.** Run `npx prisma migrate dev`, run the seed, query the DB, then move on.
+5. **No AI-generated test data.** The user's spreadsheet is the single source of truth for the knowledge base. Never invent payer data.
+
 ## After Every Task
 Provide a brief security summary: what was checked, any issues found, and any issues fixed.

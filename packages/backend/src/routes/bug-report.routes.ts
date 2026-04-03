@@ -81,7 +81,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (authHeader && bugMonitorSecret && authHeader === `Bearer ${bugMonitorSecret}`) {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     if (!checkRateLimit(ip)) {
-      res.status(429).json({ error: 'Too many requests' });
+      res.status(429).json({ success: false, error: { message: 'Too many requests' } });
       return;
     }
     handleBugReport(req, res);
@@ -89,13 +89,13 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   // No valid auth — reject
-  res.status(401).json({ error: 'Unauthorized' });
+  res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
 });
 
 function handleBugReport(req: Request, res: Response): void {
   const parsed = bugReportSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'Invalid bug report', details: parsed.error.issues });
+    res.status(400).json({ success: false, error: { message: 'Invalid bug report', details: parsed.error.issues } });
     return;
   }
 
@@ -119,7 +119,7 @@ router.post('/maintenance', (req: Request, res: Response) => {
   const bugMonitorSecret = process.env['BUG_MONITOR_SECRET'];
 
   if (!bugMonitorSecret || !authHeader || authHeader !== `Bearer ${bugMonitorSecret}`) {
-    res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
     return;
   }
 

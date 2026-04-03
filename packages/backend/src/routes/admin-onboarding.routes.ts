@@ -1,9 +1,16 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { validateProviderPracticeAccess, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+const reviewDocumentSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  notes: z.string().max(2000).optional(),
+});
 
 /**
  * GET /api/v1/portal/admin/onboarding/providers
@@ -11,8 +18,9 @@ const router = Router();
  */
 router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
+    const practiceFilter = getPracticeProviderFilter(req);
     const providers = await prisma.providerProfile.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', ...practiceFilter },
       select: {
         id: true,
         firstName: true,
@@ -82,7 +90,7 @@ router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'cred
     });
   } catch (error) {
     logger.error('Error listing onboarding providers:', error);
-    res.status(500).json({ success: false, error: 'Failed to list providers' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list providers' } });
   }
 });
 
@@ -93,6 +101,10 @@ router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'cred
 router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const providerId = req.params['id']!;
+
+    if (!(await validateProviderPracticeAccess(req, providerId))) {
+      return res.status(403).json({ success: false, error: { message: 'Access denied — provider not in your practice' } });
+    }
 
     const documents = await prisma.document.findMany({
       where: { providerId, uploadedViaPortal: true },
@@ -115,7 +127,7 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
     res.json({ success: true, data: documents });
   } catch (error) {
     logger.error('Error listing provider documents:', error);
-    res.status(500).json({ success: false, error: 'Failed to list documents' });
+    res.status(500).json({ success: false, error: { message: 'Failed to list documents' } });
   }
 });
 
@@ -126,11 +138,12 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
 router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id: providerId, docId } = req.params;
-    const { status, notes } = req.body;
 
-    if (!status || !['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, error: 'status must be "approved" or "rejected"' });
+    if (!(await validateProviderPracticeAccess(req, providerId!))) {
+      return res.status(403).json({ success: false, error: { message: 'Access denied — provider not in your practice' } });
     }
+
+    const { status, notes } = reviewDocumentSchema.parse(req.body);
 
     // Verify document exists and belongs to this provider
     const doc = await prisma.document.findUnique({
@@ -139,7 +152,7 @@ router.put('/providers/:id/documents/:docId/review', authenticate, authorize('ad
     });
 
     if (!doc || doc.providerId !== providerId) {
-      return res.status(404).json({ success: false, error: 'Document not found' });
+      return res.status(404).json({ success: false, error: { message: 'Document not found' } });
     }
 
     const updated = await prisma.document.update({
@@ -155,7 +168,7 @@ router.put('/providers/:id/documents/:docId/review', authenticate, authorize('ad
     res.json({ success: true, data: updated });
   } catch (error) {
     logger.error('Error reviewing document:', error);
-    res.status(500).json({ success: false, error: 'Failed to review document' });
+    res.status(500).json({ success: false, error: { message: 'Failed to review document' } });
   }
 });
 
