@@ -95,6 +95,7 @@ payerRoutes.get(
 payerRoutes.post(
   '/',
   authorize(...STAFF_ROLES),
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);
