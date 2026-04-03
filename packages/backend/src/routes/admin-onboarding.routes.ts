@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { validateProviderPracticeAccess, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -17,8 +18,9 @@ const reviewDocumentSchema = z.object({
  */
 router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
+    const practiceFilter = getPracticeProviderFilter(req);
     const providers = await prisma.providerProfile.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', ...practiceFilter },
       select: {
         id: true,
         firstName: true,
@@ -100,6 +102,10 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
   try {
     const providerId = req.params['id']!;
 
+    if (!(await validateProviderPracticeAccess(req, providerId))) {
+      return res.status(403).json({ success: false, error: { message: 'Access denied — provider not in your practice' } });
+    }
+
     const documents = await prisma.document.findMany({
       where: { providerId, uploadedViaPortal: true },
       select: {
@@ -132,6 +138,11 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
 router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id: providerId, docId } = req.params;
+
+    if (!(await validateProviderPracticeAccess(req, providerId!))) {
+      return res.status(403).json({ success: false, error: { message: 'Access denied — provider not in your practice' } });
+    }
+
     const { status, notes } = reviewDocumentSchema.parse(req.body);
 
     // Verify document exists and belongs to this provider
