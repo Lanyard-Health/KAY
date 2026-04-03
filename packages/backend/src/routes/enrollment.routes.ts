@@ -90,6 +90,44 @@ const createEnrollmentSchema = z.object({
 const updateEnrollmentSchema = createEnrollmentSchema.partial();
 
 // ==========================================
+// PAYER TRACK OPTIONS (for enrollment form dropdown)
+// ==========================================
+
+router.get(
+  '/payer-track-options',
+  authenticate,
+  authorize(...STAFF_ROLES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const search = (req.query['search'] as string || '').trim();
+
+      const where: Record<string, unknown> = { isActive: true };
+      if (search) {
+        where['payerName'] = { contains: search, mode: 'insensitive' };
+      }
+
+      const tracks = await prisma.payerTrack.findMany({
+        where,
+        select: {
+          id: true,
+          payerName: true,
+          track: true,
+          stateRegion: true,
+          payerType: true,
+          submissionMethod: true,
+        },
+        orderBy: [{ payerName: 'asc' }, { track: 'asc' }, { stateRegion: 'asc' }],
+        take: 100,
+      });
+
+      res.json({ success: true, data: tracks });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
 // PAYER ROUTES
 // ==========================================
 
@@ -285,6 +323,21 @@ router.post(
         });
       }
 
+      // Resolve payerTrackId: use explicit value, or fuzzy-match by payer name
+      let resolvedPayerTrackId = validated.payerTrackId || null;
+      if (!resolvedPayerTrackId && validated.payerName) {
+        const matches = await prisma.payerTrack.findMany({
+          where: {
+            payerName: { equals: validated.payerName, mode: 'insensitive' },
+            isActive: true,
+          },
+          select: { id: true },
+        });
+        if (matches.length === 1) {
+          resolvedPayerTrackId = matches[0]!.id;
+        }
+      }
+
       // Look up practice SLA target days for the SLA deadline
       const provider = await prisma.providerProfile.findUnique({
         where: { id: providerId },
@@ -311,7 +364,7 @@ router.post(
             providerNumber: validated.providerNumber,
             groupNumber: validated.groupNumber,
             notes: validated.notes,
-            payerTrackId: validated.payerTrackId || null,
+            payerTrackId: resolvedPayerTrackId,
             createdById: req.user?.id,
             slaTargetDate,
           },
