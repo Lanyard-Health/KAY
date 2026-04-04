@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
+import { isRedisConfigured } from '../utils/redis.js';
 import {
   createWorkflow,
   listWorkflows,
@@ -120,6 +121,13 @@ agentRoutes.post(
         if (!provider) {
           throw new ForbiddenError('Provider not found in your practice');
         }
+      }
+
+      if (!isRedisConfigured()) {
+        res.status(503).json({
+          error: 'Agent system is not available — background job processing is not configured.',
+        });
+        return;
       }
 
       const workflow = await createWorkflow({
@@ -272,6 +280,13 @@ agentRoutes.post(
         return;
       }
 
+      if (!isRedisConfigured()) {
+        res.status(503).json({
+          error: 'Agent system is not available — background job processing is not configured.',
+        });
+        return;
+      }
+
       const task = await dispatchPortalSubmission({
         workflowId: req.params['id']!,
         providerId: parsed.data.providerId,
@@ -296,6 +311,13 @@ agentRoutes.post(
       const parsed = parseDocumentSchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
+        return;
+      }
+
+      if (!isRedisConfigured()) {
+        res.status(503).json({
+          error: 'Agent system is not available — background job processing is not configured.',
+        });
         return;
       }
 

@@ -84,7 +84,22 @@ export async function createWorkflow(input: CreateWorkflowInput) {
 
   // Enqueue planning job
   const queue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
-  await queue.add('plan_workflow', { workflowId: workflow.id });
+  try {
+    await queue.add('plan_workflow', { workflowId: workflow.id });
+  } catch (queueErr) {
+    logger.error('Failed to enqueue planning job — marking workflow as failed', {
+      workflowId: workflow.id,
+      error: queueErr instanceof Error ? queueErr.message : 'unknown',
+    });
+    await prisma.agentWorkflow.update({
+      where: { id: workflow.id },
+      data: {
+        status: 'failed',
+        plan: { error: 'Failed to enqueue planning job — Redis may be unavailable' },
+      },
+    });
+    throw queueErr;
+  }
 
   // Log event (fire-and-forget style — logAgentEvent never throws)
   await logAgentEvent({
@@ -225,14 +240,31 @@ export async function dispatchPortalSubmission(input: DispatchPortalInput) {
   });
 
   const queue = getQueue(QUEUE_NAMES.PORTAL);
-  const job = await queue.add(action, {
-    workflowId,
-    taskId: task.id,
-    providerId,
-    payerId,
-    enrollmentId,
-    action,
-  });
+  let job;
+  try {
+    job = await queue.add(action, {
+      workflowId,
+      taskId: task.id,
+      providerId,
+      payerId,
+      enrollmentId,
+      action,
+    });
+  } catch (queueErr) {
+    logger.error('Failed to enqueue portal submission — marking task as failed', {
+      workflowId,
+      taskId: task.id,
+      error: queueErr instanceof Error ? queueErr.message : 'unknown',
+    });
+    await prisma.agentTask.update({
+      where: { id: task.id },
+      data: {
+        status: 'failed',
+        output: { error: 'Failed to enqueue job — Redis may be unavailable' },
+      },
+    });
+    throw queueErr;
+  }
 
   await prisma.agentTask.update({
     where: { id: task.id },
@@ -282,13 +314,30 @@ export async function dispatchDocumentParsing(input: DispatchDocumentInput) {
   });
 
   const queue = getQueue(QUEUE_NAMES.DOCUMENT);
-  const job = await queue.add('parse_document', {
-    workflowId,
-    taskId: task.id,
-    documentId,
-    providerId,
-    extractionHints,
-  });
+  let job;
+  try {
+    job = await queue.add('parse_document', {
+      workflowId,
+      taskId: task.id,
+      documentId,
+      providerId,
+      extractionHints,
+    });
+  } catch (queueErr) {
+    logger.error('Failed to enqueue document parsing — marking task as failed', {
+      workflowId,
+      taskId: task.id,
+      error: queueErr instanceof Error ? queueErr.message : 'unknown',
+    });
+    await prisma.agentTask.update({
+      where: { id: task.id },
+      data: {
+        status: 'failed',
+        output: { error: 'Failed to enqueue job — Redis may be unavailable' },
+      },
+    });
+    throw queueErr;
+  }
 
   await prisma.agentTask.update({
     where: { id: task.id },

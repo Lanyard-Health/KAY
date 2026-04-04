@@ -28,6 +28,10 @@ vi.mock('../agents/queues.js', () => ({
   QUEUE_NAMES: { AGENT_TASKS: 'agent-tasks' },
 }));
 
+vi.mock('../utils/redis.js', () => ({
+  isRedisConfigured: vi.fn(() => true),
+}));
+
 import { agentRoutes } from './agent.routes.js';
 import {
   createWorkflow,
