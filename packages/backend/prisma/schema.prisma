@@ -2464,6 +2464,7 @@ model FollowUpRun {
   currentStepOrder  Int               @default(1) @map("current_step_order")
   startedAt         DateTime          @default(now()) @map("started_at")
   completedAt       DateTime?         @map("completed_at")
+  lastExecutedAt    DateTime?         @map("last_executed_at")
 
   callLogs          RetellCallLog[]
   approvals         PendingApproval[]
@@ -2504,6 +2505,7 @@ model DenialTriage {
   denialDate        DateTime   @map("denial_date")
   triageReport      String?    @map("triage_report")
   identifiedGaps    Json?      @map("identified_gaps")
+  appealDeadline    DateTime?  @map("appeal_deadline")
   recommendedAction String?    @map("recommended_action") // appeal | reapply | abandon | needs_review
   recommendedSteps  Json?      @map("recommended_steps")
   status            String     // pending | reviewed | actioned
