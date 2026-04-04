@@ -14,6 +14,7 @@ import type { ExceptionJobData, ExceptionJobResult, ExceptionAnalysis } from './
 
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 const MAX_TOKENS = 1500;
+const MAX_REMEDIATION_ATTEMPTS = 3;
 
 // ==========================================
 // Anthropic client (lazy singleton)
@@ -58,10 +59,15 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
 
   // 2. Load failed task error/output (if taskId provided)
   let taskError: object | undefined;
+  let remediationAttempts = 0;
   if (taskId) {
     const failedTask = await prisma.agentTask.findUnique({ where: { id: taskId } });
     if (failedTask) {
       taskError = (failedTask.error as object) ?? (failedTask.output as object) ?? undefined;
+      const output = failedTask.output as Record<string, unknown> | null;
+      if (output && typeof output['remediationAttempts'] === 'number') {
+        remediationAttempts = output['remediationAttempts'];
+      }
     }
   }
 
@@ -211,10 +217,36 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
     rootCause: analysis.rootCause,
   });
 
-  // 12. Only re-enqueue orchestrator if the exception is auto-remediable.
-  //     Non-remediable issues (e.g., missing adapter config) cause infinite
-  //     escalation loops if we blindly replan.
+  // 12. Only re-enqueue orchestrator if the exception is auto-remediable
+  //     AND we haven't exceeded the remediation attempt cap.
+  if (analysis.autoRemediable && remediationAttempts >= MAX_REMEDIATION_ATTEMPTS) {
+    analysis.autoRemediable = false;
+    logger.warn('Auto-remediation cap reached — forcing escalation to human', {
+      workflowId,
+      taskId,
+      remediationAttempts,
+      maxAttempts: MAX_REMEDIATION_ATTEMPTS,
+      category: analysis.category,
+    });
+  }
+
   if (analysis.autoRemediable) {
+    // Increment remediation counter on the task
+    const newAttempts = remediationAttempts + 1;
+    if (taskId) {
+      const existingOutput = (await prisma.agentTask.findUnique({
+        where: { id: taskId },
+        select: { output: true },
+      }))?.output as Record<string, unknown> | null;
+
+      await prisma.agentTask.update({
+        where: { id: taskId },
+        data: {
+          output: { ...(existingOutput ?? {}), remediationAttempts: newAttempts },
+        },
+      });
+    }
+
     const orchestratorQueue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
     await orchestratorQueue.add('task_callback', {
       workflowId,
@@ -225,6 +257,7 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
     logger.info('Exception analyzed — auto-remediable, re-enqueuing orchestrator', {
       workflowId,
       category: analysis.category,
+      remediationAttempts: newAttempts,
     });
   } else {
     // Mark workflow as failed — requires human intervention
