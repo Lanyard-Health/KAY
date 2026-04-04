@@ -226,7 +226,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   const existingSteps = ((plan['steps'] as unknown[]) ?? []) as Record<string, unknown>[];
   const updatedPlan = {
     steps: existingSteps,
-    replanCount: jobType === 'task_callback' ? replanCount + 1 : replanCount,
+    replanCount: jobType === 'task_callback' && data.event === 'task_failed' ? replanCount + 1 : replanCount,
     reasoning: finalReasoning,
   };
 
