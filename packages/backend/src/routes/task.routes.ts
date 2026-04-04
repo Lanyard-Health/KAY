@@ -4,6 +4,7 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+import { createTask } from '../services/task.service.js';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
@@ -99,58 +100,21 @@ router.post(
       const providerId = req.params['providerId']!;
       const validated = createTaskSchema.parse(req.body);
 
-      // Verify provider exists
-      const provider = await prisma.providerProfile.findUnique({
-        where: { id: providerId },
-        select: { id: true },
-      });
-      if (!provider) {
-        return res.status(404).json({
-          success: false,
-          error: { message: 'Provider not found' },
-        });
-      }
-
-      // If enrollmentId provided, verify it belongs to this provider
-      if (validated.enrollmentId) {
-        const enrollment = await prisma.enrollment.findFirst({
-          where: { id: validated.enrollmentId, providerId },
-          select: { id: true },
-        });
-        if (!enrollment) {
-          return res.status(404).json({
-            success: false,
-            error: { message: 'Enrollment not found for this provider' },
-          });
-        }
-      }
-
-      const task = await prisma.task.create({
-        data: {
+      const task = await createTask(
+        {
           providerId,
-          enrollmentId: validated.enrollmentId ?? null,
           title: validated.title,
           description: validated.description,
           type: validated.type,
+          enrollmentId: validated.enrollmentId,
           assignedToId: validated.assignedToId,
-          dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
+          dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
         },
-        include: {
-          enrollment: {
-            include: { payer: { select: { name: true } } },
-          },
-          assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
-        },
-      });
+        req.user!.id,
+      );
 
       res.status(201).json({ success: true, data: task });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -263,12 +227,6 @@ router.patch(
 
       res.json({ success: true, data: task });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
