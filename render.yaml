@@ -11,6 +11,7 @@ services:
     plan: free
     buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npx playwright install --with-deps chromium && npm run build
     startCommand: cd packages/backend && npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
