@@ -213,6 +213,14 @@ enum ProviderType {
   other
 }
 
+enum CareType {
+  in_person
+  hybrid
+  virtual
+  in_home
+  other
+}
+
 enum CaqhStatus {
   active
   inactive
@@ -327,6 +335,7 @@ model ProviderProfile {
   targetPayers  String[]  @default([]) @map("target_payers")
   targetStates  String[]  @default([]) @map("target_states")
   entityType    String?   @map("entity_type")  // individual | group
+  careType      CareType? @map("care_type")
 
   // Status
   status ProviderStatus @default(pending)
