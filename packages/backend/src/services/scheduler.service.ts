@@ -5,16 +5,19 @@ import { isConfigured, generateExpirationAlerts } from './ai.service.js';
 import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
+import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
+  private followUpExecutorJob: cron.ScheduledTask | null = null;
   private expirationAlertJob: cron.ScheduledTask | null = null;
   private expirationEmailJob: cron.ScheduledTask | null = null;
   private notificationCleanupJob: cron.ScheduledTask | null = null;
   private caqhSyncJob: cron.ScheduledTask | null = null;
   private isRunning = false;
+  private isFollowUpExecutorRunning = false;
   private isExpirationJobRunning = false;
   private isExpirationEmailJobRunning = false;
   private isCaqhSyncJobRunning = false;
@@ -32,6 +35,17 @@ class SchedulerService {
     } else {
       logger.info('[Scheduler] Email configured. Follow-ups controlled per-enrollment.');
       logger.info('[Scheduler] Use POST /api/v1/follow-up/run to manually process due follow-ups.');
+    }
+
+    // Schedule daily follow-up step executor (template-driven system)
+    if (emailService.isConfigured()) {
+      const executorSchedule = process.env['FOLLOW_UP_EXECUTOR_SCHEDULE'] || '0 9 * * *';
+      this.followUpExecutorJob = cron.schedule(executorSchedule, () => {
+        this.runFollowUpExecutorJob();
+      });
+      logger.info(`[Scheduler] Follow-up executor job scheduled: ${executorSchedule}`);
+    } else {
+      logger.info('[Scheduler] Email not configured, follow-up executor job not scheduled.');
     }
 
     // Schedule daily expiration alert generation
@@ -122,6 +136,36 @@ class SchedulerService {
       throw error;
     } finally {
       this.isRunning = false;
+    }
+  }
+
+  /**
+   * Run the follow-up step executor (template-driven system)
+   */
+  async runFollowUpExecutorJob(): Promise<ExecutorSummary> {
+    if (this.isFollowUpExecutorRunning) {
+      logger.info('[Scheduler] Follow-up executor already running, skipping...');
+      return { emailsSent: 0, approvalsCreated: 0, skippedNotDue: 0, skippedTerminal: 0, stalled: 0, completed: 0, errors: 0 };
+    }
+
+    this.isFollowUpExecutorRunning = true;
+    logger.info('[Scheduler] Starting follow-up executor job...');
+
+    try {
+      const result = await executeAllDueSteps(prisma);
+
+      logger.info(`[Scheduler] Follow-up executor completed:`);
+      logger.info(`  - Emails sent: ${result.emailsSent}`);
+      logger.info(`  - Approvals created: ${result.approvalsCreated}`);
+      logger.info(`  - Skipped (not due): ${result.skippedNotDue}`);
+      logger.info(`  - Stalled: ${result.stalled}`);
+
+      return result;
+    } catch (error) {
+      logger.error('[Scheduler] Follow-up executor error:', error);
+      throw error;
+    } finally {
+      this.isFollowUpExecutorRunning = false;
     }
   }
 
@@ -272,6 +316,11 @@ class SchedulerService {
       this.followUpJob = null;
       logger.info('[Scheduler] Follow-up job stopped');
     }
+    if (this.followUpExecutorJob) {
+      this.followUpExecutorJob.stop();
+      this.followUpExecutorJob = null;
+      logger.info('[Scheduler] Follow-up executor job stopped');
+    }
     if (this.expirationAlertJob) {
       this.expirationAlertJob.stop();
       this.expirationAlertJob = null;
@@ -301,11 +350,13 @@ class SchedulerService {
     emailConfigured: boolean;
     aiConfigured: boolean;
     followUpJobRunning: boolean;
+    followUpExecutorJobRunning: boolean;
     expirationAlertJobRunning: boolean;
     expirationEmailJobRunning: boolean;
     caqhSyncConfigured: boolean;
     caqhSyncJobRunning: boolean;
     followUpSchedule: string;
+    followUpExecutorSchedule: string;
     expirationAlertSchedule: string;
     expirationEmailSchedule: string;
     caqhSyncSchedule: string;
@@ -314,11 +365,13 @@ class SchedulerService {
       emailConfigured: emailService.isConfigured(),
       aiConfigured: isConfigured(),
       followUpJobRunning: this.isRunning,
+      followUpExecutorJobRunning: this.isFollowUpExecutorRunning,
       expirationAlertJobRunning: this.isExpirationJobRunning,
       expirationEmailJobRunning: this.isExpirationEmailJobRunning,
       caqhSyncConfigured: this.caqhService.isConfigured(),
       caqhSyncJobRunning: this.isCaqhSyncJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
+      followUpExecutorSchedule: process.env['FOLLOW_UP_EXECUTOR_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
       expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
       caqhSyncSchedule: process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *',

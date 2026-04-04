@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { emailService } from '../services/email.service.js';
 import { followUpService } from '../services/followup.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
+import { notificationService } from '../services/notification.service.js';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
@@ -524,6 +525,116 @@ followUpRoutes.patch('/runs/:id', authorize('admin', 'credentialing_staff', 'pra
       where: { id: req.params['id'] },
       data: { status },
     });
+
+    res.json({ success: true, data: run });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ==========================================
+// Step Executor & Pause/Resume
+// ==========================================
+
+// Manually trigger the follow-up step executor
+followUpRoutes.post('/execute-all', authorize('admin', 'lanyard_admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await schedulerService.runFollowUpExecutorJob();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pause a follow-up run
+followUpRoutes.patch('/runs/:id/pause', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.followUpRun.findUnique({
+      where: { id: req.params['id'] },
+      include: {
+        enrollment: {
+          include: {
+            provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            payer: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+    }
+
+    if (existing.enrollment.provider.practiceId) {
+      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
+        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+      }
+    }
+
+    if (existing.status !== 'active') {
+      return res.status(400).json({ success: false, error: `Cannot pause a run with status "${existing.status}"` });
+    }
+
+    const run = await prisma.followUpRun.update({
+      where: { id: req.params['id'] },
+      data: { status: 'paused' },
+    });
+
+    const providerName = `${existing.enrollment.provider.firstName} ${existing.enrollment.provider.lastName}`;
+    notificationService.notifyAdminUsers({
+      type: 'system_announcement',
+      title: 'Follow-Up Paused',
+      message: `Follow-up paused for ${providerName} / ${existing.enrollment.payer.name}`,
+      actionUrl: `/enrollments/${existing.enrollmentId}`,
+    }).catch(() => {});
+
+    res.json({ success: true, data: run });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Resume a follow-up run
+followUpRoutes.patch('/runs/:id/resume', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.followUpRun.findUnique({
+      where: { id: req.params['id'] },
+      include: {
+        enrollment: {
+          include: {
+            provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            payer: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+    }
+
+    if (existing.enrollment.provider.practiceId) {
+      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
+        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
+      }
+    }
+
+    if (existing.status !== 'paused') {
+      return res.status(400).json({ success: false, error: `Cannot resume a run with status "${existing.status}"` });
+    }
+
+    const run = await prisma.followUpRun.update({
+      where: { id: req.params['id'] },
+      data: { status: 'active' },
+    });
+
+    const providerName = `${existing.enrollment.provider.firstName} ${existing.enrollment.provider.lastName}`;
+    notificationService.notifyAdminUsers({
+      type: 'system_announcement',
+      title: 'Follow-Up Resumed',
+      message: `Follow-up resumed for ${providerName} / ${existing.enrollment.payer.name}`,
+      actionUrl: `/enrollments/${existing.enrollmentId}`,
+    }).catch(() => {});
 
     res.json({ success: true, data: run });
   } catch (error) {
