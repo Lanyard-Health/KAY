@@ -156,6 +156,10 @@ model Practice {
   targetPayerIds     String[]  @default([]) @map("target_payer_ids")
   providerTypes      String[]  @default([]) @map("provider_types")
 
+  organizationType   String?   @map("organization_type")
+  maxProviderSlots   Int?      @map("max_provider_slots")
+  maxUserSeats       Int?      @map("max_user_seats")
+
   users                UserPractice[]
   providers            ProviderProfile[]
   providerApplications ProviderApplication[]
