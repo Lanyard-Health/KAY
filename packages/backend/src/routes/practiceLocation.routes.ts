@@ -158,12 +158,6 @@ router.post(
 
       res.status(201).json({ success: true, data: maskLocation(location) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -215,12 +209,6 @@ router.put(
 
       res.json({ success: true, data: maskLocation(location) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }

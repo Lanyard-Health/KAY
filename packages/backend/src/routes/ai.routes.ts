@@ -66,13 +66,13 @@ router.use(authenticate);
 /**
  * GET /api/v1/ai/status
  */
-router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/status', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const modelInfo = getModelInfo();
     const usage = await getTodayTokenUsage();
     res.json({ success: true, data: { ...modelInfo, todayUsage: usage } });
   } catch (error) {
-    res.status(500).json({ success: false, error: { message: 'Failed to fetch AI status' } });
+    next(error);
   }
 });
 
@@ -89,11 +89,8 @@ router.post('/enrollment/:id/generate-email', authorize('admin', 'lanyard_admin'
     const { tone, additionalContext } = generateEmailSchema.parse(req.body || {});
     const result = await generateFollowUpEmail(id!, { tone, additionalContext });
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    const message = error instanceof Error ? error.message : 'Failed to generate email';
-    const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -109,27 +106,23 @@ router.post('/enrollment/:id/analyze', authorize('admin', 'lanyard_admin', 'cred
     await assertEnrollmentAccess(req, id!);
     const result = await analyzeEnrollment(id!);
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to analyze enrollment';
-    const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
 /**
  * POST /api/v1/ai/portfolio/analyze (admin/staff only - analyzes all enrollments)
  */
-router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response) => {
+router.post('/portfolio/analyze', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), aiMutationLimit, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     if (!isConfigured()) {
       return res.status(503).json({ success: false, error: { message: 'AI service is not available.' } });
     }
     const result = await analyzePortfolio();
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to analyze portfolio';
-    const status = message.includes('budget') ? 429 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -144,11 +137,8 @@ router.post('/expiration-alerts/generate', authorize('admin', 'lanyard_admin', '
     const { days } = expirationAlertSchema.parse(req.body || {});
     const result = await generateExpirationAlerts(days);
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    const message = error instanceof Error ? error.message : 'Failed to generate expiration alerts';
-    const status = message.includes('budget') ? 429 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -167,8 +157,7 @@ router.get('/recommendations', authorize('admin', 'lanyard_admin', 'credentialin
     });
     res.json({ success: true, data: recommendations });
   } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: { message: 'Failed to fetch recommendations' } });
+    next(error);
   }
 });
 
@@ -182,20 +171,15 @@ router.patch('/recommendations/:id', authorize('admin', 'lanyard_admin', 'creden
     const actedOnBy = req.user?.email;
     const updated = await updateRecommendationStatus(id!, status, actedOnBy);
     res.json({ success: true, data: updated });
-  } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    const isNotFound = error instanceof Error && 'code' in error && (error as any).code === 'P2025';
-    res.status(isNotFound ? 404 : 500).json({
-      success: false,
-      error: isNotFound ? 'Recommendation not found' : 'Failed to update recommendation',
-    });
+  } catch (error) {
+    next(error);
   }
 });
 
 /**
  * GET /api/v1/ai/usage
  */
-router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response) => {
+router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const usage = await getTodayTokenUsage();
     const budget = await checkTokenBudget();
@@ -213,14 +197,14 @@ router.get('/usage', authorize('admin', 'lanyard_admin', 'credentialing_staff', 
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: { message: 'Failed to fetch usage stats' } });
+    next(error);
   }
 });
 
 /**
  * GET /api/v1/ai/contextual-recommendations — Data-driven recommendations for a provider or enrollment
  */
-router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const entityType = req.query['entityType'];
     const entityId = req.query['entityId'];
@@ -234,10 +218,8 @@ router.get('/contextual-recommendations', authorize('admin', 'lanyard_admin', 'c
 
     const recommendations = await getContextualRecommendations(entityType, entityId);
     res.json({ success: true, data: recommendations });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch contextual recommendations';
-    const status = message.includes('not found') ? 404 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -257,11 +239,8 @@ router.post('/chat', authorize('admin', 'lanyard_admin', 'credentialing_staff', 
       req,
     });
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    const message = error instanceof Error ? error.message : 'Failed to process chat message';
-    const status = message.includes('not found') ? 404 : message.includes('budget') ? 429 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -274,23 +253,20 @@ router.get('/chat/conversations', authorize('admin', 'lanyard_admin', 'credentia
     const conversations = await getUserConversations(req.user!.id, limit, offset);
     res.json({ success: true, data: conversations });
   } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError') return next(error);
-    res.status(500).json({ success: false, error: { message: 'Failed to fetch conversations' } });
+    next(error);
   }
 });
 
 /**
  * GET /api/v1/ai/chat/conversations/:id/messages — Get conversation messages
  */
-router.get('/chat/conversations/:id/messages', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/chat/conversations/:id/messages', authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const result = await getConversationMessages(id!, req.user!.id);
     res.json({ success: true, data: result });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch messages';
-    const status = message.includes('not found') ? 404 : 500;
-    res.status(status).json({ success: false, error: message });
+  } catch (error) {
+    next(error);
   }
 });
 

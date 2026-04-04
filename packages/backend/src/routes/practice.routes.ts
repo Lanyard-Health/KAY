@@ -133,12 +133,6 @@ router.post(
 
       res.status(201).json({ success: true, data: maskPractice(practice) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -187,12 +181,6 @@ router.patch(
 
       res.json({ success: true, data: maskPractice(practice) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -318,12 +306,6 @@ router.post(
 
       res.status(201).json({ success: true, data: assignment });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }

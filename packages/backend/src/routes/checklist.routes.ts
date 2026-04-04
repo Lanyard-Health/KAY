@@ -142,12 +142,6 @@ router.put(
 
       res.json({ success: true, data: checklist });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
