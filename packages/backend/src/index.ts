@@ -276,7 +276,7 @@ app.use(bugMonitorErrorMiddleware);
 
 // 404 handler
 app.use((_req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'The requested resource was not found' } });
 });
 
 const server = createServer(app);
