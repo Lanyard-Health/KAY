@@ -49,6 +49,8 @@ const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'
 const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
 const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
 const DenialsList = lazy(() => import('./features/denials/DenialsList'));
+const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'));
+const Settings = lazy(() => import('./features/settings/Settings'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -166,6 +168,8 @@ export default function App() {
           <Route path="admin/workflow-templates/:id" element={<WorkflowTemplateDetail />} />
           <Route path="admin/followup-templates" element={<FollowupTemplates />} />
           <Route path="admin/followup-templates/:id" element={<FollowupTemplateDetail />} />
+          <Route path="follow-up" element={<FollowUpMonitor />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
