@@ -5,6 +5,7 @@ import { fillAetnaForm, submitFinalPage } from './form-filler.js';
 import { mapProviderToAetnaPayload, maskSensitivePayload } from './field-mapper.js';
 import { holdSession, getSession, releaseSession, canLaunch } from './browser-pool.js';
 import type { AetnaProviderData } from './types.js';
+import { decryptSafe } from '../../utils/crypto.js';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 async function loadProviderData(providerId: string, userId: string): Promise<AetnaProviderData> {
@@ -47,7 +48,7 @@ async function loadProviderData(providerId: string, userId: string): Promise<Aet
       acceptingMedicare: provider.acceptingMedicare,
       acceptingMedicaid: provider.acceptingMedicaid,
       ePrescribing: provider.ePrescribing,
-      ssnEncrypted: provider.ssnEncrypted,
+      ssnEncrypted: provider.ssnEncrypted ? decryptSafe(provider.ssnEncrypted) : null,
     },
     practice: provider.practice ? {
       id: provider.practice.id,

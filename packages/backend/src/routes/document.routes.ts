@@ -5,7 +5,7 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
-import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import { uploadUrlRequestSchema, createDocumentSchema } from '@credential-management/shared';
 import { createCredentialFromOcr } from '../services/ocr-credential.service.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -180,7 +180,10 @@ documentRoutes.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const documents = await prisma.document.findMany({
-        where: { providerId: req.params['providerId'] },
+        where: {
+          providerId: req.params['providerId'],
+          ...getPracticeRelationFilter(req),
+        },
         select: {
           id: true,
           providerId: true,

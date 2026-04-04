@@ -7,11 +7,47 @@ import {
   upsertEmbedding,
   deleteEmbeddings,
   isConfigured as isEmbeddingConfigured,
+  searchSimilarWithSources,
 } from '../services/knowledgeBase.embedding.service.js';
 import { logger } from '../utils/logger.js';
+import rateLimit from 'express-rate-limit';
 
 export const knowledgeBaseRoutes = Router();
 knowledgeBaseRoutes.use(authenticate);
+
+// ─── Search (broader role access — must be before lanyard_admin-only guard) ──
+
+const searchQuerySchema = z.object({
+  q: z.string().min(3).max(500),
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+});
+
+const searchRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { success: false, error: { message: 'Too many search requests. Please wait before trying again.' } },
+});
+
+knowledgeBaseRoutes.get(
+  '/search',
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  searchRateLimit,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = searchQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: { message: 'Validation failed', details: parsed.error.flatten() } });
+        return;
+      }
+
+      const results = await searchSimilarWithSources(parsed.data.q, parsed.data.limit);
+      res.json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 knowledgeBaseRoutes.use(authorize('lanyard_admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────

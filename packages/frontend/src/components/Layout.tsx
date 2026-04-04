@@ -68,6 +68,7 @@ const customerNavGroups: NavGroup[] = [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
       { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
       { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
+      { name: 'Follow-Up', href: '/follow-up', icon: EnvelopeIcon },
       { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
       { name: 'Roster', href: '/roster', icon: TableCellsIcon },
@@ -216,6 +217,24 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
           </li>
         </ul>
       </nav>
+
+      {/* Settings link */}
+      {(role === 'admin' || role === 'lanyard_admin' || role === 'practice_admin' || role === 'credentialing_staff') && (
+        <div className="-mx-2 mt-2">
+          <Link
+            to="/settings"
+            className={clsx(
+              pathname === '/settings'
+                ? 'bg-white/[0.12] text-white backdrop-blur-sm border border-white/[0.08] shadow-sm shadow-black/5'
+                : 'text-primary-100/70 hover:text-white hover:bg-white/10 border border-transparent',
+              'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200 hover:translate-x-0.5',
+            )}
+          >
+            <Cog6ToothIcon className="h-5 w-5 shrink-0" />
+            Settings
+          </Link>
+        </div>
+      )}
 
       {/* User info at bottom */}
       <div className="mt-auto pt-4 border-t border-white/[0.08] px-2">

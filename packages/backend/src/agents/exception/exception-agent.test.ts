@@ -235,4 +235,95 @@ describe('processExceptionJob', () => {
       }),
     });
   });
+
+  it('caps auto-remediation at 3 attempts and forces escalation', async () => {
+    const autoRemediableAnalysis = JSON.stringify({
+      category: 'portal_error',
+      severity: 'medium',
+      rootCause: 'Portal timeout during submission',
+      autoRemediable: true,
+      steps: [{ action: 'retry_submission', description: 'Retry portal submission' }],
+    });
+
+    const jobWithTask: ExceptionJobData = { ...baseJobData, taskId: 'task-1' };
+
+    // Task already has 3 remediation attempts (at the cap)
+    prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
+    prismaMock.agentTask.findUnique.mockResolvedValue({
+      id: 'task-1',
+      error: { message: 'portal timeout' },
+      output: { remediationAttempts: 3 },
+    } as any);
+    prismaMock.provider.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
+    prismaMock.agentTask.update.mockResolvedValue({} as any);
+    prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
+
+    const mockClient = createMockClient(autoRemediableAnalysis);
+    setAnthropicClient(mockClient);
+
+    const result = await processExceptionJob(jobWithTask);
+
+    // AI said autoRemediable=true, but we should have overridden it
+    expect(result.analysis.autoRemediable).toBe(false);
+
+    // Should NOT re-enqueue orchestrator
+    expect(mockAdd).not.toHaveBeenCalled();
+
+    // Should mark workflow as failed
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'wf-1' },
+        data: expect.objectContaining({ status: 'failed' }),
+      })
+    );
+  });
+
+  it('allows auto-remediation when under the cap', async () => {
+    const autoRemediableAnalysis = JSON.stringify({
+      category: 'portal_error',
+      severity: 'medium',
+      rootCause: 'Portal timeout during submission',
+      autoRemediable: true,
+      steps: [{ action: 'retry_submission', description: 'Retry portal submission' }],
+    });
+
+    const jobWithTask: ExceptionJobData = { ...baseJobData, taskId: 'task-1' };
+
+    // Task has 1 remediation attempt (under cap of 3)
+    prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
+    prismaMock.agentTask.findUnique.mockResolvedValue({
+      id: 'task-1',
+      error: { message: 'portal timeout' },
+      output: { remediationAttempts: 1 },
+    } as any);
+    prismaMock.provider.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
+    prismaMock.agentTask.update.mockResolvedValue({} as any);
+    prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
+
+    const mockClient = createMockClient(autoRemediableAnalysis);
+    setAnthropicClient(mockClient);
+
+    const result = await processExceptionJob(jobWithTask);
+
+    // Should remain auto-remediable
+    expect(result.analysis.autoRemediable).toBe(true);
+
+    // Should re-enqueue orchestrator
+    expect(mockAdd).toHaveBeenCalledWith('task_callback', expect.objectContaining({
+      workflowId: 'wf-1',
+      event: 'task_failed',
+    }));
+
+    // Should increment remediation counter on the task output
+    expect(prismaMock.agentTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'task-1' },
+        data: expect.objectContaining({
+          output: expect.objectContaining({ remediationAttempts: 2 }),
+        }),
+      })
+    );
+  });
 });

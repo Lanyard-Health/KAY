@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
-import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
@@ -62,7 +62,7 @@ router.get(
       const statusFilter = req.query['status'] as string | undefined;
       const typeFilter = req.query['type'] as string | undefined;
 
-      const where: Record<string, unknown> = { providerId };
+      const where: Record<string, unknown> = { providerId, ...getPracticeRelationFilter(req) };
       if (statusFilter) {
         where['status'] = statusFilter;
       }
