@@ -292,6 +292,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
+  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
   blockPendingVerification,
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
