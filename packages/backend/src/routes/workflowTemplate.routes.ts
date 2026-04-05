@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 export const workflowTemplateRoutes = Router();
 workflowTemplateRoutes.use(authenticate);
-workflowTemplateRoutes.use(authorize('lanyard_admin'));
+workflowTemplateRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 

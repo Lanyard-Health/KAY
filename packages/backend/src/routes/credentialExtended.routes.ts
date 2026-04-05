@@ -31,7 +31,7 @@ interface CrudConfig {
   orderBy: Record<string, string>;
 }
 
-const WRITE_ROLES = ['admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'] as const;
+const WRITE_ROLES = ['admin', 'credentialing_staff', 'practice_admin'] as const;
 
 // ---------------------------------------------------------------------------
 // Generic helpers

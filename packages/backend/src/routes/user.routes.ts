@@ -44,7 +44,7 @@ const updateUserSchema = z.object({
 // GET /api/v1/users - List all users
 userRoutes.get(
   '/',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
@@ -156,7 +156,7 @@ userRoutes.get(
 // GET /api/v1/users/:id - Get user by ID
 userRoutes.get(
   '/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await prisma.user.findUnique({
@@ -208,7 +208,7 @@ userRoutes.get(
 userRoutes.post(
   '/',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createUserSchema.parse(req.body);
@@ -266,7 +266,7 @@ userRoutes.post(
 userRoutes.put(
   '/:id',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = updateUserSchema.parse(req.body);
@@ -325,7 +325,7 @@ userRoutes.put(
 userRoutes.put(
   '/:id/deactivate',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Prevent self-deactivation
@@ -378,7 +378,7 @@ userRoutes.put(
 userRoutes.put(
   '/:id/activate',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Practice-scope check

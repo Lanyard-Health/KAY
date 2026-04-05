@@ -162,7 +162,7 @@ router.get(
 router.post(
   '/payers',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPayerSchema.parse(req.body);
@@ -191,7 +191,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.enrollment.findMany({
@@ -287,7 +287,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   blockPendingVerification,
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -493,7 +493,7 @@ router.delete(
   '/:id',
   authenticate,
   blockPendingVerification,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

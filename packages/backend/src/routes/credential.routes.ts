@@ -69,7 +69,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/licenses/:id
 credentialRoutes.put(
   '/licenses/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createLicenseSchema.partial().parse(req.body);
@@ -100,7 +100,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/licenses/:id
 credentialRoutes.delete(
   '/licenses/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'license', resourceId: req.params['id'], action: 'delete' });
@@ -172,7 +172,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/certifications/:id
 credentialRoutes.put(
   '/certifications/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createBoardCertificationSchema.partial().parse(req.body);
@@ -203,7 +203,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/certifications/:id
 credentialRoutes.delete(
   '/certifications/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'board_certification', resourceId: req.params['id'], action: 'delete' });
@@ -275,7 +275,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/malpractice/:id
 credentialRoutes.put(
   '/malpractice/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createMalpracticeInsuranceSchema.partial().parse(req.body);
@@ -307,7 +307,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/malpractice/:id
 credentialRoutes.delete(
   '/malpractice/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'malpractice_insurance', resourceId: req.params['id'], action: 'delete' });
@@ -380,7 +380,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/education/:id
 credentialRoutes.put(
   '/education/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createEducationSchema.partial().parse(req.body);
@@ -412,7 +412,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/education/:id
 credentialRoutes.delete(
   '/education/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'education', resourceId: req.params['id'], action: 'delete' });
@@ -484,7 +484,7 @@ credentialRoutes.post(
 // PUT /api/v1/credentials/work-history/:id
 credentialRoutes.put(
   '/work-history/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createWorkHistorySchema.partial().parse(req.body);
@@ -515,7 +515,7 @@ credentialRoutes.put(
 // DELETE /api/v1/credentials/work-history/:id
 credentialRoutes.delete(
   '/work-history/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'work_history', resourceId: req.params['id'], action: 'delete' });

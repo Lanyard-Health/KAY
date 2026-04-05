@@ -443,25 +443,7 @@ server.listen(PORT, async () => {
         logger.info(`Created dev practice admin user on startup (id: ${newPracticeAdmin.id})`);
       }
 
-      // Ensure dev lanyard admin user exists
-      const lanyardAdminUser = await prisma.user.findUnique({
-        where: { cognitoId: 'dev-lanyard-admin-cognito-id' },
-      });
-      if (lanyardAdminUser) {
-        logger.info(`Dev lanyard admin user ready (id: ${lanyardAdminUser.id})`);
-      } else {
-        const newLanyardAdmin = await prisma.user.create({
-          data: {
-            cognitoId: 'dev-lanyard-admin-cognito-id',
-            email: 'lanyard-admin@dev.local',
-            firstName: 'Lanyard',
-            lastName: 'Admin',
-            role: 'lanyard_admin',
-            isActive: true,
-          },
-        });
-        logger.info(`Created dev lanyard admin user on startup (id: ${newLanyardAdmin.id})`);
-      }
+      // lanyard_admin role has been consolidated into admin — no separate dev user needed
 
       logger.info('DEV_AUTH_BYPASS=true — dev users validated and ready');
     } catch (err) {

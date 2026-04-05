@@ -48,7 +48,7 @@ import { knowledgeBaseRoutes } from './knowledgeBase.routes.js';
 const lanyardAdmin = {
   id: 'test-lanyard-admin',
   email: 'admin@lanyard.com',
-  role: 'lanyard_admin',
+  role: 'admin',
   cognitoId: 'test-cognito-id',
 };
 
@@ -98,8 +98,9 @@ describe('Knowledge Base Routes', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 403 for non-lanyard_admin roles', async () => {
-      const app = createTestApp(knowledgeBaseRoutes, regularAdmin);
+    it('returns 403 for non-admin roles', async () => {
+      const staffUser = { id: 'test-staff', email: 'staff@test.com', role: 'credentialing_staff', cognitoId: 'test-staff-cognito' };
+      const app = createTestApp(knowledgeBaseRoutes, staffUser);
       const res = await request(app).get('/payer-tracks');
       expect(res.status).toBe(403);
     });

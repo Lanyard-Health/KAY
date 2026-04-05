@@ -16,7 +16,7 @@ const reviewDocumentSchema = z.object({
  * GET /api/v1/portal/admin/onboarding/providers
  * List approved providers with onboarding status (single query with _count)
  */
-router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/providers', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const practiceFilter = getPracticeProviderFilter(req);
     const providers = await prisma.providerProfile.findMany({
@@ -98,7 +98,7 @@ router.get('/providers', authenticate, authorize('admin', 'lanyard_admin', 'cred
  * GET /api/v1/portal/admin/onboarding/providers/:id/documents
  * List provider's portal-uploaded documents for review
  */
-router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.get('/providers/:id/documents', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const providerId = req.params['id']!;
 
@@ -135,7 +135,7 @@ router.get('/providers/:id/documents', authenticate, authorize('admin', 'lanyard
  * PUT /api/v1/portal/admin/onboarding/providers/:id/documents/:docId/review
  * Approve or reject a portal-uploaded document
  */
-router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
+router.put('/providers/:id/documents/:docId/review', authenticate, authorize('admin', 'credentialing_staff', 'practice_admin'), async (req: Request, res: Response) => {
   try {
     const { id: providerId, docId } = req.params;
 

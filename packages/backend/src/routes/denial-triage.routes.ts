@@ -18,7 +18,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const status = req.query['status'] as string | undefined;
@@ -52,7 +52,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -99,7 +99,7 @@ const updateSchema = z.object({
 router.patch(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;

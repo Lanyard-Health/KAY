@@ -31,7 +31,7 @@ providerRoutes.use(authenticate);
 // GET /api/v1/providers - List all providers
 providerRoutes.get(
   '/',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, pageSize, search, status } = parseQuery(req.query, providerListQuerySchema);
@@ -109,7 +109,7 @@ providerRoutes.get(
 // GET /api/v1/providers/:id - Get single provider
 providerRoutes.get(
   '/:providerId',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), requireProviderAccess, requirePracticeProvider,
+  authorize('admin', 'credentialing_staff', 'practice_admin'), requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const provider = await prisma.providerProfile.findUnique({
@@ -163,7 +163,7 @@ providerRoutes.get(
 // POST /api/v1/providers - Create provider
 providerRoutes.post(
   '/',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validatedData = createProviderSchema.parse(req.body);
@@ -195,7 +195,7 @@ providerRoutes.post(
 // PUT /api/v1/providers/:id - Update provider
 providerRoutes.put(
   '/:providerId',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'), requireProviderAccess, requirePracticeProvider,
+  authorize('admin', 'credentialing_staff', 'practice_admin'), requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validatedData = updateProviderSchema.parse(req.body);

@@ -15,7 +15,7 @@ import rateLimit from 'express-rate-limit';
 export const knowledgeBaseRoutes = Router();
 knowledgeBaseRoutes.use(authenticate);
 
-// ─── Search (broader role access — must be before lanyard_admin-only guard) ──
+// ─── Search (broader role access — must be before admin-only guard) ──
 
 const searchQuerySchema = z.object({
   q: z.string().min(3).max(500),
@@ -30,7 +30,7 @@ const searchRateLimit = rateLimit({
 
 knowledgeBaseRoutes.get(
   '/search',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   searchRateLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -48,7 +48,7 @@ knowledgeBaseRoutes.get(
   }
 );
 
-knowledgeBaseRoutes.use(authorize('lanyard_admin'));
+knowledgeBaseRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 

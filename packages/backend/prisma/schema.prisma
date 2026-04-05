@@ -16,7 +16,6 @@ datasource db {
 // ==========================================
 
 enum UserRole {
-  lanyard_admin
   admin
   credentialing_staff
   provider
@@ -2359,7 +2358,7 @@ model WorkflowTemplate {
   version       Int       @default(1)
   status        String    // draft | active | archived
   description   String?
-  createdBy     String    @map("created_by") // User ID — must be lanyard_admin
+  createdBy     String    @map("created_by") // User ID — must be admin
   publishedAt   DateTime? @map("published_at")
 
   steps         WorkflowTemplateStep[]
@@ -2416,7 +2415,7 @@ model FollowUpTemplate {
   version       Int       @default(1)
   status        String    // draft | active | archived
   description   String?
-  createdBy     String    @map("created_by") // User ID — must be lanyard_admin
+  createdBy     String    @map("created_by") // User ID — must be admin
   publishedAt   DateTime? @map("published_at")
 
   steps         FollowUpTemplateStep[]

@@ -45,7 +45,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin' | 'lanyard_admin';
+  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
   providerId?: string;
   practices?: UserPractice[];
 }
@@ -64,7 +64,6 @@ interface AuthState {
   devLogin: () => Promise<void>;
   devProviderLogin: () => Promise<void>;
   devPracticeAdminLogin: () => Promise<void>;
-  devLanyardAdminLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 
@@ -132,13 +131,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           } else if (devSession === 'practice_admin') {
             try {
               await get().devPracticeAdminLogin();
-              return;
-            } catch {
-              // Recovery failed — fall through to unauthenticated state
-            }
-          } else if (devSession === 'lanyard_admin') {
-            try {
-              await get().devLanyardAdminLogin();
               return;
             } catch {
               // Recovery failed — fall through to unauthenticated state
@@ -327,45 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // Development lanyard_admin login bypass
-  devLanyardAdminLogin: async () => {
-    if (!DEV_BYPASS_ENABLED) {
-      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
-    }
-
-    set({ isLoading: true, error: null });
-
-    try {
-      localStorage.setItem('dev_session', 'lanyard_admin');
-
-      const response = await fetchWithDevRetry(
-        `${API_BASE_URL}/users/me`,
-        {
-          Authorization: 'Bearer dev-token',
-          'X-Dev-Role': 'lanyard_admin',
-        },
-      );
-
-      if (response?.ok) {
-        const { data } = await response.json();
-        set({
-          user: data,
-          isAuthenticated: true,
-          token: 'dev-token',
-          isLoading: false,
-        });
-      } else {
-        throw new Error('Failed to fetch dev lanyard_admin user');
-      }
-    } catch (error) {
-      localStorage.removeItem('dev_session');
-      set({
-        error: error instanceof Error ? error.message : 'Dev lanyard_admin login failed',
-        isLoading: false,
-      });
-      throw error;
-    }
-  },
+  // lanyard_admin role has been consolidated into admin
 
   login: async (email: string, password: string) => {
     try {

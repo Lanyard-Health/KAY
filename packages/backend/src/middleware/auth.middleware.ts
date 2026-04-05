@@ -253,53 +253,7 @@ export async function authenticate(
         return;
       }
 
-      if (devRole === 'lanyard_admin') {
-        const DEV_LANYARD_ADMIN_COGNITO_ID = 'dev-lanyard-admin-cognito-id';
-        const DEV_LANYARD_ADMIN_EMAIL = 'lanyard-admin@dev.local';
-
-        let user = await prisma.user.findUnique({
-          where: { cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID },
-        });
-
-        if (!user) {
-          user = await prisma.user.findFirst({
-            where: { email: DEV_LANYARD_ADMIN_EMAIL },
-          });
-
-          if (user) {
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: { cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID, role: 'lanyard_admin' },
-            });
-          }
-        }
-
-        if (!user) {
-          user = await prisma.user.create({
-            data: {
-              cognitoId: DEV_LANYARD_ADMIN_COGNITO_ID,
-              email: DEV_LANYARD_ADMIN_EMAIL,
-              firstName: 'Lanyard',
-              lastName: 'Admin',
-              role: 'lanyard_admin',
-              isActive: true,
-            },
-          });
-          logger.info('Created development lanyard_admin user');
-        }
-
-        req.user = {
-          id: user.id,
-          cognitoId: user.cognitoId,
-          email: user.email,
-          role: user.role,
-          providerId: user.providerId ?? undefined,
-        };
-
-        await initPracticeScope(req);
-        next();
-        return;
-      }
+      // lanyard_admin role has been consolidated into admin
 
       // Default: dev admin login
       let user = await prisma.user.findUnique({
@@ -462,7 +416,7 @@ export function requireProviderAccess(
   const requestedProviderId = req.params['providerId'] || req.body?.providerId;
 
   // Admins, credentialing staff, practice admins, and lanyard admins can access providers (scoped by practice middleware)
-  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin' || role === 'lanyard_admin') {
+  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') {
     next();
     return;
   }

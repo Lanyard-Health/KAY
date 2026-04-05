@@ -94,7 +94,7 @@ router.get(
 router.post(
   '/providers/:providerId/tasks',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'), requirePracticeProvider,
+  authorize('admin', 'credentialing_staff'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -128,7 +128,7 @@ router.post(
 router.get(
   '/tasks/:taskId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const taskId = req.params['taskId']!;
@@ -165,7 +165,7 @@ router.get(
 router.patch(
   '/tasks/:taskId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const taskId = req.params['taskId']!;

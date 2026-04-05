@@ -11,7 +11,7 @@ import { ForbiddenError } from './error.middleware.js';
 export async function initPracticeScope(req: Request): Promise<void> {
   if (req.practiceScope || !req.user) return;
 
-  if (req.user.role === 'admin' || req.user.role === 'lanyard_admin') {
+  if (req.user.role === 'admin') {
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return;
   }
@@ -45,7 +45,7 @@ export async function attachPracticeScope(
 ): Promise<void> {
   if (!req.user) return next();
 
-  if (req.user.role === 'admin' || req.user.role === 'lanyard_admin') {
+  if (req.user.role === 'admin') {
     req.practiceScope = { isSuperAdmin: true, practiceIds: [] };
     return next();
   }
@@ -95,9 +95,9 @@ export async function requirePracticeProvider(
 
     const practiceIds = req.practiceScope?.practiceIds ?? [];
 
-    // If provider has no practice assigned, only admins/lanyard_admin and the provider themselves can access
+    // If provider has no practice assigned, only admins and the provider themselves can access
     if (!provider.practiceId) {
-      if (req.user?.role === 'admin' || req.user?.role === 'lanyard_admin') return next();
+      if (req.user?.role === 'admin') return next();
       if (req.user?.role === 'provider' && req.user?.providerId === providerId) return next();
       logger.warn(
         `Practice access denied: user=${req.user?.id} tried to access unassigned provider=${providerId}`
@@ -147,9 +147,9 @@ export async function validateProviderPracticeAccess(
 
   if (!provider) return true; // Let route handler deal with 404
 
-  // No practice assigned → only admins/lanyard_admin and the provider themselves can access
+  // No practice assigned → only admins and the provider themselves can access
   if (!provider.practiceId) {
-    if (req.user?.role === 'admin' || req.user?.role === 'lanyard_admin') return true;
+    if (req.user?.role === 'admin') return true;
     if (req.user?.role === 'provider' && req.user?.providerId === providerId) return true;
     return false;
   }

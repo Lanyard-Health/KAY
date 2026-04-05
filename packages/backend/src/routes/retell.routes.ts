@@ -68,7 +68,7 @@ router.post(
 router.get(
   '/call-logs/:followUpRunId',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { followUpRunId } = req.params;

@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 export const followupTemplateRoutes = Router();
 followupTemplateRoutes.use(authenticate);
-followupTemplateRoutes.use(authorize('lanyard_admin'));
+followupTemplateRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 
