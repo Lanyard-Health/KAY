@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
@@ -88,7 +89,7 @@ const createEnrollmentSchema = z.object({
   payerTrackId: z.string().uuid().optional().nullable(),
 });
 
-const updateEnrollmentSchema = createEnrollmentSchema.partial();
+const updateEnrollmentSchema = nullablePartial(createEnrollmentSchema);
 
 // ==========================================
 // PAYER TRACK OPTIONS (for enrollment form dropdown)

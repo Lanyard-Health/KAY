@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
@@ -72,7 +73,7 @@ const createPracticeLocationSchema = z.object({
   notes: z.string().optional(),
 });
 
-const updatePracticeLocationSchema = createPracticeLocationSchema.partial();
+const updatePracticeLocationSchema = nullablePartial(createPracticeLocationSchema);
 
 // Get all practice locations for a provider
 router.get(

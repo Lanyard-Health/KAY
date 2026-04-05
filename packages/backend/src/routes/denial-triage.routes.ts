@@ -93,7 +93,7 @@ router.get(
 
 const updateSchema = z.object({
   status: z.enum(['reviewed', 'actioned']),
-  reviewNotes: z.string().optional(),
+  reviewNotes: z.union([z.string(), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
 
 router.patch(

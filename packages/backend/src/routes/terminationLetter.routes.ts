@@ -35,8 +35,8 @@ const generateLetterSchema = z.object({
 });
 
 const updateLetterSchema = z.object({
-  letterContent: z.string().min(1).max(50000).optional(),
-  status: z.enum(['REVIEWED']).optional(),
+  letterContent: z.union([z.string().min(1).max(50000), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  status: z.union([z.enum(['REVIEWED']), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
 
 // ==========================================

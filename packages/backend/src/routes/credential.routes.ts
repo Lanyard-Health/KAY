@@ -10,6 +10,7 @@ import {
   createMalpracticeInsuranceSchema,
   createEducationSchema,
   createWorkHistorySchema,
+  nullablePartial,
 } from '@credential-management/shared';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 
@@ -72,7 +73,7 @@ credentialRoutes.put(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createLicenseSchema.partial().parse(req.body);
+      const data = nullablePartial(createLicenseSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'license', resourceId: req.params['id'], action: 'update' });
 
@@ -175,7 +176,7 @@ credentialRoutes.put(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createBoardCertificationSchema.partial().parse(req.body);
+      const data = nullablePartial(createBoardCertificationSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'board_certification', resourceId: req.params['id'], action: 'update' });
 
@@ -278,7 +279,7 @@ credentialRoutes.put(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createMalpracticeInsuranceSchema.partial().parse(req.body);
+      const data = nullablePartial(createMalpracticeInsuranceSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'malpractice_insurance', resourceId: req.params['id'], action: 'update' });
 
@@ -383,7 +384,7 @@ credentialRoutes.put(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createEducationSchema.partial().parse(req.body);
+      const data = nullablePartial(createEducationSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'education', resourceId: req.params['id'], action: 'update' });
 
@@ -487,7 +488,7 @@ credentialRoutes.put(
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createWorkHistorySchema.partial().parse(req.body);
+      const data = nullablePartial(createWorkHistorySchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'work_history', resourceId: req.params['id'], action: 'update' });
 

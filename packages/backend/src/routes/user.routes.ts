@@ -33,12 +33,13 @@ const createUserSchema = z.object({
   providerId: z.string().uuid().optional(),
 });
 
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updateUserSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  phone: z.string().max(20).optional().nullable(),
-  role: z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin']).optional(),
+  firstName: n(z.string().min(1)),
+  lastName: n(z.string().min(1)),
+  email: n(z.string().email()),
+  phone: n(z.string().max(20)),
+  role: n(z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin'])),
 });
 
 // GET /api/v1/users - List all users

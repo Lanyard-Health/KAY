@@ -5,6 +5,7 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { logger } from '../utils/logger.js';
 import { STAFF_ROLES } from '../constants/roles.js';
@@ -119,7 +120,7 @@ payerRoutes.put(
   authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createPayerSchema.partial().parse(req.body);
+      const data = nullablePartial(createPayerSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'payer', resourceId: req.params['id'], action: 'update' });
 
@@ -206,7 +207,7 @@ payerRoutes.put(
     try {
       logger.warn('Deprecated endpoint called: PUT /payers/enrollments/update/:id — use PUT /enrollments/:id', { user: req.user?.id });
       res.setHeader('X-Deprecated', 'Use PUT /api/v1/enrollments/:id instead');
-      const data = createEnrollmentSchema.partial().parse(req.body);
+      const data = nullablePartial(createEnrollmentSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'update' });
 

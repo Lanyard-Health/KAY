@@ -38,10 +38,11 @@ const createTaskSchema = z.object({
   dueDate: z.string().datetime().optional(),
 });
 
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updateTaskSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
-  description: z.string().max(2000).optional(),
-  status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED']).optional(),
+  title: n(z.string().min(1).max(500)),
+  description: n(z.string().max(2000)),
+  status: n(z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED'])),
   assignedToId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
 });

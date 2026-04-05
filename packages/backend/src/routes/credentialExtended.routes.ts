@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, requireProviderAccess, authorize } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
@@ -111,7 +112,7 @@ function registerCrud(router: Router, config: CrudConfig): void {
     authorize(...WRITE_ROLES),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const parsed = (createSchema as z.ZodObject<z.ZodRawShape>).partial().parse(req.body) as Record<string, unknown>;
+        const parsed = nullablePartial(createSchema as z.ZodObject<z.ZodRawShape>).parse(req.body) as Record<string, unknown>;
         convertDates(parsed, dateFields);
         const mapped = applyFieldMap(parsed, fieldMap);
 

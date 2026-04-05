@@ -53,9 +53,10 @@ const parseDocumentSchema = z.object({
   extractionHints: z.array(z.string()).optional(),
 });
 
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const patchWorkflowSchema = z.object({
   action: z.enum(['cancel']),
-  reason: z.string().max(500).optional(),
+  reason: n(z.string().max(500)),
 });
 
 const listApprovalsSchema = z.object({

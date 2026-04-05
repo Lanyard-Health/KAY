@@ -5,6 +5,9 @@ export * from './types/documents.js';
 export * from './types/user.js';
 export * from './types/common.js';
 
+// Validation utilities
+export * from './validation/nullable.js';
+
 // Validation schemas
 export * from './validation/provider.js';
 export * from './validation/credentials.js';

@@ -11,9 +11,10 @@ import { createCredentialFromOcr } from '../services/ocr-credential.service.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 
 // Validation schemas for document endpoints
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updateDocumentSchema = z.object({
-  documentType: z.string().max(100).optional(),
-  description: z.string().max(1000).optional(),
+  documentType: n(z.string().max(100)),
+  description: n(z.string().max(1000)),
   expirationDate: z.string().datetime({ offset: true }).nullable().optional()
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional()),
 }).strict();

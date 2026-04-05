@@ -52,8 +52,21 @@ export const createProviderProfileSchema = z.object({
 // Backward-compat alias — prefer createProviderProfileSchema for new code
 export const createProviderSchema = createProviderProfileSchema;
 
-export const updateProviderSchema = createProviderProfileSchema.partial().extend({
-  status: providerStatusSchema.optional(),
+// Helper: wraps every field in a .partial() schema to also accept null → undefined.
+// Fixes the systemic issue where the frontend sends null for cleared fields.
+function nullablePartial(schema: z.AnyZodObject) {
+  const partial = schema.partial();
+  const nullableShape: Record<string, z.ZodTypeAny> = {};
+  for (const [key, field] of Object.entries(partial.shape)) {
+    nullableShape[key] = z.union([field as z.ZodTypeAny, z.null()])
+      .optional()
+      .transform(val => val === null ? undefined : val);
+  }
+  return z.object(nullableShape);
+}
+
+export const updateProviderSchema = nullablePartial(createProviderProfileSchema).extend({
+  status: z.union([providerStatusSchema, z.null()]).optional().transform(val => val === null ? undefined : val),
   caqhProviderId: z.union([z.string().max(50), z.null()]).optional().transform(val => val === null ? undefined : val),
   practiceId: z.union([z.string().uuid(), z.null()]).optional(),
 });
