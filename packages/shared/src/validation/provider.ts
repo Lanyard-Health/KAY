@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nullablePartial } from './nullable.js';
 
 // NPI validation: 10-digit number with Luhn check
 const npiRegex = /^\d{10}$/;
@@ -52,8 +53,8 @@ export const createProviderProfileSchema = z.object({
 // Backward-compat alias — prefer createProviderProfileSchema for new code
 export const createProviderSchema = createProviderProfileSchema;
 
-export const updateProviderSchema = createProviderProfileSchema.partial().extend({
-  status: providerStatusSchema.optional(),
+export const updateProviderSchema = nullablePartial(createProviderProfileSchema).extend({
+  status: z.union([providerStatusSchema, z.null()]).optional().transform(val => val === null ? undefined : val),
   caqhProviderId: z.union([z.string().max(50), z.null()]).optional().transform(val => val === null ? undefined : val),
   practiceId: z.union([z.string().uuid(), z.null()]).optional(),
 });

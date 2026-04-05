@@ -5,6 +5,7 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { logger } from '../utils/logger.js';
 import { STAFF_ROLES } from '../constants/roles.js';
@@ -95,7 +96,7 @@ payerRoutes.get(
 payerRoutes.post(
   '/',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createPayerSchema.parse(req.body);
@@ -116,10 +117,10 @@ payerRoutes.post(
 // PUT /api/v1/payers/:id - Update payer
 payerRoutes.put(
   '/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createPayerSchema.partial().parse(req.body);
+      const data = nullablePartial(createPayerSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'payer', resourceId: req.params['id'], action: 'update' });
 
@@ -201,12 +202,12 @@ payerRoutes.post(
 // @deprecated 2026-03-26 — Use PUT /api/v1/enrollments/:id instead (includes workflow, SLA, denial triage)
 payerRoutes.put(
   '/enrollments/update/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       logger.warn('Deprecated endpoint called: PUT /payers/enrollments/update/:id — use PUT /enrollments/:id', { user: req.user?.id });
       res.setHeader('X-Deprecated', 'Use PUT /api/v1/enrollments/:id instead');
-      const data = createEnrollmentSchema.partial().parse(req.body);
+      const data = nullablePartial(createEnrollmentSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'update' });
 
@@ -237,7 +238,7 @@ payerRoutes.put(
 // @deprecated 2026-03-26 — Use DELETE /api/v1/enrollments/:id instead (includes workflow, SLA, denial triage)
 payerRoutes.delete(
   '/enrollments/delete/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       logger.warn('Deprecated endpoint called: DELETE /payers/enrollments/delete/:id — use DELETE /enrollments/:id', { user: req.user?.id });

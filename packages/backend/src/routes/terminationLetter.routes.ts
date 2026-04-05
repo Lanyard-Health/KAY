@@ -35,8 +35,8 @@ const generateLetterSchema = z.object({
 });
 
 const updateLetterSchema = z.object({
-  letterContent: z.string().min(1).max(50000).optional(),
-  status: z.enum(['REVIEWED']).optional(),
+  letterContent: z.union([z.string().min(1).max(50000), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  status: z.union([z.enum(['REVIEWED']), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
 
 // ==========================================
@@ -47,7 +47,7 @@ const updateLetterSchema = z.object({
 router.post(
   '/providers/:providerId/termination-letters/generate',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'), requirePracticeProvider,
+  authorize('admin', 'credentialing_staff'), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const providerId = req.params['providerId']!;
@@ -125,12 +125,6 @@ router.post(
 
       res.status(201).json({ success: true, data: letter });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -182,7 +176,7 @@ router.get(
 router.get(
   '/termination-letters/:letterId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;
@@ -218,7 +212,7 @@ router.get(
 router.patch(
   '/termination-letters/:letterId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;
@@ -273,12 +267,6 @@ router.patch(
 
       res.json({ success: true, data: letter });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -288,7 +276,7 @@ router.patch(
 router.post(
   '/termination-letters/:letterId/send',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const letterId = req.params['letterId']!;

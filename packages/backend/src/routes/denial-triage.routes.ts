@@ -18,7 +18,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const status = req.query['status'] as string | undefined;
@@ -52,7 +52,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -93,13 +93,13 @@ router.get(
 
 const updateSchema = z.object({
   status: z.enum(['reviewed', 'actioned']),
-  reviewNotes: z.string().optional(),
+  reviewNotes: z.union([z.string(), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
 
 router.patch(
   '/:id',
   authenticate,
-  authorize('admin', 'credentialing_staff', 'practice_admin', 'lanyard_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -128,12 +128,6 @@ router.patch(
 
       res.json({ success: true, data: triage });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }

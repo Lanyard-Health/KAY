@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
@@ -72,7 +73,7 @@ const createPracticeLocationSchema = z.object({
   notes: z.string().optional(),
 });
 
-const updatePracticeLocationSchema = createPracticeLocationSchema.partial();
+const updatePracticeLocationSchema = nullablePartial(createPracticeLocationSchema);
 
 // Get all practice locations for a provider
 router.get(
@@ -158,12 +159,6 @@ router.post(
 
       res.status(201).json({ success: true, data: maskLocation(location) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -215,12 +210,6 @@ router.put(
 
       res.json({ success: true, data: maskLocation(location) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -231,7 +220,7 @@ router.delete(
   '/:id',
   authenticate,
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

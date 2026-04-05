@@ -9,6 +9,9 @@
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { initiateCall, isRetellEnabled } from './retell.service.js';
+import { emailService } from './email.service.js';
+import { notificationService } from './notification.service.js';
+import { advanceStep } from './followUpExecutor.service.js';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -162,6 +165,13 @@ export async function resolveApproval(
     );
   }
 
+  // Advance follow-up run step after any decision (approved or denied)
+  if (updated.followUpRunId) {
+    advanceFollowUpAfterDecision(prisma, updated, decision).catch((err) =>
+      logger.error(`Follow-up advancement failed for approval ${approvalId}:`, err)
+    );
+  }
+
   return { resolved: true, status: updated.status };
 }
 
@@ -294,4 +304,78 @@ export async function triggerRetellIfPhoneCall(
   } else {
     logger.error(`Retell call failed for approval ${approvalId}: ${result.error}`);
   }
+}
+
+// ─── Follow-Up Step Advancement ───────────────────────────
+
+/**
+ * After a follow-up approval is decided (approved or denied),
+ * send the email if it's an approved email step, then advance
+ * the run to the next step regardless of decision.
+ */
+async function advanceFollowUpAfterDecision(
+  db: PrismaClient,
+  approval: { followUpRunId: string | null; followUpStepOrder: number | null; context: any },
+  decision: 'approved' | 'denied'
+): Promise<void> {
+  if (!approval.followUpRunId) return;
+
+  const run = await db.followUpRun.findUnique({
+    where: { id: approval.followUpRunId },
+    include: {
+      template: { include: { steps: true } },
+      enrollment: {
+        include: {
+          provider: true,
+          payer: true,
+        },
+      },
+    },
+  });
+
+  if (!run) return;
+
+  const context = (approval.context || {}) as Record<string, any>;
+  const providerName = context['providerName'] || `${run.enrollment.provider.firstName} ${run.enrollment.provider.lastName}`;
+  const payerName = context['payerName'] || run.enrollment.payer.name;
+  const channel = context['channel'] || 'unknown';
+
+  // If approved and it's an email step, send the email now
+  if (decision === 'approved' && channel === 'email') {
+    const recipientEmail = context['emailRecipient']
+      || run.enrollment.followUpEmail;
+
+    if (recipientEmail && context['emailSubject']) {
+      const html = context['emailBody']
+        ? `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-line;">${context['emailBody']}</div>`
+        : '';
+
+      const sendResult = await emailService.sendEmail({
+        to: recipientEmail,
+        subject: context['emailSubject'],
+        html,
+        notificationType: 'enrollment_follow_up',
+      });
+
+      if (!sendResult.success) {
+        logger.error(`[FollowUpAdvance] Email send failed for run ${run.id}: ${sendResult.error}`);
+        // Still advance — the human approved, don't block the sequence
+      }
+    }
+  }
+
+  // Advance step (always, whether approved or denied)
+  const totalSteps = run.template.steps.length;
+  const { completed } = await advanceStep(db, run.id, totalSteps);
+
+  // Notify admins
+  const statusLabel = completed ? `${decision} (run completed)` : decision;
+  await notificationService.notifyAdminUsers({
+    type: 'system_announcement',
+    title: `Follow-Up ${decision === 'approved' ? 'Approved' : 'Denied'}`,
+    message: `Follow-up ${statusLabel}: ${channel} to ${payerName} for ${providerName}`,
+    actionUrl: `/enrollments/${run.enrollmentId}`,
+  });
+
+  logger.info(`[FollowUpAdvance] Run ${run.id}: step ${approval.followUpStepOrder} ${decision}, advanced to ${run.currentStepOrder + 1}${completed ? ' (completed)' : ''}`);
 }

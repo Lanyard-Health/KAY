@@ -26,6 +26,7 @@ import { authRoutes } from './routes/auth.routes.js';
 import { providerRoutes } from './routes/provider.routes.js';
 import { documentRoutes } from './routes/document.routes.js';
 import { credentialRoutes } from './routes/credential.routes.js';
+import { credentialExtendedRoutes } from './routes/credentialExtended.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 import { caqhRoutes } from './routes/caqh.routes.js';
 import { payerRoutes } from './routes/payer.routes.js';
@@ -226,6 +227,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/providers', providerRoutes);
 app.use('/api/v1/documents', documentRoutes);
 app.use('/api/v1/credentials', credentialRoutes);
+app.use('/api/v1/credentials', credentialExtendedRoutes);
 app.use('/api/v1/credentials', payerEnrollmentDataRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/caqh', caqhRoutes);
@@ -276,7 +278,7 @@ app.use(bugMonitorErrorMiddleware);
 
 // 404 handler
 app.use((_req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'The requested resource was not found' } });
 });
 
 const server = createServer(app);
@@ -441,25 +443,7 @@ server.listen(PORT, async () => {
         logger.info(`Created dev practice admin user on startup (id: ${newPracticeAdmin.id})`);
       }
 
-      // Ensure dev lanyard admin user exists
-      const lanyardAdminUser = await prisma.user.findUnique({
-        where: { cognitoId: 'dev-lanyard-admin-cognito-id' },
-      });
-      if (lanyardAdminUser) {
-        logger.info(`Dev lanyard admin user ready (id: ${lanyardAdminUser.id})`);
-      } else {
-        const newLanyardAdmin = await prisma.user.create({
-          data: {
-            cognitoId: 'dev-lanyard-admin-cognito-id',
-            email: 'lanyard-admin@dev.local',
-            firstName: 'Lanyard',
-            lastName: 'Admin',
-            role: 'lanyard_admin',
-            isActive: true,
-          },
-        });
-        logger.info(`Created dev lanyard admin user on startup (id: ${newLanyardAdmin.id})`);
-      }
+      // lanyard_admin role has been consolidated into admin — no separate dev user needed
 
       logger.info('DEV_AUTH_BYPASS=true — dev users validated and ready');
     } catch (err) {

@@ -5,7 +5,115 @@ import { logAgentEvent } from '../event-logger.js';
 import { emitWorkflowEvent } from '../websocket.js';
 import { notifyTaskCompletion } from '../coordinator.service.js';
 import { calculateMonitorDelay } from './backoff.js';
+import { CaqhService } from '../../services/caqh.service.js';
 import type { MonitorJobData, MonitorJobResult, StatusCheckResult } from './types.js';
+
+// ==========================================
+// Constants
+// ==========================================
+
+const ESCALATION_DAYS = 60;
+
+// ==========================================
+// Real enrollment status check
+// ==========================================
+
+async function checkEnrollmentStatus(
+  data: MonitorJobData,
+  submittedAt: Date
+): Promise<StatusCheckResult> {
+  const { enrollmentId } = data;
+
+  // 1. LOAD CONTEXT — need enrollmentId to look anything up
+  if (!enrollmentId) {
+    return { status: 'pending', details: 'No enrollmentId — cannot check status' };
+  }
+
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { id: enrollmentId },
+    include: {
+      provider: { select: { id: true, caqhProviderId: true } },
+      payer: { include: { submissionConfig: true } },
+      denialTriages: { orderBy: { createdAt: 'desc' }, take: 1 },
+    },
+  });
+
+  if (!enrollment) {
+    return { status: 'pending', details: 'Enrollment not found — may have been deleted' };
+  }
+
+  // 2. CHECK FOR RESOLUTION — human may have updated status
+  switch (enrollment.status) {
+    case 'approved':
+      return {
+        status: 'approved',
+        effectiveDate: enrollment.effectiveDate?.toISOString(),
+        confirmationId: enrollment.providerNumber ?? undefined,
+        details: 'Enrollment marked as approved in Lanyard',
+      };
+    case 'denied':
+    case 'terminated':
+      return {
+        status: 'denied',
+        denialReason: enrollment.denialTriages[0]?.denialReason,
+        details: `Enrollment status: ${enrollment.status}`,
+      };
+    case 'pending_review': {
+      const latestTriage = enrollment.denialTriages[0];
+      if (latestTriage && latestTriage.status === 'pending') {
+        return {
+          status: 'additional_info_needed',
+          details: `Denial triage pending: ${latestTriage.denialReason}`,
+        };
+      }
+      break;
+    }
+  }
+
+  // 3. CHECK CAQH ATTESTATION (bonus signal)
+  const submissionConfig = enrollment.payer.submissionConfig;
+  const caqhProviderId = enrollment.provider.caqhProviderId;
+
+  if (
+    submissionConfig?.adapterType === 'caqh' &&
+    caqhProviderId &&
+    process.env['CAQH_API_URL'] &&
+    process.env['CAQH_ORG_ID'] &&
+    process.env['CAQH_API_KEY']
+  ) {
+    try {
+      const caqhService = new CaqhService();
+      const caqhStatus = await caqhService.checkStatus(caqhProviderId);
+      if (caqhStatus.attestationStatus === 'expired' || caqhStatus.attestationStatus === 'inactive') {
+        return {
+          status: 'additional_info_needed',
+          details: `CAQH attestation is ${caqhStatus.attestationStatus} — may be blocking enrollment`,
+        };
+      }
+    } catch (err) {
+      logger.warn('CAQH status check failed during monitor — continuing', {
+        caqhProviderId,
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+  }
+
+  // 4. CHECK STALENESS — escalate if pending too long
+  const daysSinceSubmission = Math.floor(
+    (Date.now() - submittedAt.getTime()) / (24 * 60 * 60 * 1000)
+  );
+
+  if (daysSinceSubmission >= ESCALATION_DAYS) {
+    return {
+      status: 'denied',
+      denialReason: `Enrollment pending for ${daysSinceSubmission} days with no payer response — requires manual intervention`,
+      details: `Auto-escalated after ${ESCALATION_DAYS}+ days`,
+    };
+  }
+
+  // 5. DEFAULT — still pending
+  return { status: 'pending' };
+}
 
 // ==========================================
 // Main processor
@@ -42,7 +150,7 @@ export async function processMonitorJob(data: MonitorJobData): Promise<MonitorJo
       confirmationId: (taskInput['confirmationId'] as string) ?? undefined,
     };
   } else {
-    statusResult = { status: 'pending' };
+    statusResult = await checkEnrollmentStatus(data, new Date(submittedAt));
   }
 
   // 4. Calculate backoff info

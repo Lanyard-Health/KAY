@@ -3,10 +3,11 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 
 export const workflowTemplateRoutes = Router();
 workflowTemplateRoutes.use(authenticate);
-workflowTemplateRoutes.use(authorize('lanyard_admin'));
+workflowTemplateRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 
@@ -145,7 +146,7 @@ workflowTemplateRoutes.patch(
   '/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = createTemplateSchema.partial().omit({ steps: true, conditions: true }).parse(req.body);
+      const body = nullablePartial(createTemplateSchema).omit({ steps: true, conditions: true }).parse(req.body);
 
       // If status is changing to 'active', set publishedAt
       const updateData: Record<string, unknown> = { ...body };
@@ -211,7 +212,7 @@ workflowTemplateRoutes.patch(
   '/steps/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = stepSchema.partial().parse(req.body);
+      const body = nullablePartial(stepSchema).parse(req.body);
       const data = await prisma.workflowTemplateStep.update({
         where: { id: req.params['id'] },
         data: body,

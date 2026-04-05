@@ -90,7 +90,7 @@ describe('Checklist Routes', () => {
 
   describe('PUT /provider/:providerId', () => {
     it('updates checklist statuses', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
       prismaMock.providerChecklist.findUnique.mockResolvedValue(mockChecklist as any);
       prismaMock.providerChecklist.update.mockResolvedValue({
         ...mockChecklist,
@@ -106,7 +106,7 @@ describe('Checklist Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .put('/provider/nonexistent')
@@ -116,7 +116,7 @@ describe('Checklist Routes', () => {
     });
 
     it('adds reviewer info when approving items', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
       prismaMock.providerChecklist.findUnique.mockResolvedValue(mockChecklist as any);
       prismaMock.providerChecklist.update.mockResolvedValue({
         ...mockChecklist,
@@ -139,7 +139,7 @@ describe('Checklist Routes', () => {
     });
 
     it('auto-completes when all items approved', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
       prismaMock.providerChecklist.findUnique.mockResolvedValue(mockChecklist as any);
       // First update returns all approved
       prismaMock.providerChecklist.update
@@ -169,7 +169,7 @@ describe('Checklist Routes', () => {
     });
 
     it('creates checklist if none exists on update', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-1-id' } as any);
       prismaMock.providerChecklist.findUnique.mockResolvedValue(null);
       prismaMock.providerChecklist.create.mockResolvedValue({
         ...mockChecklist,

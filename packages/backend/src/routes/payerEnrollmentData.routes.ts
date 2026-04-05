@@ -15,6 +15,7 @@ import {
   createProviderIdentifierSchema,
   createBankingSchema,
   upsertDemographicsSchema,
+  nullablePartial,
 } from '@credential-management/shared';
 
 export const payerEnrollmentDataRoutes = Router();
@@ -71,10 +72,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/supervising-physicians/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createSupervisingPhysicianSchema.partial().parse(req.body);
+      const data = nullablePartial(createSupervisingPhysicianSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'supervising_physician', resourceId: req.params['id'], action: 'update' });
 
@@ -101,7 +102,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/supervising-physicians/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'supervising_physician', resourceId: req.params['id'], action: 'delete' });
@@ -169,10 +170,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/malpractice-claims/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createMalpracticeClaimSchema.partial().parse(req.body);
+      const data = nullablePartial(createMalpracticeClaimSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'malpractice_claim', resourceId: req.params['id'], action: 'update' });
 
@@ -200,7 +201,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/malpractice-claims/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'malpractice_claim', resourceId: req.params['id'], action: 'delete' });
@@ -266,10 +267,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/disclosures/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createDisclosureSchema.partial().parse(req.body);
+      const data = nullablePartial(createDisclosureSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'provider_disclosure', resourceId: req.params['id'], action: 'update' });
 
@@ -295,7 +296,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/disclosures/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'provider_disclosure', resourceId: req.params['id'], action: 'delete' });
@@ -365,10 +366,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/dea-registrations/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createDeaRegistrationSchema.partial().parse(req.body);
+      const data = nullablePartial(createDeaRegistrationSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'dea_registration', resourceId: req.params['id'], action: 'update' });
 
@@ -397,7 +398,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/dea-registrations/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'dea_registration', resourceId: req.params['id'], action: 'delete' });
@@ -464,10 +465,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/identifiers/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createProviderIdentifierSchema.partial().parse(req.body);
+      const data = nullablePartial(createProviderIdentifierSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'provider_identifier', resourceId: req.params['id'], action: 'update' });
 
@@ -494,7 +495,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/identifiers/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'provider_identifier', resourceId: req.params['id'], action: 'delete' });
@@ -595,10 +596,10 @@ payerEnrollmentDataRoutes.post(
 payerEnrollmentDataRoutes.put(
   '/banking/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = createBankingSchema.partial().parse(req.body);
+      const data = nullablePartial(createBankingSchema).parse(req.body);
 
       setAuditContext(req, { resourceType: 'provider_banking', resourceId: req.params['id'], action: 'update' });
 
@@ -647,7 +648,7 @@ payerEnrollmentDataRoutes.put(
 payerEnrollmentDataRoutes.delete(
   '/banking/:id',
   authorize(...STAFF_ROLES),
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       setAuditContext(req, { resourceType: 'provider_banking', resourceId: req.params['id'], action: 'delete' });

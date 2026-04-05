@@ -366,10 +366,12 @@ function buildFollowUpSteps(
   const baseInterval = timeline?.minDays ? Math.min(Math.round(timeline.minDays / 3), 21) : 14;
 
   // ── Step 1: Initial Status Check (email preferred) ──
+  // Email at escalation level 1 auto-sends; phone always requires approval
+  const step1Channel: 'email' | 'phone_call' = hasEmail ? 'email' : 'phone_call';
   steps.push({
     stepOrder: 1,
     name: 'Initial Status Inquiry',
-    channel: hasEmail ? 'email' : 'phone_call',
+    channel: step1Channel,
     triggerDaysAfterPrev: baseInterval,
     escalationLevel: 1,
     emailSubject: hasEmail
@@ -382,14 +384,15 @@ function buildFollowUpSteps(
     retellScriptTemplate: !hasEmail && hasPhone
       ? `Call ${track.payerName} credentialing at ${credPhone}. Inquire about enrollment status for {{provider_name}}, NPI {{provider_npi}}, submitted {{submission_date}}. Reference: {{reference_number}}. Ask if any documents or information are still needed.`
       : null,
-    requiresApproval: true,
+    requiresApproval: step1Channel !== 'email',
   });
 
   // ── Step 2: Second Follow-Up (alternate channel or repeat) ──
+  const step2Channel: 'email' | 'phone_call' = hasPhone ? 'phone_call' : 'email';
   steps.push({
     stepOrder: 2,
     name: 'Second Follow-Up',
-    channel: hasPhone ? 'phone_call' : 'email',
+    channel: step2Channel,
     triggerDaysAfterPrev: baseInterval,
     escalationLevel: 1,
     emailSubject: !hasPhone && hasEmail
@@ -402,7 +405,7 @@ function buildFollowUpSteps(
     retellScriptTemplate: hasPhone
       ? `Call ${track.payerName} at ${credPhone}. This is a follow-up on enrollment for {{provider_name}}, NPI {{provider_npi}}. Application submitted {{submission_date}}, reference {{reference_number}}. Request timeline for decision and ask for the reviewer's direct contact information for future follow-ups.`
       : null,
-    requiresApproval: true,
+    requiresApproval: step2Channel !== 'email',
   });
 
   // ── Step 3: Urgent Follow-Up (email, elevated tone) ──

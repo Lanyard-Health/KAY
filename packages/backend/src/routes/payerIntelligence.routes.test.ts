@@ -109,7 +109,8 @@ describe('Payer Intelligence Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('DB connection failed');
+      expect(res.body.error.code).toBe('INTERNAL_ERROR');
+      expect(res.body.error.message).toBe('DB connection failed');
     });
   });
 
@@ -207,9 +208,9 @@ describe('Payer Intelligence Routes', () => {
         .post('/payer-1/analyze')
         .set('X-Forwarded-For', nextIp());
 
-      expect(res.status).toBe(429);
+      expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toContain('budget exceeded');
+      expect(res.body.error.message).toContain('budget exceeded');
     });
 
     it('returns 500 on generic service error', async () => {

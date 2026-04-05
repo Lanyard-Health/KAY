@@ -1,5 +1,5 @@
-import { Router, Request, Response } from 'express';
-import { z, ZodError } from 'zod';
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { notificationService } from '../services/notification.service.js';
@@ -20,7 +20,7 @@ router.use(authorize(...ALL_AUTHENTICATED_ROLES));
  * GET /api/v1/notifications
  * Get current user's notifications
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const { unreadOnly, limit, offset } = parseQuery(req.query as Record<string, unknown>, notificationQuerySchema);
@@ -33,11 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ success: true, data: result });
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: { message: 'Invalid query parameters', details: error.issues } });
-      return;
-    }
-    res.status(500).json({ success: false, error: { message: 'Failed to fetch notifications' } });
+    next(error);
   }
 });
 

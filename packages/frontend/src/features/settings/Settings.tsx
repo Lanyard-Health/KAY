@@ -17,9 +17,9 @@ import NotificationsTab from './NotificationsTab';
 
 const ALL_TABS = [
   { key: 'profile', label: 'User Profile', icon: UserCircleIcon, restrictedTo: null },
-  { key: 'practice', label: 'Practice', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'lanyard_admin', 'practice_admin'] },
-  { key: 'permissions', label: 'Permissions', icon: UsersIcon, restrictedTo: ['admin', 'lanyard_admin', 'practice_admin'] },
-  { key: 'integrations', label: 'Integrations', icon: PuzzlePieceIcon, restrictedTo: ['admin', 'lanyard_admin', 'practice_admin'] },
+  { key: 'practice', label: 'Practice', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'practice_admin'] },
+  { key: 'permissions', label: 'Permissions', icon: UsersIcon, restrictedTo: ['admin', 'practice_admin'] },
+  { key: 'integrations', label: 'Integrations', icon: PuzzlePieceIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'notifications', label: 'Notifications', icon: BellIcon, restrictedTo: null },
 ] as const;
 

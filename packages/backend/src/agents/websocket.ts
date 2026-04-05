@@ -148,7 +148,7 @@ export function initializeWebSocket(httpServer: HttpServer): SocketServer {
           socket.emit('error', { message: 'Access denied' });
           return;
         }
-      } else if (user.role === 'admin' || user.role === 'lanyard_admin') {
+      } else if (user.role === 'admin') {
         // Global admins: unrestricted access
       } else if (user.practiceIds.length > 0) {
         // Staff scoped to practices — workflow's provider must belong to one of their practices

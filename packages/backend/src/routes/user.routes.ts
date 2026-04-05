@@ -33,18 +33,19 @@ const createUserSchema = z.object({
   providerId: z.string().uuid().optional(),
 });
 
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updateUserSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  phone: z.string().max(20).optional().nullable(),
-  role: z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin']).optional(),
+  firstName: n(z.string().min(1)),
+  lastName: n(z.string().min(1)),
+  email: n(z.string().email()),
+  phone: n(z.string().max(20)),
+  role: n(z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin'])),
 });
 
 // GET /api/v1/users - List all users
 userRoutes.get(
   '/',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
@@ -156,7 +157,7 @@ userRoutes.get(
 // GET /api/v1/users/:id - Get user by ID
 userRoutes.get(
   '/:id',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await prisma.user.findUnique({
@@ -208,7 +209,7 @@ userRoutes.get(
 userRoutes.post(
   '/',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = createUserSchema.parse(req.body);
@@ -266,7 +267,7 @@ userRoutes.post(
 userRoutes.put(
   '/:id',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = updateUserSchema.parse(req.body);
@@ -325,7 +326,7 @@ userRoutes.put(
 userRoutes.put(
   '/:id/deactivate',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Prevent self-deactivation
@@ -378,7 +379,7 @@ userRoutes.put(
 userRoutes.put(
   '/:id/activate',
   accountMutationLimiter,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Practice-scope check

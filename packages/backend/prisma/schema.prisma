@@ -16,7 +16,6 @@ datasource db {
 // ==========================================
 
 enum UserRole {
-  lanyard_admin
   admin
   credentialing_staff
   provider
@@ -156,6 +155,10 @@ model Practice {
   targetPayerIds     String[]  @default([]) @map("target_payer_ids")
   providerTypes      String[]  @default([]) @map("provider_types")
 
+  organizationType   String?   @map("organization_type")
+  maxProviderSlots   Int?      @map("max_provider_slots")
+  maxUserSeats       Int?      @map("max_user_seats")
+
   users                UserPractice[]
   providers            ProviderProfile[]
   providerApplications ProviderApplication[]
@@ -206,6 +209,14 @@ enum ProviderType {
   lpc
   lmft
   pmhnp
+  other
+}
+
+enum CareType {
+  in_person
+  hybrid
+  virtual
+  in_home
   other
 }
 
@@ -323,6 +334,7 @@ model ProviderProfile {
   targetPayers  String[]  @default([]) @map("target_payers")
   targetStates  String[]  @default([]) @map("target_states")
   entityType    String?   @map("entity_type")  // individual | group
+  careType      CareType? @map("care_type")
 
   // Status
   status ProviderStatus @default(pending)
@@ -2346,7 +2358,7 @@ model WorkflowTemplate {
   version       Int       @default(1)
   status        String    // draft | active | archived
   description   String?
-  createdBy     String    @map("created_by") // User ID — must be lanyard_admin
+  createdBy     String    @map("created_by") // User ID — must be admin
   publishedAt   DateTime? @map("published_at")
 
   steps         WorkflowTemplateStep[]
@@ -2403,7 +2415,7 @@ model FollowUpTemplate {
   version       Int       @default(1)
   status        String    // draft | active | archived
   description   String?
-  createdBy     String    @map("created_by") // User ID — must be lanyard_admin
+  createdBy     String    @map("created_by") // User ID — must be admin
   publishedAt   DateTime? @map("published_at")
 
   steps         FollowUpTemplateStep[]
@@ -2451,6 +2463,7 @@ model FollowUpRun {
   currentStepOrder  Int               @default(1) @map("current_step_order")
   startedAt         DateTime          @default(now()) @map("started_at")
   completedAt       DateTime?         @map("completed_at")
+  lastExecutedAt    DateTime?         @map("last_executed_at")
 
   callLogs          RetellCallLog[]
   approvals         PendingApproval[]
@@ -2491,6 +2504,7 @@ model DenialTriage {
   denialDate        DateTime   @map("denial_date")
   triageReport      String?    @map("triage_report")
   identifiedGaps    Json?      @map("identified_gaps")
+  appealDeadline    DateTime?  @map("appeal_deadline")
   recommendedAction String?    @map("recommended_action") // appeal | reapply | abandon | needs_review
   recommendedSteps  Json?      @map("recommended_steps")
   status            String     // pending | reviewed | actioned

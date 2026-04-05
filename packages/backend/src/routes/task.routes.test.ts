@@ -35,12 +35,23 @@ vi.mock('../middleware/audit.middleware.js', () => ({
   setAuditContext: vi.fn(),
 }));
 
+vi.mock('../middleware/practiceScope.middleware.js', () => ({
+  requirePracticeProvider: vi.fn((_req: any, _res: any, next: any) => next()),
+  getPracticeRelationFilter: vi.fn(() => ({})),
+  validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('../services/task.service.js', () => ({
+  createTask: vi.fn(),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import taskRoutes from './task.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
+import { createTask } from '../services/task.service.js';
 
 const PROVIDER_ID = mockProviderForTermination.id;
 const TASK_ID = mockTask.id;
@@ -117,8 +128,8 @@ describe('Task Routes', () => {
     const app = createTestApp(taskRoutes, adminUser);
 
     it('creates a custom task (admin)', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
-      prismaMock.task.create.mockResolvedValue({
+      const mockedCreateTask = vi.mocked(createTask);
+      mockedCreateTask.mockResolvedValue({
         ...mockTask,
         type: 'CUSTOM',
         title: 'Follow up with provider',
@@ -134,14 +145,13 @@ describe('Task Routes', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.task.create).toHaveBeenCalledWith(
+      expect(mockedCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            providerId: PROVIDER_ID,
-            title: 'Follow up with provider',
-            type: 'CUSTOM',
-          }),
-        })
+          providerId: PROVIDER_ID,
+          title: 'Follow up with provider',
+          type: 'CUSTOM',
+        }),
+        'admin-user-id',
       );
     });
 
@@ -156,7 +166,8 @@ describe('Task Routes', () => {
     });
 
     it('returns 404 when provider does not exist', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      const { NotFoundError } = await import('../middleware/error.middleware.js');
+      vi.mocked(createTask).mockRejectedValue(new NotFoundError('Provider'));
 
       const res = await request(app)
         .post(`/providers/${PROVIDER_ID}/tasks`)
@@ -167,7 +178,6 @@ describe('Task Routes', () => {
     });
 
     it('returns 400 on validation failure', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
 
       const res = await request(app)
         .post(`/providers/${PROVIDER_ID}/tasks`)

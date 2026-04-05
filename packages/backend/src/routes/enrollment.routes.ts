@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
@@ -9,6 +10,7 @@ import { triggerTerminationWorkflow } from '../services/terminationWorkflow.serv
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
+import { updateEnrollmentStatus } from '../services/enrollment.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -87,7 +89,7 @@ const createEnrollmentSchema = z.object({
   payerTrackId: z.string().uuid().optional().nullable(),
 });
 
-const updateEnrollmentSchema = createEnrollmentSchema.partial();
+const updateEnrollmentSchema = nullablePartial(createEnrollmentSchema);
 
 // ==========================================
 // PAYER TRACK OPTIONS (for enrollment form dropdown)
@@ -161,7 +163,7 @@ router.get(
 router.post(
   '/payers',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff'),
+  authorize('admin', 'credentialing_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPayerSchema.parse(req.body);
@@ -177,12 +179,6 @@ router.post(
 
       res.status(201).json({ success: true, data: payer });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -196,7 +192,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.enrollment.findMany({
@@ -292,7 +288,7 @@ router.get(
 router.post(
   '/provider/:providerId',
   authenticate,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   blockPendingVerification,
   requireProviderAccess, requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -401,12 +397,6 @@ router.post(
         },
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -425,90 +415,75 @@ router.put(
 
       setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'update' });
 
-      const existing = await prisma.enrollment.findUnique({
-        where: { id },
-      });
+      // Non-status field updates
+      const { status: newStatus, ...fieldUpdates } = validated;
+      const hasFieldUpdates = Object.values(fieldUpdates).some((v) => v !== undefined);
 
-      if (!existing) {
-        return res.status(404).json({
-          success: false,
-          error: { message: 'Enrollment not found' },
+      let enrollment;
+
+      if (hasFieldUpdates) {
+        const existing = await prisma.enrollment.findUnique({ where: { id } });
+        if (!existing) {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Enrollment not found' },
+          });
+        }
+
+        enrollment = await prisma.enrollment.update({
+          where: { id },
+          data: {
+            productTypes: fieldUpdates.productTypes,
+            applicationDate: fieldUpdates.applicationDate ? new Date(fieldUpdates.applicationDate) : undefined,
+            effectiveDate: fieldUpdates.effectiveDate ? new Date(fieldUpdates.effectiveDate) : undefined,
+            terminationDate: fieldUpdates.terminationDate ? new Date(fieldUpdates.terminationDate) : undefined,
+            dateContractReceived: fieldUpdates.dateContractReceived ? new Date(fieldUpdates.dateContractReceived) : undefined,
+            dateContractSigned: fieldUpdates.dateContractSigned ? new Date(fieldUpdates.dateContractSigned) : undefined,
+            lastFollowUpDate: fieldUpdates.lastFollowUpDate ? new Date(fieldUpdates.lastFollowUpDate) : undefined,
+            recredentialingDate: fieldUpdates.recredentialingDate ? new Date(fieldUpdates.recredentialingDate) : undefined,
+            providerNumber: fieldUpdates.providerNumber,
+            groupNumber: fieldUpdates.groupNumber,
+            notes: fieldUpdates.notes,
+            updatedById: req.user?.id,
+          },
+          include: { payer: true },
+        });
+
+        // Trigger termination workflow when terminationDate transitions from null → value
+        if (
+          fieldUpdates.terminationDate &&
+          !existing.terminationDate &&
+          enrollment.terminationDate
+        ) {
+          triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
+            .catch((err) => logger.error('Termination workflow trigger failed:', err));
+        }
+      }
+
+      // Delegate status transition to the service
+      if (newStatus) {
+        enrollment = await updateEnrollmentStatus(id, newStatus, req.user!.id, {
+          notes: validated.notes,
+          triggerDenialTriage: true,
         });
       }
 
-      const enrollment = await prisma.enrollment.update({
-        where: { id },
-        data: {
-          status: validated.status,
-          productTypes: validated.productTypes,
-          applicationDate: validated.applicationDate ? new Date(validated.applicationDate) : undefined,
-          effectiveDate: validated.effectiveDate ? new Date(validated.effectiveDate) : undefined,
-          terminationDate: validated.terminationDate ? new Date(validated.terminationDate) : undefined,
-          dateContractReceived: validated.dateContractReceived ? new Date(validated.dateContractReceived) : undefined,
-          dateContractSigned: validated.dateContractSigned ? new Date(validated.dateContractSigned) : undefined,
-          lastFollowUpDate: validated.lastFollowUpDate ? new Date(validated.lastFollowUpDate) : undefined,
-          recredentialingDate: validated.recredentialingDate ? new Date(validated.recredentialingDate) : undefined,
-          providerNumber: validated.providerNumber,
-          groupNumber: validated.groupNumber,
-          notes: validated.notes,
-          updatedById: req.user?.id,
-        },
-        include: { payer: true },
-      });
-
-      // Trigger termination workflow when terminationDate transitions from null → value
-      if (
-        validated.terminationDate &&
-        !existing.terminationDate &&
-        enrollment.terminationDate
-      ) {
-        triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
-          .catch((err) => logger.error('Termination workflow trigger failed:', err));
+      // If neither field updates nor status change, just fetch and return
+      if (!enrollment) {
+        enrollment = await prisma.enrollment.findUnique({
+          where: { id },
+          include: { payer: true },
+        });
+        if (!enrollment) {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Enrollment not found' },
+          });
+        }
       }
 
-      // Trigger follow-up instantiation when status transitions to 'submitted'
-      if (
-        validated.status === 'submitted' &&
-        existing.status !== 'submitted' &&
-        existing.payerTrackId
-      ) {
-        instantiateFollowUp(prisma, enrollment.id, existing.payerTrackId)
-          .then((result) => {
-            if (result.runCreated) {
-              logger.info(`Follow-up run created for enrollment ${enrollment.id}: ${result.runId}`);
-            }
-          })
-          .catch((err) => logger.error(`Follow-up instantiation failed for enrollment ${enrollment.id}:`, err));
-      }
-
-      // Trigger denial triage when status transitions to 'denied'
-      if (
-        validated.status === 'denied' &&
-        existing.status !== 'denied'
-      ) {
-        triggerDenialTriage(prisma, {
-          enrollmentId: enrollment.id,
-          denialReason: validated.notes || 'No denial reason provided',
-          denialDate: new Date(),
-        })
-          .then((result) => {
-            if (result.triageCreated) {
-              logger.info(`Denial triage created for enrollment ${enrollment.id}: ${result.triageId}`);
-            }
-          })
-          .catch((err) => logger.error(`Denial triage failed for enrollment ${enrollment.id}:`, err));
-      }
-
-      invalidateCache('dashboard');
-      invalidateCache('payer-analytics');
       res.json({ success: true, data: enrollment });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -519,7 +494,7 @@ router.delete(
   '/:id',
   authenticate,
   blockPendingVerification,
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;

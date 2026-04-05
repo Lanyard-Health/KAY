@@ -29,6 +29,7 @@ export interface DenialTriageResult {
 
 interface TriageAiResponse {
   recommendedAction: 'appeal' | 'reapply' | 'abandon' | 'needs_review';
+  appealDeadline: string | null;
   triageReport: string;
   identifiedGaps: Array<{ gap: string; severity: string; source?: string }>;
   recommendedSteps: Array<{ order: number; action: string; notes?: string }>;
@@ -46,6 +47,7 @@ You will receive:
 Analyze the denial and produce a JSON response with this exact structure:
 {
   "recommendedAction": "appeal" | "reapply" | "abandon" | "needs_review",
+  "appealDeadline": "YYYY-MM-DD or null — estimate the appeal filing deadline based on the payer's known appeal window (typically 30-90 days from denial date). Use knowledge base records if available, otherwise estimate conservatively. Null if action is not appeal.",
   "triageReport": "A clear, concise narrative explaining the denial, likely root cause, and recommended path forward. 2-4 paragraphs.",
   "identifiedGaps": [
     { "gap": "description of a specific gap or missing requirement", "severity": "critical | major | minor", "source": "which KB record identified this" }
@@ -142,6 +144,7 @@ Analyze this denial and provide your triage assessment as JSON.`;
         logger.warn('ANTHROPIC_API_KEY not set — creating basic denial triage without AI analysis');
         triageResponse = {
           recommendedAction: 'needs_review',
+          appealDeadline: null,
           triageReport: `Enrollment denied by ${enrollment.payer.name}. Reason: ${denialReason}. AI analysis unavailable — manual review required.`,
           identifiedGaps: [],
           recommendedSteps: [{ order: 1, action: 'Review denial reason and payer requirements manually', notes: 'AI triage unavailable' }],
@@ -176,6 +179,7 @@ Analyze this denial and provide your triage assessment as JSON.`;
       logger.error('AI triage generation failed:', aiErr);
       triageResponse = {
         recommendedAction: 'needs_review',
+        appealDeadline: null,
         triageReport: `Enrollment denied by ${enrollment.payer.name}. Reason: ${denialReason}. AI analysis failed — manual review required.`,
         identifiedGaps: [],
         recommendedSteps: [{ order: 1, action: 'Review denial reason and payer requirements manually', notes: 'AI triage failed' }],
@@ -188,6 +192,7 @@ Analyze this denial and provide your triage assessment as JSON.`;
         enrollmentId,
         denialReason,
         denialDate: denialDate || new Date(),
+        appealDeadline: triageResponse.appealDeadline ? new Date(triageResponse.appealDeadline) : null,
         triageReport: triageResponse.triageReport,
         identifiedGaps: triageResponse.identifiedGaps as any,
         recommendedAction: triageResponse.recommendedAction,

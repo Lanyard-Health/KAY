@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 import {
   upsertEmbedding,
   deleteEmbeddings,
@@ -15,7 +16,7 @@ import rateLimit from 'express-rate-limit';
 export const knowledgeBaseRoutes = Router();
 knowledgeBaseRoutes.use(authenticate);
 
-// ─── Search (broader role access — must be before lanyard_admin-only guard) ──
+// ─── Search (broader role access — must be before admin-only guard) ──
 
 const searchQuerySchema = z.object({
   q: z.string().min(3).max(500),
@@ -30,7 +31,7 @@ const searchRateLimit = rateLimit({
 
 knowledgeBaseRoutes.get(
   '/search',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   searchRateLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -48,7 +49,7 @@ knowledgeBaseRoutes.get(
   }
 );
 
-knowledgeBaseRoutes.use(authorize('lanyard_admin'));
+knowledgeBaseRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 
@@ -250,7 +251,7 @@ knowledgeBaseRoutes.patch(
   '/payer-tracks/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerTrackSchema.partial().parse(req.body);
+      const body = nullablePartial(payerTrackSchema).parse(req.body);
       const data = await prisma.payerTrack.update({
         where: { id: req.params['id'] },
         data: body,
@@ -299,7 +300,7 @@ knowledgeBaseRoutes.patch(
   '/contacts/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerContactSchema.partial().parse(req.body);
+      const body = nullablePartial(payerContactSchema).parse(req.body);
       const data = await prisma.payerContact.update({
         where: { id: req.params['id'] },
         data: body,
@@ -346,7 +347,7 @@ knowledgeBaseRoutes.patch(
   '/timelines/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerTimelineSchema.partial().parse(req.body);
+      const body = nullablePartial(payerTimelineSchema).parse(req.body);
       const data = await prisma.payerTimeline.update({
         where: { id: req.params['id'] },
         data: body,
@@ -402,7 +403,7 @@ knowledgeBaseRoutes.patch(
   '/state-rules/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerStateRuleSchema.partial().parse(req.body);
+      const body = nullablePartial(payerStateRuleSchema).parse(req.body);
       const data = await prisma.payerStateRule.update({
         where: { id: req.params['id'] },
         data: {
@@ -457,7 +458,7 @@ knowledgeBaseRoutes.patch(
   '/forms/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerFormSchema.partial().parse(req.body);
+      const body = nullablePartial(payerFormSchema).parse(req.body);
       const data = await prisma.payerForm.update({
         where: { id: req.params['id'] },
         data: body,
@@ -508,7 +509,7 @@ knowledgeBaseRoutes.patch(
   '/requirements/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = payerRequirementSchema.partial().parse(req.body);
+      const body = nullablePartial(payerRequirementSchema).parse(req.body);
       const data = await prisma.payerRequirement.update({
         where: { id: req.params['id'] },
         data: body,
@@ -571,7 +572,7 @@ knowledgeBaseRoutes.patch(
   '/requirements-universal/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = requirementUniversalSchema.partial().parse(req.body);
+      const body = nullablePartial(requirementUniversalSchema).parse(req.body);
       const data = await prisma.requirementUniversal.update({
         where: { id: req.params['id'] },
         data: body,

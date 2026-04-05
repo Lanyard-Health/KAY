@@ -8,19 +8,21 @@ import { requirePracticeProvider } from '../middleware/practiceScope.middleware.
 const router = Router();
 
 // Validation schemas
+const statusEnum = z.enum(['not_started', 'pending_upload', 'pending_review', 'approved', 'rejected']);
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updateChecklistSchema = z.object({
-  w9Status: z.enum(['not_started', 'pending_upload', 'pending_review', 'approved', 'rejected']).optional(),
+  w9Status: n(statusEnum),
   w9DocumentId: z.string().uuid().optional().nullable(),
   w9Notes: z.string().optional().nullable(),
-  coiStatus: z.enum(['not_started', 'pending_upload', 'pending_review', 'approved', 'rejected']).optional(),
+  coiStatus: n(statusEnum),
   coiDocumentId: z.string().uuid().optional().nullable(),
   coiNotes: z.string().optional().nullable(),
-  cp575Status: z.enum(['not_started', 'pending_upload', 'pending_review', 'approved', 'rejected']).optional(),
+  cp575Status: n(statusEnum),
   cp575DocumentId: z.string().uuid().optional().nullable(),
   cp575Notes: z.string().optional().nullable(),
-  licenseVerified: z.boolean().optional(),
-  credentialsComplete: z.boolean().optional(),
-  backgroundCheckComplete: z.boolean().optional(),
+  licenseVerified: n(z.boolean()),
+  credentialsComplete: n(z.boolean()),
+  backgroundCheckComplete: n(z.boolean()),
 });
 
 // Get checklist for a provider
@@ -142,12 +144,6 @@ router.put(
 
       res.json({ success: true, data: checklist });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }

@@ -12,7 +12,7 @@ import rateLimit from 'express-rate-limit';
 export const caqhRoutes = Router();
 
 caqhRoutes.use(authenticate);
-caqhRoutes.use(authorize('admin', 'lanyard_admin', 'credentialing_staff'));
+caqhRoutes.use(authorize('admin', 'credentialing_staff'));
 caqhRoutes.use(requirePracticeProvider);
 
 const caqhService = new CaqhService();

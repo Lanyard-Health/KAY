@@ -14,7 +14,7 @@ import {
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'));
+router.use(authorize('admin', 'credentialing_staff', 'practice_admin'));
 
 // ==========================================
 // Zod schemas for query parameter validation

@@ -3,10 +3,11 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { z } from 'zod';
+import { nullablePartial } from '@credential-management/shared';
 
 export const followupTemplateRoutes = Router();
 followupTemplateRoutes.use(authenticate);
-followupTemplateRoutes.use(authorize('lanyard_admin'));
+followupTemplateRoutes.use(authorize('admin'));
 
 // ─── Zod Schemas ───────────────────────────────────────────
 
@@ -135,7 +136,7 @@ followupTemplateRoutes.patch(
   '/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = createTemplateSchema.partial().omit({ steps: true }).parse(req.body);
+      const body = nullablePartial(createTemplateSchema).omit({ steps: true }).parse(req.body);
 
       const updateData: Record<string, unknown> = { ...body };
       if (body.status === 'active') {
@@ -199,7 +200,7 @@ followupTemplateRoutes.patch(
   '/steps/:id',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = stepSchema.partial().parse(req.body);
+      const body = nullablePartial(stepSchema).parse(req.body);
       const data = await prisma.followUpTemplateStep.update({
         where: { id: req.params['id'] },
         data: body,

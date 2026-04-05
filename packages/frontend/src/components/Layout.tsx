@@ -93,7 +93,7 @@ const customerNavGroups: NavGroup[] = [
   },
 ];
 
-// Lanyard Admin nav group (lanyard_admin only)
+// Lanyard Admin nav group (admin only)
 const lanyardAdminNavGroup: NavGroup = {
   label: 'Lanyard Admin',
   items: [
@@ -179,7 +179,7 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
   const filteredGroups = filterNavGroups(customerNavGroups, role);
-  const baseGroups = role === 'lanyard_admin'
+  const baseGroups = role === 'admin'
     ? [...filteredGroups, lanyardAdminNavGroup]
     : filteredGroups;
 
@@ -219,7 +219,7 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
       </nav>
 
       {/* Settings link */}
-      {(role === 'admin' || role === 'lanyard_admin' || role === 'practice_admin' || role === 'credentialing_staff') && (
+      {(role === 'admin' || role === 'practice_admin' || role === 'credentialing_staff') && (
         <div className="-mx-2 mt-2">
           <Link
             to="/settings"

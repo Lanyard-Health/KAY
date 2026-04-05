@@ -16,7 +16,7 @@ const expirationService = new ExpirationService();
 // GET /api/v1/expirations - Get upcoming expirations
 expirationRoutes.get(
   '/',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { days, type, includeExpired } = parseQuery(req.query, expirationQuerySchema);
@@ -46,7 +46,7 @@ expirationRoutes.get(
 // GET /api/v1/expirations/dashboard - Get expiration dashboard data
 expirationRoutes.get(
   '/dashboard',
-  authorize('admin', 'lanyard_admin', 'credentialing_staff', 'practice_admin'),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       let scopedProviderIds: string[] | undefined;

@@ -30,8 +30,8 @@ const router = Router();
 
 const updateStepSchema = z.object({
   status: z.enum(['not_started', 'in_progress', 'completed', 'skipped', 'blocked']),
-  notes: z.string().max(2000).optional(),
-  skippedReason: z.string().max(500).optional(),
+  notes: z.union([z.string().max(2000), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  skippedReason: z.union([z.string().max(500), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
 
 const hydrateWorkflowSchema = z.object({

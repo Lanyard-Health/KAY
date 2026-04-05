@@ -28,14 +28,15 @@ const createPracticeSchema = z.object({
   taxId: z.string().max(20).optional(),
 });
 
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updatePracticeSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
-  phone: z.string().max(20).optional().or(z.literal('')),
-  email: z.string().email().optional().or(z.literal('')),
-  website: z.string().max(500).optional().or(z.literal('')),
-  notes: z.string().max(2000).optional(),
-  taxId: z.string().max(20).optional(),
+  name: n(z.string().min(1).max(200)),
+  status: n(z.enum(['ACTIVE', 'INACTIVE'])),
+  phone: z.union([z.string().max(20), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  email: z.union([z.string().email(), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  website: z.union([z.string().max(500), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
+  notes: n(z.string().max(2000)),
+  taxId: n(z.string().max(20)),
 });
 
 const assignUserSchema = z.object({
@@ -133,12 +134,6 @@ router.post(
 
       res.status(201).json({ success: true, data: maskPractice(practice) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -187,12 +182,6 @@ router.patch(
 
       res.json({ success: true, data: maskPractice(practice) });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
@@ -318,12 +307,6 @@ router.post(
 
       res.status(201).json({ success: true, data: assignment });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: { message: 'Validation failed', details: error.errors },
-        });
-      }
       next(error);
     }
   }
