@@ -3,16 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Must set env vars before module evaluates
 const mockSend = vi.hoisted(() => {
   process.env['SES_FROM_EMAIL'] = 'test@lanyard.com';
-  process.env['AWS_ACCESS_KEY_ID'] = 'test-key';
-  process.env['AWS_SECRET_ACCESS_KEY'] = 'test-secret';
-  process.env['AWS_SES_REGION'] = 'us-east-1';
+  process.env['RESEND_API_KEY'] = 're_test_123';
   return vi.fn();
 });
 
-vi.mock('@aws-sdk/client-ses', () => {
+vi.mock('resend', () => {
   return {
-    SESClient: function() { this.send = mockSend; },
-    SendRawEmailCommand: function(params: any) { this.params = params; },
+    Resend: function() {
+      this.emails = { send: mockSend };
+    },
   };
 });
 
@@ -41,10 +40,10 @@ describe('EmailService', () => {
   });
 
   describe('getConfig', () => {
-    it('returns SES config when configured', () => {
+    it('returns Resend config when configured', () => {
       const config = emailService.getConfig();
       expect(config).toEqual({
-        host: 'ses',
+        host: 'resend',
         port: 443,
         user: 'test@lanyard.com',
       });
@@ -59,8 +58,8 @@ describe('EmailService', () => {
   });
 
   describe('sendEmail', () => {
-    it('sends raw MIME via SES and logs notification on success', async () => {
-      mockSend.mockResolvedValue({ MessageId: 'msg-123' });
+    it('sends via Resend and logs notification on success', async () => {
+      mockSend.mockResolvedValue({ data: { id: 'msg-123' }, error: null });
 
       const result = await emailService.sendEmail({
         to: 'user@example.com',
@@ -70,6 +69,14 @@ describe('EmailService', () => {
 
       expect(result).toEqual({ success: true, messageId: 'msg-123' });
       expect(mockSend).toHaveBeenCalledOnce();
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'Lanyard Health <test@lanyard.com>',
+          to: 'user@example.com',
+          subject: 'Test Subject',
+          html: '<p>Hello</p>',
+        }),
+      );
       expect(prismaMock.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -80,8 +87,8 @@ describe('EmailService', () => {
       );
     });
 
-    it('logs failed notification on SES error', async () => {
-      mockSend.mockRejectedValue(new Error('SES rate limit'));
+    it('logs failed notification on Resend error response', async () => {
+      mockSend.mockResolvedValue({ data: null, error: { message: 'Rate limit exceeded' } });
 
       const result = await emailService.sendEmail({
         to: 'user@example.com',
@@ -89,33 +96,39 @@ describe('EmailService', () => {
         html: '<p>Test</p>',
       });
 
-      expect(result).toEqual({ success: false, error: 'SES rate limit' });
+      expect(result).toEqual({ success: false, error: 'Rate limit exceeded' });
       expect(prismaMock.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             status: 'failed',
-            errorMessage: 'SES rate limit',
+            errorMessage: 'Rate limit exceeded',
           }),
         }),
       );
     });
 
-    it('strips CRLF from to and subject headers (injection prevention)', async () => {
-      mockSend.mockResolvedValue({ MessageId: 'msg-456' });
+    it('logs failed notification on thrown error', async () => {
+      mockSend.mockRejectedValue(new Error('Network failure'));
 
-      await emailService.sendEmail({
-        to: "evil@test.com\r\nBcc: attacker@evil.com",
-        subject: "Normal\r\nBcc: attacker@evil.com",
-        html: '<p>Hello</p>',
+      const result = await emailService.sendEmail({
+        to: 'user@example.com',
+        subject: 'Test',
+        html: '<p>Test</p>',
       });
 
-      const sendCall = mockSend.mock.calls[0]![0];
-      const rawData = Buffer.from(sendCall.params.RawMessage.Data).toString();
-      expect(rawData).not.toContain('\r\nBcc:');
+      expect(result).toEqual({ success: false, error: 'Network failure' });
+      expect(prismaMock.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'failed',
+            errorMessage: 'Network failure',
+          }),
+        }),
+      );
     });
 
-    it('includes base64 attachments in MIME message', async () => {
-      mockSend.mockResolvedValue({ MessageId: 'msg-789' });
+    it('includes attachments in Resend payload', async () => {
+      mockSend.mockResolvedValue({ data: { id: 'msg-789' }, error: null });
 
       await emailService.sendEmail({
         to: 'user@example.com',
@@ -128,15 +141,20 @@ describe('EmailService', () => {
         }],
       });
 
-      const sendCall = mockSend.mock.calls[0]![0];
-      const rawData = Buffer.from(sendCall.params.RawMessage.Data).toString();
-      expect(rawData).toContain('Content-Disposition: attachment; filename="report.pdf"');
-      expect(rawData).toContain('Content-Transfer-Encoding: base64');
-      expect(rawData).toContain(Buffer.from('fake-pdf-content').toString('base64'));
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [
+            expect.objectContaining({
+              filename: 'report.pdf',
+              content: Buffer.from('fake-pdf-content'),
+            }),
+          ],
+        }),
+      );
     });
 
     it('generates plain text from HTML when text not provided', async () => {
-      mockSend.mockResolvedValue({ MessageId: 'msg-000' });
+      mockSend.mockResolvedValue({ data: { id: 'msg-000' }, error: null });
 
       await emailService.sendEmail({
         to: 'user@example.com',
@@ -144,24 +162,28 @@ describe('EmailService', () => {
         html: '<p>Hello <b>World</b></p>',
       });
 
-      const sendCall = mockSend.mock.calls[0]![0];
-      const rawData = Buffer.from(sendCall.params.RawMessage.Data).toString();
-      expect(rawData).toContain('Hello World');
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: 'Hello World',
+        }),
+      );
     });
   });
 
   describe('sendTestEmail', () => {
     it('delegates to sendEmail with test template', async () => {
-      mockSend.mockResolvedValue({ MessageId: 'test-msg' });
+      mockSend.mockResolvedValue({ data: { id: 'test-msg' }, error: null });
 
       const result = await emailService.sendTestEmail('test@example.com');
 
       expect(result.success).toBe(true);
       expect(mockSend).toHaveBeenCalledOnce();
-      const sendCall = mockSend.mock.calls[0]![0];
-      const rawData = Buffer.from(sendCall.params.RawMessage.Data).toString();
-      expect(rawData).toContain('Test Email Successful');
-      expect(rawData).toContain('test@example.com');
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'test@example.com',
+          html: expect.stringContaining('Test Email Successful'),
+        }),
+      );
     });
   });
 });
