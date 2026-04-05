@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getClient, sanitizeUserInput, checkTokenBudget } from './ai.service.js';
+import { searchSimilarWithSources } from './knowledgeBase.embedding.service.js';
 import { getPracticeProviderFilter, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import type { Request } from 'express';
 
@@ -10,7 +11,7 @@ const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 // Intent Classification
 // ===========================
 
-type Intent = 'enrollment_status' | 'provider_info' | 'expiring_credentials' | 'priority_tasks' | 'draft_email' | 'general';
+type Intent = 'enrollment_status' | 'provider_info' | 'expiring_credentials' | 'priority_tasks' | 'draft_email' | 'knowledge_base' | 'general';
 
 const INTENT_KEYWORDS: Record<Exclude<Intent, 'general'>, string[]> = {
   enrollment_status: ['overdue', 'status', 'enrollment', 'submitted', 'approved', 'denied', 'pending', 'in progress', 'terminated'],
@@ -18,6 +19,10 @@ const INTENT_KEYWORDS: Record<Exclude<Intent, 'general'>, string[]> = {
   expiring_credentials: ['expir', 'license', 'certif', 'credential', 'renewal', 'renew', 'expiration'],
   priority_tasks: ['priorit', 'today', 'urgent', 'should i', 'what next', 'what should', 'to do', 'action item', 'focus'],
   draft_email: ['email', 'draft', 'follow-up', 'follow up', 'write', 'compose', 'send'],
+  knowledge_base: ['requirement', 'require', 'rule', 'need', 'document needed', 'form', 'process',
+    'how to', 'how do', 'what is', 'what are', 'deadline', 'timeline', 'turnaround',
+    'timely filing', 'taxonomy', 'regulation', 'guide', 'credential requirement',
+    'payer requirement', 'enrollment requirement'],
 };
 
 function classifyIntent(message: string): Intent {
@@ -28,7 +33,15 @@ function classifyIntent(message: string): Intent {
     scores.set(intent, keywords.filter(kw => lower.includes(kw)).length);
   }
 
-  const best = [...scores.entries()].sort((a, b) => b[1] - a[1])[0];
+  const best = [...scores.entries()]
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      // Tie-break: knowledge_base loses to any other intent
+      if (a[0] === 'knowledge_base') return 1;
+      if (b[0] === 'knowledge_base') return -1;
+      return 0;
+    })[0];
+
   if (best && best[1] > 0) return best[0] as Intent;
   return 'general';
 }
@@ -291,6 +304,53 @@ async function fetchPriorityContext(req: Request) {
 }
 
 // ===========================
+// Knowledge Base Context
+// ===========================
+
+const KB_CONTEXT_CHAR_LIMIT = 8000; // ~2,000 tokens
+
+async function fetchKnowledgeBaseContext(userMessage: string) {
+  if (!process.env['OPENAI_API_KEY']) {
+    logger.warn('Knowledge base search unavailable — OPENAI_API_KEY not set');
+    return null;
+  }
+
+  try {
+    const results = await searchSimilarWithSources(userMessage, 5);
+    if (results.length === 0) return null;
+
+    let totalChars = 0;
+    const articles: { contentText: string; similarity: number; sourceType: string; source: Record<string, unknown> | null }[] = [];
+
+    for (const r of results) {
+      const sourceType = r.payerTrackId ? 'Payer Track'
+        : r.payerRequirementId ? 'Payer Requirement'
+        : r.payerStateRuleId ? 'State Rule'
+        : r.payerTimelineId ? 'Timeline'
+        : r.payerFormId ? 'Form'
+        : r.requirementUniversalId ? 'Universal Requirement'
+        : 'Unknown';
+
+      const entryChars = r.contentText.length + 200;
+      if (totalChars + entryChars > KB_CONTEXT_CHAR_LIMIT) break;
+      totalChars += entryChars;
+
+      articles.push({
+        contentText: r.contentText,
+        similarity: r.similarity,
+        sourceType,
+        source: r.source,
+      });
+    }
+
+    return articles;
+  } catch (err) {
+    logger.warn('Knowledge base search failed:', err);
+    return null;
+  }
+}
+
+// ===========================
 // Chat System Prompt
 // ===========================
 
@@ -386,6 +446,22 @@ export async function sendChatMessage({ userId, conversationId, message, req }: 
       contextData = await fetchEnrollmentContext(req);
       contextLabel = 'ENROLLMENT DATA (for email drafting)';
       break;
+    case 'knowledge_base': {
+      const kbResults = await fetchKnowledgeBaseContext(sanitized);
+      if (kbResults && kbResults.length > 0) {
+        contextData = kbResults;
+        contextLabel = 'RELEVANT KNOWLEDGE BASE RESULTS';
+        break;
+      }
+      // Fallback to general if no results
+      const [kbFallbackEnrollments, kbFallbackExpirations] = await Promise.all([
+        fetchEnrollmentContext(req),
+        fetchExpirationContext(req),
+      ]);
+      contextData = { enrollments: kbFallbackEnrollments.slice(0, 20), expirations: kbFallbackExpirations };
+      contextLabel = 'CREDENTIALING OVERVIEW';
+      break;
+    }
     case 'general': {
       const [enrollments, expirations] = await Promise.all([
         fetchEnrollmentContext(req),
@@ -412,13 +488,17 @@ export async function sendChatMessage({ userId, conversationId, message, req }: 
   }));
 
   // Build system prompt with context
+  const intentInstruction = intent === 'knowledge_base'
+    ? 'Use the following knowledge base results to answer the user\'s question about credentialing requirements, processes, or rules. If the results don\'t fully answer the question, say what you found and suggest where they might find more information. Do not make up requirements that aren\'t in the results.'
+    : `Detected intent: ${intent}. Use the data above to answer the user's question. If the data is insufficient, say what additional information you would need.`;
+
   const systemPrompt = `${CHAT_SYSTEM_PROMPT}
 
 --- ${contextLabel} ---
 ${JSON.stringify(contextData, null, 2)}
 --- END DATA ---
 
-Detected intent: ${intent}. Use the data above to answer the user's question. If the data is insufficient, say what additional information you would need.`;
+${intentInstruction}`;
 
   // Call Claude
   const anthropic = getClient();
