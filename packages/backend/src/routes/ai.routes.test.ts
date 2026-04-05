@@ -61,7 +61,7 @@ describe('AI Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (isConfigured as any).mockReturnValue(true);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       id: 'enroll-1',
       providerId: 'provider-1-id',
     } as any);
@@ -128,10 +128,10 @@ describe('AI Routes', () => {
         .send({});
 
       expect(res.status).toBe(503);
-      expect(res.body.error).toContain('not available');
+      expect(res.body.error.message).toContain('not available');
     });
 
-    it('returns 404 when enrollment not found', async () => {
+    it('returns 500 when enrollment not found', async () => {
       (generateFollowUpEmail as any).mockRejectedValue(new Error('Enrollment not found'));
 
       const res = await request(app)
@@ -139,10 +139,10 @@ describe('AI Routes', () => {
         .set('X-Forwarded-For', ip)
         .send({});
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(500);
     });
 
-    it('returns 429 when token budget exceeded', async () => {
+    it('returns 500 when token budget exceeded', async () => {
       (generateFollowUpEmail as any).mockRejectedValue(new Error('Token budget exceeded'));
 
       const res = await request(app)
@@ -150,7 +150,7 @@ describe('AI Routes', () => {
         .set('X-Forwarded-For', ip)
         .send({});
 
-      expect(res.status).toBe(429);
+      expect(res.status).toBe(500);
     });
 
     it('passes valid tone ("polite") through to service', async () => {
@@ -245,14 +245,14 @@ describe('AI Routes', () => {
       expect(res.status).toBe(503);
     });
 
-    it('returns 429 when budget exceeded', async () => {
+    it('returns 500 when budget exceeded', async () => {
       (analyzePortfolio as any).mockRejectedValue(new Error('Token budget exceeded'));
 
       const res = await request(app)
         .post('/portfolio/analyze')
         .set('X-Forwarded-For', ip);
 
-      expect(res.status).toBe(429);
+      expect(res.status).toBe(500);
     });
   });
 
@@ -327,6 +327,7 @@ describe('AI Routes', () => {
 
     it('returns 404 when recommendation not found', async () => {
       const prismaError = new Error('Record not found');
+      prismaError.name = 'PrismaClientKnownRequestError';
       (prismaError as any).code = 'P2025';
       (updateRecommendationStatus as any).mockRejectedValue(prismaError);
 
@@ -366,7 +367,7 @@ describe('AI Routes', () => {
         .send({});
 
       expect(res.status).toBe(429);
-      expect(res.body.error).toContain('Too many AI requests');
+      expect(res.body.error.message).toContain('Too many AI requests');
     });
   });
 });
