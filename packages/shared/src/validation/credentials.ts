@@ -275,19 +275,21 @@ export const createBankingSchema = z.object({
 });
 
 // Demographics validation (upsert — all fields optional)
+// Uses null→undefined transform because this serves both create and update paths.
+const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 export const upsertDemographicsSchema = z.object({
-  birthCity: z.string().max(100).optional(),
-  birthState: z.string().length(2).optional(),
-  birthCountry: z.string().max(100).optional(),
-  citizenshipStatus: citizenshipStatusSchema.optional(),
-  visaType: z.string().max(100).optional(),
-  visaExpirationDate: dateStringSchema.optional(),
+  birthCity: n(z.string().max(100)),
+  birthState: n(z.string().length(2)),
+  birthCountry: n(z.string().max(100)),
+  citizenshipStatus: n(citizenshipStatusSchema),
+  visaType: n(z.string().max(100)),
+  visaExpirationDate: n(dateStringSchema),
   previousNames: z.array(z.string().max(200)).default([]),
-  ethnicity: z.string().max(100).optional(),
-  race: z.string().max(100).optional(),
-  emergencyContactName: z.string().max(200).optional(),
-  emergencyContactPhone: z.string().max(20).optional(),
-  emergencyContactRelation: z.string().max(100).optional(),
+  ethnicity: n(z.string().max(100)),
+  race: n(z.string().max(100)),
+  emergencyContactName: n(z.string().max(200)),
+  emergencyContactPhone: n(z.string().max(20)),
+  emergencyContactRelation: n(z.string().max(100)),
 });
 
 // Export types
