@@ -2,6 +2,7 @@ import { Tab } from '@headlessui/react';
 import {
   UserCircleIcon,
   BuildingOffice2Icon,
+  ClipboardDocumentListIcon,
   UsersIcon,
   PuzzlePieceIcon,
   BellIcon,
@@ -14,10 +15,12 @@ import PracticeProfileTab from './PracticeProfileTab';
 import PermissionsTab from './PermissionsTab';
 import IntegrationsTab from './IntegrationsTab';
 import NotificationsTab from './NotificationsTab';
+import ClinicalProfileTab from './ClinicalProfileTab';
 
 const ALL_TABS = [
   { key: 'profile', label: 'User Profile', icon: UserCircleIcon, restrictedTo: null },
   { key: 'practice', label: 'Practice', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'practice_admin'] },
+  { key: 'clinical-profile', label: 'Clinical Profile', icon: ClipboardDocumentListIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'permissions', label: 'Permissions', icon: UsersIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'integrations', label: 'Integrations', icon: PuzzlePieceIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'notifications', label: 'Notifications', icon: BellIcon, restrictedTo: null },
@@ -66,6 +69,7 @@ export default function Settings() {
               <Tab.Panel key={tab.key}>
                 {tab.key === 'profile' && <UserProfileTab />}
                 {tab.key === 'practice' && <PracticeProfileTab />}
+                {tab.key === 'clinical-profile' && <ClinicalProfileTab />}
                 {tab.key === 'permissions' && <PermissionsTab />}
                 {tab.key === 'integrations' && <IntegrationsTab />}
                 {tab.key === 'notifications' && <NotificationsTab />}

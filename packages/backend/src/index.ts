@@ -68,6 +68,7 @@ import { workflowApprovalRoutes } from './routes/workflowApproval.routes.js';
 import { retellRoutes } from './routes/retell.routes.js';
 import { denialTriageRoutes } from './routes/denial-triage.routes.js';
 import { bugReportRoutes } from './routes/bug-report.routes.js';
+import clinicalProfileRoutes from './routes/clinicalProfile.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
@@ -143,7 +144,7 @@ if (process.env['NODE_ENV'] === 'production') {
 }
 
 // Body parsing and compression
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 
@@ -270,6 +271,7 @@ app.use('/api/v1/workflow-approvals', workflowApprovalRoutes);
 app.use('/api/v1/retell', retellRoutes);
 app.use('/api/v1/denials', denialTriageRoutes);
 app.use('/api/v1/bugs', bugReportRoutes);
+app.use('/api/v1/clinical-profile', clinicalProfileRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);

@@ -51,6 +51,7 @@ const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue
 const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'));
 const Settings = lazy(() => import('./features/settings/Settings'));
+const ClinicalProfileWizard = lazy(() => import('./features/clinical-profile/ClinicalProfileWizard'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -137,6 +138,7 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="onboarding/clinical-profile" element={<ClinicalProfileWizard />} />
           <Route path="command-center" element={<CommandCenter />} />
           <Route path="providers" element={<ProviderList />} />
           <Route path="providers/import" element={<ProviderImportPage />} />
