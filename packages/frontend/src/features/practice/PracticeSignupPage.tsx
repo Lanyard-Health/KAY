@@ -65,11 +65,11 @@ export default function PracticeSignupPage() {
       if (isDevMode) {
         localStorage.setItem('dev_session', 'practice_admin');
         await checkAuth();
-        navigate('/');
+        navigate('/onboarding/clinical-profile');
       } else {
         const { login } = useAuthStore.getState();
         await login(form.email, form.password);
-        navigate('/');
+        navigate('/onboarding/clinical-profile');
       }
     } catch {
       toast.error('Registration failed. Please try again.');
