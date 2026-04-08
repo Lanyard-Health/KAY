@@ -83,42 +83,42 @@ model User {
   approvalDecisions           PendingApproval[]        @relation("ApprovalDecider")
 
   // Audit trail back-references (createdBy / updatedBy)
-  providersCreated            ProviderProfile[]        @relation("ProviderCreatedBy")
-  providersUpdated            ProviderProfile[]        @relation("ProviderUpdatedBy")
-  practiceLocationsCreated    PracticeLocation[]       @relation("PracticeLocationCreatedBy")
-  practiceLocationsUpdated    PracticeLocation[]       @relation("PracticeLocationUpdatedBy")
-  licensesCreated             License[]                @relation("LicenseCreatedBy")
-  licensesUpdated             License[]                @relation("LicenseUpdatedBy")
-  boardCertsCreated           BoardCertification[]     @relation("BoardCertCreatedBy")
-  boardCertsUpdated           BoardCertification[]     @relation("BoardCertUpdatedBy")
-  malpracticeCreated          MalpracticeInsurance[]   @relation("MalpracticeCreatedBy")
-  malpracticeUpdated          MalpracticeInsurance[]   @relation("MalpracticeUpdatedBy")
-  educationsCreated           Education[]              @relation("EducationCreatedBy")
-  educationsUpdated           Education[]              @relation("EducationUpdatedBy")
-  workHistoriesCreated        WorkHistory[]            @relation("WorkHistoryCreatedBy")
-  workHistoriesUpdated        WorkHistory[]            @relation("WorkHistoryUpdatedBy")
-  hospitalAffiliationsCreated HospitalAffiliation[]    @relation("HospitalAffiliationCreatedBy")
-  hospitalAffiliationsUpdated HospitalAffiliation[]    @relation("HospitalAffiliationUpdatedBy")
-  profRefsCreated             ProfessionalReference[]  @relation("ProfRefCreatedBy")
-  profRefsUpdated             ProfessionalReference[]  @relation("ProfRefUpdatedBy")
-  disciplinaryCreated         DisciplinaryAction[]     @relation("DisciplinaryCreatedBy")
-  disciplinaryUpdated         DisciplinaryAction[]     @relation("DisciplinaryUpdatedBy")
-  contEdCreated               ContinuingEducation[]    @relation("ContEdCreatedBy")
-  contEdUpdated               ContinuingEducation[]    @relation("ContEdUpdatedBy")
-  supervisingPhysCreated      SupervisingPhysician[]   @relation("SupervisingPhysCreatedBy")
-  supervisingPhysUpdated      SupervisingPhysician[]   @relation("SupervisingPhysUpdatedBy")
-  malClaimsCreated            MalpracticeClaim[]       @relation("MalClaimCreatedBy")
-  malClaimsUpdated            MalpracticeClaim[]       @relation("MalClaimUpdatedBy")
-  disclosuresCreated          ProviderDisclosure[]     @relation("DisclosureCreatedBy")
-  disclosuresUpdated          ProviderDisclosure[]     @relation("DisclosureUpdatedBy")
-  deaRegsCreated              DeaRegistration[]        @relation("DeaRegCreatedBy")
-  deaRegsUpdated              DeaRegistration[]        @relation("DeaRegUpdatedBy")
-  providerIdsCreated          ProviderIdentifier[]     @relation("ProviderIdCreatedBy")
-  providerIdsUpdated          ProviderIdentifier[]     @relation("ProviderIdUpdatedBy")
-  bankingCreated              ProviderBanking[]        @relation("BankingCreatedBy")
-  bankingUpdated              ProviderBanking[]        @relation("BankingUpdatedBy")
-  enrollmentsCreated          Enrollment[]             @relation("EnrollmentCreatedBy")
-  enrollmentsUpdated          Enrollment[]             @relation("EnrollmentUpdatedBy")
+  providersCreated            ProviderProfile[]       @relation("ProviderCreatedBy")
+  providersUpdated            ProviderProfile[]       @relation("ProviderUpdatedBy")
+  practiceLocationsCreated    PracticeLocation[]      @relation("PracticeLocationCreatedBy")
+  practiceLocationsUpdated    PracticeLocation[]      @relation("PracticeLocationUpdatedBy")
+  licensesCreated             License[]               @relation("LicenseCreatedBy")
+  licensesUpdated             License[]               @relation("LicenseUpdatedBy")
+  boardCertsCreated           BoardCertification[]    @relation("BoardCertCreatedBy")
+  boardCertsUpdated           BoardCertification[]    @relation("BoardCertUpdatedBy")
+  malpracticeCreated          MalpracticeInsurance[]  @relation("MalpracticeCreatedBy")
+  malpracticeUpdated          MalpracticeInsurance[]  @relation("MalpracticeUpdatedBy")
+  educationsCreated           Education[]             @relation("EducationCreatedBy")
+  educationsUpdated           Education[]             @relation("EducationUpdatedBy")
+  workHistoriesCreated        WorkHistory[]           @relation("WorkHistoryCreatedBy")
+  workHistoriesUpdated        WorkHistory[]           @relation("WorkHistoryUpdatedBy")
+  hospitalAffiliationsCreated HospitalAffiliation[]   @relation("HospitalAffiliationCreatedBy")
+  hospitalAffiliationsUpdated HospitalAffiliation[]   @relation("HospitalAffiliationUpdatedBy")
+  profRefsCreated             ProfessionalReference[] @relation("ProfRefCreatedBy")
+  profRefsUpdated             ProfessionalReference[] @relation("ProfRefUpdatedBy")
+  disciplinaryCreated         DisciplinaryAction[]    @relation("DisciplinaryCreatedBy")
+  disciplinaryUpdated         DisciplinaryAction[]    @relation("DisciplinaryUpdatedBy")
+  contEdCreated               ContinuingEducation[]   @relation("ContEdCreatedBy")
+  contEdUpdated               ContinuingEducation[]   @relation("ContEdUpdatedBy")
+  supervisingPhysCreated      SupervisingPhysician[]  @relation("SupervisingPhysCreatedBy")
+  supervisingPhysUpdated      SupervisingPhysician[]  @relation("SupervisingPhysUpdatedBy")
+  malClaimsCreated            MalpracticeClaim[]      @relation("MalClaimCreatedBy")
+  malClaimsUpdated            MalpracticeClaim[]      @relation("MalClaimUpdatedBy")
+  disclosuresCreated          ProviderDisclosure[]    @relation("DisclosureCreatedBy")
+  disclosuresUpdated          ProviderDisclosure[]    @relation("DisclosureUpdatedBy")
+  deaRegsCreated              DeaRegistration[]       @relation("DeaRegCreatedBy")
+  deaRegsUpdated              DeaRegistration[]       @relation("DeaRegUpdatedBy")
+  providerIdsCreated          ProviderIdentifier[]    @relation("ProviderIdCreatedBy")
+  providerIdsUpdated          ProviderIdentifier[]    @relation("ProviderIdUpdatedBy")
+  bankingCreated              ProviderBanking[]       @relation("BankingCreatedBy")
+  bankingUpdated              ProviderBanking[]       @relation("BankingUpdatedBy")
+  enrollmentsCreated          Enrollment[]            @relation("EnrollmentCreatedBy")
+  enrollmentsUpdated          Enrollment[]            @relation("EnrollmentUpdatedBy")
 
   @@map("users")
 }
@@ -147,17 +147,17 @@ model Practice {
   setupComplete     Boolean   @default(false) @map("setup_complete")
 
   // Intake context fields
-  accountId          String?   @map("account_id")
-  isEnterprise       Boolean   @default(false) @map("is_enterprise")
-  locationName       String?   @map("location_name")
-  isPrimaryLocation  Boolean   @default(true) @map("is_primary_location")
-  states             String[]  @default([])
-  targetPayerIds     String[]  @default([]) @map("target_payer_ids")
-  providerTypes      String[]  @default([]) @map("provider_types")
+  accountId         String?  @map("account_id")
+  isEnterprise      Boolean  @default(false) @map("is_enterprise")
+  locationName      String?  @map("location_name")
+  isPrimaryLocation Boolean  @default(true) @map("is_primary_location")
+  states            String[] @default([])
+  targetPayerIds    String[] @default([]) @map("target_payer_ids")
+  providerTypes     String[] @default([]) @map("provider_types")
 
-  organizationType   String?   @map("organization_type")
-  maxProviderSlots   Int?      @map("max_provider_slots")
-  maxUserSeats       Int?      @map("max_user_seats")
+  organizationType String? @map("organization_type")
+  maxProviderSlots Int?    @map("max_provider_slots")
+  maxUserSeats     Int?    @map("max_user_seats")
 
   users                UserPractice[]
   providers            ProviderProfile[]
@@ -165,6 +165,19 @@ model Practice {
   practiceLocations    PracticeLocation[]
   providerImports      ProviderImport[]
   subscription         Subscription?
+
+  // Clinical profile
+  organizationTypeId  String?           @map("organization_type_id")
+  organizationTypeRef OrganizationType? @relation(fields: [organizationTypeId], references: [id])
+
+  practiceSpecialties        PracticeSpecialty[]
+  practiceSubSpecialties     PracticeSubSpecialty[]
+  practiceServices           PracticeService[]
+  practiceAgeGroups          PracticeAgeGroup[]
+  practiceGenderIdentities   PracticeGenderIdentity[]
+  practiceSexualOrientations PracticeSexualOrientation[]
+  practiceSpecialPopulations PracticeSpecialPopulation[]
+  customServices             CustomService[]
 
   @@map("practices")
 }
@@ -331,10 +344,10 @@ model ProviderProfile {
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
   // Intake fields
-  targetPayers  String[]  @default([]) @map("target_payers")
-  targetStates  String[]  @default([]) @map("target_states")
-  entityType    String?   @map("entity_type")  // individual | group
-  careType      CareType? @map("care_type")
+  targetPayers String[]  @default([]) @map("target_payers")
+  targetStates String[]  @default([]) @map("target_states")
+  entityType   String?   @map("entity_type") // individual | group
+  careType     CareType? @map("care_type")
 
   // Status
   status ProviderStatus @default(pending)
@@ -384,6 +397,16 @@ model ProviderProfile {
   caqhMirror             ProviderCaqhMirror?
   agentWorkflows         AgentWorkflow[]
   practice               Practice?               @relation(fields: [practiceId], references: [id])
+
+  // Clinical profile
+  providerSpecialties        ProviderSpecialty[]
+  providerSubSpecialties     ProviderSubSpecialty[]
+  providerServices           ProviderService[]
+  providerAgeGroups          ProviderAgeGroup[]
+  providerGenderIdentities   ProviderGenderIdentity[]
+  providerSexualOrientations ProviderSexualOrientation[]
+  providerSpecialPopulations ProviderSpecialPopulation[]
+  customServices             CustomService[]
 
   @@unique([caqhProviderId], name: "unique_caqh_provider_id")
   @@index([status])
@@ -455,7 +478,7 @@ model PracticeLocation {
   // Business Info
   taxIdEncrypted String? @map("tax_id_encrypted") // Encrypted AES-256-GCM
   npi            String? // Location-specific NPI if different from provider
-  groupNpi String? @map("group_npi")
+  groupNpi       String? @map("group_npi")
 
   // Hours (JSON object with day: {open, close} format)
   officeHours Json? @map("office_hours")
@@ -1053,13 +1076,13 @@ model DeaRegistration {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  deaNumberEncrypted String        @map("dea_number_encrypted")
-  deaState       String?          @map("dea_state")
-  deaSchedules   String[]         @default([]) @map("dea_schedules") // e.g. ["II", "III", "IV", "V"]
-  issueDate      DateTime         @map("issue_date")
-  expirationDate DateTime         @map("expiration_date")
-  status         CredentialStatus @default(active)
-  notes          String?
+  deaNumberEncrypted String           @map("dea_number_encrypted")
+  deaState           String?          @map("dea_state")
+  deaSchedules       String[]         @default([]) @map("dea_schedules") // e.g. ["II", "III", "IV", "V"]
+  issueDate          DateTime         @map("issue_date")
+  expirationDate     DateTime         @map("expiration_date")
+  status             CredentialStatus @default(active)
+  notes              String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1108,18 +1131,18 @@ model ProviderBanking {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  bankName               String          @map("bank_name")
-  bankAccountType        BankAccountType @map("bank_account_type")
-  routingNumberEncrypted String          @map("routing_number_encrypted") // Encrypted
-  accountNumberEncrypted String          @map("account_number_encrypted") // Encrypted
-  accountNumberLast4     String          @map("account_number_last4") // For display
-  accountHolderName      String          @map("account_holder_name")
-  accountHolderTaxId     String?         @map("account_holder_tax_id") // Encrypted
-  eftAuthorizationDate   DateTime?       @map("eft_authorization_date")
-  w9OnFile               Boolean         @default(false) @map("w9_on_file")
-  voidedCheckOnFile      Boolean         @default(false) @map("voided_check_on_file")
-  isPrimary              Boolean         @default(false) @map("is_primary")
-  notes                  String?
+  bankName                    String          @map("bank_name")
+  bankAccountType             BankAccountType @map("bank_account_type")
+  routingNumberEncrypted      String          @map("routing_number_encrypted") // Encrypted
+  accountNumberEncrypted      String          @map("account_number_encrypted") // Encrypted
+  accountNumberLast4          String          @map("account_number_last4") // For display
+  accountHolderName           String          @map("account_holder_name")
+  accountHolderTaxIdEncrypted String?         @map("account_holder_tax_id_encrypted") // Encrypted AES-256-GCM
+  eftAuthorizationDate        DateTime?       @map("eft_authorization_date")
+  w9OnFile                    Boolean         @default(false) @map("w9_on_file")
+  voidedCheckOnFile           Boolean         @default(false) @map("voided_check_on_file")
+  isPrimary                   Boolean         @default(false) @map("is_primary")
+  notes                       String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1399,8 +1422,8 @@ model Enrollment {
   slaBreachedAt DateTime? @map("sla_breached_at")
 
   // PayerTrack + WorkflowTemplate linkage
-  payerTrackId        String?  @map("payer_track_id")
-  workflowTemplateId  String?  @map("workflow_template_id")
+  payerTrackId       String? @map("payer_track_id")
+  workflowTemplateId String? @map("workflow_template_id")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1772,22 +1795,22 @@ model Task {
 }
 
 model TerminationLetter {
-  id            String                  @id @default(uuid())
-  providerId    String                  @map("provider_id")
-  taskId        String                  @map("task_id")
-  payerName     String                  @map("payer_name")
-  payerEmail    String?                 @map("payer_email")
-  providerName  String                  @map("provider_name")
-  npi           String
-  groupNpi      String?                 @map("group_npi")
-  taxIdEncrypted String                 @map("tax_id_encrypted") // Encrypted AES-256-GCM
-  letterContent String                  @map("letter_content") @db.Text
-  status        TerminationLetterStatus @default(DRAFT)
-  reviewedById  String?                 @map("reviewed_by_id")
-  reviewedAt    DateTime?               @map("reviewed_at")
-  sentAt        DateTime?               @map("sent_at")
-  createdAt     DateTime                @default(now()) @map("created_at")
-  updatedAt     DateTime                @updatedAt @map("updated_at")
+  id             String                  @id @default(uuid())
+  providerId     String                  @map("provider_id")
+  taskId         String                  @map("task_id")
+  payerName      String                  @map("payer_name")
+  payerEmail     String?                 @map("payer_email")
+  providerName   String                  @map("provider_name")
+  npi            String
+  groupNpi       String?                 @map("group_npi")
+  taxIdEncrypted String                  @map("tax_id_encrypted") // Encrypted AES-256-GCM
+  letterContent  String                  @map("letter_content") @db.Text
+  status         TerminationLetterStatus @default(DRAFT)
+  reviewedById   String?                 @map("reviewed_by_id")
+  reviewedAt     DateTime?               @map("reviewed_at")
+  sentAt         DateTime?               @map("sent_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
 
   provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   task       Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -1867,8 +1890,8 @@ model EnrollmentWorkflowStep {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollment  Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  completedBy User?      @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
+  enrollment  Enrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  completedBy User?             @relation("WorkflowStepCompletedBy", fields: [completedById], references: [id])
   approvals   PendingApproval[]
 
   @@index([enrollmentId])
@@ -1941,6 +1964,23 @@ enum ApprovalStatus {
   approved
   denied
   expired
+}
+
+enum TaxonomySection {
+  INDIVIDUAL
+  NON_INDIVIDUAL
+}
+
+enum ServiceDomain {
+  BEHAVIORAL_HEALTH
+  WOMENS_HEALTH
+  PRIMARY_CARE
+}
+
+enum CustomServiceStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
 }
 
 model AgentWorkflow {
@@ -2046,10 +2086,10 @@ model AgentEvent {
 }
 
 model PendingApproval {
-  id         String        @id @default(uuid())
+  id String @id @default(uuid())
 
   // Agent workflow approval (original use case — now optional)
-  workflowId String?       @map("workflow_id")
+  workflowId String?        @map("workflow_id")
   workflow   AgentWorkflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   taskId     String?        @map("task_id")
   expiresAt  DateTime?      @map("expires_at")
@@ -2086,11 +2126,11 @@ model PayerSubmissionConfig {
   payerId String @unique @map("payer_id")
   payer   Payer  @relation(fields: [payerId], references: [id])
 
-  adapterType      String @map("adapter_type")
-  submissionMethod String @map("submission_method")
+  adapterType          String  @map("adapter_type")
+  submissionMethod     String  @map("submission_method")
   config               Json
-  credentialsEncrypted String?  @map("credentials_encrypted")
-  requiredFields       Json     @map("required_fields")
+  credentialsEncrypted String? @map("credentials_encrypted")
+  requiredFields       Json    @map("required_fields")
 
   isActive       Boolean   @default(true) @map("is_active")
   lastTestedAt   DateTime? @map("last_tested_at")
@@ -2160,21 +2200,21 @@ model Invoice {
 // ==========================================
 
 model ProviderCaqhMirror {
-  id                String          @id @default(cuid())
-  providerProfileId String          @unique @map("provider_profile_id")
-  providerProfile   ProviderProfile @relation(fields: [providerProfileId], references: [id], onDelete: Cascade)
-  rawJson           Json            @map("raw_json")
-  licenses          Json?
-  deaRegistrations  Json?           @map("dea_registrations")
-  education         Json?
-  workHistory       Json?           @map("work_history")
-  malpractice       Json?
-  hospitalAffiliations Json?        @map("hospital_affiliations")
-  boardCertifications  Json?        @map("board_certifications")
-  lastPulledAt      DateTime        @map("last_pulled_at")
-  syncStatus        String          @map("sync_status") // success | failed | pending
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
+  id                   String          @id @default(cuid())
+  providerProfileId    String          @unique @map("provider_profile_id")
+  providerProfile      ProviderProfile @relation(fields: [providerProfileId], references: [id], onDelete: Cascade)
+  rawJson              Json            @map("raw_json")
+  licenses             Json?
+  deaRegistrations     Json?           @map("dea_registrations")
+  education            Json?
+  workHistory          Json?           @map("work_history")
+  malpractice          Json?
+  hospitalAffiliations Json?           @map("hospital_affiliations")
+  boardCertifications  Json?           @map("board_certifications")
+  lastPulledAt         DateTime        @map("last_pulled_at")
+  syncStatus           String          @map("sync_status") // success | failed | pending
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
   @@map("provider_caqh_mirrors")
 }
@@ -2184,29 +2224,29 @@ model ProviderCaqhMirror {
 // ==========================================
 
 model PayerTrack {
-  id              String   @id @default(cuid())
-  payerName       String   @map("payer_name")
-  parentOrg       String?  @map("parent_org")
-  payerType       String   @map("payer_type") // Commercial | Government | Medicaid
-  stateRegion     String   @map("state_region") // "Nationwide" or specific state
-  track           String   // e.g. "Behavioral Health — Individual"
-  submissionMethod String  @map("submission_method") // caqh | portal | web_form | email_pdf | pecos | playwright | phone
-  enrollmentLink  String?  @map("enrollment_link")
-  portalUrl       String?  @map("portal_url")
-  productLines    String[] @default([]) @map("product_lines")
-  notes           String?
-  isActive        Boolean  @default(true) @map("is_active")
+  id               String   @id @default(cuid())
+  payerName        String   @map("payer_name")
+  parentOrg        String?  @map("parent_org")
+  payerType        String   @map("payer_type") // Commercial | Government | Medicaid
+  stateRegion      String   @map("state_region") // "Nationwide" or specific state
+  track            String // e.g. "Behavioral Health — Individual"
+  submissionMethod String   @map("submission_method") // caqh | portal | web_form | email_pdf | pecos | playwright | phone
+  enrollmentLink   String?  @map("enrollment_link")
+  portalUrl        String?  @map("portal_url")
+  productLines     String[] @default([]) @map("product_lines")
+  notes            String?
+  isActive         Boolean  @default(true) @map("is_active")
 
   // Relations
-  contacts           PayerContact[]
-  timelines          PayerTimeline[]
-  stateRules         PayerStateRule[]
-  forms              PayerForm[]
-  requirements       PayerRequirement[]
-  enrollments        Enrollment[]
-  workflowTemplates  WorkflowTemplate[]
-  followUpTemplates  FollowUpTemplate[]
-  embeddings         KnowledgeBaseEmbedding[]
+  contacts          PayerContact[]
+  timelines         PayerTimeline[]
+  stateRules        PayerStateRule[]
+  forms             PayerForm[]
+  requirements      PayerRequirement[]
+  enrollments       Enrollment[]
+  workflowTemplates WorkflowTemplate[]
+  followUpTemplates FollowUpTemplate[]
+  embeddings        KnowledgeBaseEmbedding[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2216,66 +2256,66 @@ model PayerTrack {
 }
 
 model PayerContact {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  contactType   String    @map("contact_type") // Credentialing | Provider Services | Status Check
-  phone         String?
-  email         String?
-  fax           String?
-  portalUrl     String?   @map("portal_url")
-  hours         String?
-  notes         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id           String     @id @default(cuid())
+  payerTrackId String     @map("payer_track_id")
+  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  contactType  String     @map("contact_type") // Credentialing | Provider Services | Status Check
+  phone        String?
+  email        String?
+  fax          String?
+  portalUrl    String?    @map("portal_url")
+  hours        String?
+  notes        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
 
   @@map("payer_contacts")
 }
 
 model PayerTimeline {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  processType   String    @map("process_type") // Initial | Recredential | Contract Loading
-  minDays       Int?      @map("min_days")
-  maxDays       Int?      @map("max_days")
-  stateOverrides Json?    @map("state_overrides") // { "MD": 15, "OH": 15 }
-  notes         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id             String     @id @default(cuid())
+  payerTrackId   String     @map("payer_track_id")
+  payerTrack     PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  processType    String     @map("process_type") // Initial | Recredential | Contract Loading
+  minDays        Int?       @map("min_days")
+  maxDays        Int?       @map("max_days")
+  stateOverrides Json?      @map("state_overrides") // { "MD": 15, "OH": 15 }
+  notes          String?
+  createdAt      DateTime   @default(now()) @map("created_at")
 
-  embeddings    KnowledgeBaseEmbedding[]
+  embeddings KnowledgeBaseEmbedding[]
 
   @@map("payer_timelines")
 }
 
 model PayerStateRule {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  state         String
-  ruleType      String    @map("rule_type") // open_enrollment_window | alternate_application | insurance_minimum | caqh_override | network_alliance
-  description   String
-  effectiveDate DateTime? @map("effective_date")
-  expirationDate DateTime? @map("expiration_date")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id             String     @id @default(cuid())
+  payerTrackId   String     @map("payer_track_id")
+  payerTrack     PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  state          String
+  ruleType       String     @map("rule_type") // open_enrollment_window | alternate_application | insurance_minimum | caqh_override | network_alliance
+  description    String
+  effectiveDate  DateTime?  @map("effective_date")
+  expirationDate DateTime?  @map("expiration_date")
+  createdAt      DateTime   @default(now()) @map("created_at")
 
-  embeddings    KnowledgeBaseEmbedding[]
+  embeddings KnowledgeBaseEmbedding[]
 
   @@map("payer_state_rules")
 }
 
 model PayerForm {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  formName      String    @map("form_name")
-  format        String    // PDF | Online | Email
-  url           String?
-  destination   String?   // fax or email if not a URL
-  isRequired    Boolean   @default(true) @map("is_required")
-  notes         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id           String     @id @default(cuid())
+  payerTrackId String     @map("payer_track_id")
+  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  formName     String     @map("form_name")
+  format       String // PDF | Online | Email
+  url          String?
+  destination  String? // fax or email if not a URL
+  isRequired   Boolean    @default(true) @map("is_required")
+  notes        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
 
-  embeddings    KnowledgeBaseEmbedding[]
+  embeddings KnowledgeBaseEmbedding[]
 
   @@map("payer_forms")
 }
@@ -2289,26 +2329,26 @@ model RequirementUniversal {
   standardMinimum String? @map("standard_minimum")
   notes           String?
 
-  embeddings      KnowledgeBaseEmbedding[]
+  embeddings KnowledgeBaseEmbedding[]
 
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@map("requirement_universals")
 }
 
 model PayerRequirement {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  name          String
-  overrideType  String    @map("override_type") // ADDITIONAL | STRICTER | ALTERNATE_PROCESS | EXCEPTION | STATE_MINIMUM
-  rule          String
-  appliesTo     String?   @map("applies_to")
-  isBlocking    Boolean   @map("is_blocking")
-  source        String?
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id           String     @id @default(cuid())
+  payerTrackId String     @map("payer_track_id")
+  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  name         String
+  overrideType String     @map("override_type") // ADDITIONAL | STRICTER | ALTERNATE_PROCESS | EXCEPTION | STATE_MINIMUM
+  rule         String
+  appliesTo    String?    @map("applies_to")
+  isBlocking   Boolean    @map("is_blocking")
+  source       String?
+  createdAt    DateTime   @default(now()) @map("created_at")
 
-  embeddings    KnowledgeBaseEmbedding[]
+  embeddings KnowledgeBaseEmbedding[]
 
   @@map("payer_requirements")
 }
@@ -2318,28 +2358,28 @@ model PayerRequirement {
 // ==========================================
 
 model KnowledgeBaseEmbedding {
-  id                     String  @id @default(cuid())
+  id                     String                      @id @default(cuid())
   // Source — one of these will be set
-  payerTrackId           String? @map("payer_track_id")
-  payerRequirementId     String? @map("payer_requirement_id")
-  payerStateRuleId       String? @map("payer_state_rule_id")
-  payerTimelineId        String? @map("payer_timeline_id")
-  payerFormId            String? @map("payer_form_id")
-  requirementUniversalId String? @map("requirement_universal_id")
+  payerTrackId           String?                     @map("payer_track_id")
+  payerRequirementId     String?                     @map("payer_requirement_id")
+  payerStateRuleId       String?                     @map("payer_state_rule_id")
+  payerTimelineId        String?                     @map("payer_timeline_id")
+  payerFormId            String?                     @map("payer_form_id")
+  requirementUniversalId String?                     @map("requirement_universal_id")
   // Content
-  contentText            String  @map("content_text") // text that was embedded — stored for debugging
+  contentText            String                      @map("content_text") // text that was embedded — stored for debugging
   embedding              Unsupported("vector(1536)")
-  modelUsed              String  @map("model_used")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  modelUsed              String                      @map("model_used")
+  createdAt              DateTime                    @default(now()) @map("created_at")
+  updatedAt              DateTime                    @updatedAt @map("updated_at")
 
   // Relations
-  payerTrack             PayerTrack?           @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  payerRequirement       PayerRequirement?     @relation(fields: [payerRequirementId], references: [id], onDelete: Cascade)
-  payerStateRule         PayerStateRule?        @relation(fields: [payerStateRuleId], references: [id], onDelete: Cascade)
-  payerTimeline          PayerTimeline?         @relation(fields: [payerTimelineId], references: [id], onDelete: Cascade)
-  payerForm              PayerForm?             @relation(fields: [payerFormId], references: [id], onDelete: Cascade)
-  requirementUniversal   RequirementUniversal?  @relation(fields: [requirementUniversalId], references: [id], onDelete: Cascade)
+  payerTrack           PayerTrack?           @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  payerRequirement     PayerRequirement?     @relation(fields: [payerRequirementId], references: [id], onDelete: Cascade)
+  payerStateRule       PayerStateRule?       @relation(fields: [payerStateRuleId], references: [id], onDelete: Cascade)
+  payerTimeline        PayerTimeline?        @relation(fields: [payerTimelineId], references: [id], onDelete: Cascade)
+  payerForm            PayerForm?            @relation(fields: [payerFormId], references: [id], onDelete: Cascade)
+  requirementUniversal RequirementUniversal? @relation(fields: [requirementUniversalId], references: [id], onDelete: Cascade)
 
   @@index([payerTrackId])
   @@index([payerRequirementId])
@@ -2351,54 +2391,54 @@ model KnowledgeBaseEmbedding {
 // ==========================================
 
 model WorkflowTemplate {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id])
-  name          String
-  version       Int       @default(1)
-  status        String    // draft | active | archived
-  description   String?
-  createdBy     String    @map("created_by") // User ID — must be admin
-  publishedAt   DateTime? @map("published_at")
+  id           String     @id @default(cuid())
+  payerTrackId String     @map("payer_track_id")
+  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id])
+  name         String
+  version      Int        @default(1)
+  status       String // draft | active | archived
+  description  String?
+  createdBy    String     @map("created_by") // User ID — must be admin
+  publishedAt  DateTime?  @map("published_at")
 
-  steps         WorkflowTemplateStep[]
-  conditions    WorkflowTemplateCondition[]
-  enrollments   Enrollment[]
+  steps       WorkflowTemplateStep[]
+  conditions  WorkflowTemplateCondition[]
+  enrollments Enrollment[]
 
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("workflow_templates")
 }
 
 model WorkflowTemplateStep {
-  id                   String            @id @default(cuid())
-  templateId           String            @map("template_id")
-  template             WorkflowTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  stepOrder            Int               @map("step_order")
+  id                   String           @id @default(cuid())
+  templateId           String           @map("template_id")
+  template             WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stepOrder            Int              @map("step_order")
   name                 String
   description          String?
-  stepType             String            @map("step_type") // readiness_check | caqh_authorization | populate_template | human_review | submit_application | confirm_submission | follow_up | escalate | await_decision | record_outcome
-  owner                String            // credentialing_staff | provider | payer
-  requiredDocuments    String[]          @default([]) @map("required_documents")
-  triggerDaysAfterPrev Int?              @map("trigger_days_after_prev")
-  isBlocking           Boolean           @default(true) @map("is_blocking")
-  reviewerInstructions String?           @map("reviewer_instructions")
-  createdAt            DateTime          @default(now()) @map("created_at")
+  stepType             String           @map("step_type") // readiness_check | caqh_authorization | populate_template | human_review | submit_application | confirm_submission | follow_up | escalate | await_decision | record_outcome
+  owner                String // credentialing_staff | provider | payer
+  requiredDocuments    String[]         @default([]) @map("required_documents")
+  triggerDaysAfterPrev Int?             @map("trigger_days_after_prev")
+  isBlocking           Boolean          @default(true) @map("is_blocking")
+  reviewerInstructions String?          @map("reviewer_instructions")
+  createdAt            DateTime         @default(now()) @map("created_at")
 
   @@map("workflow_template_steps")
 }
 
 model WorkflowTemplateCondition {
-  id              String            @id @default(cuid())
-  templateId      String            @map("template_id")
-  template        WorkflowTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  conditionType   String            @map("condition_type") // state | provider_type | has_dea | has_hospital_privileges
-  conditionValue  String            @map("condition_value")
-  action          String            // add_step | skip_step | modify_step
-  targetStepOrder Int?              @map("target_step_order")
-  stepDefinition  Json?             @map("step_definition")
-  createdAt       DateTime          @default(now()) @map("created_at")
+  id              String           @id @default(cuid())
+  templateId      String           @map("template_id")
+  template        WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  conditionType   String           @map("condition_type") // state | provider_type | has_dea | has_hospital_privileges
+  conditionValue  String           @map("condition_value")
+  action          String // add_step | skip_step | modify_step
+  targetStepOrder Int?             @map("target_step_order")
+  stepDefinition  Json?            @map("step_definition")
+  createdAt       DateTime         @default(now()) @map("created_at")
 
   @@map("workflow_template_conditions")
 }
@@ -2408,43 +2448,43 @@ model WorkflowTemplateCondition {
 // ==========================================
 
 model FollowUpTemplate {
-  id            String    @id @default(cuid())
-  payerTrackId  String    @map("payer_track_id")
-  payerTrack    PayerTrack @relation(fields: [payerTrackId], references: [id])
-  name          String
-  version       Int       @default(1)
-  status        String    // draft | active | archived
-  description   String?
-  createdBy     String    @map("created_by") // User ID — must be admin
-  publishedAt   DateTime? @map("published_at")
+  id           String     @id @default(cuid())
+  payerTrackId String     @map("payer_track_id")
+  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id])
+  name         String
+  version      Int        @default(1)
+  status       String // draft | active | archived
+  description  String?
+  createdBy    String     @map("created_by") // User ID — must be admin
+  publishedAt  DateTime?  @map("published_at")
 
-  steps         FollowUpTemplateStep[]
-  runs          FollowUpRun[]
+  steps FollowUpTemplateStep[]
+  runs  FollowUpRun[]
 
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("follow_up_templates")
 }
 
 model FollowUpTemplateStep {
-  id                   String            @id @default(cuid())
-  templateId           String            @map("template_id")
-  template             FollowUpTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  stepOrder            Int               @map("step_order")
+  id                   String           @id @default(cuid())
+  templateId           String           @map("template_id")
+  template             FollowUpTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stepOrder            Int              @map("step_order")
   name                 String
-  channel              String            // email | phone_call
-  triggerDaysAfterPrev Int               @map("trigger_days_after_prev")
-  escalationLevel      Int               @default(1) @map("escalation_level")
+  channel              String // email | phone_call
+  triggerDaysAfterPrev Int              @map("trigger_days_after_prev")
+  escalationLevel      Int              @default(1) @map("escalation_level")
   // Email (SES)
-  emailSubject         String?           @map("email_subject")
-  emailBodyTemplate    String?           @map("email_body_template")
-  emailTone            String?           @map("email_tone") // professional | urgent | escalated
+  emailSubject         String?          @map("email_subject")
+  emailBodyTemplate    String?          @map("email_body_template")
+  emailTone            String?          @map("email_tone") // professional | urgent | escalated
   // Phone call (Retell AI)
-  retellScriptTemplate String?           @map("retell_script_template")
-  retellAgentId        String?           @map("retell_agent_id")
-  requiresApproval     Boolean           @default(true) @map("requires_approval")
-  createdAt            DateTime          @default(now()) @map("created_at")
+  retellScriptTemplate String?          @map("retell_script_template")
+  retellAgentId        String?          @map("retell_agent_id")
+  requiresApproval     Boolean          @default(true) @map("requires_approval")
+  createdAt            DateTime         @default(now()) @map("created_at")
 
   @@map("follow_up_template_steps")
 }
@@ -2454,40 +2494,40 @@ model FollowUpTemplateStep {
 // ==========================================
 
 model FollowUpRun {
-  id                String            @id @default(cuid())
-  enrollmentId      String            @map("enrollment_id")
-  enrollment        Enrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  templateId        String            @map("template_id")
-  template          FollowUpTemplate  @relation(fields: [templateId], references: [id])
-  status            String            // active | paused | completed | cancelled
-  currentStepOrder  Int               @default(1) @map("current_step_order")
-  startedAt         DateTime          @default(now()) @map("started_at")
-  completedAt       DateTime?         @map("completed_at")
-  lastExecutedAt    DateTime?         @map("last_executed_at")
+  id               String           @id @default(cuid())
+  enrollmentId     String           @map("enrollment_id")
+  enrollment       Enrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  templateId       String           @map("template_id")
+  template         FollowUpTemplate @relation(fields: [templateId], references: [id])
+  status           String // active | paused | completed | cancelled
+  currentStepOrder Int              @default(1) @map("current_step_order")
+  startedAt        DateTime         @default(now()) @map("started_at")
+  completedAt      DateTime?        @map("completed_at")
+  lastExecutedAt   DateTime?        @map("last_executed_at")
 
-  callLogs          RetellCallLog[]
-  approvals         PendingApproval[]
+  callLogs  RetellCallLog[]
+  approvals PendingApproval[]
 
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status])
   @@map("follow_up_runs")
 }
 
 model RetellCallLog {
-  id                String        @id @default(cuid())
-  followUpRunId     String        @map("follow_up_run_id")
-  followUpRun       FollowUpRun   @relation(fields: [followUpRunId], references: [id], onDelete: Cascade)
-  retellCallId      String        @map("retell_call_id")
-  payerContactId    String?       @map("payer_contact_id")
-  phoneNumber       String        @map("phone_number")
-  status            String        // completed | failed | no_answer | voicemail
-  outcome           String?
-  transcript        String?
-  durationSeconds   Int?          @map("duration_seconds")
-  calledAt          DateTime      @map("called_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
+  id              String      @id @default(cuid())
+  followUpRunId   String      @map("follow_up_run_id")
+  followUpRun     FollowUpRun @relation(fields: [followUpRunId], references: [id], onDelete: Cascade)
+  retellCallId    String      @map("retell_call_id")
+  payerContactId  String?     @map("payer_contact_id")
+  phoneNumber     String      @map("phone_number")
+  status          String // completed | failed | no_answer | voicemail
+  outcome         String?
+  transcript      String?
+  durationSeconds Int?        @map("duration_seconds")
+  calledAt        DateTime    @map("called_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
 
   @@map("retell_call_logs")
 }
@@ -2507,7 +2547,7 @@ model DenialTriage {
   appealDeadline    DateTime?  @map("appeal_deadline")
   recommendedAction String?    @map("recommended_action") // appeal | reapply | abandon | needs_review
   recommendedSteps  Json?      @map("recommended_steps")
-  status            String     // pending | reviewed | actioned
+  status            String // pending | reviewed | actioned
   reviewedBy        String     @map("reviewed_by")
   reviewedAt        DateTime?  @map("reviewed_at")
   reviewNotes       String?    @map("review_notes")
@@ -2518,4 +2558,362 @@ model DenialTriage {
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
   @@map("denial_triages")
+}
+
+// ==========================================
+// CLINICAL PROFILE
+// ==========================================
+
+model OrganizationType {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  practices Practice[]
+
+  @@map("organization_types")
+}
+
+model Specialty {
+  id              String          @id @default(uuid())
+  name            String
+  taxonomySection TaxonomySection @map("taxonomy_section")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  subSpecialties      SubSpecialty[]
+  practiceSpecialties PracticeSpecialty[]
+  providerSpecialties ProviderSpecialty[]
+
+  @@unique([name, taxonomySection])
+  @@map("specialties")
+}
+
+model SubSpecialty {
+  id          String   @id @default(uuid())
+  name        String
+  specialtyId String   @map("specialty_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  specialty              Specialty              @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  practiceSubSpecialties PracticeSubSpecialty[]
+  providerSubSpecialties ProviderSubSpecialty[]
+
+  @@unique([name, specialtyId])
+  @@map("sub_specialties")
+}
+
+model ServiceCategory {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String
+  domain    ServiceDomain
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  serviceOfferings ServiceOffering[]
+
+  @@unique([name, domain])
+  @@unique([slug, domain])
+  @@map("service_categories")
+}
+
+model ServiceOffering {
+  id                String   @id @default(uuid())
+  name              String
+  slug              String
+  description       String?
+  cptCodes          String[] @default([]) @map("cpt_codes")
+  serviceCategoryId String   @map("service_category_id")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  serviceCategory  ServiceCategory   @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+  practiceServices PracticeService[]
+  providerServices ProviderService[]
+
+  @@unique([name, serviceCategoryId])
+  @@map("service_offerings")
+}
+
+model PatientAgeGroup {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  slug          String   @unique
+  ageRangeStart Int      @map("age_range_start")
+  ageRangeEnd   Int?     @map("age_range_end")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  practiceAgeGroups PracticeAgeGroup[]
+  providerAgeGroups ProviderAgeGroup[]
+
+  @@map("patient_age_groups")
+}
+
+model PatientGenderIdentity {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  slug                String   @unique
+  isConvenienceToggle Boolean  @default(false) @map("is_convenience_toggle")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  practiceGenderIdentities PracticeGenderIdentity[]
+  providerGenderIdentities ProviderGenderIdentity[]
+
+  @@map("patient_gender_identities")
+}
+
+model PatientSexualOrientation {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  slug                String   @unique
+  isConvenienceToggle Boolean  @default(false) @map("is_convenience_toggle")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  practiceSexualOrientations PracticeSexualOrientation[]
+  providerSexualOrientations ProviderSexualOrientation[]
+
+  @@map("patient_sexual_orientations")
+}
+
+model SpecialPopulation {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  practiceSpecialPopulations PracticeSpecialPopulation[]
+  providerSpecialPopulations ProviderSpecialPopulation[]
+
+  @@map("special_populations")
+}
+
+model CustomService {
+  id         String              @id @default(uuid())
+  name       String
+  practiceId String?             @map("practice_id")
+  providerId String?             @map("provider_id")
+  status     CustomServiceStatus @default(PENDING_REVIEW)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  practice Practice?        @relation(fields: [practiceId], references: [id], onDelete: SetNull)
+  provider ProviderProfile? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+
+  @@map("custom_services")
+}
+
+// ==========================================
+// PRACTICE CLINICAL PROFILE JOIN TABLES
+// ==========================================
+
+model PracticeSpecialty {
+  id          String   @id @default(uuid())
+  practiceId  String   @map("practice_id")
+  specialtyId String   @map("specialty_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  practice  Practice  @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, specialtyId])
+  @@index([practiceId])
+  @@map("practice_specialties")
+}
+
+model PracticeSubSpecialty {
+  id             String   @id @default(uuid())
+  practiceId     String   @map("practice_id")
+  subSpecialtyId String   @map("sub_specialty_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  practice     Practice     @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  subSpecialty SubSpecialty @relation(fields: [subSpecialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, subSpecialtyId])
+  @@index([practiceId])
+  @@map("practice_sub_specialties")
+}
+
+model PracticeService {
+  id                String   @id @default(uuid())
+  practiceId        String   @map("practice_id")
+  serviceOfferingId String   @map("service_offering_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  practice        Practice        @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, serviceOfferingId])
+  @@index([practiceId])
+  @@map("practice_services")
+}
+
+model PracticeAgeGroup {
+  id                String   @id @default(uuid())
+  practiceId        String   @map("practice_id")
+  patientAgeGroupId String   @map("patient_age_group_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  practice        Practice        @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  patientAgeGroup PatientAgeGroup @relation(fields: [patientAgeGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, patientAgeGroupId])
+  @@index([practiceId])
+  @@map("practice_age_groups")
+}
+
+model PracticeGenderIdentity {
+  id                      String   @id @default(uuid())
+  practiceId              String   @map("practice_id")
+  patientGenderIdentityId String   @map("patient_gender_identity_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  practice              Practice              @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  patientGenderIdentity PatientGenderIdentity @relation(fields: [patientGenderIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, patientGenderIdentityId])
+  @@index([practiceId])
+  @@map("practice_gender_identities")
+}
+
+model PracticeSexualOrientation {
+  id                         String   @id @default(uuid())
+  practiceId                 String   @map("practice_id")
+  patientSexualOrientationId String   @map("patient_sexual_orientation_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+
+  practice                 Practice                 @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  patientSexualOrientation PatientSexualOrientation @relation(fields: [patientSexualOrientationId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, patientSexualOrientationId])
+  @@index([practiceId])
+  @@map("practice_sexual_orientations")
+}
+
+model PracticeSpecialPopulation {
+  id                  String   @id @default(uuid())
+  practiceId          String   @map("practice_id")
+  specialPopulationId String   @map("special_population_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  practice          Practice          @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  specialPopulation SpecialPopulation @relation(fields: [specialPopulationId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, specialPopulationId])
+  @@index([practiceId])
+  @@map("practice_special_populations")
+}
+
+// ==========================================
+// PROVIDER CLINICAL PROFILE JOIN TABLES
+// ==========================================
+
+model ProviderSpecialty {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  specialtyId String   @map("specialty_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  specialty Specialty       @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, specialtyId])
+  @@index([providerId])
+  @@map("provider_specialties")
+}
+
+model ProviderSubSpecialty {
+  id             String   @id @default(uuid())
+  providerId     String   @map("provider_id")
+  subSpecialtyId String   @map("sub_specialty_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  provider     ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  subSpecialty SubSpecialty    @relation(fields: [subSpecialtyId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, subSpecialtyId])
+  @@index([providerId])
+  @@map("provider_sub_specialties")
+}
+
+model ProviderService {
+  id                String   @id @default(uuid())
+  providerId        String   @map("provider_id")
+  serviceOfferingId String   @map("service_offering_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  serviceOffering ServiceOffering @relation(fields: [serviceOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, serviceOfferingId])
+  @@index([providerId])
+  @@map("provider_services")
+}
+
+model ProviderAgeGroup {
+  id                String   @id @default(uuid())
+  providerId        String   @map("provider_id")
+  patientAgeGroupId String   @map("patient_age_group_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  patientAgeGroup PatientAgeGroup @relation(fields: [patientAgeGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, patientAgeGroupId])
+  @@index([providerId])
+  @@map("provider_age_groups")
+}
+
+model ProviderGenderIdentity {
+  id                      String   @id @default(uuid())
+  providerId              String   @map("provider_id")
+  patientGenderIdentityId String   @map("patient_gender_identity_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  provider              ProviderProfile       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  patientGenderIdentity PatientGenderIdentity @relation(fields: [patientGenderIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, patientGenderIdentityId])
+  @@index([providerId])
+  @@map("provider_gender_identities")
+}
+
+model ProviderSexualOrientation {
+  id                         String   @id @default(uuid())
+  providerId                 String   @map("provider_id")
+  patientSexualOrientationId String   @map("patient_sexual_orientation_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+
+  provider                 ProviderProfile          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  patientSexualOrientation PatientSexualOrientation @relation(fields: [patientSexualOrientationId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, patientSexualOrientationId])
+  @@index([providerId])
+  @@map("provider_sexual_orientations")
+}
+
+model ProviderSpecialPopulation {
+  id                  String   @id @default(uuid())
+  providerId          String   @map("provider_id")
+  specialPopulationId String   @map("special_population_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  provider          ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  specialPopulation SpecialPopulation @relation(fields: [specialPopulationId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, specialPopulationId])
+  @@index([providerId])
+  @@map("provider_special_populations")
 }
