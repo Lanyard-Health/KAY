@@ -530,7 +530,7 @@ payerEnrollmentDataRoutes.get(
       // Mask sensitive fields — decrypt then show only last 4 digits
       const masked = records.map((r) => {
         const routingPlain = decryptSafe(r.routingNumberEncrypted);
-        const taxIdPlain = r.accountHolderTaxId ? decryptSafe(r.accountHolderTaxId) : null;
+        const taxIdPlain = r.accountHolderTaxIdEncrypted ? decryptSafe(r.accountHolderTaxIdEncrypted) : null;
         return {
           ...r,
           routingNumberEncrypted: '****' + routingPlain.slice(-4),
@@ -565,7 +565,7 @@ payerEnrollmentDataRoutes.post(
           accountNumberEncrypted: encryptSafe(data.accountNumber),
           accountNumberLast4: data.accountNumber.slice(-4),
           accountHolderName: data.accountHolderName,
-          ...(data.accountHolderTaxId && { accountHolderTaxId: encryptSafe(data.accountHolderTaxId) }),
+          ...(data.accountHolderTaxId && { accountHolderTaxIdEncrypted: encryptSafe(data.accountHolderTaxId) }),
           ...(data.eftAuthorizationDate && { eftAuthorizationDate: new Date(data.eftAuthorizationDate) }),
           w9OnFile: data.w9OnFile ?? false,
           voidedCheckOnFile: data.voidedCheckOnFile ?? false,
@@ -577,7 +577,7 @@ payerEnrollmentDataRoutes.post(
 
       // Return masked response — decrypt first, then mask to last 4
       const routingPlain = decryptSafe(record.routingNumberEncrypted);
-      const taxIdPlain = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
+      const taxIdPlain = record.accountHolderTaxIdEncrypted ? decryptSafe(record.accountHolderTaxIdEncrypted) : null;
       res.status(201).json({
         success: true,
         data: {
@@ -616,7 +616,7 @@ payerEnrollmentDataRoutes.put(
         updateData['accountNumberLast4'] = data.accountNumber.slice(-4);
       }
       if (data.accountHolderName) updateData['accountHolderName'] = data.accountHolderName;
-      if (data.accountHolderTaxId) updateData['accountHolderTaxId'] = encryptSafe(data.accountHolderTaxId);
+      if (data.accountHolderTaxId) updateData['accountHolderTaxIdEncrypted'] = encryptSafe(data.accountHolderTaxId);
       if (data.eftAuthorizationDate) updateData['eftAuthorizationDate'] = new Date(data.eftAuthorizationDate);
       if (data.w9OnFile !== undefined) updateData['w9OnFile'] = data.w9OnFile;
       if (data.voidedCheckOnFile !== undefined) updateData['voidedCheckOnFile'] = data.voidedCheckOnFile;
@@ -629,7 +629,7 @@ payerEnrollmentDataRoutes.put(
       });
 
       const routingPlainUpd = decryptSafe(record.routingNumberEncrypted);
-      const taxIdPlainUpd = record.accountHolderTaxId ? decryptSafe(record.accountHolderTaxId) : null;
+      const taxIdPlainUpd = record.accountHolderTaxIdEncrypted ? decryptSafe(record.accountHolderTaxIdEncrypted) : null;
       res.json({
         success: true,
         data: {
