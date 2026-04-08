@@ -42,7 +42,7 @@ vi.mock('../../services/clinicalProfile.service.js', () => ({
 }));
 
 import { createTestApp } from '../../../tests/helpers/test-app.js';
-import { adminUser, providerUser } from '../../../tests/helpers/fixtures.js';
+import { adminUser, staffUser, providerUser } from '../../../tests/helpers/fixtures.js';
 import clinicalProfileRouter from '../clinicalProfile.routes.js';
 import * as clinicalProfileService from '../../services/clinicalProfile.service.js';
 
@@ -160,6 +160,18 @@ describe('clinicalProfile.routes', () => {
 
     it('should return 403 for provider role', async () => {
       const app = createTestApp(clinicalProfileRouter, providerUser);
+
+      const res = await request(app)
+        .post(`/practices/${validUuid}`)
+        .send(validPayload);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should return 403 for staff user accessing a practice not in their scope', async () => {
+      // staffUser gets practiceIds: [] from createTestApp (non-admin),
+      // so hasPracticeAccess returns false for any practiceId
+      const app = createTestApp(clinicalProfileRouter, staffUser);
 
       const res = await request(app)
         .post(`/practices/${validUuid}`)
