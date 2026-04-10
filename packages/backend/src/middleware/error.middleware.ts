@@ -103,6 +103,7 @@ export function errorHandler(
       InvalidParameterException: { status: 400, message: 'Invalid request parameters' },
     };
 
+    // eslint-disable-next-line security/detect-object-injection
     const mapped = cognitoStatusMap[awsCode];
     if (mapped) {
       res.status(mapped.status).json({

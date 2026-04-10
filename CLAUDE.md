@@ -159,6 +159,7 @@ packages/
 
 ### Structural Rules
 
+- **Read first, ask before changing.** Always read the relevant code before proposing changes. Present the plan and get explicit approval before modifying any files.
 - **One prompt = one task.** Never combine schema changes + service logic + UI work.
 - **"Do not touch any other files"** — respect every time. Never "improve" adjacent code unprompted.
 - **Verify at each gate.** Run migrate, seed, query, then move on.

@@ -203,16 +203,16 @@ describe('authenticate() — DEV_AUTH_BYPASS path', () => {
       // User not found by email
       prismaMock.user.findFirst.mockResolvedValue(null);
       // Provider record not found
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       // Provider created
-      prismaMock.provider.create.mockResolvedValue(mockProviderRecord as any);
+      prismaMock.providerProfile.create.mockResolvedValue(mockProviderRecord as any);
       // User created
       prismaMock.user.create.mockResolvedValue(fullDevProvider as any);
 
       req.headers = { authorization: 'Bearer dev-token', 'x-dev-role': 'provider' };
       await authenticate(req, res, next);
 
-      expect(prismaMock.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -243,9 +243,9 @@ describe('authenticate() — DEV_AUTH_BYPASS path', () => {
       // Found by cognitoId but without providerId
       prismaMock.user.findUnique.mockResolvedValue(userWithoutProvider as any);
       // Provider record not found
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       // Provider created
-      prismaMock.provider.create.mockResolvedValue(mockProviderRecord as any);
+      prismaMock.providerProfile.create.mockResolvedValue(mockProviderRecord as any);
       // User updated with link
       prismaMock.user.update.mockResolvedValue(fullDevProvider as any);
 
@@ -266,14 +266,14 @@ describe('authenticate() — DEV_AUTH_BYPASS path', () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
       prismaMock.user.findFirst.mockResolvedValue(null);
       // Provider found by NPI
-      prismaMock.provider.findUnique.mockResolvedValue(mockProviderRecord as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProviderRecord as any);
       // User created with existing provider
       prismaMock.user.create.mockResolvedValue(fullDevProvider as any);
 
       req.headers = { authorization: 'Bearer dev-token', 'x-dev-role': 'provider' };
       await authenticate(req, res, next);
 
-      expect(prismaMock.provider.create).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.create).not.toHaveBeenCalled();
       expect(prismaMock.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ providerId: 'linked-provider-id' }),

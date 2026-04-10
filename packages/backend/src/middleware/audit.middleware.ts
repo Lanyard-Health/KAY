@@ -141,20 +141,24 @@ function sanitizeAuditChanges(
 
     // Redact by key name
     if (SENSITIVE_KEYS.has(key) || SENSITIVE_KEYS.has(lowerKey)) {
+      // eslint-disable-next-line security/detect-object-injection
       sanitized[key] = '[REDACTED]';
       continue;
     }
 
     // Redact string values matching PII patterns
     if (typeof value === 'string' && PII_VALUE_PATTERNS.some((p) => p.test(value))) {
+      // eslint-disable-next-line security/detect-object-injection
       sanitized[key] = '[REDACTED]';
       continue;
     }
 
     // Recursively sanitize nested objects
     if (value && typeof value === 'object' && !Array.isArray(value)) {
+      // eslint-disable-next-line security/detect-object-injection
       sanitized[key] = sanitizeAuditChanges(value as Record<string, unknown>);
     } else {
+      // eslint-disable-next-line security/detect-object-injection
       sanitized[key] = value;
     }
   }
