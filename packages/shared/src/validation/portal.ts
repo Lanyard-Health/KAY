@@ -35,6 +35,14 @@ export const practiceSignupSchema = z.object({
   email: z.string().email('Invalid email format'),
   phone: phoneSchema,
   password: passwordSchema,
+  addressLine1: z.string().min(2, 'Address is required').max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(2, 'City is required').max(100),
+  state: z.string().length(2, 'Must be a 2-letter state abbreviation'),
+  zipCode: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code format'),
+  operatingStates: z.array(z.string().length(2)).min(1, 'At least one operating state is required'),
+  targetPayerIds: z.array(z.string().uuid('Invalid payer ID')).min(1, 'At least one target payer is required'),
+  isEnterprise: z.boolean().default(false),
 });
 
 export const selfServeSignupSchema = portalRegistrationSchema.extend({

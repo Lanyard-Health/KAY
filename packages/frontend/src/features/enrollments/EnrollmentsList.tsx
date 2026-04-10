@@ -5,6 +5,8 @@ import PageTransition from '../../components/ui/PageTransition';
 import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
+import { useAuthStore } from '../../stores/auth.store';
+import { usePractice } from '../../hooks/usePractices';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import {
   MagnifyingGlassIcon,
@@ -163,6 +165,11 @@ type ViewMode = 'table' | 'kanban';
 
 export default function EnrollmentsList() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const userPracticeId = user?.practices?.[0]?.practiceId;
+  const { data: userPractice } = usePractice(userPracticeId ?? '');
+  const targetPayerIds = userPractice?.targetPayerIds ?? [];
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [payerFilter, setPayerFilter] = useState('');
@@ -223,12 +230,21 @@ export default function EnrollmentsList() {
       .slice(0, 20);
   }, [providers, providerSearch]);
 
-  // Filter payers based on search
+  // Filter payers based on search, with practice target payers prioritized
   const filteredPayers = useMemo(() => {
-    if (!payerSearch.trim()) return payers.slice(0, 50);
-    const searchLower = payerSearch.toLowerCase();
-    return payers.filter((p) => p.name.toLowerCase().includes(searchLower)).slice(0, 50);
-  }, [payers, payerSearch]);
+    let list = payers;
+    if (payerSearch.trim()) {
+      const searchLower = payerSearch.toLowerCase();
+      list = payers.filter((p) => p.name.toLowerCase().includes(searchLower));
+    }
+    if (targetPayerIds.length > 0) {
+      const targetSet = new Set(targetPayerIds);
+      const preferred = list.filter((p) => targetSet.has(p.id));
+      const others = list.filter((p) => !targetSet.has(p.id));
+      return [...preferred, ...others].slice(0, 50);
+    }
+    return list.slice(0, 50);
+  }, [payers, payerSearch, targetPayerIds]);
 
   // Get unique payers from enrollments for the filter
   const enrolledPayers = useMemo(() => {
@@ -995,21 +1011,51 @@ export default function EnrollmentsList() {
                       <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
                         {filteredPayers.length > 0 ? (
                           <>
-                            {filteredPayers.map((payer) => (
-                              <button
-                                key={payer.id}
-                                type="button"
-                                onClick={() => {
-                                  setFormData({ ...formData, payerName: payer.name });
-                                  setPayerSearch('');
-                                  setShowPayerDropdown(false);
-                                }}
-                                className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                              >
-                                <div className="font-medium text-gray-900">{payer.name}</div>
-                                <div className="text-xs text-gray-500">{payer.payerType}</div>
-                              </button>
-                            ))}
+                            {(() => {
+                              const targetSet = new Set(targetPayerIds);
+                              const preferred = filteredPayers.filter((p) => targetSet.has(p.id));
+                              const others = filteredPayers.filter((p) => !targetSet.has(p.id));
+                              return (
+                                <>
+                                  {preferred.length > 0 && (
+                                    <div className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50">Your payers</div>
+                                  )}
+                                  {preferred.map((payer) => (
+                                    <button
+                                      key={payer.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({ ...formData, payerName: payer.name });
+                                        setPayerSearch('');
+                                        setShowPayerDropdown(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                                    >
+                                      <div className="font-medium text-gray-900">{payer.name}</div>
+                                      <div className="text-xs text-gray-500">{payer.payerType}</div>
+                                    </button>
+                                  ))}
+                                  {preferred.length > 0 && others.length > 0 && (
+                                    <div className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50 border-t border-gray-200">Other payers</div>
+                                  )}
+                                  {others.map((payer) => (
+                                    <button
+                                      key={payer.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setFormData({ ...formData, payerName: payer.name });
+                                        setPayerSearch('');
+                                        setShowPayerDropdown(false);
+                                      }}
+                                      className="w-full text-left px-4 py-2 hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                                    >
+                                      <div className="font-medium text-gray-900">{payer.name}</div>
+                                      <div className="text-xs text-gray-500">{payer.payerType}</div>
+                                    </button>
+                                  ))}
+                                </>
+                              );
+                            })()}
                             {payerSearch.trim() && !filteredPayers.some(p => p.name.toLowerCase() === payerSearch.trim().toLowerCase()) && (
                               <button
                                 type="button"

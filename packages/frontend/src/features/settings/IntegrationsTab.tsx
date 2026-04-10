@@ -68,8 +68,24 @@ export default function IntegrationsTab() {
     staleTime: 60 * 1000,
   });
 
+  // Fetch CAQH integration status
+  const { data: caqhStatus } = useQuery({
+    queryKey: ['caqh-config'],
+    queryFn: async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: { configured: boolean; lastSyncAt: string | null } }>('/caqh/config');
+        return response.data.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60 * 1000,
+  });
+
   const emailConfigured = emailStatus?.email?.configured ?? false;
   const emailUser = emailStatus?.email?.config?.user;
+  const caqhConfigured = caqhStatus?.configured ?? false;
+  const caqhLastSync = caqhStatus?.lastSyncAt;
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -83,8 +99,8 @@ export default function IntegrationsTab() {
           icon={<ServerStackIcon className="h-5 w-5" />}
           name="CAQH ProView"
           description="Automated credential verification and roster management"
-          configured={false}
-          details="Configure via CAQH_API_URL, CAQH_ORG_ID, CAQH_API_KEY"
+          configured={caqhConfigured}
+          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Configure via CAQH_API_URL, CAQH_ORG_ID, CAQH_API_KEY'}
         />
 
         <IntegrationCard
@@ -100,7 +116,7 @@ export default function IntegrationsTab() {
           name="Email (SES)"
           description="Automated email follow-ups and notifications"
           configured={emailConfigured}
-          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Configure via SES_FROM_EMAIL'}
+          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Configure via RESEND_FROM_EMAIL and RESEND_API_KEY'}
         />
 
         <IntegrationCard

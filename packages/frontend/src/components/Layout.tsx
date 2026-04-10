@@ -14,17 +14,16 @@ import {
   TableCellsIcon,
   SparklesIcon,
   ChartBarSquareIcon,
-  ViewColumnsIcon,
   UserPlusIcon,
   BuildingOffice2Icon,
   UserGroupIcon,
-  ArrowUpTrayIcon,
   BookOpenIcon,
   ExclamationTriangleIcon,
   Cog6ToothIcon,
   EnvelopeIcon,
   QueueListIcon,
   ShieldExclamationIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -52,12 +51,59 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Admin-only sidebar nav groups
+const adminNavGroups: NavGroup[] = [
+  {
+    label: 'Core',
+    items: [
+      { name: 'Dashboard', href: '/', icon: HomeIcon },
+      { name: 'Practices', href: '/practices', icon: BuildingOffice2Icon },
+      { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { name: 'Providers', href: '/providers', icon: UsersIcon },
+      { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
+      { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
+      { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
+      { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
+      { name: 'Follow-Up', href: '/follow-up', icon: EnvelopeIcon },
+      { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
+      { name: 'Expirations', href: '/expirations', icon: ClockIcon },
+      { name: 'Roster', href: '/roster', icon: TableCellsIcon },
+      { name: 'Provider Onboarding', href: '/provider-onboarding', icon: ClipboardDocumentCheckIcon },
+    ],
+  },
+  {
+    label: 'Knowledge Base',
+    items: [
+      { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: BookOpenIcon },
+      { name: 'KB Gaps', href: '/admin/knowledge-base/gaps', icon: ExclamationTriangleIcon },
+      { name: 'Workflow Templates', href: '/admin/workflow-templates', icon: Cog6ToothIcon },
+      { name: 'Follow-up Templates', href: '/admin/followup-templates', icon: EnvelopeIcon },
+    ],
+  },
+  {
+    label: 'Platform',
+    items: [
+      { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
+      { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
+      { name: 'Users', href: '/users', icon: UserGroupIcon },
+      { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
+      { name: 'Customer Communications', href: '/admin/communications', icon: ChatBubbleLeftRightIcon },
+      { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+    ],
+  },
+];
+
+// Non-admin sidebar nav groups (practice_admin, credentialing_staff)
 const customerNavGroups: NavGroup[] = [
   {
     label: 'Core',
     items: [
       { name: 'Dashboard', href: '/', icon: HomeIcon },
-      { name: 'Command Center', href: '/command-center', icon: ViewColumnsIcon },
       { name: 'Providers', href: '/providers', icon: UsersIcon },
       { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
     ],
@@ -66,64 +112,11 @@ const customerNavGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
-      { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
-      { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
-      { name: 'Follow-Up', href: '/follow-up', icon: EnvelopeIcon },
-      { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
-      { name: 'Roster', href: '/roster', icon: TableCellsIcon },
-      { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
-    ],
-  },
-  {
-    label: 'AI & Automation',
-    items: [
-      { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
-      { name: 'Practices', href: '/practices', icon: BuildingOffice2Icon },
-      { name: 'Users', href: '/users', icon: UserGroupIcon },
-      { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
-      { name: 'Onboarding', href: '/onboarding-progress', icon: ClipboardDocumentCheckIcon },
-      { name: 'Import Providers', href: '/providers/import', icon: ArrowUpTrayIcon },
+      { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
     ],
   },
 ];
-
-// Lanyard Admin nav group (admin only)
-const lanyardAdminNavGroup: NavGroup = {
-  label: 'Lanyard Admin',
-  items: [
-    { name: 'Knowledge Base', href: '/admin/knowledge-base', icon: BookOpenIcon },
-    { name: 'KB Gaps', href: '/admin/knowledge-base/gaps', icon: ExclamationTriangleIcon },
-    { name: 'Workflow Templates', href: '/admin/workflow-templates', icon: Cog6ToothIcon },
-    { name: 'Follow-up Templates', href: '/admin/followup-templates', icon: EnvelopeIcon },
-  ],
-};
-
-// Items hidden from practice_admin role
-const practiceAdminHidden = new Set([
-  'Practices', 'Users', 'AI Agent', 'Payer Intelligence',
-  'Pending Providers', 'Onboarding', 'Roster', 'Import Providers',
-]);
-
-// Items only visible to practice_admin role
-const practiceAdminOnly = new Set(['Import Providers']);
-
-function filterNavGroups(groups: NavGroup[], role: string | undefined): NavGroup[] {
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => {
-        if (role === 'practice_admin') return !practiceAdminHidden.has(item.name);
-        return !practiceAdminOnly.has(item.name);
-      }),
-    }))
-    .filter((group) => group.items.length > 0);
-}
 
 // ──────────────────────────────────────────────
 // Sidebar nav group component
@@ -133,7 +126,7 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
   const hasActive = group.items.some((item) => item.href === pathname || (item.href !== '/' && pathname.startsWith(item.href)));
 
   return (
-    <Disclosure as="div" defaultOpen={hasActive || group.label === 'Core' || group.label === 'Operations'}>
+    <Disclosure as="div" defaultOpen={hasActive || group.label === 'Core' || group.label === 'Operations' || group.label === 'Platform'}>
       {({ open }) => (
         <>
           <Disclosure.Button className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary-200/60 hover:text-primary-100/80 transition-colors">
@@ -178,10 +171,7 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
-  const filteredGroups = filterNavGroups(customerNavGroups, role);
-  const baseGroups = role === 'admin'
-    ? [...filteredGroups, lanyardAdminNavGroup]
-    : filteredGroups;
+  const baseGroups = role === 'admin' ? adminNavGroups : customerNavGroups;
 
   // Inject OCR review count badge into OCR Review nav item
   const activeGroups = baseGroups.map(group => ({
@@ -217,24 +207,6 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
           </li>
         </ul>
       </nav>
-
-      {/* Settings link */}
-      {(role === 'admin' || role === 'practice_admin' || role === 'credentialing_staff') && (
-        <div className="-mx-2 mt-2">
-          <Link
-            to="/settings"
-            className={clsx(
-              pathname === '/settings'
-                ? 'bg-white/[0.12] text-white backdrop-blur-sm border border-white/[0.08] shadow-sm shadow-black/5'
-                : 'text-primary-100/70 hover:text-white hover:bg-white/10 border border-transparent',
-              'group flex gap-x-3 rounded-xl p-2 text-sm leading-6 font-medium transition-all duration-200 hover:translate-x-0.5',
-            )}
-          >
-            <Cog6ToothIcon className="h-5 w-5 shrink-0" />
-            Settings
-          </Link>
-        </div>
-      )}
 
       {/* User info at bottom */}
       <div className="mt-auto pt-4 border-t border-white/[0.08] px-2">

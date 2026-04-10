@@ -9,6 +9,9 @@ import { setAuditContext } from '../middleware/audit.middleware.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
 import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
 import { invalidateCache } from '../utils/cache.js';
+import { z } from 'zod';
+import { CaqhService } from '../services/caqh.service.js';
+import { logger } from '../utils/logger.js';
 
 // Fields to NEVER return in API responses
 const SENSITIVE_FIELDS = ['ssnEncrypted', 'caqhPassword', 'caqhUsername'] as const;
@@ -168,13 +171,24 @@ providerRoutes.post(
     try {
       const validatedData = createProviderSchema.parse(req.body);
 
+      // groupNpi and taxId belong on PracticeLocation, not ProviderProfile.
+      // They are echoed in the response so the frontend can forward them
+      // to the POST /practice-locations/provider/:id call that follows.
+      const { groupNpi, taxId, ...providerData } = validatedData;
+
+      // Auto-set practiceId for practice_admin
+      const practiceId = req.user?.role === 'practice_admin'
+        ? req.practiceScope?.practiceIds[0]
+        : undefined;
+
       const provider = await prisma.providerProfile.create({
         data: {
-          ...validatedData,
-          dateOfBirth: new Date(validatedData.dateOfBirth),
-          specialties: validatedData.specialties || [],
-          languages: validatedData.languages || [],
+          ...providerData,
+          dateOfBirth: new Date(providerData.dateOfBirth),
+          specialties: providerData.specialties || [],
+          languages: providerData.languages || [],
           createdById: req.user?.id,
+          ...(practiceId && { practiceId }),
         },
       });
 
@@ -185,7 +199,10 @@ providerRoutes.post(
       });
 
       invalidateCache('dashboard');
-      res.status(201).json({ success: true, data: stripSensitiveFields(provider) });
+      const data: Record<string, unknown> = { ...stripSensitiveFields(provider) };
+      if (groupNpi) data['groupNpi'] = groupNpi;
+      if (taxId) data['taxId'] = taxId;
+      res.status(201).json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -264,6 +281,100 @@ providerRoutes.delete(
       invalidateCache('dashboard');
       res.json({ success: true, message: 'Provider deactivated' });
     } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/providers/:providerId/caqh-pull - Pull credentials from CAQH (practice_admin accessible)
+const caqhPullSchema = z.object({
+  caqhProviderId: z.string().optional(),
+  npi: z.string().optional(),
+}).refine((data) => data.caqhProviderId || data.npi, {
+  message: 'At least one of caqhProviderId or npi is required',
+});
+
+providerRoutes.post(
+  '/:providerId/caqh-pull',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  requireProviderAccess,
+  requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = caqhPullSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Validation failed', details: parsed.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message })) },
+        });
+      }
+
+      const providerId = req.params['providerId']!;
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+      });
+
+      if (!provider) {
+        throw new NotFoundError('Provider');
+      }
+
+      // Determine the CAQH provider ID to use
+      let caqhId = parsed.data.caqhProviderId || provider.caqhProviderId;
+
+      // If caqhProviderId was provided in the request, update the profile for future syncs
+      if (parsed.data.caqhProviderId && parsed.data.caqhProviderId !== provider.caqhProviderId) {
+        await prisma.providerProfile.update({
+          where: { id: providerId },
+          data: { caqhProviderId: parsed.data.caqhProviderId },
+        });
+        caqhId = parsed.data.caqhProviderId;
+      }
+
+      // Fall back to NPI if no CAQH provider ID
+      if (!caqhId && parsed.data.npi) {
+        caqhId = parsed.data.npi;
+      }
+
+      if (!caqhId) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Provider has no CAQH ID and none was provided' },
+        });
+      }
+
+      const caqhService = new CaqhService();
+      if (!caqhService.isConfigured()) {
+        return res.status(503).json({
+          success: false,
+          error: { message: 'CAQH integration is not configured' },
+        });
+      }
+
+      const result = await caqhService.syncProvider(providerId, caqhId);
+
+      // Fetch updated profile for response
+      const updatedProvider = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          npi: true,
+          caqhProviderId: true,
+          caqhLastSync: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          provider: updatedProvider,
+          syncId: result.syncId,
+          summary: result.changes,
+        },
+      });
+    } catch (error) {
+      logger.error('CAQH pull failed:', error);
       next(error);
     }
   }

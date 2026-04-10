@@ -1,4 +1,6 @@
 import { prisma } from '../utils/prisma.js';
+import { triggerAutomatedEmail } from './automatedEmail.service.js';
+import { logger } from '../utils/logger.js';
 import type { TaxonomySection } from '@prisma/client';
 
 // ── Reference data getters ──────────────────────────────────────────
@@ -83,7 +85,7 @@ interface ClinicalProfileInput {
 }
 
 export async function savePracticeClinicalProfile(practiceId: string, data: ClinicalProfileInput) {
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     // Update org type FK on Practice
     await tx.practice.update({
       where: { id: practiceId },
@@ -152,7 +154,17 @@ export async function savePracticeClinicalProfile(practiceId: string, data: Clin
         }
       }
     }
+
+    // Mark practice setup as complete
+    await tx.practice.update({
+      where: { id: practiceId },
+      data: { setupComplete: true },
+    });
   });
+
+  // Fire-and-forget: trigger profile-complete email
+  triggerAutomatedEmail('PROFILE_COMPLETE', practiceId)
+    .catch((err) => logger.error('Failed to trigger profile-complete email:', err));
 }
 
 export async function createCustomService(practiceId: string, name: string) {

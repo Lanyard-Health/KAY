@@ -37,7 +37,10 @@ const envSchema = z.object({
   GMAIL_REFRESH_TOKEN: z.string().optional(),
   GMAIL_SENDER_EMAIL: z.string().optional(),
 
-  // SES email
+  // Email (Resend)
+  RESEND_FROM_EMAIL: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  /** @deprecated Use RESEND_FROM_EMAIL instead */
   SES_FROM_EMAIL: z.string().optional(),
   ADMIN_EMAIL: z.string().optional(),
 

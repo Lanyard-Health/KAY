@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
-import { emailService } from './email.service.js';
+import { triggerAutomatedEmail } from './automatedEmail.service.js';
 import { logger } from '../utils/logger.js';
 import type { PracticeSignupInput } from '@credential-management/shared';
 
@@ -31,6 +31,14 @@ export async function registerPractice(data: PracticeSignupInput) {
           email: data.email,
           phone: data.phone,
           status: 'ACTIVE',
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode,
+          states: data.operatingStates,
+          targetPayerIds: data.targetPayerIds,
+          isEnterprise: data.isEnterprise ?? false,
         },
       });
 
@@ -53,38 +61,29 @@ export async function registerPractice(data: PracticeSignupInput) {
         },
       });
 
+      // Create default PracticeSettings
+      await tx.practiceSettings.create({
+        data: {
+          practiceId: practice.id,
+        },
+      });
+
+      // If enterprise, create EnterpriseQueue entry
+      if (data.isEnterprise) {
+        await tx.enterpriseQueue.create({
+          data: {
+            practiceId: practice.id,
+            status: 'PENDING',
+          },
+        });
+      }
+
       return { practice, user };
     });
 
-    // 5. Send welcome email (non-blocking)
-    if (emailService.isConfigured()) {
-      const appUrl = process.env['APP_URL'] || process.env['FRONTEND_URL'] || 'http://localhost:5190';
-      emailService.sendEmail({
-        to: data.email,
-        subject: 'Welcome to Lanyard Health',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #0A3D2E;">Welcome to Lanyard Health!</h2>
-            <p>Dear ${data.firstName},</p>
-            <p>Your practice <strong>${data.practiceName}</strong> has been registered successfully.</p>
-            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #0A3D2E;">Getting Started</h3>
-              <p>You can now log in and start managing your credentialing workflow.</p>
-              <p>
-                <a href="${appUrl}/login" style="background-color: #0A3D2E; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                  Log In to Lanyard Health
-                </a>
-              </p>
-            </div>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-            <p style="color: #6b7280; font-size: 12px;">
-              This is an automated notification from Lanyard Health. Please do not reply to this email.
-            </p>
-          </div>
-        `,
-        notificationType: 'application_approved',
-      }).catch((err: unknown) => logger.error('Failed to send welcome email:', err));
-    }
+    // 5. Send welcome email via template (non-blocking)
+    triggerAutomatedEmail('SIGNUP_COMPLETE', practice.id)
+      .catch((err: unknown) => logger.error('Failed to trigger welcome email:', err));
 
     return { userId: user.id, practiceId: practice.id, email: user.email };
   } catch (err) {

@@ -18,6 +18,8 @@ import {
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
+import { useAuthStore } from '../../stores/auth.store';
+import { usePractice } from '../../hooks/usePractices';
 
 interface NPILookupResult {
   found: boolean;
@@ -156,6 +158,11 @@ export default function ProviderForm() {
   const queryClient = useQueryClient();
   const isEditing = !!id;
 
+  // Fetch current user's practice for address pre-fill
+  const user = useAuthStore((s) => s.user);
+  const userPracticeId = user?.practices?.[0]?.practiceId;
+  const { data: userPractice } = usePractice(userPracticeId ?? '');
+
   const [currentStep, setCurrentStep] = useState(1);
   const [createdProviderId, setCreatedProviderId] = useState<string | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -237,10 +244,13 @@ export default function ProviderForm() {
         const newProviderId = response.data.data.id;
         setCreatedProviderId(newProviderId);
 
-        // Create practice location from NPI data if available
-        if (npiLookupResult?.found && npiLookupResult.practiceLocation) {
+        // Create practice location from NPI data, or fall back to practice address
+        const npiLoc = npiLookupResult?.found ? npiLookupResult.practiceLocation : null;
+        const practiceLoc = userPractice?.addressLine1 ? userPractice : null;
+        const loc = npiLoc || practiceLoc;
+
+        if (loc) {
           try {
-            const loc = npiLookupResult.practiceLocation;
             await api.post(`/practice-locations/provider/${newProviderId}`, {
               locationName: `${loc.city} Office`,
               locationType: 'office',
@@ -250,12 +260,14 @@ export default function ProviderForm() {
               city: loc.city,
               state: loc.state,
               zipCode: loc.zipCode,
-              phone: loc.phone || formValues.phone,
-              fax: loc.fax || undefined,
+              phone: (npiLoc && 'phone' in npiLoc ? npiLoc.phone : null) || formValues.phone,
+              fax: (npiLoc && 'fax' in npiLoc ? npiLoc.fax : undefined) || undefined,
+              ...(formValues.groupNpi && { groupNpi: formValues.groupNpi }),
+              ...(formValues.taxId && { taxId: formValues.taxId }),
             });
-            toast.success('Provider created with practice location! Now upload documents.');
+            const source = npiLoc ? 'NPI registry' : 'practice';
+            toast.success(`Provider created with address from ${source}! Now upload documents.`);
           } catch (err) {
-            // Practice location creation failed, but provider was created
             console.error('Failed to create practice location:', err);
             toast.success('Provider created! Practice location could not be added automatically.');
           }

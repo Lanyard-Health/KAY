@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { emailService } from './email.service.js';
 import { EXPIRATION_THRESHOLDS } from '@credential-management/shared';
 
 interface ExpiringCredential {
@@ -25,15 +25,6 @@ interface DashboardData {
 }
 
 export class ExpirationService {
-  private ses: SESClient;
-  private fromEmail: string;
-
-  constructor() {
-    this.ses = new SESClient({
-      region: process.env['AWS_REGION'] || 'us-east-1',
-    });
-    this.fromEmail = process.env['SES_FROM_EMAIL'] || 'noreply@credentials.com';
-  }
 
   async getUpcomingExpirations(
     days: number = 30,
@@ -341,24 +332,16 @@ export class ExpirationService {
     expiration: ExpiringCredential,
     daysUntilExpiration: number
   ): Promise<void> {
-    const command = new SendEmailCommand({
-      Source: this.fromEmail,
-      Destination: {
-        ToAddresses: [expiration.providerEmail],
-      },
-      Message: {
-        Subject: {
-          Data: `Action Required: ${expiration.name} Expires in ${daysUntilExpiration} Days`,
-        },
-        Body: {
-          Html: {
-            Data: this.getEmailBody(expiration, daysUntilExpiration),
-          },
-        },
-      },
+    const result = await emailService.sendEmail({
+      to: expiration.providerEmail,
+      subject: `Action Required: ${expiration.name} Expires in ${daysUntilExpiration} Days`,
+      html: this.getEmailBody(expiration, daysUntilExpiration),
+      notificationType: 'expiration_reminder',
     });
 
-    await this.ses.send(command);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to send expiration reminder email');
+    }
   }
 
   private getEmailBody(

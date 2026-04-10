@@ -127,6 +127,44 @@ router.get('/stats', async (req: Request, res: Response) => {
       },
     });
 
+    // Follow-up engagement count: total FollowUpRun records for this practice's enrollments
+    const followUpEngagementCount = await prisma.followUpRun.count({
+      where: {
+        enrollment: {
+          provider: practiceFilter,
+        },
+      },
+    });
+
+    // Practice profile for practice_admin / credentialing_staff dashboard card
+    let practiceProfile = null;
+    if (practiceIds.length === 1) {
+      practiceProfile = await prisma.practice.findUnique({
+        where: { id: practiceIds[0] },
+        select: {
+          id: true,
+          name: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          state: true,
+          zipCode: true,
+          states: true,
+        },
+      });
+    }
+
+    // Admin-only platform metrics
+    const isAdmin = req.user?.role === 'admin';
+    let adminMetrics: { practicesOnboarded?: number; enterpriseQueuePending?: number } = {};
+    if (isAdmin) {
+      const [practicesOnboarded, enterpriseQueuePending] = await Promise.all([
+        prisma.practice.count({ where: { status: 'ACTIVE' } }),
+        prisma.enterpriseQueue.count({ where: { status: 'PENDING' } }),
+      ]);
+      adminMetrics = { practicesOnboarded, enterpriseQueuePending };
+    }
+
     // Health score + trends (cached separately at 5min TTL)
     const healthData = await computeHealthScore(practiceFilter);
 
@@ -139,11 +177,14 @@ router.get('/stats', async (req: Request, res: Response) => {
       incompleteCount,
       needsFollowUp,
       followUpCount,
+      followUpEngagementCount,
+      practiceProfile,
       credentialingHealthScore: healthData.credentialingHealthScore,
       revenueAtRisk: healthData.revenueAtRisk,
       aiActionsToday: healthData.aiActionsToday,
       trendData: healthData.trendData,
       healthBreakdown: healthData.breakdown,
+      ...adminMetrics,
     };
 
     setCache(scopedCacheKey, result, CACHE_TTL);

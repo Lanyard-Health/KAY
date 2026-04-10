@@ -22,7 +22,6 @@
     "@anthropic-ai/sdk": "^0.72.1",
     "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
     "@aws-sdk/client-s3": "^3.540.0",
-    "@aws-sdk/client-ses": "^3.540.0",
     "@aws-sdk/client-textract": "^3.540.0",
     "@aws-sdk/s3-request-presigner": "^3.540.0",
     "@credential-management/shared": "*",
