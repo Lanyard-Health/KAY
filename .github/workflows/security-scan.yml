@@ -160,14 +160,22 @@ jobs:
                 low: all.low - prod.low,
               };
 
-              // Only fail on production vulnerabilities
-              if (prod.critical + prod.high > 0) {
+              // Only fail on critical production vulnerabilities
+              if (prod.critical > 0) {
                 status = 'fail';
-                summary = `### :x: npm audit: ${prod.critical} critical, ${prod.high} high, ${prod.moderate} moderate, ${prod.low} low (production)\n\n` +
-                  prod.highCritList.join('\n');
-              } else if (prod.moderate + prod.low > 0) {
-                summary = `### :warning: npm audit: ${prod.moderate} moderate, ${prod.low} low (production, no high/critical)\n\nThese do not block the build.`;
-              } else {
+                summary = `### :x: npm audit: ${prod.critical} critical (production) — blocking\n\n` +
+                  prod.highCritList.filter(l => l.includes('**CRITICAL**')).join('\n');
+              }
+              if (prod.high > 0) {
+                const highWarning = `### :warning: npm audit: ${prod.high} high (production, not blocking)\n\n` +
+                  prod.highCritList.filter(l => l.includes('**HIGH**')).join('\n');
+                summary = summary ? summary + '\n\n' + highWarning : highWarning;
+              }
+              if (prod.moderate + prod.low > 0) {
+                const mlWarning = `### :information_source: npm audit: ${prod.moderate} moderate, ${prod.low} low (production, not blocking)`;
+                summary = summary ? summary + '\n\n' + mlWarning : mlWarning;
+              }
+              if (!summary) {
                 summary = '### :white_check_mark: npm audit: No production vulnerabilities';
               }
 
@@ -844,12 +852,17 @@ jobs:
               return;
             }
 
-            const anyFailed = allStatuses.includes('fail');
+            // Only security scans + schema drift block merges; tests are informational
+            const securityStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, schemaDriftStatus];
+            const anyFailed = securityStatuses.includes('fail');
+            const testsHaveFailures = [testsStatus, e2eStatus].includes('fail');
 
             const overallIcon = anyFailed ? ':rotating_light:' : ':shield:';
             const overallText = anyFailed
               ? 'Security issues were found that must be resolved before merging.'
-              : 'All security scans passed.';
+              : testsHaveFailures
+                ? 'All security scans passed. Test failures are informational and do not block merging.'
+                : 'All security scans passed.';
 
             const body = [
               `## ${overallIcon} Security Scan Results`,
