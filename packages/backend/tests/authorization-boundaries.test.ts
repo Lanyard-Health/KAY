@@ -34,7 +34,6 @@ vi.mock('../src/utils/queryValidation.js', async (importOriginal) => {
 // Use async factory to import error classes (ESM-safe). error.middleware has no heavy deps.
 vi.mock('../src/middleware/auth.middleware.js', async () => {
   const { ForbiddenError, UnauthorizedError } = await import('../src/middleware/error.middleware.js');
-  const staffRoles = ['admin', 'credentialing_staff', 'practice_admin'];
   return {
     authenticate: (_req: any, _res: any, next: any) => next(),
     authorize: (...allowedRoles: string[]) => (req: any, _res: any, next: any) => {
@@ -46,11 +45,26 @@ vi.mock('../src/middleware/auth.middleware.js', async () => {
       if (!req.user) return next(new UnauthorizedError('Not authenticated'));
       const { role, providerId: userProviderId } = req.user;
       const requestedProviderId = req.params?.providerId || req.body?.providerId;
-      if (staffRoles.includes(role)) return next();
+      if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') return next();
       if (role === 'provider' && userProviderId === requestedProviderId) return next();
       next(new ForbiddenError('Access denied to this provider'));
     },
     requirePermission: () => (_req: any, _res: any, next: any) => next(),
+    ADMIN_ROLES: ['admin'],
+  };
+});
+
+// Mock practiceScope middleware — requirePracticeProvider uses req.practiceScope
+// (already injected by buildApp) and looks up provider via prisma.providerProfile.
+vi.mock('../src/middleware/practiceScope.middleware.js', async () => {
+  const actual = await import('../src/middleware/practiceScope.middleware.js');
+  return {
+    // Use the real implementations — they read req.practiceScope which buildApp injects
+    requirePracticeProvider: actual.requirePracticeProvider,
+    getPracticeProviderFilter: actual.getPracticeProviderFilter,
+    getPracticeRelationFilter: actual.getPracticeRelationFilter,
+    attachPracticeScope: (_req: any, _res: any, next: any) => next(),
+    initPracticeScope: async () => {},
   };
 });
 
@@ -130,7 +144,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: ['practice-A'] });
 
     // requirePracticeProvider looks up the provider first
-    prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-B1', practiceId: 'practice-B' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-B1', practiceId: 'practice-B' } as any);
 
     const res = await request(app).get('/api/v1/providers/provider-B1');
 
@@ -141,7 +155,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: ['practice-A'] });
 
     // Both middleware and route handler call findUnique
-    prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'provider-A1', practiceId: 'practice-A' }) as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider({ id: 'provider-A1', practiceId: 'practice-A' }) as any);
 
     const res = await request(app).get('/api/v1/providers/provider-A1');
 
@@ -151,7 +165,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
   it('practice admin from Practice A cannot GET provider in Practice B → 403', async () => {
     const app = buildApp(practiceAdminUser, { isSuperAdmin: false, practiceIds: ['practice-A'] });
 
-    prismaMock.provider.findUnique.mockResolvedValue({ id: 'provider-B1', practiceId: 'practice-B' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'provider-B1', practiceId: 'practice-B' } as any);
 
     const res = await request(app).get('/api/v1/providers/provider-B1');
 
@@ -161,7 +175,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
   it('provider with practiceId=null is NOT accessible to staff (security: cross-practice isolation)', async () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: ['practice-A'] });
 
-    prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
 
     const res = await request(app).get('/api/v1/providers/unassigned');
 
@@ -171,7 +185,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
   it('provider with practiceId=null IS accessible to admin', async () => {
     const app = buildApp(adminUser, { isSuperAdmin: true, practiceIds: [] });
 
-    prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider({ id: 'unassigned', practiceId: null }) as any);
 
     const res = await request(app).get('/api/v1/providers/unassigned');
 
@@ -181,7 +195,7 @@ describe('Authorization Boundaries — Cross-Practice Isolation', () => {
   it('admin bypasses all practice filters → 200', async () => {
     const app = buildApp(adminUser, { isSuperAdmin: true, practiceIds: [] });
 
-    prismaMock.provider.findUnique.mockResolvedValue(fullProvider({ id: 'provider-B1', practiceId: 'practice-B' }) as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider({ id: 'provider-B1', practiceId: 'practice-B' }) as any);
 
     const res = await request(app).get('/api/v1/providers/provider-B1');
 
@@ -202,24 +216,21 @@ describe('Authorization Boundaries — Provider Self-Scope', () => {
     expect(res.status).toBe(403);
   });
 
-  it('provider can GET their own profile → 200', async () => {
+  it('provider cannot GET their own profile via /providers/:id (role gate) → 403', async () => {
+    // The GET /:providerId route authorizes admin/staff/practice_admin only.
+    // Providers access their own data through the portal routes instead.
     const app = buildApp(providerUser, { isSuperAdmin: false, practiceIds: [] });
-
-    // providerUser.providerId = 'provider-record-id'
-    prismaMock.provider.findUnique.mockResolvedValue(
-      fullProvider({ id: 'provider-record-id', practiceId: null }) as any
-    );
 
     const res = await request(app).get('/api/v1/providers/provider-record-id');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 
   it('provider cannot GET another provider profile → 403', async () => {
     const app = buildApp(providerUser, { isSuperAdmin: false, practiceIds: [] });
 
     // Different provider ID than providerUser.providerId
-    prismaMock.provider.findUnique.mockResolvedValue(
+    prismaMock.providerProfile.findUnique.mockResolvedValue(
       fullProvider({ id: 'other-provider', practiceId: null }) as any
     );
 
@@ -237,14 +248,14 @@ describe('Authorization Boundaries — Edge Cases', () => {
   it('staff with no practice assignments sees no providers (no-access filter)', async () => {
     const app = buildApp(staffUser, { isSuperAdmin: false, practiceIds: [] });
 
-    prismaMock.provider.findMany.mockResolvedValue([] as any);
-    prismaMock.provider.count.mockResolvedValue(0);
+    prismaMock.providerProfile.findMany.mockResolvedValue([] as any);
+    prismaMock.providerProfile.count.mockResolvedValue(0);
 
     const res = await request(app).get('/api/v1/providers');
 
     expect(res.status).toBe(200);
     // getPracticeProviderFilter with empty practiceIds returns no-access filter
-    expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: '__no_access__' }),
       }),

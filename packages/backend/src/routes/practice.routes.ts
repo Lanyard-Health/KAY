@@ -64,7 +64,104 @@ router.get(
         orderBy: { name: 'asc' },
       });
 
-      res.json({ success: true, data: practices.map(maskPractice) });
+      // Count enrollments per practice via providers
+      const enrollmentCounts = await prisma.enrollment.groupBy({
+        by: ['providerId'],
+        _count: { id: true },
+      });
+      const providerPracticeRows = await prisma.providerProfile.findMany({
+        select: { id: true, practiceId: true },
+        where: { practiceId: { not: null } },
+      });
+      const providerToPractice = new Map(providerPracticeRows.map((p) => [p.id, p.practiceId]));
+      const practiceEnrollmentCount = new Map<string, number>();
+      for (const row of enrollmentCounts) {
+        const pid = providerToPractice.get(row.providerId);
+        if (pid) {
+          practiceEnrollmentCount.set(pid, (practiceEnrollmentCount.get(pid) || 0) + row._count.id);
+        }
+      }
+
+      const data = practices.map((p) => ({
+        ...maskPractice(p),
+        enrollmentCount: practiceEnrollmentCount.get(p.id) || 0,
+      }));
+
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Practice onboarding pipeline — grouped by stage
+router.get(
+  '/onboarding-pipeline',
+  authenticate,
+  authorize(...ADMIN_ROLES),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practices = await prisma.practice.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          _count: {
+            select: {
+              providers: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Count enrollments per practice via providers
+      const enrollmentCounts = await prisma.enrollment.groupBy({
+        by: ['providerId'],
+        _count: { id: true },
+      });
+
+      const providerPractice = await prisma.providerProfile.findMany({
+        select: { id: true, practiceId: true },
+        where: { practiceId: { not: null } },
+      });
+      const providerToPractice = new Map(providerPractice.map((p) => [p.id, p.practiceId]));
+
+      const practiceEnrollmentCount = new Map<string, number>();
+      for (const row of enrollmentCounts) {
+        const practiceId = providerToPractice.get(row.providerId);
+        if (practiceId) {
+          practiceEnrollmentCount.set(practiceId, (practiceEnrollmentCount.get(practiceId) || 0) + row._count.id);
+        }
+      }
+
+      const registered: any[] = [];
+      const profileComplete: any[] = [];
+      const active: any[] = [];
+
+      for (const p of practices) {
+        const providerCount = p._count.providers;
+        const enrollmentCount = practiceEnrollmentCount.get(p.id) || 0;
+        const record = {
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          createdAt: p.createdAt,
+          providerCount,
+          enrollmentCount,
+        };
+
+        if (providerCount === 0) {
+          registered.push(record);
+        } else if (enrollmentCount === 0) {
+          profileComplete.push(record);
+        } else {
+          active.push(record);
+        }
+      }
+
+      res.json({ success: true, data: { registered, profileComplete, active } });
     } catch (error) {
       next(error);
     }

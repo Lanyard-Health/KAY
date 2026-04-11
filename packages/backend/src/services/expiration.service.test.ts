@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockSesSend = vi.hoisted(() => {
-  process.env['AWS_REGION'] = 'us-east-1';
-  process.env['SES_FROM_EMAIL'] = 'test@lanyard.com';
-  return vi.fn().mockResolvedValue({});
-});
+const mockSendEmail = vi.hoisted(() => vi.fn().mockResolvedValue({ success: true }));
 
-vi.mock('@aws-sdk/client-ses', () => ({
-  SESClient: function() { this.send = mockSesSend; },
-  SendEmailCommand: function(p: any) { this.input = p; },
+vi.mock('./email.service.js', () => ({
+  emailService: { sendEmail: mockSendEmail, isConfigured: () => true },
 }));
 
 vi.mock('../utils/prisma.js', async () => {
@@ -242,7 +237,7 @@ describe('ExpirationService', () => {
       prismaMock.license.findMany.mockResolvedValue([
         makeLicense({ id: 'lic-remind', expirationDate: targetDate }),
       ] as any);
-      mockSesSend.mockResolvedValue({});
+      mockSendEmail.mockResolvedValue({ success: true });
 
       const result = await service.sendExpirationReminders([30]);
 
@@ -258,7 +253,7 @@ describe('ExpirationService', () => {
       prismaMock.license.findMany.mockResolvedValue([
         makeLicense({ id: 'lic-fail', expirationDate: targetDate }),
       ] as any);
-      mockSesSend.mockRejectedValue(new Error('SES quota'));
+      mockSendEmail.mockResolvedValue({ success: false, error: 'Resend quota exceeded' });
 
       // Should NOT throw — it catches errors and continues
       const result = await service.sendExpirationReminders([30]);

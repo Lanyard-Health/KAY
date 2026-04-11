@@ -37,6 +37,7 @@ const PortalDocuments = lazy(() => import('./features/portal/PortalDocuments'));
 const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuccess'));
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
+const PracticeOnboarding = lazy(() => import('./features/admin/PracticeOnboarding'));
 const CommandCenter = lazy(() => import('./features/command-center/CommandCenter'));
 const OcrReviewQueue = lazy(() => import('./features/documents/OcrReviewQueue'));
 const KnowledgeBaseList = lazy(() => import('./features/admin/KnowledgeBaseList'));
@@ -47,6 +48,7 @@ const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'
 const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
 const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
 const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
+const CustomerCommunications = lazy(() => import('./features/admin/CustomerCommunications'));
 const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
 const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'));
@@ -74,6 +76,28 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
   if (user?.role === 'provider') {
     return <Navigate to="/portal" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role === 'provider' || user?.role === 'practice_admin') {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -139,38 +163,40 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="onboarding/clinical-profile" element={<ClinicalProfileWizard />} />
-          <Route path="command-center" element={<CommandCenter />} />
+          <Route path="command-center" element={<AdminOnlyRoute><CommandCenter /></AdminOnlyRoute>} />
           <Route path="providers" element={<ProviderList />} />
           <Route path="providers/import" element={<ProviderImportPage />} />
           <Route path="providers/new" element={<ProviderForm />} />
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />
           <Route path="documents" element={<DocumentList />} />
-          <Route path="ocr-review" element={<OcrReviewQueue />} />
+          <Route path="ocr-review" element={<AdminOnlyRoute><OcrReviewQueue /></AdminOnlyRoute>} />
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
-          <Route path="workflow-queue" element={<WorkflowQueue />} />
-          <Route path="denials" element={<DenialsList />} />
+          <Route path="workflow-queue" element={<AdminOnlyRoute><WorkflowQueue /></AdminOnlyRoute>} />
+          <Route path="denials" element={<AdminOnlyRoute><DenialsList /></AdminOnlyRoute>} />
           <Route path="expirations" element={<ExpirationDashboard />} />
-          <Route path="roster" element={<RosterPage />} />
-          <Route path="ai-agent" element={<AiAgentDashboard />} />
-          <Route path="payer-intelligence" element={<PayerIntelligencePage />} />
-          <Route path="practices" element={<PracticesList />} />
-          <Route path="practices/:practiceId" element={<PracticeDetail />} />
-          <Route path="users" element={<UsersList />} />
-          <Route path="users/:userId" element={<UserDetail />} />
-          <Route path="pending-providers" element={<PendingProviders />} />
-          <Route path="onboarding-progress" element={<OnboardingProgress />} />
+          <Route path="roster" element={<AdminOnlyRoute><RosterPage /></AdminOnlyRoute>} />
+          <Route path="ai-agent" element={<AdminOnlyRoute><AiAgentDashboard /></AdminOnlyRoute>} />
+          <Route path="payer-intelligence" element={<AdminOnlyRoute><PayerIntelligencePage /></AdminOnlyRoute>} />
+          <Route path="practices" element={<AdminOnlyRoute><PracticesList /></AdminOnlyRoute>} />
+          <Route path="practices/:practiceId" element={<AdminOnlyRoute><PracticeDetail /></AdminOnlyRoute>} />
+          <Route path="users" element={<AdminOnlyRoute><UsersList /></AdminOnlyRoute>} />
+          <Route path="users/:userId" element={<AdminOnlyRoute><UserDetail /></AdminOnlyRoute>} />
+          <Route path="pending-providers" element={<AdminOnlyRoute><PendingProviders /></AdminOnlyRoute>} />
+          <Route path="onboarding-progress" element={<AdminOnlyRoute><PracticeOnboarding /></AdminOnlyRoute>} />
+          <Route path="provider-onboarding" element={<AdminOnlyRoute><OnboardingProgress /></AdminOnlyRoute>} />
           <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="admin/knowledge-base" element={<KnowledgeBaseList />} />
-          <Route path="admin/knowledge-base/new" element={<KnowledgeBaseNew />} />
-          <Route path="admin/knowledge-base/gaps" element={<KnowledgeBaseGaps />} />
-          <Route path="admin/knowledge-base/:id" element={<KnowledgeBaseDetail />} />
-          <Route path="admin/workflow-templates" element={<WorkflowTemplates />} />
-          <Route path="admin/workflow-templates/:id" element={<WorkflowTemplateDetail />} />
-          <Route path="admin/followup-templates" element={<FollowupTemplates />} />
-          <Route path="admin/followup-templates/:id" element={<FollowupTemplateDetail />} />
-          <Route path="follow-up" element={<FollowUpMonitor />} />
+          <Route path="admin/knowledge-base" element={<AdminOnlyRoute><KnowledgeBaseList /></AdminOnlyRoute>} />
+          <Route path="admin/knowledge-base/new" element={<AdminOnlyRoute><KnowledgeBaseNew /></AdminOnlyRoute>} />
+          <Route path="admin/knowledge-base/gaps" element={<AdminOnlyRoute><KnowledgeBaseGaps /></AdminOnlyRoute>} />
+          <Route path="admin/knowledge-base/:id" element={<AdminOnlyRoute><KnowledgeBaseDetail /></AdminOnlyRoute>} />
+          <Route path="admin/workflow-templates" element={<AdminOnlyRoute><WorkflowTemplates /></AdminOnlyRoute>} />
+          <Route path="admin/workflow-templates/:id" element={<AdminOnlyRoute><WorkflowTemplateDetail /></AdminOnlyRoute>} />
+          <Route path="admin/followup-templates" element={<AdminOnlyRoute><FollowupTemplates /></AdminOnlyRoute>} />
+          <Route path="admin/followup-templates/:id" element={<AdminOnlyRoute><FollowupTemplateDetail /></AdminOnlyRoute>} />
+          <Route path="admin/communications" element={<AdminOnlyRoute><CustomerCommunications /></AdminOnlyRoute>} />
+          <Route path="follow-up" element={<AdminOnlyRoute><FollowUpMonitor /></AdminOnlyRoute>} />
           <Route path="settings" element={<Settings />} />
         </Route>
 

@@ -153,6 +153,11 @@ export default function ProviderDetail() {
   const [bankingModalOpen, setBankingModalOpen] = useState(false);
   const [editingBanking, setEditingBanking] = useState<any>(null);
 
+  // CAQH pull state
+  const [caqhInputId, setCaqhInputId] = useState('');
+  const [caqhInputNpi, setCaqhInputNpi] = useState('');
+  const [caqhInputsInitialized, setCaqhInputsInitialized] = useState(false);
+
   // Confirm dialog state (replaces window.confirm)
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -186,6 +191,13 @@ export default function ProviderDetail() {
       return response.data.data;
     },
   });
+
+  // Pre-fill CAQH inputs once provider loads
+  if (provider && !caqhInputsInitialized) {
+    setCaqhInputId(provider.caqhProviderId || '');
+    setCaqhInputNpi(provider.npi || '');
+    setCaqhInputsInitialized(true);
+  }
 
   // PDM alerts for banner
   const { data: pdmAlerts } = usePdmAlerts(id || '');
@@ -231,6 +243,28 @@ export default function ProviderDetail() {
   const deleteDeaRegistrationMutation = useDeleteDeaRegistration();
   const deleteProviderIdentifierMutation = useDeleteProviderIdentifier();
   const deleteBankingMutation = useDeleteBanking();
+
+  // CAQH pull mutation
+  const caqhPullMutation = useMutation({
+    mutationFn: async (body: { caqhProviderId?: string; npi?: string }) => {
+      const response = await api.post(`/providers/${id}/caqh-pull`, body);
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', id] });
+      const s = data.summary;
+      const parts: string[] = [];
+      if (s.licenses.created + s.licenses.updated > 0) parts.push(`${s.licenses.created + s.licenses.updated} license${s.licenses.created + s.licenses.updated !== 1 ? 's' : ''}`);
+      if (s.certifications.created + s.certifications.updated > 0) parts.push(`${s.certifications.created + s.certifications.updated} certification${s.certifications.created + s.certifications.updated !== 1 ? 's' : ''}`);
+      if (s.education.created + s.education.updated > 0) parts.push(`${s.education.created + s.education.updated} education record${s.education.created + s.education.updated !== 1 ? 's' : ''}`);
+      if (s.malpractice.created + s.malpractice.updated > 0) parts.push(`${s.malpractice.created + s.malpractice.updated} malpractice record${s.malpractice.created + s.malpractice.updated !== 1 ? 's' : ''}`);
+      toast.success(parts.length > 0 ? `Imported ${parts.join(', ')}` : 'CAQH sync complete — no new data to import');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || err?.response?.data?.error || 'CAQH pull failed';
+      toast.error(msg);
+    },
+  });
 
   // Location handlers
   const handleAddLocation = () => {
@@ -813,6 +847,68 @@ export default function ProviderDetail() {
               </div>
             );
           })()}
+        </div>
+      </div>
+
+      {/* CAQH Pull Section */}
+      <div className="card mb-6 animate-fade-in">
+        <div className="card-header">
+          <h2 className="text-base font-semibold text-gray-900">Import from CAQH</h2>
+          {provider.caqhLastSync && (
+            <span className="text-xs text-gray-400">Last synced: {format(new Date(provider.caqhLastSync), 'MMM d, yyyy h:mm a')}</span>
+          )}
+        </div>
+        <div className="card-body space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="caqhId" className="block text-sm font-medium text-gray-700 mb-1">CAQH Provider ID</label>
+              <input
+                id="caqhId"
+                type="text"
+                className="input"
+                placeholder="e.g. 12345678"
+                value={caqhInputId}
+                onChange={(e) => setCaqhInputId(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="caqhNpi" className="block text-sm font-medium text-gray-700 mb-1">NPI Number</label>
+              <input
+                id="caqhNpi"
+                type="text"
+                className="input"
+                placeholder="e.g. 1234567890"
+                value={caqhInputNpi}
+                onChange={(e) => setCaqhInputNpi(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              disabled={caqhPullMutation.isPending || (!caqhInputId.trim() && !caqhInputNpi.trim())}
+              onClick={() => {
+                caqhPullMutation.mutate({
+                  ...(caqhInputId.trim() && { caqhProviderId: caqhInputId.trim() }),
+                  ...(caqhInputNpi.trim() && { npi: caqhInputNpi.trim() }),
+                });
+              }}
+            >
+              {caqhPullMutation.isPending ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Importing…
+                </span>
+              ) : 'Import from CAQH'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            CAQH data fills empty fields and creates new credential records. Manually entered data is preserved.
+          </p>
         </div>
       </div>
 

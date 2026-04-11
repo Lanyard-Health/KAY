@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Tab } from '@headlessui/react';
-import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { Tab, Switch } from '@headlessui/react';
+import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePractice } from '../../hooks/usePractices';
+import { api } from '../../services/api';
 import PracticeFormModal from './PracticeFormModal';
 import PracticeUsersTab from './PracticeUsersTab';
 import PracticeProvidersTab from './PracticeProvidersTab';
@@ -12,6 +14,7 @@ import PracticeProvidersTab from './PracticeProvidersTab';
 const TABS = [
   { name: 'Users', icon: UserGroupIcon },
   { name: 'Providers', icon: UsersIcon },
+  { name: 'Settings', icon: Cog6ToothIcon },
 ];
 
 export default function PracticeDetail() {
@@ -139,6 +142,9 @@ export default function PracticeDetail() {
           <Tab.Panel>
             <PracticeProvidersTab practiceId={practiceId!} />
           </Tab.Panel>
+          <Tab.Panel>
+            <PracticeSettingsTab practiceId={practiceId!} />
+          </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>
 
@@ -147,6 +153,180 @@ export default function PracticeDetail() {
         onClose={() => setEditModalOpen(false)}
         practice={practice}
       />
+    </div>
+  );
+}
+
+function SettingToggle({
+  label,
+  description,
+  enabled,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  enabled: boolean;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-4 border-b border-gray-100 last:border-0">
+      <div>
+        <p className="text-sm font-medium text-gray-900">{label}</p>
+        {description && <p className="text-xs text-gray-500 mt-0.5">{description}</p>}
+      </div>
+      <Switch
+        checked={enabled}
+        onChange={onChange}
+        className={clsx(
+          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+          enabled ? 'bg-primary-600' : 'bg-gray-200',
+        )}
+      >
+        <span
+          className={clsx(
+            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+            enabled ? 'translate-x-5' : 'translate-x-0',
+          )}
+        />
+      </Switch>
+    </div>
+  );
+}
+
+function PracticeSettingsTab({ practiceId }: { practiceId: string }) {
+  const queryClient = useQueryClient();
+
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['practice-settings', practiceId],
+    queryFn: async () => {
+      const res = await api.get(`/admin/practices/${practiceId}/settings`);
+      return res.data.data;
+    },
+  });
+
+  const [enrollmentCapEnabled, setEnrollmentCapEnabled] = useState(false);
+  const [enrollmentCap, setEnrollmentCap] = useState<number>(10);
+  const [followUpSubmissions, setFollowUpSubmissions] = useState(true);
+  const [followUpDenialTriage, setFollowUpDenialTriage] = useState(true);
+  const [multipleLocations, setMultipleLocations] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (settings && !initialized) {
+      setEnrollmentCapEnabled(settings.enrollmentCap != null);
+      setEnrollmentCap(settings.enrollmentCap ?? 10);
+      setFollowUpSubmissions(settings.followUpSubmissions);
+      setFollowUpDenialTriage(settings.followUpDenialTriage);
+      setMultipleLocations(settings.multipleLocations);
+      setInitialized(true);
+    }
+  }, [settings, initialized]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.put(`/admin/practices/${practiceId}/settings`, {
+        enrollmentCap: enrollmentCapEnabled ? enrollmentCap : null,
+        followUpSubmissions,
+        followUpDenialTriage,
+        multipleLocations,
+      });
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['practice-settings', practiceId] });
+      toast.success('Settings saved');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error?.message || 'Failed to save settings');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse space-y-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-10 bg-gray-100 rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h3 className="text-base font-semibold text-gray-900">Practice Settings</h3>
+        <p className="text-xs text-gray-500 mt-0.5">Configure automation and limits for this practice.</p>
+      </div>
+      <div className="px-6">
+        {/* Enrollment Cap */}
+        <div className="py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Limit monthly enrollments</p>
+              <p className="text-xs text-gray-500 mt-0.5">Set a cap on new enrollments per month</p>
+            </div>
+            <Switch
+              checked={enrollmentCapEnabled}
+              onChange={setEnrollmentCapEnabled}
+              className={clsx(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                enrollmentCapEnabled ? 'bg-primary-600' : 'bg-gray-200',
+              )}
+            >
+              <span
+                className={clsx(
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  enrollmentCapEnabled ? 'translate-x-5' : 'translate-x-0',
+                )}
+              />
+            </Switch>
+          </div>
+          {enrollmentCapEnabled && (
+            <div className="mt-3">
+              <label htmlFor="enrollmentCap" className="block text-xs font-medium text-gray-600 mb-1">
+                Maximum enrollments per month
+              </label>
+              <input
+                id="enrollmentCap"
+                type="number"
+                min={1}
+                className="input w-32"
+                value={enrollmentCap}
+                onChange={(e) => setEnrollmentCap(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+            </div>
+          )}
+        </div>
+
+        <SettingToggle
+          label="Automated follow-up on enrollment submissions"
+          description="Send automated follow-ups after enrollment submissions"
+          enabled={followUpSubmissions}
+          onChange={setFollowUpSubmissions}
+        />
+        <SettingToggle
+          label="Automated denial triage workflow"
+          description="Automatically triage and route enrollment denials"
+          enabled={followUpDenialTriage}
+          onChange={setFollowUpDenialTriage}
+        />
+        <SettingToggle
+          label="Enable multi-location support"
+          description="Allow this practice to manage multiple locations"
+          enabled={multipleLocations}
+          onChange={setMultipleLocations}
+        />
+      </div>
+      <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+        <button
+          type="button"
+          className="btn-primary text-sm"
+          disabled={saveMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending ? 'Saving...' : 'Save Settings'}
+        </button>
+      </div>
     </div>
   );
 }

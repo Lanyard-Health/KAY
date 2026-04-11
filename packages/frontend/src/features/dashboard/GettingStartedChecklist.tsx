@@ -38,7 +38,7 @@ export default function GettingStartedChecklist({
       icon: UserPlusIcon,
       actions: [
         { label: 'Add Provider', href: '/providers/new' },
-        { label: 'Bulk Import', href: '/provider-import' },
+        { label: 'Bulk Import', href: '/providers/import' },
       ],
     },
     {

@@ -7,6 +7,7 @@ import { STAFF_ROLES } from '../constants/roles.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
+import { triggerAutomatedEmail } from '../services/automatedEmail.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
@@ -382,6 +383,17 @@ router.post(
 
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
+
+      // Trigger first-enrollment email (non-blocking)
+      if (provider?.practiceId) {
+        const enrollmentCount = await prisma.enrollment.count({
+          where: { provider: { practiceId: provider.practiceId } },
+        });
+        if (enrollmentCount === 1) {
+          triggerAutomatedEmail('FIRST_ENROLLMENT_SUBMITTED', provider.practiceId)
+            .catch((err) => logger.error('Failed to trigger first-enrollment email:', err));
+        }
+      }
 
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');

@@ -34,7 +34,7 @@ router.get(
       if (!emailService.isConfigured()) {
         return res.status(503).json({
           success: false,
-          error: 'Email service is not configured. Check SES_FROM_EMAIL, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY env vars.',
+          error: 'Email service is not configured. Check RESEND_FROM_EMAIL and RESEND_API_KEY env vars.',
         });
       }
 

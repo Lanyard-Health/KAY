@@ -6,6 +6,7 @@ import {
   UsersIcon,
   PuzzlePieceIcon,
   BellIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useAuthStore } from '../../stores/auth.store';
@@ -16,6 +17,7 @@ import PermissionsTab from './PermissionsTab';
 import IntegrationsTab from './IntegrationsTab';
 import NotificationsTab from './NotificationsTab';
 import ClinicalProfileTab from './ClinicalProfileTab';
+import CommunicationsTab from './CommunicationsTab';
 
 const ALL_TABS = [
   { key: 'profile', label: 'User Profile', icon: UserCircleIcon, restrictedTo: null },
@@ -23,6 +25,7 @@ const ALL_TABS = [
   { key: 'clinical-profile', label: 'Clinical Profile', icon: ClipboardDocumentListIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'permissions', label: 'Permissions', icon: UsersIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'integrations', label: 'Integrations', icon: PuzzlePieceIcon, restrictedTo: ['admin', 'practice_admin'] },
+  { key: 'communications', label: 'Communications', icon: EnvelopeIcon, restrictedTo: ['admin', 'credentialing_staff', 'practice_admin'] },
   { key: 'notifications', label: 'Notifications', icon: BellIcon, restrictedTo: null },
 ] as const;
 
@@ -72,6 +75,7 @@ export default function Settings() {
                 {tab.key === 'clinical-profile' && <ClinicalProfileTab />}
                 {tab.key === 'permissions' && <PermissionsTab />}
                 {tab.key === 'integrations' && <IntegrationsTab />}
+                {tab.key === 'communications' && <CommunicationsTab />}
                 {tab.key === 'notifications' && <NotificationsTab />}
               </Tab.Panel>
             ))}

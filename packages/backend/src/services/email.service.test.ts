@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Must set env vars before module evaluates
 const mockSend = vi.hoisted(() => {
-  process.env['SES_FROM_EMAIL'] = 'test@lanyard.com';
+  process.env['RESEND_FROM_EMAIL'] = 'test@lanyard.com';
   process.env['RESEND_API_KEY'] = 're_test_123';
   return vi.fn();
 });

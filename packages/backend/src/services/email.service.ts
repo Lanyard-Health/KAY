@@ -27,11 +27,15 @@ class EmailService {
   }
 
   private initialize(): void {
-    const fromEmail = process.env['SES_FROM_EMAIL'];
+    const fromEmail = process.env['RESEND_FROM_EMAIL'] || process.env['SES_FROM_EMAIL'];
     const apiKey = process.env['RESEND_API_KEY'];
 
+    if (process.env['SES_FROM_EMAIL'] && !process.env['RESEND_FROM_EMAIL']) {
+      logger.warn('SES_FROM_EMAIL is deprecated — rename to RESEND_FROM_EMAIL in your env');
+    }
+
     if (!fromEmail) {
-      logger.warn('Email service not configured. Set SES_FROM_EMAIL env var to enable email sending.');
+      logger.warn('Email service not configured. Set RESEND_FROM_EMAIL env var to enable email sending.');
       return;
     }
 

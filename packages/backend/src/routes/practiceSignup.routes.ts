@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { practiceSignupSchema } from '@credential-management/shared';
 import { registerPractice } from '../services/practiceSignup.service.js';
+import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -44,6 +45,28 @@ router.post('/register', signupLimiter, async (req: Request, res: Response) => {
 
     logger.error('Practice signup failed:', err);
     res.status(500).json({ success: false, error: { message: 'Registration failed. Please try again.' } });
+  }
+});
+
+// GET /api/v1/practices/payers — public, rate-limited (for signup form payer multi-select)
+const payerListLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env['NODE_ENV'] === 'development' ? 100 : 10,
+  message: { success: false, error: { message: 'Too many requests, please try again later.' } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.get('/payers', payerListLimiter, async (_req: Request, res: Response) => {
+  try {
+    const payers = await prisma.payer.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json({ data: payers });
+  } catch (err) {
+    logger.error('Failed to fetch public payer list:', err);
+    res.status(500).json({ success: false, error: { message: 'Failed to load payers.' } });
   }
 });
 

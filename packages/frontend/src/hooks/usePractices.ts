@@ -13,8 +13,15 @@ export interface Practice {
   email: string | null;
   website: string | null;
   notes: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  targetPayerIds: string[];
   createdAt: string;
   updatedAt: string;
+  enrollmentCount?: number;
   _count?: {
     users: number;
     providers: number;

@@ -1,29 +1,28 @@
 import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
 import {
   UserPlusIcon,
   DocumentArrowUpIcon,
   ClipboardDocumentListIcon,
-  ExclamationTriangleIcon,
-  ClockIcon,
   CheckCircleIcon,
   UserCircleIcon,
-  BellAlertIcon,
   CurrencyDollarIcon,
   SparklesIcon,
-  ChartBarIcon,
+  BuildingOfficeIcon,
+  BuildingOffice2Icon,
+  PhoneArrowUpRightIcon,
+  Cog6ToothIcon,
+  MapPinIcon,
+  QueueListIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { useGettingStarted } from '../../hooks/useReporting';
-import { isSafeNavigationPath } from '../../utils/safe-navigation';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import StatCard from '../../components/ui/StatCard';
-import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
-import ActionCard from '../../components/ui/ActionCard';
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import clsx from 'clsx';
 
@@ -35,9 +34,9 @@ const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const practiceId = user?.practices?.[0]?.practiceId ?? '';
   const isPracticeAdmin = user?.role === 'practice_admin';
+  const isAdmin = user?.role === 'admin';
 
   // Getting Started check — only for practice_admin with a practiceId
   const {
@@ -45,7 +44,10 @@ export default function Dashboard() {
     isLoading: gettingStartedLoading,
   } = useGettingStarted(isPracticeAdmin ? practiceId : '');
 
-  const [checklistDismissed, setChecklistDismissed] = useState(false);
+  const dismissKey = `lanyard_checklist_dismissed_${practiceId}`;
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => localStorage.getItem(dismissKey) === 'true',
+  );
 
   // Show getting-started for practice_admin who hasn't onboarded
   const showGettingStarted =
@@ -87,6 +89,12 @@ export default function Dashboard() {
         aiActionsToday: stats.aiActionsToday ?? 0,
         trendData: stats.trendData ?? { providers7d: [], enrollments7d: [] },
         healthBreakdown: stats.healthBreakdown ?? {},
+        // Practice view fields
+        followUpEngagementCount: stats.followUpEngagementCount ?? 0,
+        practiceProfile: stats.practiceProfile ?? null,
+        // Admin-only fields
+        practicesOnboarded: stats.practicesOnboarded ?? null,
+        enterpriseQueuePending: stats.enterpriseQueuePending ?? null,
       };
     },
     enabled: !showGettingStarted,
@@ -115,59 +123,6 @@ export default function Dashboard() {
       color: 'bg-white/[0.08] hover:bg-white/[0.15] backdrop-blur-sm border border-white/[0.1]',
     },
   ];
-
-  // Build action items for the priority stream
-  const actionItems: { title: string; description: string; priority: 'urgent' | 'high' | 'normal'; link: string }[] = [];
-
-  if (data) {
-    // Expired credentials → urgent
-    if (data.expirationSummary?.expired > 0) {
-      actionItems.push({
-        title: `${data.expirationSummary.expired} credential${data.expirationSummary.expired > 1 ? 's' : ''} expired`,
-        description: 'Renew immediately to avoid coverage gaps',
-        priority: 'urgent',
-        link: '/expirations',
-      });
-    }
-    // Expiring within 7 days → high
-    if (data.expirationSummary?.expiring7Days > 0) {
-      actionItems.push({
-        title: `${data.expirationSummary.expiring7Days} credential${data.expirationSummary.expiring7Days > 1 ? 's' : ''} expiring within 7 days`,
-        description: 'Start renewal process now',
-        priority: 'high',
-        link: '/expirations',
-      });
-    }
-    // Follow-ups needed → high
-    if (data.followUpCount > 0) {
-      actionItems.push({
-        title: `${data.followUpCount} enrollment${data.followUpCount > 1 ? 's' : ''} need follow-up`,
-        description: 'No follow-up in the last 7 days',
-        priority: 'high',
-        link: '/enrollments',
-      });
-    }
-    // Incomplete profiles → normal
-    if (data.incompleteCount > 0) {
-      actionItems.push({
-        title: `${data.incompleteCount} provider${data.incompleteCount > 1 ? 's' : ''} with incomplete profiles`,
-        description: 'Missing documents, licenses, or certifications',
-        priority: 'normal',
-        link: '/providers',
-      });
-    }
-    // Expiring within 30 days → normal
-    if (data.expirationSummary?.expiring30Days > 0) {
-      actionItems.push({
-        title: `${data.expirationSummary.expiring30Days} credential${data.expirationSummary.expiring30Days > 1 ? 's' : ''} expiring within 30 days`,
-        description: 'Plan renewal ahead of time',
-        priority: 'normal',
-        link: '/expirations',
-      });
-    }
-  }
-
-  const actionItemsCount = actionItems.length;
 
   // Credentialed percentage for stat card
   const credentialedPct = data?.totalProviders
@@ -205,7 +160,7 @@ export default function Dashboard() {
             providerCount={gettingStarted.providerCount}
             documentCount={gettingStarted.documentCount}
             enrollmentCount={gettingStarted.enrollmentCount}
-            onDismiss={() => setChecklistDismissed(true)}
+            onDismiss={() => { localStorage.setItem(dismissKey, 'true'); setChecklistDismissed(true); }}
           />
         </Suspense>
       </div>
@@ -221,6 +176,91 @@ export default function Dashboard() {
           <p className="text-sm mt-1">Please check your connection and try again.</p>
         </div>
       </div>
+    );
+  }
+
+  // Practice admin / credentialing_staff simplified dashboard
+  if (!isAdmin) {
+    const pp = data?.practiceProfile;
+    const addressParts = [pp?.addressLine1, pp?.city, pp?.state, pp?.zipCode].filter(Boolean);
+
+    return (
+      <PageTransition>
+      <div className="space-y-6">
+        {/* Welcome Header */}
+        <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+            <RefreshIndicator isFetching={isFetching && !isLoading} />
+          </div>
+          <p className="mt-1 text-primary-100">Your practice overview at a glance.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Practice Profile Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <BuildingOfficeIcon className="h-5 w-5 text-primary-500" />
+              <h3 className="text-sm font-semibold text-gray-900">Practice Profile</h3>
+            </div>
+            {isLoading ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 w-3/4 bg-gray-200 rounded" />
+                <div className="h-3 w-1/2 bg-gray-100 rounded" />
+              </div>
+            ) : pp ? (
+              <div className="space-y-2">
+                <p className="text-base font-medium text-gray-900">{pp.name}</p>
+                {addressParts.length > 0 && (
+                  <div className="flex items-start gap-1.5 text-sm text-gray-500">
+                    <MapPinIcon className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{addressParts.join(', ')}</span>
+                  </div>
+                )}
+                {pp.states?.length > 0 && (
+                  <p className="text-xs text-gray-400">
+                    Operating in: {pp.states.join(', ')}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No practice information available</p>
+            )}
+            <Link
+              to="/settings"
+              className="mt-3 inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
+              <Cog6ToothIcon className="h-3.5 w-3.5" />
+              Full profile in Settings
+            </Link>
+          </div>
+
+          {/* Active Enrollments Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <ClipboardDocumentListIcon className="h-5 w-5 text-primary-500" />
+              <h3 className="text-sm font-semibold text-gray-900">Active Enrollments</h3>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">
+              {isLoading ? '-' : data?.activeEnrollments ?? 0}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Excludes draft, terminated, and denied</p>
+          </div>
+
+          {/* Follow-Up Engagements Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <PhoneArrowUpRightIcon className="h-5 w-5 text-primary-500" />
+              <h3 className="text-sm font-semibold text-gray-900">Follow-Up Engagements</h3>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">
+              {isLoading ? '-' : data?.followUpEngagementCount ?? 0}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Total email &amp; call follow-ups</p>
+          </div>
+        </div>
+      </div>
+      </PageTransition>
     );
   }
 
@@ -244,11 +284,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
           <RefreshIndicator isFetching={isFetching && !isLoading} />
         </div>
-        <p className="mt-1 text-primary-100">
-          {actionItemsCount > 0
-            ? `You have ${actionItemsCount} item${actionItemsCount !== 1 ? 's' : ''} that need${actionItemsCount === 1 ? 's' : ''} attention`
-            : "You're all caught up! No urgent items."}
-        </p>
+        <p className="mt-1 text-primary-100">Platform operations overview</p>
 
         {/* Quick Actions */}
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -270,6 +306,37 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Row 0: Admin Platform Stats */}
+      <div className="dash-stagger grid grid-cols-2 gap-4">
+        <AnimatedCard index={0}>
+          <StatCard
+            label="Practices Onboarded"
+            value={isLoading ? '-' : data?.practicesOnboarded ?? 0}
+            icon={<BuildingOffice2Icon className="h-5 w-5" />}
+          />
+        </AnimatedCard>
+        <AnimatedCard index={1}>
+          <div className={clsx(
+            'h-full rounded-2xl shadow-sm border p-5 transition-shadow duration-300 hover:shadow-md',
+            (data?.enterpriseQueuePending ?? 0) > 0
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-white border-gray-200/60',
+          )}>
+            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+              <QueueListIcon className={clsx('h-5 w-5', (data?.enterpriseQueuePending ?? 0) > 0 ? 'text-amber-500' : '')} />
+              <span>Enterprise Queue</span>
+            </div>
+            <p className={clsx(
+              'text-2xl font-bold',
+              (data?.enterpriseQueuePending ?? 0) > 0 ? 'text-amber-700' : 'text-gray-900',
+            )}>
+              {isLoading ? '-' : data?.enterpriseQueuePending ?? 0}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">pending setup</p>
+          </div>
+        </AnimatedCard>
       </div>
 
       {/* Row 1: Hero Stats */}
@@ -312,77 +379,6 @@ export default function Dashboard() {
             icon={<SparklesIcon className="h-5 w-5" />}
           />
         </AnimatedCard>
-      </div>
-
-      {/* Row 2: Health Score + Action Stream */}
-      <div className="dash-stagger dash-d2 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Health Score */}
-        <div className="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-shadow duration-300 p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-4">Credentialing Health Score</h3>
-          <div className="flex flex-col items-center">
-            <HealthScoreGauge
-              score={data?.credentialingHealthScore ?? 0}
-              size={160}
-              strokeWidth={12}
-            />
-            {data?.healthBreakdown && (
-              <div className="mt-4 w-full space-y-2">
-                <BreakdownBar label="Credentialed" value={data.healthBreakdown.credentialedPct ?? 0} />
-                <BreakdownBar label="Enrollments Active" value={data.healthBreakdown.activeEnrollmentsPct ?? 0} />
-                <BreakdownBar label="CAQH Current" value={data.healthBreakdown.caqhCurrentPct ?? 0} />
-                <BreakdownBar
-                  label="Expired Creds"
-                  value={data.healthBreakdown.expiredCredsPenalty ?? 0}
-                  invert
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Prioritized Action Stream */}
-        <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-200/60 hover:shadow-md transition-shadow duration-300">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BellAlertIcon className="h-5 w-5 text-primary-500" />
-              <h3 className="font-semibold text-gray-900">Priority Actions</h3>
-              {actionItemsCount > 0 && (
-                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {actionItemsCount}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="p-5 space-y-3 max-h-[360px] overflow-y-auto">
-            {isLoading ? (
-              <div className="animate-pulse space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-16 bg-gray-100 rounded-xl" />
-                ))}
-              </div>
-            ) : actionItems.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircleIcon className="h-12 w-12 text-green-400 mx-auto" />
-                <p className="mt-2 text-sm text-gray-500">All clear! No action items.</p>
-              </div>
-            ) : (
-              actionItems.map((item, i) => (
-                <ActionCard
-                  key={i}
-                  title={item.title}
-                  description={item.description}
-                  priority={item.priority}
-                  icon={
-                    item.priority === 'urgent' ? <ExclamationTriangleIcon className="h-5 w-5 text-red-500" /> :
-                    item.priority === 'high' ? <ClockIcon className="h-5 w-5 text-amber-500" /> :
-                    <ChartBarIcon className="h-5 w-5 text-blue-500" />
-                  }
-                  actions={[{ label: 'View →', onClick: () => { if (isSafeNavigationPath(item.link)) navigate(item.link); } }]}
-                />
-              ))
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Row 3: Enrollment Pipeline + Expiration Forecast */}
@@ -430,25 +426,3 @@ export default function Dashboard() {
   );
 }
 
-/** Small horizontal bar for health score breakdown */
-function BreakdownBar({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
-  const displayValue = invert ? 100 - value : value;
-  const barColor = invert
-    ? value > 20 ? 'bg-red-500' : value > 5 ? 'bg-amber-500' : 'bg-green-500'
-    : displayValue >= 80 ? 'bg-green-500' : displayValue >= 60 ? 'bg-amber-500' : 'bg-red-500';
-
-  return (
-    <div className="flex items-center gap-3 text-xs">
-      <span className="w-28 text-gray-500 truncate">{label}</span>
-      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className={clsx('h-full rounded-full transition-all duration-700', barColor)}
-          style={{ width: `${Math.max(2, invert ? value : displayValue)}%` }}
-        />
-      </div>
-      <span className="w-8 text-right text-gray-600 font-medium">
-        {invert ? value : displayValue}%
-      </span>
-    </div>
-  );
-}

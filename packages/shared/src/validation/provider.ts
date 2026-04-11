@@ -48,6 +48,8 @@ export const createProviderProfileSchema = z.object({
   taxonomy: z.string().max(50).optional(),
   specialties: z.array(z.string()).optional(),
   languages: z.array(z.string()).optional(),
+  groupNpi: z.string().max(10).optional(),
+  taxId: z.string().max(20).optional(),
 });
 
 // Backward-compat alias — prefer createProviderProfileSchema for new code

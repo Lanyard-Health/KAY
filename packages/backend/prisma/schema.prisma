@@ -34,6 +34,12 @@ enum PracticeRole {
   PROVIDER
 }
 
+enum EnterpriseQueueStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
 enum SubscriptionPlan {
   STARTER
   PROFESSIONAL
@@ -119,6 +125,7 @@ model User {
   bankingUpdated              ProviderBanking[]       @relation("BankingUpdatedBy")
   enrollmentsCreated          Enrollment[]            @relation("EnrollmentCreatedBy")
   enrollmentsUpdated          Enrollment[]            @relation("EnrollmentUpdatedBy")
+  emailTemplatesCreated       EmailTemplate[]         @relation("EmailTemplateCreator")
 
   @@map("users")
 }
@@ -155,6 +162,13 @@ model Practice {
   targetPayerIds    String[] @default([]) @map("target_payer_ids")
   providerTypes     String[] @default([]) @map("provider_types")
 
+  // Address
+  addressLine1 String? @map("address_line_1")
+  addressLine2 String? @map("address_line_2")
+  city         String?
+  state        String?
+  zipCode      String? @map("zip_code")
+
   organizationType String? @map("organization_type")
   maxProviderSlots Int?    @map("max_provider_slots")
   maxUserSeats     Int?    @map("max_user_seats")
@@ -178,8 +192,38 @@ model Practice {
   practiceSexualOrientations PracticeSexualOrientation[]
   practiceSpecialPopulations PracticeSpecialPopulation[]
   customServices             CustomService[]
+  settings                   PracticeSettings?
+  enterpriseQueue            EnterpriseQueue[]
+  emailLogs                  EmailLog[]
 
   @@map("practices")
+}
+
+model PracticeSettings {
+  id                   String   @id @default(uuid())
+  practiceId           String   @unique @map("practice_id")
+  practice             Practice @relation(fields: [practiceId], references: [id])
+  enrollmentCap        Int?     @map("enrollment_cap") // null = unlimited
+  followUpSubmissions  Boolean  @default(true) @map("follow_up_submissions")
+  followUpDenialTriage Boolean  @default(true) @map("follow_up_denial_triage")
+  multipleLocations    Boolean  @default(false) @map("multiple_locations")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("practice_settings")
+}
+
+model EnterpriseQueue {
+  id         String                @id @default(uuid())
+  practiceId String                @map("practice_id")
+  practice   Practice              @relation(fields: [practiceId], references: [id])
+  status     EnterpriseQueueStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+
+  @@index([practiceId])
+  @@map("enterprise_queue")
 }
 
 model UserPractice {
@@ -2916,4 +2960,56 @@ model ProviderSpecialPopulation {
   @@unique([providerId, specialPopulationId])
   @@index([providerId])
   @@map("provider_special_populations")
+}
+
+// ==========================================
+// EMAIL TEMPLATES & LOGS
+// ==========================================
+
+enum EmailTemplateType {
+  AUTOMATED_ONBOARDING
+  STATIC_ON_DEMAND
+}
+
+enum EmailSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model EmailTemplate {
+  id           String            @id @default(uuid())
+  name         String
+  subject      String
+  body         String
+  type         EmailTemplateType
+  triggerEvent String?           @map("trigger_event")
+  isActive     Boolean           @default(true) @map("is_active")
+  createdBy    String            @map("created_by")
+  createdByUser User             @relation("EmailTemplateCreator", fields: [createdBy], references: [id])
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  emailLogs EmailLog[]
+
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id           String          @id @default(uuid())
+  templateId   String?         @map("template_id")
+  template     EmailTemplate?  @relation(fields: [templateId], references: [id])
+  practiceId   String?         @map("practice_id")
+  practice     Practice?       @relation(fields: [practiceId], references: [id])
+  to           String
+  subject      String
+  status       EmailSendStatus @default(PENDING)
+  resendId     String?         @map("resend_id")
+  errorMessage String?         @map("error_message")
+  sentAt       DateTime?       @map("sent_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([templateId])
+  @@index([practiceId])
+  @@map("email_logs")
 }
