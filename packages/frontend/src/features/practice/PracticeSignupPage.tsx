@@ -44,12 +44,17 @@ export default function PracticeSignupPage() {
     state: '',
     zipCode: '',
     isEnterprise: false,
+    groupNpi: '',
   });
   const [operatingStates, setOperatingStates] = useState<string[]>([]);
+  const [stateFilter, setStateFilter] = useState('');
+  const [payerFilter, setPayerFilter] = useState('');
   const [targetPayerIds, setTargetPayerIds] = useState<string[]>([]);
   const [payers, setPayers] = useState<{ id: string; name: string }[]>([]);
   const [payersLoading, setPayersLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [npiLoading, setNpiLoading] = useState(false);
+  const [npiMessage, setNpiMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const navigate = useNavigate();
   const { checkAuth, isDevMode } = useAuthStore();
 
@@ -66,6 +71,41 @@ export default function PracticeSignupPage() {
 
   const toggleArrayItem = (arr: string[], item: string) =>
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
+
+  const handleNpiLookup = async (npi: string) => {
+    if (!/^\d{10}$/.test(npi)) return;
+    setNpiLoading(true);
+    setNpiMessage(null);
+    try {
+      const res = await fetch(
+        `https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`
+      );
+      const data = await res.json();
+      if (!data.results || data.result_count === 0) {
+        setNpiMessage({ type: 'error', text: 'NPI not found — enter address manually' });
+        return;
+      }
+      const result = data.results[0];
+      const addr =
+        result.addresses?.find((a: { address_purpose: string }) => a.address_purpose === 'LOCATION') ??
+        result.addresses?.[0];
+
+      setForm((f) => ({
+        ...f,
+        practiceName: f.practiceName || result.basic?.organization_name || '',
+        addressLine1: addr?.address_1 || '',
+        addressLine2: addr?.address_2 || '',
+        city: addr?.city || '',
+        state: addr?.state || '',
+        zipCode: addr?.postal_code?.slice(0, 5) || '',
+      }));
+      setNpiMessage({ type: 'success', text: 'Address populated from NPI registry' });
+    } catch {
+      setNpiMessage({ type: 'error', text: 'Failed to look up NPI — enter address manually' });
+    } finally {
+      setNpiLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +143,7 @@ export default function PracticeSignupPage() {
           operatingStates,
           targetPayerIds,
           isEnterprise: form.isEnterprise,
+          groupNpi: form.groupNpi || undefined,
         }),
       });
 
@@ -137,6 +178,17 @@ export default function PracticeSignupPage() {
       setIsLoading(false);
     }
   };
+
+  const filteredStates = US_STATES.filter((s) => {
+    if (!stateFilter) return true;
+    const q = stateFilter.toLowerCase();
+    return s.toLowerCase().includes(q) || STATE_NAMES[s].toLowerCase().includes(q);
+  });
+
+  const filteredPayers = payers.filter((p) => {
+    if (!payerFilter) return true;
+    return p.name.toLowerCase().includes(payerFilter.toLowerCase());
+  });
 
   const inputClassName =
     'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm';
@@ -274,6 +326,44 @@ export default function PracticeSignupPage() {
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Practice Address</h3>
 
             <div>
+              <label htmlFor="groupNpi" className="block text-sm font-medium text-gray-700 mb-1">
+                Group NPI <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="groupNpi"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className={inputClassName}
+                  placeholder="10-digit Group NPI"
+                  value={form.groupNpi}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setForm((f) => ({ ...f, groupNpi: v }));
+                    setNpiMessage(null);
+                  }}
+                  onBlur={() => {
+                    if (/^\d{10}$/.test(form.groupNpi)) handleNpiLookup(form.groupNpi);
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!/^\d{10}$/.test(form.groupNpi) || npiLoading}
+                  onClick={() => handleNpiLookup(form.groupNpi)}
+                  className="shrink-0 px-4 py-2 text-sm font-medium rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {npiLoading ? 'Looking up…' : 'Look Up'}
+                </button>
+              </div>
+              {npiMessage && (
+                <p className={`mt-1 text-xs ${npiMessage.type === 'success' ? 'text-green-600' : 'text-gray-500'}`}>
+                  {npiMessage.text}
+                </p>
+              )}
+            </div>
+
+            <div>
               <label htmlFor="addressLine1" className="block text-sm font-medium text-gray-700 mb-1">
                 Address Line 1
               </label>
@@ -361,8 +451,29 @@ export default function PracticeSignupPage() {
               Which states does your practice operate in?
             </h3>
             <p className="text-xs text-gray-500">Select all that apply</p>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search states..."
+                value={stateFilter}
+                onChange={(e) => setStateFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+              {stateFilter && (
+                <button
+                  type="button"
+                  onClick={() => setStateFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-2 grid grid-cols-2 gap-1">
-              {US_STATES.map((s) => (
+              {filteredStates.length === 0 && (
+                <p className="col-span-2 text-center text-sm text-gray-400 py-2">No matching states</p>
+              )}
+              {filteredStates.map((s) => (
                 <label
                   key={s}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-primary-50 transition-colors ${
@@ -390,13 +501,34 @@ export default function PracticeSignupPage() {
               Which insurance payers do you want to enroll with?
             </h3>
             <p className="text-xs text-gray-500">Select all that apply</p>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search payers..."
+                value={payerFilter}
+                onChange={(e) => setPayerFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 placeholder-gray-400 text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+              />
+              {payerFilter && (
+                <button
+                  type="button"
+                  onClick={() => setPayerFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             {payersLoading ? (
               <div className="flex items-center justify-center py-6 text-sm text-gray-400">Loading payers…</div>
             ) : payers.length === 0 ? (
               <div className="flex items-center justify-center py-6 text-sm text-gray-400">No payers available</div>
             ) : (
               <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-2 space-y-1">
-                {payers.map((p) => (
+                {filteredPayers.length === 0 && (
+                  <p className="text-center text-sm text-gray-400 py-2">No matching payers</p>
+                )}
+                {filteredPayers.map((p) => (
                   <label
                     key={p.id}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-primary-50 transition-colors ${

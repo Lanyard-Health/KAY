@@ -43,6 +43,7 @@ export const practiceSignupSchema = z.object({
   operatingStates: z.array(z.string().length(2)).min(1, 'At least one operating state is required'),
   targetPayerIds: z.array(z.string().uuid('Invalid payer ID')).min(1, 'At least one target payer is required'),
   isEnterprise: z.boolean().default(false),
+  groupNpi: z.string().regex(/^\d{10}$/, 'Must be a 10-digit NPI number').optional(),
 });
 
 export const selfServeSignupSchema = portalRegistrationSchema.extend({

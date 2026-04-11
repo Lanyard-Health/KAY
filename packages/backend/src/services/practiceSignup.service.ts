@@ -39,6 +39,7 @@ export async function registerPractice(data: PracticeSignupInput) {
           states: data.operatingStates,
           targetPayerIds: data.targetPayerIds,
           isEnterprise: data.isEnterprise ?? false,
+          groupNpi: data.groupNpi,
         },
       });
 
