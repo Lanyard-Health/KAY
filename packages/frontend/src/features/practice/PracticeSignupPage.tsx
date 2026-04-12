@@ -77,27 +77,23 @@ export default function PracticeSignupPage() {
     setNpiLoading(true);
     setNpiMessage(null);
     try {
-      const res = await fetch(
-        `https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`
-      );
+      const res = await fetch(`${API_BASE_URL}/practices/npi-lookup/${npi}`);
       const data = await res.json();
-      if (!data.results || data.result_count === 0) {
+      if (!res.ok || !data.success || !data.data?.found) {
         setNpiMessage({ type: 'error', text: 'NPI not found — enter address manually' });
         return;
       }
-      const result = data.results[0];
-      const addr =
-        result.addresses?.find((a: { address_purpose: string }) => a.address_purpose === 'LOCATION') ??
-        result.addresses?.[0];
+      const result = data.data;
+      const loc = result.practiceLocation;
 
       setForm((f) => ({
         ...f,
-        practiceName: f.practiceName || result.basic?.organization_name || '',
-        addressLine1: addr?.address_1 || '',
-        addressLine2: addr?.address_2 || '',
-        city: addr?.city || '',
-        state: addr?.state || '',
-        zipCode: addr?.postal_code?.slice(0, 5) || '',
+        practiceName: f.practiceName || result.organizationName || '',
+        addressLine1: loc?.addressLine1 || '',
+        addressLine2: loc?.addressLine2 || '',
+        city: loc?.city || '',
+        state: loc?.state || '',
+        zipCode: loc?.zipCode || '',
       }));
       setNpiMessage({ type: 'success', text: 'Address populated from NPI registry' });
     } catch {

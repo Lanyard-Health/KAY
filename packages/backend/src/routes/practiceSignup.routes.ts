@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { practiceSignupSchema } from '@credential-management/shared';
 import { registerPractice } from '../services/practiceSignup.service.js';
+import { NPIService } from '../services/npi.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -67,6 +68,33 @@ router.get('/payers', payerListLimiter, async (_req: Request, res: Response) => 
   } catch (err) {
     logger.error('Failed to fetch public payer list:', err);
     res.status(500).json({ success: false, error: { message: 'Failed to load payers.' } });
+  }
+});
+
+// GET /api/v1/practices/npi-lookup/:npi — public, rate-limited (for signup form NPI autofill)
+const npiLookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env['NODE_ENV'] === 'development' ? 100 : 10,
+  message: { success: false, error: { message: 'Too many requests, please try again later.' } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const npiService = new NPIService();
+
+router.get('/npi-lookup/:npi', npiLookupLimiter, async (req: Request, res: Response) => {
+  try {
+    const { npi } = req.params;
+    if (!npi || !/^\d{10}$/.test(npi)) {
+      res.status(400).json({ success: false, error: { message: 'Invalid NPI number. Must be exactly 10 digits.' } });
+      return;
+    }
+
+    const result = await npiService.lookupByNPI(npi);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('Public NPI lookup failed:', err);
+    res.status(500).json({ success: false, error: { message: 'NPI lookup failed. Please try again.' } });
   }
 });
 
