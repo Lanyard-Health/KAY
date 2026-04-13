@@ -85,10 +85,13 @@ export default function PracticeSignupPage() {
       }
       const result = data.data;
       const loc = result.practiceLocation;
+      const npiName = result.organizationName
+        || [result.firstName, result.lastName].filter(Boolean).join(' ')
+        || '';
 
       setForm((f) => ({
         ...f,
-        practiceName: f.practiceName || result.organizationName || '',
+        practiceName: npiName || f.practiceName,
         addressLine1: loc?.addressLine1 || '',
         addressLine2: loc?.addressLine2 || '',
         city: loc?.city || '',
