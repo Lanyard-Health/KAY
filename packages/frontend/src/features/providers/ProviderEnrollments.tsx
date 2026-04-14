@@ -408,6 +408,10 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   };
 
   const submitForm = () => {
+    if (!formData.payerName.trim()) {
+      toast.error('Please select or enter a payer name');
+      return;
+    }
     if (editingEnrollment) {
       updateMutation.mutate(
         { id: editingEnrollment.id, data: formData },
@@ -454,13 +458,15 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
             Track enrollment status with insurance payers
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Enrollment
-        </button>
+        {enrollments.length > 0 && (
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add Enrollment
+          </button>
+        )}
       </div>
 
       {/* Summary Stats */}
@@ -776,6 +782,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                         value={formData.payerName}
                         onChange={(e) => setFormData({ ...formData, payerName: e.target.value, payerTrackId: null })}
                         placeholder="Enter payer name..."
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
