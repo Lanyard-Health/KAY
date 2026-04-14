@@ -50,7 +50,9 @@ const envSchema = z.object({
   // CAQH (optional — feature disabled if missing)
   CAQH_API_URL: z.string().optional(),
   CAQH_ORG_ID: z.string().optional(),
-  CAQH_API_KEY: z.string().optional(),
+  CAQH_USERNAME: z.string().optional(),
+  CAQH_PASSWORD: z.string().optional(),
+  CAQH_PRODUCT: z.string().optional(),
 
   // Embeddings (optional — knowledge base RAG degrades gracefully)
   OPENAI_API_KEY: z.string().optional(),
