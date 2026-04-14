@@ -412,6 +412,9 @@ caqhRoutes.get(
           ? `attachment; filename="${result.fileName}"`
           : 'attachment'
       );
+      // nosemgrep: javascript.express.security.audit.xss.mustache-escape.direct-response-write
+      // result.data is a binary Buffer from the CAQH API (PDF/image), not user input.
+      // Headers enforce download-only: Content-Disposition: attachment + X-Content-Type-Options: nosniff
       res.send(result.data);
     } catch (error) {
       next(error);
