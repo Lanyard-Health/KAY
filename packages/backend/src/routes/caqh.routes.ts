@@ -406,9 +406,12 @@ caqhRoutes.get(
       const result = await caqhService.downloadDocument(provider.caqhProviderId, docUrl);
 
       res.setHeader('Content-Type', result.contentType);
-      if (result.fileName) {
-        res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-      }
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition',
+        result.fileName
+          ? `attachment; filename="${result.fileName}"`
+          : 'attachment'
+      );
       res.send(result.data);
     } catch (error) {
       next(error);
