@@ -264,7 +264,7 @@ caqhRoutes.get(
       await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
-          caqhStatus: status.attestationStatus,
+          caqhStatus: status.roster_status === 'ACTIVE' ? 'active' : 'inactive',
           caqhLastSync: new Date(),
         },
       });

@@ -23,7 +23,7 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
     if (!this.caqhService.isConfigured()) {
       return {
         ready: false,
-        missingFields: ['CAQH_API_URL', 'CAQH_ORG_ID', 'CAQH_API_KEY'],
+        missingFields: ['CAQH_API_URL', 'CAQH_ORG_ID', 'CAQH_USERNAME', 'CAQH_PASSWORD'],
         warnings: ['CAQH service is not configured — missing environment variables'],
       };
     }
