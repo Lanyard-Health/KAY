@@ -100,7 +100,7 @@ export default function IntegrationsTab() {
           name="CAQH ProView"
           description="Automated credential verification and roster management"
           configured={caqhConfigured}
-          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Configure via CAQH_API_URL, CAQH_ORG_ID, CAQH_API_KEY'}
+          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Configure via CAQH_API_URL, CAQH_ORG_ID, CAQH_USERNAME, CAQH_PASSWORD'}
         />
 
         <IntegrationCard

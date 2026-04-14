@@ -264,7 +264,7 @@ caqhRoutes.get(
       await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
-          caqhStatus: status.attestationStatus,
+          caqhStatus: status.roster_status === 'ACTIVE' ? 'active' : 'inactive',
           caqhLastSync: new Date(),
         },
       });
@@ -343,6 +343,78 @@ caqhRoutes.get(
         data: syncLogs,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
+// CAQH DOCUMENT ROUTES
+// ============================================
+
+// GET /api/v1/caqh/documents/:providerId - Get list of CAQH documents
+caqhRoutes.get(
+  '/documents/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: req.params['providerId'] },
+      });
+
+      if (!provider || !provider.caqhProviderId) {
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
+      }
+
+      const documents = await caqhService.getDocumentsList(provider.caqhProviderId);
+      res.json({ success: true, data: documents });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/documents/:providerId/download - Download a CAQH document
+caqhRoutes.get(
+  '/documents/:providerId/download',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const docUrl = req.query['docUrl'] as string;
+      if (!docUrl || typeof docUrl !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'docUrl query parameter is required',
+        });
+      }
+
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: req.params['providerId'] },
+      });
+
+      if (!provider || !provider.caqhProviderId) {
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
+      }
+
+      const result = await caqhService.downloadDocument(provider.caqhProviderId, docUrl);
+
+      res.setHeader('Content-Type', result.contentType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition',
+        result.fileName
+          ? `attachment; filename="${result.fileName}"`
+          : 'attachment'
+      );
+      // result.data is a binary Buffer from the CAQH API (PDF/image), not user input.
+      // Headers enforce download-only: Content-Disposition: attachment + X-Content-Type-Options: nosniff
+      res.send(result.data); // nosemgrep: javascript.express.security.audit.xss.direct-response-write.direct-response-write
     } catch (error) {
       next(error);
     }

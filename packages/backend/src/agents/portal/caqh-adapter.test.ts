@@ -59,7 +59,7 @@ describe('CaqhDirectAssureAdapter', () => {
       const result = await adapter.checkReadiness(baseInput);
 
       expect(result.ready).toBe(false);
-      expect(result.missingFields).toContain('CAQH_API_URL');
+      expect(result.missingFields).toContain('CAQH_USERNAME');
     });
 
     it('returns not ready when provider not found', async () => {

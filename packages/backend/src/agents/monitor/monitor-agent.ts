@@ -79,15 +79,17 @@ async function checkEnrollmentStatus(
     caqhProviderId &&
     process.env['CAQH_API_URL'] &&
     process.env['CAQH_ORG_ID'] &&
-    process.env['CAQH_API_KEY']
+    process.env['CAQH_USERNAME'] &&
+    process.env['CAQH_PASSWORD']
   ) {
     try {
       const caqhService = new CaqhService();
       const caqhStatus = await caqhService.checkStatus(caqhProviderId);
-      if (caqhStatus.attestationStatus === 'expired' || caqhStatus.attestationStatus === 'inactive') {
+      const rosterStatus = caqhStatus.roster_status;
+      if (rosterStatus === 'NOT ON ROSTER') {
         return {
           status: 'additional_info_needed',
-          details: `CAQH attestation is ${caqhStatus.attestationStatus} — may be blocking enrollment`,
+          details: `CAQH roster status is ${rosterStatus} — may be blocking enrollment`,
         };
       }
     } catch (err) {

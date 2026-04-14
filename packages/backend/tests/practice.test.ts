@@ -107,6 +107,8 @@ describe('Practice CRUD', () => {
   describe('GET / — List practices', () => {
     it('returns all practices with counts', async () => {
       prismaMock.practice.findMany.mockResolvedValue([mockPractice] as any);
+      (prismaMock.enrollment as any).groupBy.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const res = await request(adminApp).get('/');
 
@@ -114,7 +116,7 @@ describe('Practice CRUD', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].name).toBe('Downtown Clinic');
-      expect(res.body.data[0]._count).toBeDefined();
+      expect(res.body.data[0].enrollmentCount).toBe(0);
     });
   });
 

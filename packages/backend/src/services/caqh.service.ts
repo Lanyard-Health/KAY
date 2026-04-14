@@ -7,11 +7,30 @@ interface CaqhRosterResponse {
   status: string;
 }
 
-interface CaqhStatusResponse {
-  caqhProviderId: string;
-  attestationStatus: 'active' | 'inactive' | 'pending' | 'expired';
-  lastAttestationDate?: string;
-  nextAttestationDate?: string;
+export interface CaqhStatusResponse {
+  organization_id?: string;
+  caqh_provider_id?: string;
+  roster_status?: 'ACTIVE' | 'NOT ON ROSTER';
+  authorization_flag?: 'Y' | 'N';
+  provider_status?: string;
+  provider_status_date?: string; // YYYYMMDD format
+  provider_practice_state?: string;
+  anniversary_date?: string; // YYYYMMDD format
+  provider_found_flag?: 'Y' | 'N';
+}
+
+export interface CaqhDocumentInfo {
+  DocumentTypeName: string;
+  StateIdName?: string | null;
+  ExpirationDate?: string | null;
+  DocumentStatusName: 'Approved' | 'Ready for Review' | 'Expired';
+  DocumentURL: string;
+}
+
+export interface CaqhDownloadResult {
+  data: Buffer;
+  contentType: string;
+  fileName?: string;
 }
 
 export interface CaqhCredentialsResponse {
@@ -85,12 +104,21 @@ export interface MappedCaqhData {
 export class CaqhService {
   private baseUrl: string;
   private orgId: string;
-  private apiKey: string;
+  private username: string;
+  private password: string;
+  private product: string;
 
   constructor() {
     this.baseUrl = process.env['CAQH_API_URL'] || '';
     this.orgId = process.env['CAQH_ORG_ID'] || '';
-    this.apiKey = process.env['CAQH_API_KEY'] || '';
+    this.username = process.env['CAQH_USERNAME'] || '';
+    this.password = process.env['CAQH_PASSWORD'] || '';
+    this.product = process.env['CAQH_PRODUCT'] || 'PV';
+  }
+
+  private getAuthHeader(): string {
+    const token = Buffer.from(`${this.username}:${this.password}`).toString('base64');
+    return `Basic ${token}`;
   }
 
   private async request<T>(
@@ -112,8 +140,7 @@ export class CaqhService {
           signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Organization-Id': this.orgId,
+            'Authorization': this.getAuthHeader(),
             ...options.headers,
           },
         });
@@ -183,6 +210,33 @@ export class CaqhService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Convert YYYYMMDD date string (e.g. "20250209") to M/D/YYYY (e.g. "2/9/2025").
+   * No zero-padding on month/day — matches CAQH API expected format.
+   */
+  yyyymmddToMDYYYY(dateStr: string): string {
+    const year = dateStr.substring(0, 4);
+    const month = parseInt(dateStr.substring(4, 6), 10);
+    const day = parseInt(dateStr.substring(6, 8), 10);
+    return `${month}/${day}/${year}`;
+  }
+
+  private async parseXmlToJson(xml: string): Promise<Record<string, any>> {
+    const fxp: any = await import('fast-xml-parser');
+    const XMLParser = fxp?.XMLParser ?? fxp?.default?.XMLParser;
+
+    if (XMLParser) {
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '',
+        trimValues: true,
+      });
+      return parser.parse(xml);
+    }
+
+    throw new Error('No usable XML parser found (fast-xml-parser)');
+  }
+
   async addToRoster(provider: {
     id: string;
     npi: string;
@@ -192,16 +246,23 @@ export class CaqhService {
   }): Promise<CaqhRosterResponse> {
     logger.info(`Adding provider ${provider.npi} to CAQH roster`);
 
-    // CAQH Roster API endpoint
-    const response = await this.request<CaqhRosterResponse>('/roster/add', {
-      method: 'POST',
-      body: JSON.stringify({
-        provider_id: provider.npi,
-        first_name: provider.firstName,
-        last_name: provider.lastName,
-        date_of_birth: provider.dateOfBirth.toISOString().split('T')[0],
-      }),
-    }, false);
+    const response = await this.request<CaqhRosterResponse>(
+      `/RosterAPI/API/Roster?product=${encodeURIComponent(this.product)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider_id: provider.npi,
+          first_name: provider.firstName,
+          last_name: provider.lastName,
+          date_of_birth: provider.dateOfBirth.toISOString().split('T')[0],
+        }),
+      },
+      false
+    );
 
     return response;
   }
@@ -209,30 +270,132 @@ export class CaqhService {
   async removeFromRoster(caqhProviderId: string): Promise<void> {
     logger.info(`Removing provider ${caqhProviderId} from CAQH roster`);
 
-    await this.request(`/roster/${caqhProviderId}`, {
-      method: 'DELETE',
-    }, false);
+    await this.request(
+      `/RosterAPI/API/Roster?product=${encodeURIComponent(this.product)}&caqhProviderId=${encodeURIComponent(caqhProviderId)}&organizationId=${encodeURIComponent(this.orgId)}`,
+      { method: 'DELETE' },
+      false
+    );
   }
 
   async checkStatus(caqhProviderId: string): Promise<CaqhStatusResponse> {
     logger.info(`Checking CAQH status for provider ${caqhProviderId}`);
 
     const response = await this.request<CaqhStatusResponse>(
-      `/status/${caqhProviderId}`
+      `/RosterAPI/api/ProviderStatus?Product=${encodeURIComponent(this.product)}&Caqh_Provider_Id=${encodeURIComponent(caqhProviderId)}&Organization_Id=${encodeURIComponent(this.orgId)}`
     );
 
     return response;
   }
 
-  async pullCredentials(caqhProviderId: string): Promise<CaqhCredentialsResponse> {
-    logger.info(`Pulling credentials from CAQH for provider ${caqhProviderId}`);
+  async pullCredentials(caqhProviderId: string, attestationDate: string): Promise<CaqhCredentialsResponse> {
+    logger.info(`Pulling credentials from CAQH for provider ${caqhProviderId} (attestation: ${attestationDate})`);
 
-    // DirectAssure API endpoint for credential data
-    const response = await this.request<CaqhCredentialsResponse>(
-      `/directassure/provider/${caqhProviderId}`
+    const url = `/credentialingapi/api/v9/entities?caqhProviderId=${encodeURIComponent(caqhProviderId)}&organizationId=${encodeURIComponent(this.orgId)}&attestationDate=${encodeURIComponent(attestationDate)}`;
+
+    const fullUrl = `${this.baseUrl}${url}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(fullUrl, {
+        signal: controller.signal,
+        headers: {
+          'Authorization': this.getAuthHeader(),
+          'Accept': 'application/xml, text/xml;q=0.9, application/json;q=0.1',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`CAQH Credentialing API error: ${response.status} - ${errorText}`);
+        throw new Error(`CAQH API error: ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      const text = await response.text();
+
+      // CAQH Credentialing API v9 returns XML
+      if (/xml/i.test(contentType) || text.trim().startsWith('<')) {
+        try {
+          const parsed = await this.parseXmlToJson(text);
+          return parsed as Record<string, any> as CaqhCredentialsResponse;
+        } catch (err) {
+          logger.error('Failed to parse CAQH credentialing XML response', {
+            error: err instanceof Error ? err.message : 'unknown',
+          });
+          throw new Error('Failed to parse CAQH credentialing response');
+        }
+      }
+
+      // Fallback to JSON if service returns it
+      try {
+        return JSON.parse(text) as CaqhCredentialsResponse;
+      } catch {
+        throw new Error('Unexpected CAQH credentialing response format');
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('CAQH API request timed out');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async getDocumentsList(caqhProviderId: string): Promise<CaqhDocumentInfo[]> {
+    logger.info(`Fetching CAQH documents list for provider ${caqhProviderId}`);
+
+    const response = await this.request<CaqhDocumentInfo[]>(
+      `/documentapi/api/ProviderDocs/GetDocumentsList?caqhProviderID=${encodeURIComponent(caqhProviderId)}&organizationID=${encodeURIComponent(this.orgId)}`,
+      { headers: { 'Accept': 'application/json' } }
     );
 
     return response;
+  }
+
+  async downloadDocument(caqhProviderId: string, docUrl: string): Promise<CaqhDownloadResult> {
+    logger.info(`Downloading CAQH document for provider ${caqhProviderId}`);
+
+    const url = `${this.baseUrl}/DocumentAPI/api/providerdocs/download?caqhProviderID=${encodeURIComponent(caqhProviderId)}&organizationID=${encodeURIComponent(this.orgId)}&docURL=${encodeURIComponent(docUrl)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Authorization': this.getAuthHeader(),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`CAQH API error: ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      const disposition = response.headers.get('content-disposition') || '';
+
+      let fileName: string | undefined;
+      const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+      if (match) {
+        fileName = decodeURIComponent((match[1] ?? match[2]) as string);
+      }
+
+      return {
+        data: Buffer.from(arrayBuffer),
+        contentType,
+        fileName,
+      };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('CAQH API request timed out');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   // Map CAQH data to our internal format
@@ -359,7 +522,18 @@ export class CaqhService {
     });
 
     try {
-      const rawCaqhData = await this.pullCredentials(caqhProviderId);
+      // Step 1: Get provider status to extract attestation date
+      const status = await this.checkStatus(caqhProviderId);
+      const rawDate = status.provider_status_date || status.anniversary_date;
+
+      if (!rawDate) {
+        throw new Error('CAQH status response missing attestation date (provider_status_date and anniversary_date both empty)');
+      }
+
+      const attestationDate = this.yyyymmddToMDYYYY(rawDate);
+
+      // Step 2: Pull credentials using the attestation date
+      const rawCaqhData = await this.pullCredentials(caqhProviderId, attestationDate);
       const caqhData = this.mapCaqhToInternal(rawCaqhData, providerId);
       const changes = await this.applyCaqhDataToProvider(providerId, caqhData);
 
@@ -637,7 +811,7 @@ export class CaqhService {
    * Check if the CAQH API is configured.
    */
   isConfigured(): boolean {
-    return !!(this.baseUrl && this.orgId && this.apiKey);
+    return !!(this.baseUrl && this.orgId && this.username && this.password);
   }
 }
 
