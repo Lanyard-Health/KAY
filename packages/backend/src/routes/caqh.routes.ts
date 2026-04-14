@@ -349,6 +349,73 @@ caqhRoutes.get(
   }
 );
 
+// ============================================
+// CAQH DOCUMENT ROUTES
+// ============================================
+
+// GET /api/v1/caqh/documents/:providerId - Get list of CAQH documents
+caqhRoutes.get(
+  '/documents/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: req.params['providerId'] },
+      });
+
+      if (!provider || !provider.caqhProviderId) {
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
+      }
+
+      const documents = await caqhService.getDocumentsList(provider.caqhProviderId);
+      res.json({ success: true, data: documents });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/documents/:providerId/download - Download a CAQH document
+caqhRoutes.get(
+  '/documents/:providerId/download',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const docUrl = req.query['docUrl'] as string;
+      if (!docUrl || typeof docUrl !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'docUrl query parameter is required',
+        });
+      }
+
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: req.params['providerId'] },
+      });
+
+      if (!provider || !provider.caqhProviderId) {
+        if (!provider) {
+          return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+        }
+        return caqhError(res, 'CAQH_NOT_REGISTERED', 'Provider is not registered with CAQH');
+      }
+
+      const result = await caqhService.downloadDocument(provider.caqhProviderId, docUrl);
+
+      res.setHeader('Content-Type', result.contentType);
+      if (result.fileName) {
+        res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+      }
+      res.send(result.data);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/caqh/config - Get CAQH integration configuration status
 caqhRoutes.get(
   '/config',
