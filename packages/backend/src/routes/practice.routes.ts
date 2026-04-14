@@ -172,10 +172,15 @@ router.get(
 router.get(
   '/:practiceId',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
+
+      // Practice-admin can only access their own practice
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds?.includes(practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+      }
 
       const practice = await prisma.practice.findUnique({
         where: { id: practiceId },
@@ -240,10 +245,16 @@ router.post(
 router.patch(
   '/:practiceId',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
+
+      // Practice-admin can only update their own practice
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds?.includes(practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+      }
+
       const validated = updatePracticeSchema.parse(req.body);
 
       const existing = await prisma.practice.findUnique({
@@ -288,10 +299,15 @@ router.patch(
 router.get(
   '/:practiceId/users',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
+
+      // Practice-admin can only view users in their own practice
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds?.includes(practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+      }
 
       const practice = await prisma.practice.findUnique({
         where: { id: practiceId },

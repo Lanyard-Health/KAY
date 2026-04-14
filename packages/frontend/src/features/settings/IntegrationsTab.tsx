@@ -113,7 +113,7 @@ export default function IntegrationsTab() {
 
         <IntegrationCard
           icon={<EnvelopeIcon className="h-5 w-5" />}
-          name="Email (SES)"
+          name="Email (Resend)"
           description="Automated email follow-ups and notifications"
           configured={emailConfigured}
           details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Configure via RESEND_FROM_EMAIL and RESEND_API_KEY'}

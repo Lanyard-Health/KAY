@@ -171,6 +171,7 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
+  const practiceName = user?.role !== 'admin' ? user?.practices?.[0]?.practice?.name : null;
   const baseGroups = role === 'admin' ? adminNavGroups : customerNavGroups;
 
   // Inject OCR review count badge into OCR Review nav item
@@ -193,6 +194,15 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
         <img src="/logo.png" alt="Lanyard Health" className="h-8 brightness-0 invert" />
         <span className="text-white text-lg font-semibold tracking-tight">Lanyard Health</span>
       </div>
+
+      {practiceName && (
+        <div className="-mt-2 pb-3 border-b border-white/10">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <BuildingOffice2Icon className="h-4 w-4 text-white/50 shrink-0" />
+            <span className="text-sm text-white/70 truncate">{practiceName}</span>
+          </div>
+        </div>
+      )}
 
       <nav className="flex flex-1 flex-col">
         <ul role="list" className="flex flex-1 flex-col gap-y-4">
