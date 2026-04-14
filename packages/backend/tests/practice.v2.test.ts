@@ -163,6 +163,8 @@ describe('Practice CRUD — v2', () => {
   describe('GET / — List practices', () => {
     it('admin sees all practices', async () => {
       prismaMock.practice.findMany.mockResolvedValue([mockPractice] as any);
+      (prismaMock.enrollment as any).groupBy.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const res = await request(adminApp).get('/');
 
@@ -190,6 +192,8 @@ describe('Practice CRUD — v2', () => {
       })();
 
       prismaMock.practice.findMany.mockResolvedValue([mockPractice] as any);
+      (prismaMock.enrollment as any).groupBy.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const res = await request(scopedStaffApp).get('/');
 

@@ -18,6 +18,15 @@ vi.mock('../middleware/audit.middleware.js', () => ({
   setAuditContext: vi.fn(),
 }));
 
+vi.mock('../middleware/practiceScope.middleware.js', () => ({
+  requirePracticeProvider: vi.fn((_req: any, _res: any, next: any) => next()),
+  attachPracticeScope: vi.fn((_req: any, _res: any, next: any) => next()),
+  initPracticeScope: vi.fn(),
+  validateProviderPracticeAccess: vi.fn(),
+  getPracticeProviderFilter: vi.fn(() => ({})),
+  getPracticeRelationFilter: vi.fn(() => ({})),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -121,7 +130,7 @@ describe('CAQH Routes', () => {
 
   describe('POST /credentials/:providerId', () => {
     it('saves credentials for a provider', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       (caqhCredentialsService.saveCredentials as any).mockResolvedValue(undefined);
 
       const res = await request(app)
@@ -135,7 +144,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .post('/credentials/nonexistent-id')
@@ -157,7 +166,7 @@ describe('CAQH Routes', () => {
 
   describe('GET /credentials/:providerId', () => {
     it('returns credential status (not the password)', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       (caqhCredentialsService.getCredentialStatus as any).mockResolvedValue({
         hasCredentials: true,
         isValid: true,
@@ -174,7 +183,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).get('/credentials/nonexistent-id');
 
@@ -185,7 +194,7 @@ describe('CAQH Routes', () => {
 
   describe('POST /credentials/:providerId/verify', () => {
     it('verifies and updates credentials', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       (caqhCredentialsService.verifyAndUpdateProvider as any).mockResolvedValue({
         success: true,
         valid: true,
@@ -201,7 +210,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).post('/credentials/nonexistent-id/verify');
 
@@ -214,22 +223,24 @@ describe('CAQH Routes', () => {
   // ROSTER ROUTES
   // ==========================================
   describe('POST /roster', () => {
+    const validProviderId = '00000000-0000-4000-a000-000000000001';
+
     it('adds provider to roster and updates caqhProviderId', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       caqhServiceInstance.addToRoster.mockResolvedValue({
         caqhProviderId: 'caqh-123',
         status: 'pending',
       });
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
 
       const res = await request(app)
         .post('/roster')
-        .send({ providerId: 'provider-1-id' });
+        .send({ providerId: validProviderId });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.caqhProviderId).toBe('caqh-123');
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             caqhProviderId: 'caqh-123',
@@ -240,11 +251,11 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .post('/roster')
-        .send({ providerId: 'nonexistent-id' });
+        .send({ providerId: validProviderId });
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
@@ -253,12 +264,12 @@ describe('CAQH Routes', () => {
 
   describe('DELETE /roster/:providerId', () => {
     it('removes provider from roster', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
       caqhServiceInstance.removeFromRoster.mockResolvedValue(undefined);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
 
       const res = await request(app).delete('/roster/provider-1-id');
 
@@ -269,7 +280,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider has no caqhProviderId', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: null,
       } as any);
@@ -281,7 +292,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).delete('/roster/nonexistent-id');
 
@@ -294,7 +305,7 @@ describe('CAQH Routes', () => {
   // ==========================================
   describe('GET /status/:providerId', () => {
     it('checks CAQH status and updates local record', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -305,14 +316,14 @@ describe('CAQH Routes', () => {
         provider_status_date: '20240101',
         provider_found_flag: 'Y',
       });
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
 
       const res = await request(app).get('/status/provider-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.roster_status).toBe('ACTIVE');
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             caqhStatus: 'active',
@@ -323,7 +334,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider has no CAQH registration', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: null,
       } as any);
@@ -350,7 +361,7 @@ describe('CAQH Routes', () => {
     };
 
     it('calls syncProvider with correct arguments', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -363,7 +374,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns sync result with changes summary', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -381,7 +392,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 500 when syncProvider throws', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -393,7 +404,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider has no CAQH registration', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: null,
       } as any);
@@ -488,7 +499,7 @@ describe('CAQH Routes', () => {
   // ==========================================
   describe('GET /documents/:providerId', () => {
     it('returns documents list for provider', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -506,7 +517,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not registered with CAQH', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: null,
       } as any);
@@ -519,7 +530,7 @@ describe('CAQH Routes', () => {
 
   describe('GET /documents/:providerId/download', () => {
     it('returns binary file with correct headers', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         caqhProviderId: 'caqh-123',
       } as any);
@@ -547,7 +558,7 @@ describe('CAQH Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .get('/documents/provider-1-id/download')
