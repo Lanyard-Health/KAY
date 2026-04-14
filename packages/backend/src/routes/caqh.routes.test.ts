@@ -35,6 +35,8 @@ vi.mock('../services/caqh.service.js', () => ({
       syncProvider: vi.fn(),
       applyCaqhDataToProvider: vi.fn(),
       isConfigured: vi.fn().mockReturnValue(false),
+      getDocumentsList: vi.fn(),
+      downloadDocument: vi.fn(),
     };
   }),
 }));
@@ -297,9 +299,11 @@ describe('CAQH Routes', () => {
         caqhProviderId: 'caqh-123',
       } as any);
       caqhServiceInstance.checkStatus.mockResolvedValue({
-        caqhProviderId: 'caqh-123',
-        attestationStatus: 'active',
-        lastAttestationDate: '2024-01-01',
+        caqh_provider_id: 'caqh-123',
+        roster_status: 'ACTIVE',
+        provider_status: 'Active',
+        provider_status_date: '20240101',
+        provider_found_flag: 'Y',
       });
       prismaMock.provider.update.mockResolvedValue(mockProvider as any);
 
@@ -307,7 +311,7 @@ describe('CAQH Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.attestationStatus).toBe('active');
+      expect(res.body.data.roster_status).toBe('ACTIVE');
       expect(prismaMock.provider.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -476,6 +480,80 @@ describe('CAQH Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.data.configured).toBe(true);
       expect(res.body.data.lastSyncAt).toBe(completedAt.toISOString());
+    });
+  });
+
+  // ==========================================
+  // DOCUMENTS
+  // ==========================================
+  describe('GET /documents/:providerId', () => {
+    it('returns documents list for provider', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue({
+        ...mockProvider,
+        caqhProviderId: 'caqh-123',
+      } as any);
+      const docs = [
+        { DocumentTypeName: 'License', DocumentURL: '/doc/1', DocumentStatusName: 'Approved' },
+      ];
+      caqhServiceInstance.getDocumentsList.mockResolvedValue(docs);
+
+      const res = await request(app).get('/documents/provider-1-id');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual(docs);
+      expect(caqhServiceInstance.getDocumentsList).toHaveBeenCalledWith('caqh-123');
+    });
+
+    it('returns 404 when provider not registered with CAQH', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue({
+        ...mockProvider,
+        caqhProviderId: null,
+      } as any);
+
+      const res = await request(app).get('/documents/provider-1-id');
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('GET /documents/:providerId/download', () => {
+    it('returns binary file with correct headers', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue({
+        ...mockProvider,
+        caqhProviderId: 'caqh-123',
+      } as any);
+      caqhServiceInstance.downloadDocument.mockResolvedValue({
+        data: Buffer.from('PDF-content'),
+        contentType: 'application/pdf',
+        fileName: 'license.pdf',
+      });
+
+      const res = await request(app)
+        .get('/documents/provider-1-id/download')
+        .query({ docUrl: '/doc/url' });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/pdf');
+      expect(res.headers['content-disposition']).toContain('license.pdf');
+      expect(caqhServiceInstance.downloadDocument).toHaveBeenCalledWith('caqh-123', '/doc/url');
+    });
+
+    it('returns 400 when docUrl query param is missing', async () => {
+      const res = await request(app).get('/documents/provider-1-id/download');
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('returns 404 when provider not found', async () => {
+      prismaMock.provider.findUnique.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/documents/provider-1-id/download')
+        .query({ docUrl: '/doc/url' });
+
+      expect(res.status).toBe(404);
     });
   });
 });
