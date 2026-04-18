@@ -1526,6 +1526,7 @@ model Enrollment {
   tasks             Task[]
   workflowSteps     EnrollmentWorkflowStep[]
   aetnaRuns         AetnaEnrollmentRun[]
+  enrollmentRuns    EnrollmentRun[]
   followUpRuns      FollowUpRun[]
   denialTriages     DenialTriage[]
 
@@ -2399,9 +2400,112 @@ model PayerForm {
   notes        String?
   createdAt    DateTime   @default(now()) @map("created_at")
 
+  // Form-fill framework (Phase 3)
+  // deliveryEngine drives the dispatcher: which adapter runs this form.
+  // assetUrl points to the PDF template (pdf engine) or entry URL (browser).
+  deliveryEngine String? @map("delivery_engine") // browser | pdf | email | deep_link | manual
+  assetUrl       String? @map("asset_url")
+
   embeddings KnowledgeBaseEmbedding[]
+  fields     PayerFormField[]
 
   @@map("payer_forms")
+}
+
+// PayerFormField — one row per fillable control on a PayerForm. The
+// recipe resolver walks these rows, resolves each field's source value
+// from a CredentialingPacket via PayerFormFieldMapping, and produces
+// the flat { fieldKey → value } dictionary that a channel adapter
+// (browser / pdf / email) consumes.
+model PayerFormField {
+  id              String    @id @default(cuid())
+  payerFormId     String    @map("payer_form_id")
+  payerForm       PayerForm @relation(fields: [payerFormId], references: [id], onDelete: Cascade)
+
+  // Selector used by the adapter to find the box. For browser this is a
+  // CSS selector or Angular formcontrolname; for PDF it's the field name
+  // declared inside the template.
+  fieldKey String @map("field_key")
+
+  fieldLabel      String  @map("field_label") // human-readable, for UI + error messages
+  fieldType       String  @map("field_type") // text | dropdown | radio | checkbox | date | signature | masked | email | phone
+  pageSection     String? @map("page_section") // e.g. "page3" for paginated forms
+  orderIndex      Int     @default(0) @map("order_index")
+  required        Boolean @default(false)
+  validationRegex String? @map("validation_regex")
+  notes           String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  mappings PayerFormFieldMapping[]
+
+  @@unique([payerFormId, fieldKey])
+  @@index([payerFormId])
+  @@map("payer_form_fields")
+}
+
+// PayerFormFieldMapping — how to fill one PayerFormField from data. A
+// field can have multiple mappings ordered by priority (first non-empty
+// wins) — supports "use practice-payer contract number if set, else fall
+// back to payer-default". Transform is a small JSON DSL applied after
+// the raw value resolves.
+model PayerFormFieldMapping {
+  id               String         @id @default(cuid())
+  payerFormFieldId String         @map("payer_form_field_id")
+  payerFormField   PayerFormField @relation(fields: [payerFormFieldId], references: [id], onDelete: Cascade)
+
+  // Where the value comes from inside the CredentialingPacket.
+  // sourceKind narrows the scope; sourcePath is a dotted/bracketed
+  // accessor like "provider.npi" or "licenses[0].expirationDate".
+  sourceKind String @map("source_kind") // provider | practice | practicePayer | license | education | boardCertification | identifier | banking | demographics | constant | computed
+  sourcePath String @map("source_path")
+
+  // Optional formatting pipeline — JSON DSL: { fn: "date", format: "MM/DD/YYYY" }
+  transform Json?
+
+  fallbackValue String? @map("fallback_value")
+  priority      Int     @default(0) // higher wins when multiple mappings resolve
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([payerFormFieldId])
+  @@map("payer_form_field_mappings")
+}
+
+// EnrollmentRun — one row per "Populate Forms" execution. Replaces the
+// Aetna-specific AetnaEnrollmentRun as the generic tracking table. Any
+// channel adapter writes here. Status stays simple: filling flows to
+// awaiting_review or failed; awaiting_review holds until the user clicks
+// submit or cancels. A run stores all forms' filled artifacts (a single
+// enrollment may fan out to several PayerForms).
+model EnrollmentRun {
+  id           String     @id @default(cuid())
+  enrollmentId String     @map("enrollment_id")
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  status String // pending | filling | awaiting_review | submitting | completed | failed
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  submittedAt DateTime? @map("submitted_at")
+  completedAt DateTime? @map("completed_at")
+
+  // Filled artifacts per form — shape:
+  // [{ payerFormId, engine, artifactUrl, fieldLog, blocker? }]
+  // blocker is optional per-form hint for the review panel (e.g. captcha).
+  filledArtifacts Json? @map("filled_artifacts")
+  errorDetails    Json? @map("error_details")
+
+  triggeredBy String? @map("triggered_by") // User ID
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enrollmentId])
+  @@index([status])
+  @@map("enrollment_runs")
 }
 
 model RequirementUniversal {
