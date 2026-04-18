@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Tab, Switch } from '@headlessui/react';
-import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon, Cog6ToothIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,10 +10,12 @@ import { api } from '../../services/api';
 import PracticeFormModal from './PracticeFormModal';
 import PracticeUsersTab from './PracticeUsersTab';
 import PracticeProvidersTab from './PracticeProvidersTab';
+import PracticePayersTab from './PracticePayersTab';
 
 const TABS = [
   { name: 'Users', icon: UserGroupIcon },
   { name: 'Providers', icon: UsersIcon },
+  { name: 'Payers', icon: BuildingOffice2Icon },
   { name: 'Settings', icon: Cog6ToothIcon },
 ];
 
@@ -141,6 +143,9 @@ export default function PracticeDetail() {
           </Tab.Panel>
           <Tab.Panel>
             <PracticeProvidersTab practiceId={practiceId!} />
+          </Tab.Panel>
+          <Tab.Panel>
+            <PracticePayersTab practiceId={practiceId!} />
           </Tab.Panel>
           <Tab.Panel>
             <PracticeSettingsTab practiceId={practiceId!} />

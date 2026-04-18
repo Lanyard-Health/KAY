@@ -292,12 +292,23 @@ router.patch(
         data: updateData,
       });
 
-      // When payers are added to targetPayerIds, auto-create draft enrollments
-      // for every provider in the practice. Removed payers are preserved —
-      // existing drafts are NOT deleted.
+      // When payers are added to targetPayerIds:
+      //  1. Seed a PracticePayer row for the new (practice, payer) pair so
+      //     the settings UI has something to edit.
+      //  2. Auto-create draft enrollments for every provider in the practice.
+      // Removed payers are preserved — existing drafts and PracticePayer
+      // rows are NOT deleted.
       if (validated.targetPayerIds !== undefined) {
         const before = new Set(existing.targetPayerIds);
         const addedPayerIds = validated.targetPayerIds.filter((id) => !before.has(id));
+        if (addedPayerIds.length > 0) {
+          await prisma.practicePayer.createMany({
+            data: addedPayerIds.map((payerId) => ({ practiceId, payerId })),
+            skipDuplicates: true,
+          }).catch((err) => {
+            logger.warn(`practicePayer seed failed for practice ${practiceId}`, err);
+          });
+        }
         for (const newPayerId of addedPayerIds) {
           ensureDraftEnrollments({
             practiceId,
