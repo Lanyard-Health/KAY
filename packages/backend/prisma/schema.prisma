@@ -1457,6 +1457,10 @@ model Enrollment {
   // Workflow
   workflowType WorkflowType? @map("workflow_type")
 
+  // Draft enrollments: auto-created from Practice.targetPayerIds when a
+  // provider is added. Flips to false when staff first edits real data.
+  isDraft Boolean @default(false) @map("is_draft")
+
   slaTargetDate DateTime? @map("sla_target_date")
   slaBreachedAt DateTime? @map("sla_breached_at")
 

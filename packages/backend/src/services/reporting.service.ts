@@ -72,10 +72,12 @@ export async function getEnrollmentPipeline(
 ): Promise<EnrollmentPipelineResult> {
   const start = Date.now();
 
-  // Get all enrollments for providers in this practice, including payer info
+  // Get all enrollments for providers in this practice, including payer info.
+  // Drafts are excluded from pipeline metrics — they're placeholders, not real enrollments.
   const enrollments = await prisma.enrollment.findMany({
     where: {
       provider: { practiceId },
+      isDraft: false,
       ...(startDate || endDate
         ? {
             createdAt: {
@@ -303,6 +305,7 @@ export async function getProviderReadiness(
         select: { expirationDate: true, status: true },
       },
       enrollments: {
+        where: { isDraft: false },
         select: { status: true },
       },
     },
@@ -372,7 +375,7 @@ export async function getGettingStartedStatus(
       where: { provider: { practiceId } },
     }),
     prisma.enrollment.count({
-      where: { provider: { practiceId } },
+      where: { provider: { practiceId }, isDraft: false },
     }),
   ]);
 

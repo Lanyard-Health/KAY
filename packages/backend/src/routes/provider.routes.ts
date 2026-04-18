@@ -11,6 +11,7 @@ import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js
 import { invalidateCache } from '../utils/cache.js';
 import { z } from 'zod';
 import { CaqhService } from '../services/caqh.service.js';
+import { ensureDraftEnrollments } from '../services/draft-enrollment.service.js';
 import { logger } from '../utils/logger.js';
 
 // Fields to NEVER return in API responses
@@ -199,6 +200,22 @@ providerRoutes.post(
       });
 
       invalidateCache('dashboard');
+
+      // Auto-create draft enrollments for the practice's target payers.
+      // Non-blocking: provider creation must not fail on draft errors.
+      if (provider.practiceId) {
+        ensureDraftEnrollments({
+          practiceId: provider.practiceId,
+          providerId: provider.id,
+          createdById: req.user?.id,
+        }).catch((err) => {
+          logger.warn(
+            `ensureDraftEnrollments failed for provider ${provider.id}`,
+            err
+          );
+        });
+      }
+
       const data: Record<string, unknown> = { ...stripSensitiveFields(provider) };
       if (groupNpi) data['groupNpi'] = groupNpi;
       if (taxId) data['taxId'] = taxId;
