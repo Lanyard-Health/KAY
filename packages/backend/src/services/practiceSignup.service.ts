@@ -69,6 +69,24 @@ export async function registerPractice(data: PracticeSignupInput) {
         },
       });
 
+      // Seed PracticePayer rows for each target payer so the settings UI
+      // has a record to edit without a second round-trip.
+      if (data.targetPayerIds && data.targetPayerIds.length > 0) {
+        const existingPayers = await tx.payer.findMany({
+          where: { id: { in: data.targetPayerIds } },
+          select: { id: true },
+        });
+        if (existingPayers.length > 0) {
+          await tx.practicePayer.createMany({
+            data: existingPayers.map((p) => ({
+              practiceId: practice.id,
+              payerId: p.id,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
       // If enterprise, create EnterpriseQueue entry
       if (data.isEnterprise) {
         await tx.enterpriseQueue.create({

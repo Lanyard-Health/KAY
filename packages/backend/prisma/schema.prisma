@@ -179,6 +179,7 @@ model Practice {
   practiceLocations    PracticeLocation[]
   providerImports      ProviderImport[]
   subscription         Subscription?
+  practicePayers       PracticePayer[]
 
   // Clinical profile
   organizationTypeId  String?           @map("organization_type_id")
@@ -1414,8 +1415,48 @@ model Payer {
   enrollments      Enrollment[]
   agentWorkflows   AgentWorkflow[]
   submissionConfig PayerSubmissionConfig?
+  practicePayers   PracticePayer[]
 
   @@map("payers")
+}
+
+// PracticePayer — per-(practice, payer) relationship metadata. Home for
+// info the payer assigns at the practice level (group NPI, group tax ID,
+// group contract) plus compliance artifacts (W-9, COI) that are shared
+// across every provider in the practice when enrolling with that payer.
+model PracticePayer {
+  id         String @id @default(uuid())
+  practiceId String @map("practice_id")
+  payerId    String @map("payer_id")
+
+  // Payer-assigned identifiers (practice scope)
+  groupNpi            String? @map("group_npi")
+  groupTaxIdEncrypted String? @map("group_tax_id_encrypted") // AES-256-GCM
+  groupContractNumber String? @map("group_contract_number")
+
+  // Primary contact for this practice-payer relationship
+  primaryContactName  String? @map("primary_contact_name")
+  primaryContactEmail String? @map("primary_contact_email")
+  primaryContactPhone String? @map("primary_contact_phone")
+
+  // Document S3 keys (private bucket; signed URLs only)
+  coiOnFileUrl String? @map("coi_on_file_url")
+  w9OnFileUrl  String? @map("w9_on_file_url")
+
+  effectiveDate DateTime? @map("effective_date")
+  notes         String?
+
+  // Audit
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  payer    Payer    @relation(fields: [payerId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, payerId])
+  @@index([payerId])
+  @@map("practice_payers")
 }
 
 enum EnrollmentStatus {
