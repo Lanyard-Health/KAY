@@ -8,7 +8,7 @@ import { sanitizeRecord } from '../utils/sanitize.js';
 export function registerGetEnrollmentDetails(server: McpServer, ctx: UserContext) {
   server.tool(
     'get_enrollment_details',
-    'Get full details for a specific payer enrollment by ID, including provider info, payer info, dates, follow-up settings, and PDM attestation status.',
+    'Get full details for a specific payer enrollment by ID, including provider info, payer info, dates, and follow-up settings.',
     {
       enrollmentId: z.string().uuid().describe('The enrollment ID'),
     },
@@ -38,8 +38,6 @@ export function registerGetEnrollmentDetails(server: McpServer, ctx: UserContext
           followUpFrequencyDays: true,
           lastFollowUpSentAt: true,
           nextFollowUpDate: true,
-          pdmLastAttestedAt: true,
-          pdmEnabled: true,
           createdAt: true,
           updatedAt: true,
           provider: {
@@ -98,10 +96,6 @@ export function registerGetEnrollmentDetails(server: McpServer, ctx: UserContext
           frequencyDays: enrollment.followUpFrequencyDays,
           lastAutoSentAt: formatDate(enrollment.lastFollowUpSentAt),
           nextAutoFollowUp: formatDate(enrollment.nextFollowUpDate),
-        },
-        pdm: {
-          enabled: enrollment.pdmEnabled,
-          lastAttestedAt: formatDate(enrollment.pdmLastAttestedAt),
         },
         payerEmail: enrollment.payerEmail,
         notes: enrollment.notes,
