@@ -5,6 +5,8 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { decryptSafe, encryptSafe } from '../utils/crypto.js';
+import { ensureDraftEnrollments } from '../services/draft-enrollment.service.js';
+import { logger } from '../utils/logger.js';
 
 function maskPractice(practice: any) {
   if (!practice) return practice;
@@ -37,6 +39,7 @@ const updatePracticeSchema = z.object({
   website: z.union([z.string().max(500), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
   notes: n(z.string().max(2000)),
   taxId: n(z.string().max(20)),
+  targetPayerIds: z.array(z.string().uuid()).optional(),
 });
 
 const assignUserSchema = z.object({
@@ -282,11 +285,32 @@ router.patch(
       if (validated.website !== undefined) updateData['website'] = validated.website || null;
       if (validated.notes !== undefined) updateData['notes'] = validated.notes || null;
       if (validated.taxId !== undefined) updateData['taxIdEncrypted'] = validated.taxId ? encryptSafe(validated.taxId) : null;
+      if (validated.targetPayerIds !== undefined) updateData['targetPayerIds'] = validated.targetPayerIds;
 
       const practice = await prisma.practice.update({
         where: { id: practiceId },
         data: updateData,
       });
+
+      // When payers are added to targetPayerIds, auto-create draft enrollments
+      // for every provider in the practice. Removed payers are preserved —
+      // existing drafts are NOT deleted.
+      if (validated.targetPayerIds !== undefined) {
+        const before = new Set(existing.targetPayerIds);
+        const addedPayerIds = validated.targetPayerIds.filter((id) => !before.has(id));
+        for (const newPayerId of addedPayerIds) {
+          ensureDraftEnrollments({
+            practiceId,
+            payerId: newPayerId,
+            createdById: req.user?.id,
+          }).catch((err) => {
+            logger.warn(
+              `ensureDraftEnrollments failed for practice ${practiceId}, payer ${newPayerId}`,
+              err
+            );
+          });
+        }
+      }
 
       res.json({ success: true, data: maskPractice(practice) });
     } catch (error) {

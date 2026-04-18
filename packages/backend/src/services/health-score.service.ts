@@ -67,18 +67,20 @@ export async function computeHealthScore(
         },
       }),
 
-      // Total non-terminated enrollments
+      // Total non-terminated enrollments (excluding drafts)
       prisma.enrollment.count({
         where: {
           status: { not: 'terminated' },
+          isDraft: false,
           provider: providerWhere,
         },
       }),
 
-      // Approved enrollments
+      // Approved enrollments (excluding drafts)
       prisma.enrollment.count({
         where: {
           status: 'approved',
+          isDraft: false,
           provider: providerWhere,
         },
       }),
@@ -231,6 +233,7 @@ async function get7DayEnrollmentTrend(
     const count = await prisma.enrollment.count({
       where: {
         provider: providerWhere,
+        isDraft: false,
         createdAt: { gte: dayStart, lte: dayEnd },
       },
     });

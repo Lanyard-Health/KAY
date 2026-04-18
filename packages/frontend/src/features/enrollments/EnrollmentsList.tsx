@@ -24,6 +24,7 @@ import {
   ExclamationTriangleIcon,
   CalendarDaysIcon,
   ClipboardDocumentCheckIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 
 interface Payer {
@@ -47,6 +48,7 @@ interface Enrollment {
   providerId: string;
   payerId: string;
   status: string;
+  isDraft?: boolean;
   productTypes: string[];
   applicationDate: string | null;
   effectiveDate: string | null;
@@ -173,6 +175,7 @@ export default function EnrollmentsList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [payerFilter, setPayerFilter] = useState('');
+  const [showDrafts, setShowDrafts] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   // New enrollment modal state
@@ -288,9 +291,14 @@ export default function EnrollmentsList() {
         return false;
       }
 
+      // Draft filter
+      if (!showDrafts && enrollment.isDraft) {
+        return false;
+      }
+
       return true;
     });
-  }, [enrollments, search, statusFilter, payerFilter]);
+  }, [enrollments, search, statusFilter, payerFilter, showDrafts]);
 
   // Search providers directly (for quick enrollment creation)
   const searchedProviders = useMemo(() => {
@@ -307,16 +315,18 @@ export default function EnrollmentsList() {
       .slice(0, 10);
   }, [providers, search]);
 
-  // Summary stats
+  // Summary stats — drafts are placeholders, not real work, so exclude them
   const stats = useMemo(() => {
+    const real = enrollments.filter((e) => !e.isDraft);
     return {
-      total: enrollments.length,
-      approved: enrollments.filter((e) => e.status === 'approved').length,
-      inProgress: enrollments.filter((e) =>
+      total: real.length,
+      drafts: enrollments.length - real.length,
+      approved: real.filter((e) => e.status === 'approved').length,
+      inProgress: real.filter((e) =>
         ['in_progress', 'submitted', 'pending_review'].includes(e.status)
       ).length,
-      notStarted: enrollments.filter((e) => e.status === 'not_started').length,
-      needsFollowUp: enrollments.filter((e) => {
+      notStarted: real.filter((e) => e.status === 'not_started').length,
+      needsFollowUp: real.filter((e) => {
         if (!e.lastFollowUpDate) return false;
         const followUp = new Date(e.lastFollowUpDate);
         const weekAgo = new Date();
@@ -339,6 +349,19 @@ export default function EnrollmentsList() {
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
       notify.error('Enrollment failed', { description: message });
+    },
+  });
+
+  // Delete mutation (drafts only — UI gates which rows show the trash icon)
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/enrollments/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
+      notify.success('Draft enrollment removed');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || 'Failed to remove draft';
+      notify.error('Delete failed', { description: message });
     },
   });
 
@@ -502,6 +525,19 @@ export default function EnrollmentsList() {
               ))}
             </select>
           </div>
+
+          {/* Show drafts toggle */}
+          {stats.drafts > 0 && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 whitespace-nowrap cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showDrafts}
+                onChange={(e) => setShowDrafts(e.target.checked)}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              Show drafts ({stats.drafts})
+            </label>
+          )}
         </div>
 
         {(search || statusFilter || payerFilter) && (
@@ -585,15 +621,27 @@ export default function EnrollmentsList() {
           <FunnelIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Found</h3>
           <p className="text-gray-500 mb-4">
-            Get started by adding an enrollment for a provider.
+            {targetPayerIds.length > 0 && providers.length === 0
+              ? 'Add a provider — drafts will auto-populate for your target payers.'
+              : 'Get started by adding an enrollment for a provider.'}
           </p>
-          <button
-            onClick={() => openModal()}
-            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add First Enrollment
-          </button>
+          {targetPayerIds.length > 0 && providers.length === 0 ? (
+            <Link
+              to="/providers/new"
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Add First Provider
+            </Link>
+          ) : (
+            <button
+              onClick={() => openModal()}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Add First Enrollment
+            </button>
+          )}
         </div>
       ) : viewMode === 'kanban' ? (
         /* Kanban Pipeline View */
@@ -648,7 +696,11 @@ export default function EnrollmentsList() {
                         <Link
                           key={enrollment.id}
                           to={`/enrollments/${enrollment.id}`}
-                          className="block bg-white rounded-xl shadow-sm border border-gray-200/60 hover:shadow-md hover:border-primary-300 transition-all duration-200 overflow-hidden"
+                          className={`block rounded-xl shadow-sm border hover:shadow-md transition-all duration-200 overflow-hidden ${
+                            enrollment.isDraft
+                              ? 'bg-gray-50 border-dashed border-gray-300 hover:border-gray-400'
+                              : 'bg-white border-gray-200/60 hover:border-primary-300'
+                          }`}
                         >
                           {/* Card Header with Provider */}
                           <div className="p-3 border-b border-gray-100">
@@ -667,6 +719,27 @@ export default function EnrollmentsList() {
                                   NPI: {enrollment.provider?.npi}
                                 </p>
                               </div>
+                              {enrollment.isDraft && (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-200 text-gray-700 uppercase tracking-wide">
+                                    Draft
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (confirm(`Remove draft enrollment for ${enrollment.payer?.name}?`)) {
+                                        deleteMutation.mutate(enrollment.id);
+                                      }
+                                    }}
+                                    className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                    aria-label="Remove draft"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -827,11 +900,18 @@ export default function EnrollmentsList() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
-                      >
-                        {statusConfig.label}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.color}`}
+                        >
+                          {statusConfig.label}
+                        </span>
+                        {enrollment.isDraft && (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700 uppercase tracking-wide">
+                            Draft
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-900">
                       {enrollment.providerNumber || '-'}
@@ -856,12 +936,28 @@ export default function EnrollmentsList() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <Link
-                        to={`/enrollments/${enrollment.id}`}
-                        className="text-primary-600 hover:text-primary-800 text-sm font-medium"
-                      >
-                        View
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          to={`/enrollments/${enrollment.id}`}
+                          className="text-primary-600 hover:text-primary-800 text-sm font-medium"
+                        >
+                          View
+                        </Link>
+                        {enrollment.isDraft && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Remove draft enrollment for ${enrollment.payer?.name}?`)) {
+                                deleteMutation.mutate(enrollment.id);
+                              }
+                            }}
+                            className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            aria-label="Remove draft"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </AnimatedListItem>
                 );
