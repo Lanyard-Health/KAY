@@ -384,7 +384,7 @@ model ProviderProfile {
   caqhCredentialsValid       Boolean?    @map("caqh_credentials_valid")
   caqhCredentialsLastChecked DateTime?   @map("caqh_credentials_last_checked")
 
-  // Directory change tracking (golden record for PDM)
+  // Directory change tracking
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
   // Intake fields
@@ -546,7 +546,7 @@ model PracticeLocation {
   billingZipCode      String? @map("billing_zip_code")
   medicarePOS         String? @map("medicare_pos") // Place of Service code
 
-  // Directory change tracking (golden record for PDM)
+  // Directory change tracking
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
   // Audit
@@ -1453,11 +1453,6 @@ model Enrollment {
   followUpFrequencyDays Int       @default(14) @map("follow_up_frequency_days")
   lastFollowUpSentAt    DateTime? @map("last_follow_up_sent_at")
   nextFollowUpDate      DateTime? @map("next_follow_up_date")
-
-  // PDM Attestation Tracking (CAA 2021 - 90 day requirement)
-  pdmLastAttestedAt DateTime? @map("pdm_last_attested_at")
-  pdmLastAttestedBy String?   @map("pdm_last_attested_by")
-  pdmEnabled        Boolean   @default(true) @map("pdm_enabled")
 
   // Workflow
   workflowType WorkflowType? @map("workflow_type")
