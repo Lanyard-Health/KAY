@@ -58,3 +58,6 @@ packages/backend/scripts/aetna-screenshots/
 # Misc
 *.pem
 *.key
+
+# Test harness fixtures + generated outputs (real payer PDFs, filled artifacts)
+packages/backend/fixtures/
