@@ -15,6 +15,7 @@ import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWo
 import AiSidebar from '../../components/AiSidebar';
 import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
 import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
+import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
 
@@ -230,6 +231,9 @@ export default function EnrollmentDetail() {
           <EnrollmentWorkflowTracker enrollmentId={enrollment.id} />
         </div>
       </div>
+
+      {/* Populate Forms — generic recipe-driven PDF fill */}
+      <PopulateFormsPanel enrollmentId={enrollment.id} />
 
       {/* Aetna Enrollment Automation — only rendered for Aetna payers */}
       {enrollment.payer?.name?.toLowerCase().includes('aetna') && (
