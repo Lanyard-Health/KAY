@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { buildPacket } from '../credentialing-packet.service.js';
 import { resolveRecipe, type RecipeField, type RecipeFieldMapping } from './recipe-resolver.js';
 import { fillPdfForm, type PdfFillLogEntry } from './pdf-engine.js';
+import { logEnrollmentRunTransition } from './audit.service.js';
 
 /**
  * PDF Fill Runner — end-to-end orchestration for one PayerForm fill.
@@ -122,6 +123,13 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
   const storage = input.storage ?? buildDefaultStorage();
 
   // 1. Create or reuse an EnrollmentRun
+  const priorRun = input.enrollmentRunId
+    ? await prisma.enrollmentRun.findUnique({
+        where: { id: input.enrollmentRunId },
+        select: { status: true },
+      })
+    : null;
+
   const run = input.enrollmentRunId
     ? await prisma.enrollmentRun.update({
         where: { id: input.enrollmentRunId },
@@ -134,6 +142,14 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
           triggeredBy: triggeredBy ?? null,
         },
       });
+
+  await logEnrollmentRunTransition({
+    runId: run.id,
+    from: priorRun?.status ?? null,
+    to: 'filling',
+    userId: triggeredBy ?? null,
+    details: { enrollmentId, payerFormId },
+  });
 
   try {
     // 2. Load enrollment → (providerId, payerId)
@@ -202,6 +218,18 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
       },
     });
 
+    await logEnrollmentRunTransition({
+      runId: run.id,
+      from: 'filling',
+      to: 'awaiting_review',
+      userId: triggeredBy ?? null,
+      details: {
+        payerFormId,
+        filledCount: fillResult.filledCount,
+        skippedCount: fillResult.skippedCount,
+      },
+    });
+
     logger.info(
       `pdf-fill-runner: enrollmentRun ${run.id} filled ${fillResult.filledCount} / skipped ${fillResult.skippedCount} for form ${payerForm.formName}`
     );
@@ -220,6 +248,16 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
           message: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined,
         } as any,
+      },
+    });
+    await logEnrollmentRunTransition({
+      runId: run.id,
+      from: 'filling',
+      to: 'failed',
+      userId: triggeredBy ?? null,
+      details: {
+        payerFormId,
+        errorMessage: err instanceof Error ? err.message : String(err),
       },
     });
     throw err;
