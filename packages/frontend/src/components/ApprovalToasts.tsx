@@ -98,7 +98,7 @@ export default function ApprovalToasts() {
       {visibleToasts.map((toast) => {
         const { approval } = toast;
         const description =
-          approval.workflow.goal ||
+          approval.workflow?.goal ||
           approval.type ||
           'Action requires your approval';
 
