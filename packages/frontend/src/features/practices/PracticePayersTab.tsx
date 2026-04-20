@@ -61,20 +61,22 @@ export default function PracticePayersTab({ practiceId }: { practiceId: string }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<EditState> }) =>
-      api.patch(`/practice-payers/${id}`, {
-        groupNpi: patch.groupNpi ?? null,
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<EditState> }) => {
+      const nn = (v: string | undefined) => (v && v.trim() !== '' ? v : null);
+      return api.patch(`/practice-payers/${id}`, {
+        groupNpi: nn(patch.groupNpi),
         // Only send groupTaxId if user typed something new (empty means unchanged)
         ...(patch.groupTaxId !== undefined && patch.groupTaxId !== ''
           ? { groupTaxId: patch.groupTaxId }
           : {}),
-        groupContractNumber: patch.groupContractNumber ?? null,
-        primaryContactName: patch.primaryContactName ?? null,
-        primaryContactEmail: patch.primaryContactEmail ?? null,
-        primaryContactPhone: patch.primaryContactPhone ?? null,
-        effectiveDate: patch.effectiveDate || null,
-        notes: patch.notes ?? null,
-      }),
+        groupContractNumber: nn(patch.groupContractNumber),
+        primaryContactName: nn(patch.primaryContactName),
+        primaryContactEmail: nn(patch.primaryContactEmail),
+        primaryContactPhone: nn(patch.primaryContactPhone),
+        effectiveDate: nn(patch.effectiveDate),
+        notes: nn(patch.notes),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-payers', practiceId] });
       notify.success('Payer settings saved');
