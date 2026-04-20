@@ -40,6 +40,8 @@ export interface PayerStateRule {
   createdAt: string;
 }
 
+export type DeliveryEngine = 'browser' | 'pdf' | 'email' | 'deep_link' | 'manual';
+
 export interface PayerForm {
   id: string;
   payerTrackId: string;
@@ -49,7 +51,68 @@ export interface PayerForm {
   destination?: string | null;
   isRequired: boolean;
   notes?: string | null;
+  deliveryEngine?: DeliveryEngine | null;
+  assetUrl?: string | null;
   createdAt: string;
+}
+
+export type FieldType =
+  | 'text' | 'dropdown' | 'radio' | 'checkbox' | 'date'
+  | 'signature' | 'masked' | 'email' | 'phone';
+
+export type SourceKind =
+  | 'provider' | 'practice' | 'practicePayer' | 'license' | 'education'
+  | 'boardCertification' | 'identifier' | 'banking' | 'demographics'
+  | 'constant' | 'computed';
+
+export interface PayerFormFieldMapping {
+  id: string;
+  payerFormFieldId: string;
+  sourceKind: SourceKind;
+  sourcePath: string;
+  transform?: Record<string, unknown> | null;
+  fallbackValue?: string | null;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayerFormField {
+  id: string;
+  payerFormId: string;
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: FieldType;
+  pageSection?: string | null;
+  orderIndex: number;
+  required: boolean;
+  validationRegex?: string | null;
+  notes?: string | null;
+  mappings: PayerFormFieldMapping[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TestFillResolvedField {
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: string;
+  value: string | null;
+  fromFallback: boolean;
+  missing: boolean;
+  validationError: string | null;
+}
+
+export interface TestFillResult {
+  formId: string;
+  formName: string;
+  payerName: string;
+  providerId: string;
+  fieldCount: number;
+  resolved: TestFillResolvedField[];
+  missingRequired: Array<{ fieldKey: string; fieldLabel: string }>;
+  missingOptional: Array<{ fieldKey: string; fieldLabel: string }>;
+  invalid: Array<{ fieldKey: string; error: string | null }>;
 }
 
 export interface PayerRequirement {
@@ -346,6 +409,109 @@ export function useUpdateForm() {
 export function useDeleteForm() {
   return useChildMutation(async (id: string) => {
     await api.delete(`/knowledge-base/forms/${id}`);
+  });
+}
+
+// ==========================================
+// Form Field Queries & Mutations
+// ==========================================
+
+export function usePayerFormFields(formId?: string) {
+  return useQuery({
+    queryKey: ['payerFormFields', formId],
+    queryFn: async () => {
+      const response = await api.get(`/knowledge-base/forms/${formId}/fields`);
+      return response.data.data as PayerFormField[];
+    },
+    enabled: !!formId,
+  });
+}
+
+function useFieldMutation<TData, TVariables>(
+  mutationFn: (variables: TVariables) => Promise<TData>
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payerFormFields'] });
+    },
+  });
+}
+
+export function useCreateFormField() {
+  return useFieldMutation(async (
+    { formId, ...data }: { formId: string } & Omit<PayerFormField, 'id' | 'payerFormId' | 'mappings' | 'createdAt' | 'updatedAt' | 'orderIndex'> & { orderIndex?: number }
+  ) => {
+    const response = await api.post(`/knowledge-base/forms/${formId}/fields`, data);
+    return response.data.data as PayerFormField;
+  });
+}
+
+export function useUpdateFormField() {
+  return useFieldMutation(async (
+    { id, ...data }: { id: string } & Partial<Omit<PayerFormField, 'id' | 'payerFormId' | 'mappings' | 'createdAt' | 'updatedAt'>>
+  ) => {
+    const response = await api.patch(`/knowledge-base/fields/${id}`, data);
+    return response.data.data as PayerFormField;
+  });
+}
+
+export function useDeleteFormField() {
+  return useFieldMutation(async (id: string) => {
+    await api.delete(`/knowledge-base/fields/${id}`);
+  });
+}
+
+export function useCreateFieldMapping() {
+  return useFieldMutation(async (
+    { fieldId, ...data }: { fieldId: string } & Omit<PayerFormFieldMapping, 'id' | 'payerFormFieldId' | 'createdAt' | 'updatedAt'>
+  ) => {
+    const response = await api.post(`/knowledge-base/fields/${fieldId}/mappings`, data);
+    return response.data.data as PayerFormFieldMapping;
+  });
+}
+
+export function useUpdateFieldMapping() {
+  return useFieldMutation(async (
+    { id, ...data }: { id: string } & Partial<Omit<PayerFormFieldMapping, 'id' | 'payerFormFieldId' | 'createdAt' | 'updatedAt'>>
+  ) => {
+    const response = await api.patch(`/knowledge-base/mappings/${id}`, data);
+    return response.data.data as PayerFormFieldMapping;
+  });
+}
+
+export function useDeleteFieldMapping() {
+  return useFieldMutation(async (id: string) => {
+    await api.delete(`/knowledge-base/mappings/${id}`);
+  });
+}
+
+// ==========================================
+// Form PDF Upload + Test Fill
+// ==========================================
+
+export function useUploadFormPdf() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ formId, file }: { formId: string; file: File }) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const response = await api.upload(`/knowledge-base/forms/${formId}/upload-pdf`, fd);
+      return response.data.data as PayerForm;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payerTrack'] });
+    },
+  });
+}
+
+export function useTestFillForm() {
+  return useMutation({
+    mutationFn: async ({ formId, providerId }: { formId: string; providerId: string }) => {
+      const response = await api.post(`/knowledge-base/forms/${formId}/test-fill`, { providerId });
+      return response.data.data as TestFillResult;
+    },
   });
 }
 

@@ -44,6 +44,7 @@ const KnowledgeBaseList = lazy(() => import('./features/admin/KnowledgeBaseList'
 const KnowledgeBaseDetail = lazy(() => import('./features/admin/KnowledgeBaseDetail'));
 const KnowledgeBaseNew = lazy(() => import('./features/admin/KnowledgeBaseNew'));
 const KnowledgeBaseGaps = lazy(() => import('./features/admin/KnowledgeBaseGaps'));
+const PayerFormFieldsEditor = lazy(() => import('./features/admin/PayerFormFieldsEditor'));
 const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'));
 const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
 const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
@@ -191,6 +192,7 @@ export default function App() {
           <Route path="admin/knowledge-base/new" element={<AdminOnlyRoute><KnowledgeBaseNew /></AdminOnlyRoute>} />
           <Route path="admin/knowledge-base/gaps" element={<AdminOnlyRoute><KnowledgeBaseGaps /></AdminOnlyRoute>} />
           <Route path="admin/knowledge-base/:id" element={<AdminOnlyRoute><KnowledgeBaseDetail /></AdminOnlyRoute>} />
+          <Route path="admin/payer-forms/:formId/fields" element={<AdminOnlyRoute><PayerFormFieldsEditor /></AdminOnlyRoute>} />
           <Route path="admin/workflow-templates" element={<AdminOnlyRoute><WorkflowTemplates /></AdminOnlyRoute>} />
           <Route path="admin/workflow-templates/:id" element={<AdminOnlyRoute><WorkflowTemplateDetail /></AdminOnlyRoute>} />
           <Route path="admin/followup-templates" element={<AdminOnlyRoute><FollowupTemplates /></AdminOnlyRoute>} />
