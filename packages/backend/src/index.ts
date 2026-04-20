@@ -308,23 +308,6 @@ server.listen(PORT, async () => {
     logger.error('Database warmup failed:', err);
   }
 
-  // Reconcile orphaned Aetna runs (stuck in pending/filling after restart)
-  try {
-    const orphaned = await prisma.aetnaEnrollmentRun.updateMany({
-      where: { status: { in: ['pending', 'filling'] } },
-      data: {
-        status: 'failed',
-        errorMessage: 'Server restarted during automation. Please retry.',
-        completedAt: new Date(),
-      },
-    });
-    if (orphaned.count > 0) {
-      logger.info(`Reconciled ${orphaned.count} orphaned Aetna run(s) to failed`);
-    }
-  } catch (err) {
-    logger.error('Failed to reconcile orphaned Aetna runs:', err);
-  }
-
   // Initialize scheduled jobs
   schedulerService.initialize();
 

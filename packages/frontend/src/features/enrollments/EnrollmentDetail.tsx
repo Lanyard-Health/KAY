@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -13,42 +12,8 @@ import {
 } from '@heroicons/react/24/outline';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 import AiSidebar from '../../components/AiSidebar';
-import { AetnaReadinessPanel } from '../../components/enrollments/AetnaReadinessPanel';
-import { AetnaReviewPanel } from '../../components/enrollments/AetnaReviewPanel';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
-import { useAetnaRuns } from '../../hooks/useAetnaEnrollment';
-
-/** Only renders Aetna panels when the payer is Aetna — prevents unnecessary API calls */
-function AetnaSection({ enrollmentId, payerName }: { enrollmentId: string; payerName: string }) {
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const { data: runs } = useAetnaRuns(enrollmentId);
-
-  useEffect(() => {
-    if (!runs || activeRunId) return;
-    const active = runs.find(r =>
-      ['pending', 'filling', 'awaiting_review', 'submitting'].includes(r.status)
-    );
-    if (active) setActiveRunId(active.id);
-  }, [runs, activeRunId]);
-
-  return (
-    <>
-      <AetnaReadinessPanel
-        enrollmentId={enrollmentId}
-        payerName={payerName}
-        onRunStarted={(runId) => setActiveRunId(runId)}
-      />
-      {activeRunId && (
-        <AetnaReviewPanel
-          enrollmentId={enrollmentId}
-          runId={activeRunId}
-          onClose={() => setActiveRunId(null)}
-        />
-      )}
-    </>
-  );
-}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
@@ -234,11 +199,6 @@ export default function EnrollmentDetail() {
 
       {/* Populate Forms — generic recipe-driven PDF fill */}
       <PopulateFormsPanel enrollmentId={enrollment.id} />
-
-      {/* Aetna Enrollment Automation — only rendered for Aetna payers */}
-      {enrollment.payer?.name?.toLowerCase().includes('aetna') && (
-        <AetnaSection enrollmentId={enrollment.id} payerName={enrollment.payer.name} />
-      )}
 
       {/* Agent Workflow */}
       <AgentWorkflowPanel
