@@ -144,7 +144,7 @@ export function useUpdateFollowUpStep() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Partial<Omit<FollowUpTemplateStep, 'id' | 'templateId' | 'createdAt'>>) => {
-      const response = await api.patch(`/knowledge-base/followup-templates/steps/${id}`, data);
+      const response = await api.patch(`/followup-templates/steps/${id}`, data);
       return response.data.data as FollowUpTemplateStep;
     },
     onSuccess: () => {
@@ -157,7 +157,7 @@ export function useDeleteFollowUpStep() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/knowledge-base/followup-templates/steps/${id}`);
+      await api.delete(`/followup-templates/steps/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followUpTemplate'] });
