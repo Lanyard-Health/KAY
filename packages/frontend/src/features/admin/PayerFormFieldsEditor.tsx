@@ -14,11 +14,14 @@ import {
   useCreateFieldMapping,
   useUpdateFieldMapping,
   useDeleteFieldMapping,
+  useTestFillForm,
   type PayerFormField,
   type PayerFormFieldMapping,
   type FieldType,
   type SourceKind,
+  type TestFillResult,
 } from '../../hooks/useKnowledgeBase';
+import { BeakerIcon } from '@heroicons/react/24/outline';
 
 const FIELD_TYPES: FieldType[] = [
   'text', 'dropdown', 'radio', 'checkbox', 'date',
@@ -425,6 +428,127 @@ function FieldRow({
 }
 
 // ==========================================
+// Test Fill Panel
+// ==========================================
+
+function TestFillPanel({ formId }: { formId: string }) {
+  const [providerId, setProviderId] = useState('');
+  const [result, setResult] = useState<TestFillResult | null>(null);
+  const mut = useTestFillForm();
+
+  const run = () => {
+    if (!providerId.trim()) {
+      toast.error('Enter a provider ID');
+      return;
+    }
+    mut.mutate(
+      { formId, providerId: providerId.trim() },
+      {
+        onSuccess: (data) => {
+          setResult(data);
+          toast.success(`Resolved ${data.fieldCount - data.missingRequired.length}/${data.fieldCount} fields`);
+        },
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : 'Test fill failed';
+          toast.error(msg);
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+      <div className="flex items-center gap-2">
+        <BeakerIcon className="h-5 w-5 text-blue-600" />
+        <h3 className="text-sm font-semibold text-gray-900">Test Fill (Dry Run)</h3>
+      </div>
+      <p className="mt-1 text-xs text-gray-600">
+        Resolve every field against a chosen provider's credentialing packet.
+        Nothing is submitted — use this to validate mappings before running a real fill.
+      </p>
+
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          value={providerId}
+          onChange={(e) => setProviderId(e.target.value)}
+          placeholder="Provider ID (cuid)"
+          className={clsx(inputClass, 'max-w-md')}
+        />
+        <button onClick={run} disabled={mut.isPending} className="btn-primary text-sm">
+          {mut.isPending ? 'Running...' : 'Run Test Fill'}
+        </button>
+      </div>
+
+      {result && (
+        <div className="mt-4 space-y-3">
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="rounded bg-white p-2">
+              <div className="text-gray-500">Total</div>
+              <div className="text-lg font-semibold text-gray-900">{result.fieldCount}</div>
+            </div>
+            <div className="rounded bg-white p-2">
+              <div className="text-gray-500">Resolved</div>
+              <div className="text-lg font-semibold text-green-600">
+                {result.fieldCount - result.missingRequired.length - result.missingOptional.length}
+              </div>
+            </div>
+            <div className="rounded bg-white p-2">
+              <div className="text-gray-500">Missing (required)</div>
+              <div className="text-lg font-semibold text-red-600">{result.missingRequired.length}</div>
+            </div>
+            <div className="rounded bg-white p-2">
+              <div className="text-gray-500">Invalid</div>
+              <div className="text-lg font-semibold text-amber-600">{result.invalid.length}</div>
+            </div>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto rounded border border-gray-200 bg-white">
+            <table className="min-w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50">
+                <tr>
+                  <th className="px-2 py-1.5 text-left font-semibold">Field</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Value</th>
+                  <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {result.resolved.map((f) => (
+                  <tr key={f.fieldKey}>
+                    <td className="px-2 py-1 font-mono text-gray-700">{f.fieldKey}</td>
+                    <td className="px-2 py-1 text-gray-900">
+                      {f.value ?? <span className="italic text-gray-400">null</span>}
+                    </td>
+                    <td className="px-2 py-1">
+                      {f.missing && (
+                        <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">missing</span>
+                      )}
+                      {!f.missing && f.value === null && (
+                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">empty</span>
+                      )}
+                      {f.fromFallback && (
+                        <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">fallback</span>
+                      )}
+                      {f.validationError && (
+                        <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">
+                          invalid: {f.validationError}
+                        </span>
+                      )}
+                      {f.value !== null && !f.fromFallback && !f.validationError && (
+                        <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">ok</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
 // Page
 // ==========================================
 
@@ -492,6 +616,8 @@ export default function PayerFormFieldsEditor() {
             ))
           )}
         </div>
+
+        {fields.length > 0 && <TestFillPanel formId={formId} />}
 
         <FieldModal
           isOpen={fieldModalOpen}
