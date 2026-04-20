@@ -190,7 +190,11 @@ export async function listPendingApprovals(
 ) {
   const { status, workflowId, limit = 20, offset = 0 } = filters;
 
-  const where: Record<string, unknown> = {};
+  // This endpoint serves agent-workflow approvals only. Follow-up
+  // outreach approvals live on the same table but are surfaced via
+  // /workflow-approvals; exclude them here so the UI doesn't see rows
+  // without a workflow relation.
+  const where: Record<string, unknown> = { workflowId: { not: null } };
   if (status) where['status'] = status;
   if (workflowId) where['workflowId'] = workflowId;
 
