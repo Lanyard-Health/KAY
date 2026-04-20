@@ -157,10 +157,14 @@ function walk(root: unknown, path: string): unknown {
   let cur: any = root;
   for (const tok of tokens) {
     if (cur === null || cur === undefined) return null;
+    // Block prototype-walking tokens — sourcePath is admin-authored but defense-in-depth.
+    if (tok === '__proto__' || tok === 'constructor' || tok === 'prototype') return null;
     const asNum = Number(tok);
     if (Number.isInteger(asNum) && Array.isArray(cur)) {
+      // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop
       cur = cur[asNum];
     } else {
+      // nosemgrep: javascript.lang.security.audit.prototype-pollution.prototype-pollution-loop.prototype-pollution-loop
       cur = cur[tok];
     }
   }
@@ -278,6 +282,9 @@ function resolveField(
   let validationError: string | null = null;
   if (value !== null && field.validationRegex) {
     try {
+      // validationRegex is admin-authored config (PayerFormField.validationRegex),
+      // not user input. Admin endpoints are guarded by authorize('admin').
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
       const rx = new RegExp(field.validationRegex);
       if (!rx.test(value)) {
         validationError = `Value does not match pattern ${field.validationRegex}`;
