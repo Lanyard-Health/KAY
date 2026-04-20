@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { z } from 'zod';
@@ -10,6 +12,8 @@ import {
   isConfigured as isEmbeddingConfigured,
   searchSimilarWithSources,
 } from '../services/knowledgeBase.embedding.service.js';
+import { buildPacket } from '../services/credentialing-packet.service.js';
+import { resolveRecipe, type RecipeField, type RecipeFieldMapping } from '../services/form-fill/recipe-resolver.js';
 import { logger } from '../utils/logger.js';
 import rateLimit from 'express-rate-limit';
 
@@ -93,6 +97,8 @@ const payerStateRuleSchema = z.object({
   expirationDate: z.string().nullable().optional(),
 });
 
+const DELIVERY_ENGINES = ['browser', 'pdf', 'email', 'deep_link', 'manual'] as const;
+
 const payerFormSchema = z.object({
   formName: z.string().min(1),
   format: z.string().min(1),
@@ -100,6 +106,35 @@ const payerFormSchema = z.object({
   destination: z.string().nullable().optional(),
   isRequired: z.boolean().optional(),
   notes: z.string().nullable().optional(),
+  deliveryEngine: z.enum(DELIVERY_ENGINES).nullable().optional(),
+  assetUrl: z.string().nullable().optional(),
+});
+
+const FIELD_TYPES = ['text', 'dropdown', 'radio', 'checkbox', 'date', 'signature', 'masked', 'email', 'phone'] as const;
+
+const payerFormFieldSchema = z.object({
+  fieldKey: z.string().min(1),
+  fieldLabel: z.string().min(1),
+  fieldType: z.enum(FIELD_TYPES),
+  pageSection: z.string().nullable().optional(),
+  orderIndex: z.number().int().optional(),
+  required: z.boolean().optional(),
+  validationRegex: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+const SOURCE_KINDS = [
+  'provider', 'practice', 'practicePayer', 'license', 'education',
+  'boardCertification', 'identifier', 'banking', 'demographics',
+  'constant', 'computed',
+] as const;
+
+const payerFormFieldMappingSchema = z.object({
+  sourceKind: z.enum(SOURCE_KINDS),
+  sourcePath: z.string().min(1),
+  transform: z.any().nullable().optional(),
+  fallbackValue: z.string().nullable().optional(),
+  priority: z.number().int().optional(),
 });
 
 const payerRequirementSchema = z.object({
@@ -480,6 +515,246 @@ knowledgeBaseRoutes.delete(
       if (existing) await deleteEmbeddings('payerForm', existing.id);
       await prisma.payerForm.delete({ where: { id: req.params['id'] } });
       res.json({ success: true, message: 'Form deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── PayerForm PDF Upload ──────────────────────────────────
+
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Only PDF uploads are accepted'));
+  },
+});
+
+function buildS3Client(): S3Client {
+  const s3Endpoint = process.env['S3_ENDPOINT'];
+  return new S3Client({
+    region: process.env['AWS_REGION'] || 'us-east-1',
+    ...(s3Endpoint && { endpoint: s3Endpoint, forcePathStyle: true }),
+    ...(process.env['AWS_ACCESS_KEY_ID'] && {
+      credentials: {
+        accessKeyId: process.env['AWS_ACCESS_KEY_ID'],
+        secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || '',
+      },
+    }),
+  });
+}
+
+knowledgeBaseRoutes.post(
+  '/forms/:id/upload-pdf',
+  pdfUpload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const formId = req.params['id']!;
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ success: false, error: { message: 'PDF file required (field name: file)' } });
+        return;
+      }
+
+      const existing = await prisma.payerForm.findUnique({ where: { id: formId } });
+      if (!existing) {
+        res.status(404).json({ success: false, error: { message: 'PayerForm not found' } });
+        return;
+      }
+
+      const bucket = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
+      const key = `payer-forms/${formId}/${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const s3 = buildS3Client();
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: 'application/pdf',
+      }));
+
+      const assetUrl = `s3://${bucket}/${key}`;
+      const data = await prisma.payerForm.update({
+        where: { id: formId },
+        data: { assetUrl, deliveryEngine: existing.deliveryEngine ?? 'pdf' },
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── PayerFormField Routes (nested under PayerForm) ────────
+
+knowledgeBaseRoutes.get(
+  '/forms/:formId/fields',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await prisma.payerFormField.findMany({
+        where: { payerFormId: req.params['formId'] },
+        include: { mappings: { orderBy: { priority: 'desc' } } },
+        orderBy: [{ pageSection: 'asc' }, { orderIndex: 'asc' }],
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+knowledgeBaseRoutes.post(
+  '/forms/:formId/fields',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = payerFormFieldSchema.parse(req.body);
+      const data = await prisma.payerFormField.create({
+        data: { ...body, payerFormId: req.params['formId']! },
+      });
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+knowledgeBaseRoutes.patch(
+  '/fields/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = nullablePartial(payerFormFieldSchema).parse(req.body);
+      const data = await prisma.payerFormField.update({
+        where: { id: req.params['id'] },
+        data: body,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+knowledgeBaseRoutes.delete(
+  '/fields/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.payerFormField.delete({ where: { id: req.params['id'] } });
+      res.json({ success: true, message: 'Field deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── PayerFormFieldMapping Routes (nested under PayerFormField) ──
+
+knowledgeBaseRoutes.post(
+  '/fields/:fieldId/mappings',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = payerFormFieldMappingSchema.parse(req.body);
+      const data = await prisma.payerFormFieldMapping.create({
+        data: { ...body, payerFormFieldId: req.params['fieldId']! },
+      });
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+knowledgeBaseRoutes.patch(
+  '/mappings/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = nullablePartial(payerFormFieldMappingSchema).parse(req.body);
+      const data = await prisma.payerFormFieldMapping.update({
+        where: { id: req.params['id'] },
+        data: body,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+knowledgeBaseRoutes.delete(
+  '/mappings/:id',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await prisma.payerFormFieldMapping.delete({ where: { id: req.params['id'] } });
+      res.json({ success: true, message: 'Mapping deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─── Test Fill (dry-run) ───────────────────────────────────
+// Runs the recipe resolver against a chosen provider's CredentialingPacket.
+// No side effects: no EnrollmentRun, no PDF fill, no submission.
+
+const testFillSchema = z.object({
+  providerId: z.string().min(1),
+});
+
+knowledgeBaseRoutes.post(
+  '/forms/:id/test-fill',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const formId = req.params['id']!;
+      const { providerId } = testFillSchema.parse(req.body);
+
+      const form = await prisma.payerForm.findUnique({
+        where: { id: formId },
+        include: { payerTrack: { select: { payerName: true } } },
+      });
+      if (!form) {
+        res.status(404).json({ success: false, error: { message: 'PayerForm not found' } });
+        return;
+      }
+
+      const fields = await prisma.payerFormField.findMany({
+        where: { payerFormId: formId },
+        include: { mappings: true },
+        orderBy: [{ pageSection: 'asc' }, { orderIndex: 'asc' }],
+      });
+
+      const recipe: RecipeField[] = fields.map((f) => ({
+        id: f.id,
+        fieldKey: f.fieldKey,
+        fieldLabel: f.fieldLabel,
+        fieldType: f.fieldType,
+        required: f.required,
+        validationRegex: f.validationRegex,
+        mappings: f.mappings.map<RecipeFieldMapping>((m) => ({
+          sourceKind: m.sourceKind as RecipeFieldMapping['sourceKind'],
+          sourcePath: m.sourcePath,
+          transform: (m.transform as RecipeFieldMapping['transform']) ?? null,
+          fallbackValue: m.fallbackValue,
+          priority: m.priority,
+        })),
+      }));
+
+      const packet = await buildPacket(providerId);
+      const result = resolveRecipe(recipe, packet);
+
+      res.json({
+        success: true,
+        data: {
+          formId,
+          formName: form.formName,
+          payerName: form.payerTrack.payerName,
+          providerId,
+          fieldCount: recipe.length,
+          resolved: result.fields,
+          missingRequired: result.missingRequired.map((f) => ({ fieldKey: f.fieldKey, fieldLabel: f.fieldLabel })),
+          missingOptional: result.missingOptional.map((f) => ({ fieldKey: f.fieldKey, fieldLabel: f.fieldLabel })),
+          invalid: result.invalid.map((f) => ({ fieldKey: f.fieldKey, error: f.validationError })),
+        },
+      });
     } catch (error) {
       next(error);
     }

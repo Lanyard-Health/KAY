@@ -29,6 +29,7 @@ import {
   useCreateForm,
   useUpdateForm,
   useDeleteForm,
+  useUploadFormPdf,
   useCreateRequirement,
   useUpdateRequirement,
   useDeleteRequirement,
@@ -754,6 +755,8 @@ type FormFormData = {
   destination: string;
   isRequired: boolean;
   notes: string;
+  deliveryEngine: '' | 'browser' | 'pdf' | 'email' | 'deep_link' | 'manual';
+  assetUrl: string;
 };
 
 function FormModal({
@@ -769,9 +772,13 @@ function FormModal({
 }) {
   const createMutation = useCreateForm();
   const updateMutation = useUpdateForm();
+  const uploadMutation = useUploadFormPdf();
+  const [uploading, setUploading] = useState(false);
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormFormData>({
     defaultValues: payerForm
@@ -782,6 +789,8 @@ function FormModal({
           destination: payerForm.destination || '',
           isRequired: payerForm.isRequired,
           notes: payerForm.notes || '',
+          deliveryEngine: payerForm.deliveryEngine ?? '',
+          assetUrl: payerForm.assetUrl || '',
         }
       : {
           formName: '',
@@ -790,8 +799,28 @@ function FormModal({
           destination: '',
           isRequired: false,
           notes: '',
+          deliveryEngine: '',
+          assetUrl: '',
         },
   });
+
+  const onPdfUpload = async (file: File) => {
+    if (!payerForm) {
+      toast.error('Save the form first, then upload the PDF');
+      return;
+    }
+    setUploading(true);
+    try {
+      const updated = await uploadMutation.mutateAsync({ formId: payerForm.id, file });
+      setValue('assetUrl', updated.assetUrl || '');
+      setValue('deliveryEngine', updated.deliveryEngine ?? 'pdf');
+      toast.success('PDF uploaded');
+    } catch {
+      toast.error('Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const onSubmit = (data: FormFormData) => {
     const payload = {
@@ -801,6 +830,8 @@ function FormModal({
       destination: data.destination || null,
       isRequired: data.isRequired,
       notes: data.notes || null,
+      deliveryEngine: data.deliveryEngine || null,
+      assetUrl: data.assetUrl || null,
     };
     if (payerForm) {
       updateMutation.mutate(
@@ -859,6 +890,46 @@ function FormModal({
             placeholder="e.g. Fax to 555-1234, Upload to portal"
           />
         </Field>
+        <Field label="Delivery Engine">
+          <select {...register('deliveryEngine')} className={inputClass}>
+            <option value="">-- none --</option>
+            <option value="browser">browser</option>
+            <option value="pdf">pdf</option>
+            <option value="email">email</option>
+            <option value="deep_link">deep_link</option>
+            <option value="manual">manual</option>
+          </select>
+        </Field>
+        <Field label="Asset URL (S3 path or entry URL)">
+          <input
+            {...register('assetUrl')}
+            className={inputClass}
+            placeholder="s3://bucket/path/template.pdf or https://portal.payer.com/form"
+          />
+        </Field>
+        {payerForm && (
+          <Field label="Upload PDF Template">
+            <div className="flex items-center gap-3">
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPdfUpload(f);
+                  e.target.value = '';
+                }}
+                disabled={uploading}
+                className="text-sm"
+              />
+              {uploading && <span className="text-xs text-gray-500">Uploading...</span>}
+              {watch('assetUrl') && !uploading && (
+                <span className="text-xs text-green-600">
+                  {watch('assetUrl')?.startsWith('s3://') ? 'PDF stored' : 'URL set'}
+                </span>
+              )}
+            </div>
+          </Field>
+        )}
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1550,8 +1621,25 @@ export default function KnowledgeBaseDetail() {
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {forms.map((f) => (
                         <tr key={f.id}>
-                          <td className={tdClass}>{f.formName}</td>
-                          <td className={tdClass}>{f.format}</td>
+                          <td className={tdClass}>
+                            <div className="flex flex-col">
+                              <span>{f.formName}</span>
+                              <Link
+                                to={`/admin/payer-forms/${f.id}/fields`}
+                                className="text-xs text-primary-600 hover:underline"
+                              >
+                                Edit fields →
+                              </Link>
+                            </div>
+                          </td>
+                          <td className={tdClass}>
+                            {f.format}
+                            {f.deliveryEngine && (
+                              <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+                                {f.deliveryEngine}
+                              </span>
+                            )}
+                          </td>
                           <td className={tdClass}>
                             {f.url ? (
                               <a

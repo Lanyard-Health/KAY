@@ -15,6 +15,20 @@ vi.mock('../services/knowledgeBase.embedding.service.js', () => ({
   upsertEmbedding: vi.fn().mockResolvedValue(undefined),
   deleteEmbeddings: vi.fn().mockResolvedValue(undefined),
   isConfigured: vi.fn().mockReturnValue(false),
+  searchSimilarWithSources: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../services/credentialing-packet.service.js', () => ({
+  buildPacket: vi.fn().mockResolvedValue({
+    provider: { id: 'prov-1', npi: '1234567890' },
+  }),
+}));
+
+vi.mock('@aws-sdk/client-s3', () => ({
+  S3Client: vi.fn().mockImplementation(function () {
+    return { send: vi.fn().mockResolvedValue({}) };
+  }),
+  PutObjectCommand: vi.fn(),
 }));
 
 vi.mock('../middleware/auth.middleware.js', async () => {
@@ -443,6 +457,125 @@ describe('Knowledge Base Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Contact deleted');
+    });
+  });
+
+  // ─── Phase 6: PayerFormField + Mapping CRUD ───────────────
+
+  describe('PayerFormField routes', () => {
+    it('non-admin cannot list fields (403)', async () => {
+      const staffUser = { id: 's', email: 's@x.com', role: 'credentialing_staff', cognitoId: 'c' };
+      const app = createTestApp(knowledgeBaseRoutes, staffUser);
+      const res = await request(app).get('/forms/pf-1/fields');
+      expect(res.status).toBe(403);
+    });
+
+    it('GET /forms/:formId/fields returns fields with mappings', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormField.findMany as any).mockResolvedValue([
+        { id: 'f1', payerFormId: 'pf-1', fieldKey: 'npi', fieldLabel: 'NPI', fieldType: 'text', required: true, orderIndex: 0, mappings: [] },
+      ]);
+      const res = await request(app).get('/forms/pf-1/fields');
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].fieldKey).toBe('npi');
+    });
+
+    it('POST /forms/:formId/fields creates a field', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormField.create as any).mockResolvedValue({
+        id: 'f1', payerFormId: 'pf-1', fieldKey: 'npi', fieldLabel: 'NPI',
+        fieldType: 'text', required: true, orderIndex: 0,
+      });
+      const res = await request(app)
+        .post('/forms/pf-1/fields')
+        .send({ fieldKey: 'npi', fieldLabel: 'NPI', fieldType: 'text', required: true });
+      expect(res.status).toBe(201);
+      expect(res.body.data.fieldKey).toBe('npi');
+    });
+
+    it('POST /forms/:formId/fields rejects bad fieldType', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      const res = await request(app)
+        .post('/forms/pf-1/fields')
+        .send({ fieldKey: 'x', fieldLabel: 'x', fieldType: 'bogus' });
+      expect(res.status).toBe(400);
+    });
+
+    it('PATCH /fields/:id updates a field', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormField.update as any).mockResolvedValue({
+        id: 'f1', fieldKey: 'npi', fieldLabel: 'Updated', fieldType: 'text',
+      });
+      const res = await request(app).patch('/fields/f1').send({ fieldLabel: 'Updated' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.fieldLabel).toBe('Updated');
+    });
+
+    it('DELETE /fields/:id removes the field', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormField.delete as any).mockResolvedValue({ id: 'f1' });
+      const res = await request(app).delete('/fields/f1');
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('PayerFormFieldMapping routes', () => {
+    it('POST /fields/:fieldId/mappings creates a mapping', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormFieldMapping.create as any).mockResolvedValue({
+        id: 'm1', payerFormFieldId: 'f1', sourceKind: 'provider', sourcePath: 'npi', priority: 0,
+      });
+      const res = await request(app)
+        .post('/fields/f1/mappings')
+        .send({ sourceKind: 'provider', sourcePath: 'npi' });
+      expect(res.status).toBe(201);
+      expect(res.body.data.sourceKind).toBe('provider');
+    });
+
+    it('POST mappings rejects bad sourceKind', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      const res = await request(app)
+        .post('/fields/f1/mappings')
+        .send({ sourceKind: 'nope', sourcePath: 'x' });
+      expect(res.status).toBe(400);
+    });
+
+    it('DELETE /mappings/:id removes a mapping', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerFormFieldMapping.delete as any).mockResolvedValue({ id: 'm1' });
+      const res = await request(app).delete('/mappings/m1');
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('POST /forms/:id/test-fill', () => {
+    it('resolves fields via the recipe resolver (dry run)', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerForm.findUnique as any).mockResolvedValue({
+        id: 'pf-1', formName: 'Enrollment Form', payerTrack: { payerName: 'Optum BH' },
+      });
+      (prismaMock.payerFormField.findMany as any).mockResolvedValue([
+        {
+          id: 'f1', fieldKey: 'npi', fieldLabel: 'NPI', fieldType: 'text', required: true,
+          validationRegex: null,
+          mappings: [{ sourceKind: 'provider', sourcePath: 'npi', transform: null, fallbackValue: null, priority: 0 }],
+        },
+      ]);
+      const res = await request(app).post('/forms/pf-1/test-fill').send({ providerId: 'prov-1' });
+      expect(res.status).toBe(200);
+      expect(res.body.data.formName).toBe('Enrollment Form');
+      expect(res.body.data.payerName).toBe('Optum BH');
+      expect(res.body.data.fieldCount).toBe(1);
+      expect(res.body.data.resolved).toHaveLength(1);
+      expect(res.body.data.resolved[0].value).toBe('1234567890');
+    });
+
+    it('returns 404 when form does not exist', async () => {
+      const app = createTestApp(knowledgeBaseRoutes, lanyardAdmin);
+      (prismaMock.payerForm.findUnique as any).mockResolvedValue(null);
+      const res = await request(app).post('/forms/missing/test-fill').send({ providerId: 'p1' });
+      expect(res.status).toBe(404);
     });
   });
 });
