@@ -63,7 +63,7 @@ export function useFollowUpTemplates(filters?: FollowUpTemplateFilters) {
         });
       }
       const query = params.toString();
-      const response = await api.get(`/knowledge-base/followup-templates${query ? `?${query}` : ''}`);
+      const response = await api.get(`/followup-templates${query ? `?${query}` : ''}`);
       return response.data.data as FollowUpTemplate[];
     },
   });
@@ -73,7 +73,7 @@ export function useFollowUpTemplate(id?: string) {
   return useQuery({
     queryKey: ['followUpTemplate', id],
     queryFn: async () => {
-      const response = await api.get(`/knowledge-base/followup-templates/${id}`);
+      const response = await api.get(`/followup-templates/${id}`);
       return response.data.data as FollowUpTemplate;
     },
     enabled: !!id,
@@ -88,7 +88,7 @@ export function useCreateFollowUpTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: Omit<FollowUpTemplate, 'id' | 'version' | 'publishedAt' | 'createdAt' | 'updatedAt' | 'payerTrack' | 'steps' | '_count'>) => {
-      const response = await api.post('/knowledge-base/followup-templates', data);
+      const response = await api.post('/followup-templates', data);
       return response.data.data as FollowUpTemplate;
     },
     onSuccess: () => {
@@ -101,7 +101,7 @@ export function useUpdateFollowUpTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Partial<Omit<FollowUpTemplate, 'id' | 'version' | 'createdAt' | 'updatedAt' | 'payerTrack' | 'steps' | '_count'>>) => {
-      const response = await api.patch(`/knowledge-base/followup-templates/${id}`, data);
+      const response = await api.patch(`/followup-templates/${id}`, data);
       return response.data.data as FollowUpTemplate;
     },
     onSuccess: (_data, variables) => {
@@ -115,7 +115,7 @@ export function useDeleteFollowUpTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/knowledge-base/followup-templates/${id}`);
+      await api.delete(`/followup-templates/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followUpTemplates'] });
@@ -131,7 +131,7 @@ export function useCreateFollowUpStep() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ templateId, ...data }: { templateId: string } & Omit<FollowUpTemplateStep, 'id' | 'templateId' | 'createdAt'>) => {
-      const response = await api.post(`/knowledge-base/followup-templates/${templateId}/steps`, data);
+      const response = await api.post(`/followup-templates/${templateId}/steps`, data);
       return response.data.data as FollowUpTemplateStep;
     },
     onSuccess: () => {
@@ -144,7 +144,7 @@ export function useUpdateFollowUpStep() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Partial<Omit<FollowUpTemplateStep, 'id' | 'templateId' | 'createdAt'>>) => {
-      const response = await api.patch(`/knowledge-base/followup-template-steps/${id}`, data);
+      const response = await api.patch(`/knowledge-base/followup-templates/steps/${id}`, data);
       return response.data.data as FollowUpTemplateStep;
     },
     onSuccess: () => {
@@ -157,7 +157,7 @@ export function useDeleteFollowUpStep() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/knowledge-base/followup-template-steps/${id}`);
+      await api.delete(`/knowledge-base/followup-templates/steps/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followUpTemplate'] });
@@ -169,7 +169,7 @@ export function useReorderFollowUpSteps() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ templateId, order }: { templateId: string; order: { id: string; stepOrder: number }[] }) => {
-      await api.put(`/knowledge-base/followup-templates/${templateId}/steps/reorder`, { order });
+      await api.put(`/followup-templates/${templateId}/steps/reorder`, { order });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['followUpTemplate'] });
