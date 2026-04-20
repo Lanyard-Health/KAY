@@ -83,6 +83,7 @@ const adminNavGroups: NavGroup[] = [
       { name: 'KB Gaps', href: '/admin/knowledge-base/gaps', icon: ExclamationTriangleIcon },
       { name: 'Workflow Templates', href: '/admin/workflow-templates', icon: Cog6ToothIcon },
       { name: 'Follow-up Templates', href: '/admin/followup-templates', icon: EnvelopeIcon },
+      { name: 'Email Templates', href: '/admin/email-templates', icon: EnvelopeIcon },
     ],
   },
   {

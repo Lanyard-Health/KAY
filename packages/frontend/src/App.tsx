@@ -49,6 +49,8 @@ const WorkflowTemplates = lazy(() => import('./features/admin/WorkflowTemplates'
 const WorkflowTemplateDetail = lazy(() => import('./features/admin/WorkflowTemplateDetail'));
 const FollowupTemplates = lazy(() => import('./features/admin/FollowupTemplates'));
 const FollowupTemplateDetail = lazy(() => import('./features/admin/FollowupTemplateDetail'));
+const EmailTemplates = lazy(() => import('./features/admin/EmailTemplates'));
+const EmailTemplateDetail = lazy(() => import('./features/admin/EmailTemplateDetail'));
 const CustomerCommunications = lazy(() => import('./features/admin/CustomerCommunications'));
 const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
 const DenialsList = lazy(() => import('./features/denials/DenialsList'));
@@ -197,6 +199,8 @@ export default function App() {
           <Route path="admin/workflow-templates/:id" element={<AdminOnlyRoute><WorkflowTemplateDetail /></AdminOnlyRoute>} />
           <Route path="admin/followup-templates" element={<AdminOnlyRoute><FollowupTemplates /></AdminOnlyRoute>} />
           <Route path="admin/followup-templates/:id" element={<AdminOnlyRoute><FollowupTemplateDetail /></AdminOnlyRoute>} />
+          <Route path="admin/email-templates" element={<AdminOnlyRoute><EmailTemplates /></AdminOnlyRoute>} />
+          <Route path="admin/email-templates/:id" element={<AdminOnlyRoute><EmailTemplateDetail /></AdminOnlyRoute>} />
           <Route path="admin/communications" element={<AdminOnlyRoute><CustomerCommunications /></AdminOnlyRoute>} />
           <Route path="follow-up" element={<AdminOnlyRoute><FollowUpMonitor /></AdminOnlyRoute>} />
           <Route path="settings" element={<Settings />} />
