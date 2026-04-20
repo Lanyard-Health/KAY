@@ -86,13 +86,19 @@ export function errorHandler(
     return;
   }
 
-  // AWS Cognito errors — never expose internal details to clients
-  if (err.name?.includes('Exception') && err.constructor?.name?.includes('Cognito') ||
-      (err as any).$metadata?.httpStatusCode) {
-    const awsCode = (err as any).name || 'UnknownAwsError';
+  // AWS Cognito errors — never expose internal details to clients.
+  // Restrict to Cognito specifically; other AWS services (S3, SES, Textract)
+  // used to fall through to this branch via $metadata and got mislabeled
+  // as "Authentication service error" — see Phase 5 QA finding.
+  const isCognitoError =
+    !!err.name?.includes('Exception') &&
+    (err.constructor?.name?.includes('Cognito') ||
+      err.name?.includes('Cognito') ||
+      (err as any).$service === 'cognito-idp');
+  if (isCognitoError) {
+    const awsCode = (err as any).name || 'UnknownCognitoError';
     logger.error(`AWS Cognito error [${awsCode}]:`, err.message);
 
-    // Map known Cognito error names to safe client messages
     const cognitoStatusMap: Record<string, { status: number; message: string }> = {
       UsernameExistsException: { status: 409, message: 'An account with this email already exists' },
       UserNotFoundException: { status: 404, message: 'Account not found' },
@@ -113,10 +119,21 @@ export function errorHandler(
       return;
     }
 
-    // Unknown AWS error — generic 500
     res.status(500).json({
       success: false,
       error: { code: 'AUTH_ERROR', message: 'Authentication service error' },
+    });
+    return;
+  }
+
+  // Other AWS SDK errors (S3, SES, Textract, etc.) — generic 502 so the
+  // client doesn't see our infra internals but isn't told auth failed.
+  if ((err as any).$metadata?.httpStatusCode) {
+    const awsCode = (err as any).name || 'UnknownAwsError';
+    logger.error(`AWS service error [${awsCode}]: ${err.message}`);
+    res.status(502).json({
+      success: false,
+      error: { code: 'UPSTREAM_ERROR', message: 'Upstream service unavailable' },
     });
     return;
   }
