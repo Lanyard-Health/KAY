@@ -35,6 +35,13 @@ interface ResolveApprovalResult {
   resolved: boolean;
   status: ApprovalStatus;
   error?: string;
+  /** Result of any side-effect triggered by an approved follow-up step. */
+  sideEffect?: {
+    type: 'email_sent' | 'email_failed' | 'email_skipped' | 'phone_call_queued' | 'phone_call_unsupported' | 'none';
+    detail?: string;
+    messageId?: string;
+    transport?: string;
+  };
 }
 
 // ─── Create Approval Gates ─────────────────────────────────
@@ -165,14 +172,24 @@ export async function resolveApproval(
     );
   }
 
-  // Advance follow-up run step after any decision (approved or denied)
+  // Advance follow-up run step after any decision (approved or denied).
+  // We await this so the API response can surface the email send outcome
+  // to the UI toast; SMTP sends are fast enough (< a few seconds) that
+  // it's acceptable.
+  let sideEffect: ResolveApprovalResult['sideEffect'] = { type: 'none' };
   if (updated.followUpRunId) {
-    advanceFollowUpAfterDecision(prisma, updated, decision).catch((err) =>
-      logger.error(`Follow-up advancement failed for approval ${approvalId}:`, err)
-    );
+    try {
+      sideEffect = await advanceFollowUpAfterDecision(prisma, updated, decision);
+    } catch (err) {
+      logger.error(`Follow-up advancement failed for approval ${approvalId}:`, err);
+      sideEffect = {
+        type: 'email_failed',
+        detail: err instanceof Error ? err.message : 'Advancement failed',
+      };
+    }
   }
 
-  return { resolved: true, status: updated.status };
+  return { resolved: true, status: updated.status, sideEffect };
 }
 
 // ─── Query Approvals ───────────────────────────────────────
@@ -317,8 +334,8 @@ async function advanceFollowUpAfterDecision(
   db: PrismaClient,
   approval: { followUpRunId: string | null; followUpStepOrder: number | null; context: any },
   decision: 'approved' | 'denied'
-): Promise<void> {
-  if (!approval.followUpRunId) return;
+): Promise<ResolveApprovalResult['sideEffect']> {
+  if (!approval.followUpRunId) return { type: 'none' };
 
   const run = await db.followUpRun.findUnique({
     where: { id: approval.followUpRunId },
@@ -333,34 +350,64 @@ async function advanceFollowUpAfterDecision(
     },
   });
 
-  if (!run) return;
+  if (!run) return { type: 'none' };
 
   const context = (approval.context || {}) as Record<string, any>;
   const providerName = context['providerName'] || `${run.enrollment.provider.firstName} ${run.enrollment.provider.lastName}`;
   const payerName = context['payerName'] || run.enrollment.payer.name;
   const channel = context['channel'] || 'unknown';
 
-  // If approved and it's an email step, send the email now
-  if (decision === 'approved' && channel === 'email') {
-    const recipientEmail = context['emailRecipient']
-      || run.enrollment.followUpEmail;
+  let sideEffect: ResolveApprovalResult['sideEffect'] = { type: 'none' };
 
-    if (recipientEmail && context['emailSubject']) {
-      const html = context['emailBody']
-        ? `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-line;">${context['emailBody']}</div>`
-        : '';
+  // If approved, send on the appropriate channel.
+  if (decision === 'approved') {
+    if (channel === 'email') {
+      // Accept a few common context-key spellings so seed scripts + the
+      // executor stay interop without a rigid contract.
+      const recipientEmail =
+        context['toAddress'] ||
+        context['emailRecipient'] ||
+        context['to'] ||
+        run.enrollment.followUpEmail;
+      const subject = context['emailSubject'] || context['subject'];
+      const bodyRaw = context['emailBody'] || context['body'];
 
-      const sendResult = await emailService.sendEmail({
-        to: recipientEmail,
-        subject: context['emailSubject'],
-        html,
-        notificationType: 'enrollment_follow_up',
-      });
-
-      if (!sendResult.success) {
-        logger.error(`[FollowUpAdvance] Email send failed for run ${run.id}: ${sendResult.error}`);
-        // Still advance — the human approved, don't block the sequence
+      if (!recipientEmail || !subject) {
+        sideEffect = {
+          type: 'email_skipped',
+          detail: 'Missing recipient or subject in approval context',
+        };
+      } else {
+        const html = bodyRaw
+          ? `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; white-space: pre-line;">${bodyRaw}</div>`
+          : '';
+        const sendResult = await emailService.sendEmail({
+          to: recipientEmail,
+          subject,
+          html,
+          notificationType: 'enrollment_follow_up',
+        });
+        if (sendResult.success) {
+          sideEffect = {
+            type: 'email_sent',
+            detail: `Sent to ${recipientEmail}`,
+            messageId: sendResult.messageId,
+            transport: sendResult.transport,
+          };
+        } else {
+          sideEffect = {
+            type: 'email_failed',
+            detail: sendResult.error,
+            transport: sendResult.transport,
+          };
+          logger.error(`[FollowUpAdvance] Email send failed for run ${run.id}: ${sendResult.error}`);
+          // Still advance — the human approved, don't block the sequence
+        }
       }
+    } else if (channel === 'phone_call') {
+      // Retell call is triggered separately by triggerRetellIfPhoneCall.
+      // Just mark it so the UI can reflect state.
+      sideEffect = { type: 'phone_call_queued', detail: 'Phone call queued via Retell (if configured)' };
     }
   }
 
@@ -378,4 +425,5 @@ async function advanceFollowUpAfterDecision(
   });
 
   logger.info(`[FollowUpAdvance] Run ${run.id}: step ${approval.followUpStepOrder} ${decision}, advanced to ${run.currentStepOrder + 1}${completed ? ' (completed)' : ''}`);
+  return sideEffect;
 }

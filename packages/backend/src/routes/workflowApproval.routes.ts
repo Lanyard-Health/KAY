@@ -69,7 +69,10 @@ router.post(
         });
       }
 
-      res.json({ success: true, data: { status: result.status } });
+      res.json({
+        success: true,
+        data: { status: result.status, sideEffect: result.sideEffect },
+      });
     } catch (error) {
       next(error);
     }
