@@ -80,11 +80,30 @@ export function useDecideApproval() {
       });
       return res.data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workflow-approvals'] });
-      toast.success(
-        variables.decision === 'approved' ? 'Approved successfully' : 'Denied successfully'
-      );
+      const side = (data as { data?: { sideEffect?: { type?: string; detail?: string } } })?.data?.sideEffect;
+      if (variables.decision === 'denied') {
+        toast.success('Denied successfully');
+        return;
+      }
+      // Approved — surface the actual send result
+      switch (side?.type) {
+        case 'email_sent':
+          toast.success(side.detail || 'Approved — email sent');
+          break;
+        case 'email_failed':
+          toast.error(`Approved, but email send failed: ${side.detail ?? 'unknown error'}`);
+          break;
+        case 'email_skipped':
+          toast(`Approved — email skipped: ${side.detail ?? 'missing data'}`);
+          break;
+        case 'phone_call_queued':
+          toast.success('Approved — phone call queued');
+          break;
+        default:
+          toast.success('Approved successfully');
+      }
     },
     onError: () => {
       toast.error('Failed to process approval');
