@@ -398,21 +398,28 @@ export class CaqhService {
     }
   }
 
-  // Map CAQH data to our internal format
+  // Map CAQH data to our internal format.
+  // Defensive against partial payloads: missing sections produce empty arrays
+  // rather than crashing, so `rawJson` is always preserved for debugging.
   mapCaqhToInternal(caqhData: CaqhCredentialsResponse, providerId?: string): MappedCaqhData {
+    const provider = caqhData?.provider ?? ({} as CaqhCredentialsResponse['provider']);
+    const licenses = Array.isArray(caqhData?.licenses) ? caqhData.licenses : [];
+    const certifications = Array.isArray(caqhData?.certifications) ? caqhData.certifications : [];
+    const education = Array.isArray(caqhData?.education) ? caqhData.education : [];
+
     return {
       provider: {
-        firstName: caqhData.provider.firstName,
-        lastName: caqhData.provider.lastName,
-        npi: caqhData.provider.npi,
+        firstName: provider.firstName ?? '',
+        lastName: provider.lastName ?? '',
+        npi: provider.npi ?? '',
       },
-      licenses: caqhData.licenses.map(license => ({
+      licenses: licenses.map(license => ({
         licenseType: this.mapLicenseType(license.type, providerId),
         licenseNumber: license.number,
         state: license.state,
         expirationDate: new Date(license.expirationDate),
       })),
-      certifications: caqhData.certifications.map(cert => ({
+      certifications: certifications.map(cert => ({
         boardType: this.mapBoardType(cert.board, providerId),
         boardName: cert.board,
         specialty: cert.specialty,
@@ -420,12 +427,12 @@ export class CaqhService {
           ? new Date(cert.expirationDate)
           : undefined,
       })),
-      education: caqhData.education.map(edu => ({
+      education: education.map(edu => ({
         institutionName: edu.institution,
         degree: this.mapDegreeType(edu.degree, providerId),
         graduationDate: new Date(edu.graduationDate),
       })),
-      malpractice: caqhData.malpractice
+      malpractice: caqhData?.malpractice
         ? [{
             carrierName: caqhData.malpractice.carrier,
             policyNumber: caqhData.malpractice.policyNumber,
@@ -534,7 +541,41 @@ export class CaqhService {
 
       // Step 2: Pull credentials using the attestation date
       const rawCaqhData = await this.pullCredentials(caqhProviderId, attestationDate);
-      const caqhData = this.mapCaqhToInternal(rawCaqhData, providerId);
+
+      // Persist raw response immediately — survives downstream mapper errors
+      // so failed syncs can still be debugged against the actual CAQH payload.
+      await prisma.providerCaqhMirror.upsert({
+        where: { providerProfileId: providerId },
+        create: {
+          providerProfileId: providerId,
+          rawJson: rawCaqhData as never,
+          lastPulledAt: new Date(),
+          syncStatus: 'pending',
+        },
+        update: {
+          rawJson: rawCaqhData as never,
+          lastPulledAt: new Date(),
+          syncStatus: 'pending',
+        },
+      });
+
+      let caqhData: MappedCaqhData;
+      try {
+        caqhData = this.mapCaqhToInternal(rawCaqhData, providerId);
+      } catch (mapError) {
+        logger.error({
+          event: 'caqh_map_error',
+          providerId,
+          caqhProviderId,
+          error: mapError instanceof Error ? mapError.message : 'Unknown map error',
+          rawKeys: rawCaqhData && typeof rawCaqhData === 'object' ? Object.keys(rawCaqhData) : [],
+        });
+        await prisma.providerCaqhMirror.update({
+          where: { providerProfileId: providerId },
+          data: { syncStatus: 'failed' },
+        });
+        throw mapError;
+      }
       const changes = await this.applyCaqhDataToProvider(providerId, caqhData);
 
       const durationMs = Date.now() - startTime;
@@ -559,6 +600,11 @@ export class CaqhService {
       await prisma.providerProfile.update({
         where: { id: providerId },
         data: { caqhLastSync: new Date() },
+      });
+
+      await prisma.providerCaqhMirror.update({
+        where: { providerProfileId: providerId },
+        data: { syncStatus: 'success' },
       });
 
       return { syncId: syncLog.id, changes };
