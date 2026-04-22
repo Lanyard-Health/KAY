@@ -61,10 +61,12 @@ export interface CaqhV8Provider {
   MiddleName?: string;
   ProviderDateOfBirth?: string;
   DateOfBirth?: string;
+  BirthDate?: string;
   ProviderGender?: string;
   Gender?: string;
   ProviderEmail?: string;
   Email?: string;
+  EmailAddress?: string;
   ProviderPhone?: string;
   Phone?: string;
 
@@ -94,10 +96,12 @@ export interface CaqhV8Address {
   AddressType?: string;
   AddressLine1?: string;
   AddressLine2?: string;
+  Address?: string;  // v8 uses this in place of AddressLine1
   City?: string;
   State?: string;
   ZipCode?: string;
-  PostalCode?: string;
+  PostalCode?: string | number;
+  EmailAddress?: string;
   Country?: string;
   [key: string]: unknown;
 }
@@ -185,6 +189,7 @@ export interface MappedProviderIdentifier {
   state?: string;
   effectiveDate?: Date;
   expirationDate?: Date;
+  notes?: string;
 }
 
 export interface MappedCaqhData {
@@ -232,6 +237,8 @@ function toOptString(v: unknown): string | undefined {
   }
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
   // fast-xml-parser emits `{'#text': 'value'}` for elements with attributes.
+  // CAQH v8 uses `{XxxDescription: 'value'}` for coded-lookup fields
+  //   (AddressType, IdentifierType, etc.).
   // Also handle CAQH `{string: {'#text': 'value'}}` wrappers seen in probes.
   if (typeof v === 'object') {
     const obj = v as Record<string, unknown>;
@@ -240,6 +247,13 @@ function toOptString(v: unknown): string | undefined {
     }
     if (obj['string'] != null) {
       return toOptString(obj['string']);
+    }
+    // CAQH coded-lookup pattern: `{<Field>Description: <value>}`
+    const keys = Object.keys(obj);
+    const descKey = keys.find(k => k.endsWith('Description'));
+    if (descKey) {
+      // eslint-disable-next-line security/detect-object-injection -- key is from object's own keys
+      return toOptString(obj[descKey]);
     }
   }
   return undefined;
@@ -612,9 +626,9 @@ export class CaqhService {
         suffix: toOptString(p.ProviderSuffix),
         npi: npiStr ?? '',
         ssn: ssnStr ? this.normalizeSsn(ssnStr) : undefined,
-        dateOfBirth: parseCaqhDate(p.ProviderDateOfBirth ?? p.DateOfBirth),
+        dateOfBirth: parseCaqhDate(p.ProviderDateOfBirth ?? p.DateOfBirth ?? p.BirthDate),
         gender: this.mapGender(p.ProviderGender ?? p.Gender, providerId),
-        email: toOptString(p.ProviderEmail ?? p.Email),
+        email: toOptString(p.ProviderEmail ?? p.Email ?? p.EmailAddress),
         phone: toOptString(p.ProviderPhone ?? p.Phone),
         ethnicity: toOptString(p.EthnicityDescription),
         primaryPracticeState: toOptString(p.PrimaryPracticeState),
@@ -714,7 +728,7 @@ export class CaqhService {
   }
 
   private mapV8Address(a: CaqhV8Address, providerId?: string): MappedProviderAddress | null {
-    const line1 = toOptString(a.AddressLine1);
+    const line1 = toOptString(a.AddressLine1 ?? a.Address);
     const city = toOptString(a.City);
     const state = toOptString(a.State);
     const zip = toOptString(a.ZipCode ?? a.PostalCode);
@@ -751,6 +765,8 @@ export class CaqhService {
     const value = toOptString(i.IdentifierValue);
     if (!value) return null;
     const type = this.mapIdentifierType(i.IdentifierType, providerId);
+    // Preserve CAQH's descriptive label so unknown-type identifiers don't lose meaning
+    const description = toOptString(i.IdentifierType);
     return {
       identifierType: type,
       identifierValue: value,
@@ -758,6 +774,7 @@ export class CaqhService {
       state: toOptString(i.State),
       effectiveDate: parseCaqhDate(i.EffectiveDate),
       expirationDate: parseCaqhDate(i.ExpirationDate),
+      notes: type === 'OTHER' && description ? description : undefined,
     };
   }
 
@@ -1081,6 +1098,7 @@ export class CaqhService {
             state: ident.state ?? existing.state,
             effectiveDate: ident.effectiveDate ?? existing.effectiveDate,
             expirationDate: ident.expirationDate ?? existing.expirationDate,
+            notes: ident.notes ?? existing.notes,
           },
         });
       } else {
@@ -1093,6 +1111,7 @@ export class CaqhService {
             state: ident.state,
             effectiveDate: ident.effectiveDate,
             expirationDate: ident.expirationDate,
+            notes: ident.notes,
           },
         });
       }
