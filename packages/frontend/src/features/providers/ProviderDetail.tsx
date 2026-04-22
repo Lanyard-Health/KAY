@@ -940,6 +940,68 @@ export default function ProviderDetail() {
                   </div>
                 </div>
 
+                {/* CAQH Data — populated from CAQH sync (read-only) */}
+                {(provider.primaryPracticeState || provider.otherPracticeState ||
+                  provider.hospitalBasedFlag !== null || provider.fellowshipTrainingFlag !== null ||
+                  provider.ecfmgFlag !== null || provider.activeMilitaryFlag !== null ||
+                  provider.workHistoryGapFlag !== null || provider.secondarySpecialtyFlag !== null ||
+                  provider.hospitalPrivilegeFlag !== null) && (
+                  <div className="card animate-fade-in">
+                    <div className="card-header flex items-center justify-between">
+                      <h2 className="text-base font-semibold text-gray-900">CAQH Data</h2>
+                      <span className="text-xs text-gray-400">Read-only · auto-synced</span>
+                    </div>
+                    <div className="card-body">
+                      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                        {[
+                          { label: 'Primary Practice State', value: provider.primaryPracticeState || '\u2014' },
+                          { label: 'Other Practice States', value: provider.otherPracticeState || '\u2014' },
+                          { label: 'Hospital-Based', value: provider.hospitalBasedFlag == null ? '\u2014' : provider.hospitalBasedFlag ? 'Yes' : 'No' },
+                          { label: 'Hospital Privileges', value: provider.hospitalPrivilegeFlag == null ? '\u2014' : provider.hospitalPrivilegeFlag ? 'Yes' : 'No' },
+                          { label: 'Fellowship Training', value: provider.fellowshipTrainingFlag == null ? '\u2014' : provider.fellowshipTrainingFlag ? 'Yes' : 'No' },
+                          { label: 'Secondary Specialty', value: provider.secondarySpecialtyFlag == null ? '\u2014' : provider.secondarySpecialtyFlag ? 'Yes' : 'No' },
+                          { label: 'Active Military', value: provider.activeMilitaryFlag == null ? '\u2014' : provider.activeMilitaryFlag ? 'Yes' : 'No' },
+                          { label: 'Work History Gap', value: provider.workHistoryGapFlag == null ? '\u2014' : provider.workHistoryGapFlag ? 'Yes' : 'No' },
+                          { label: 'ECFMG', value: provider.ecfmgFlag == null ? '\u2014' : provider.ecfmgFlag ? `Yes${provider.ecfmgNumber ? ` · ${provider.ecfmgNumber}` : ''}` : 'No' },
+                        ].map((field) => (
+                          <div key={field.label}>
+                            <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider">{field.label}</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{field.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  </div>
+                )}
+
+                {/* Addresses — populated from CAQH sync (read-only) */}
+                {provider.addresses && provider.addresses.length > 0 && (
+                  <div className="card animate-fade-in">
+                    <div className="card-header flex items-center justify-between">
+                      <h2 className="text-base font-semibold text-gray-900">Addresses</h2>
+                      <span className="text-xs text-gray-400">{provider.addresses.length} on file</span>
+                    </div>
+                    <div className="card-body">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {provider.addresses.map((addr: any) => (
+                          <div key={addr.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-semibold text-primary-700 uppercase tracking-wider">{addr.type}</span>
+                              {addr.isPrimary && <span className="badge-primary text-[10px]">Primary</span>}
+                            </div>
+                            <p className="text-sm text-gray-900">{addr.addressLine1}</p>
+                            {addr.addressLine2 && <p className="text-sm text-gray-900">{addr.addressLine2}</p>}
+                            <p className="text-sm text-gray-600">{addr.city}, {addr.state} {addr.zipCode}</p>
+                            {addr.country && addr.country !== 'US' && (
+                              <p className="text-xs text-gray-500">{addr.country}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Practice Locations */}
                 <CollapsibleSection
                   title="Practice Locations"
@@ -1127,7 +1189,9 @@ export default function ProviderDetail() {
                       {providerIdentifiersList.map((pi: any) => (
                         <div key={pi.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
                           <div>
-                            <p className="font-medium text-sm text-gray-900">{pi.identifierType?.replace(/_/g, ' ')}</p>
+                            <p className="font-medium text-sm text-gray-900">
+                              {pi.identifierType === 'OTHER' && pi.notes ? pi.notes : pi.identifierType?.replace(/_/g, ' ')}
+                            </p>
                             <p className="text-xs text-gray-500">
                               {pi.identifierValue}
                               {pi.issuingEntity && ` \u00B7 ${pi.issuingEntity}`}
