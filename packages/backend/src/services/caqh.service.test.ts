@@ -391,6 +391,75 @@ describe('CaqhService', () => {
       expect(result.identifiers[0]!.identifierValue).toBe('12345');
     });
 
+    it('maps real CAQH v8 shape with nested AddressTypeDescription + Address + numeric PostalCode', () => {
+      const realPayload = {
+        Provider: {
+          ID: '1000',
+          NPI: 1679576722,
+          FirstName: 'James',
+          LastName: 'Ashingden',
+          BirthDate: '19800515',
+          Gender: 'Male',
+          PrimaryPracticeState: 'AZ',
+          ProviderAddress: {
+            ID: '1000',
+            City: 'Bakersfield',
+            State: 'CA',
+            Address: '19 4th Avenue',
+            PostalCode: 397042681,
+            AddressType: { AddressTypeDescription: 'Current Home' },
+            EmailAddress: 'tstendelle@xinhuanet.com',
+          },
+          ProviderIdentifier: {
+            ID: '1000',
+            IdentifierType: { IdentifierTypeDescription: 'Workers Compensation Number' },
+            IdentifierValue: 68,
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(realPayload);
+      expect(result.provider.firstName).toBe('James');
+      expect(result.provider.lastName).toBe('Ashingden');
+      expect(result.provider.npi).toBe('1679576722');
+      expect(result.provider.dateOfBirth?.toISOString().startsWith('1980-05-15')).toBe(true);
+      expect(result.provider.gender).toBe('male');
+      expect(result.provider.primaryPracticeState).toBe('AZ');
+      expect(result.addresses).toHaveLength(1);
+      const addr = result.addresses[0]!;
+      expect(addr.type).toBe('home');
+      expect(addr.addressLine1).toBe('19 4th Avenue');
+      expect(addr.city).toBe('Bakersfield');
+      expect(addr.state).toBe('CA');
+      expect(addr.zipCode).toBe('397042681');
+      expect(result.identifiers).toHaveLength(1);
+      const ident = result.identifiers[0]!;
+      expect(ident.identifierType).toBe('OTHER');
+      expect(ident.identifierValue).toBe('68');
+      expect(ident.notes).toBe('Workers Compensation Number');
+    });
+
+    it('unwraps {XxxDescription: "..."} nested objects via toOptString', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderGender: { GenderDescription: 'Female' },
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.provider.gender).toBe('female');
+    });
+
+    it('reads EmailAddress at provider level when Email/ProviderEmail absent', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          EmailAddress: 'foo@bar.com',
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.provider.email).toBe('foo@bar.com');
+    });
+
     it('defaults unknown identifier type to OTHER', () => {
       const v8Payload = {
         Provider: {
