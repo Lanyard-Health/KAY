@@ -107,6 +107,8 @@ model User {
   hospitalAffiliationsUpdated HospitalAffiliation[]   @relation("HospitalAffiliationUpdatedBy")
   profRefsCreated             ProfessionalReference[] @relation("ProfRefCreatedBy")
   profRefsUpdated             ProfessionalReference[] @relation("ProfRefUpdatedBy")
+  coveringColleaguesCreated   CoveringColleague[]     @relation("CoveringColleagueCreatedBy")
+  coveringColleaguesUpdated   CoveringColleague[]     @relation("CoveringColleagueUpdatedBy")
   disciplinaryCreated         DisciplinaryAction[]    @relation("DisciplinaryCreatedBy")
   disciplinaryUpdated         DisciplinaryAction[]    @relation("DisciplinaryUpdatedBy")
   contEdCreated               ContinuingEducation[]   @relation("ContEdCreatedBy")
@@ -385,6 +387,21 @@ model ProviderProfile {
   caqhCredentialsValid       Boolean?    @map("caqh_credentials_valid")
   caqhCredentialsLastChecked DateTime?   @map("caqh_credentials_last_checked")
 
+  // CAQH extended fields — populated by CAQH sync
+  hospitalBasedFlag             Boolean?  @map("hospital_based_flag")
+  hospitalPrivilegeFlag         Boolean?  @map("hospital_privilege_flag")
+  fellowshipTrainingFlag        Boolean?  @map("fellowship_training_flag")
+  secondarySpecialtyFlag        Boolean?  @map("secondary_specialty_flag")
+  activeMilitaryFlag            Boolean?  @map("active_military_flag")
+  workHistoryGapFlag            Boolean?  @map("work_history_gap_flag")
+  ecfmgFlag                     Boolean?  @map("ecfmg_flag")
+  ecfmgNumber                   String?   @map("ecfmg_number")
+  ecfmgIssueDate                DateTime? @map("ecfmg_issue_date")
+  primaryPracticeState          String?   @map("primary_practice_state")
+  otherPracticeState            String?   @map("other_practice_state")
+  hospitalAdmittingArrangements Json?     @map("hospital_admitting_arrangements")
+  militaryServiceData           Json?     @map("military_service_data")
+
   // Directory change tracking
   lastDirectoryUpdateAt DateTime? @map("last_directory_update_at")
 
@@ -435,6 +452,7 @@ model ProviderProfile {
   supervisingPhysicians  SupervisingPhysician[]
   malpracticeClaims      MalpracticeClaim[]
   disclosures            ProviderDisclosure[]
+  coveringColleagues     CoveringColleague[]
   deaRegistrations       DeaRegistration[]
   providerIdentifiers    ProviderIdentifier[]
   banking                ProviderBanking[]
@@ -539,6 +557,13 @@ model PracticeLocation {
   specialServices      String[] @default([]) @map("special_services")
   notes                String?
 
+  // CAQH extended fields
+  interpreterAvailable  Boolean?         @map("interpreter_available")
+  currentlyPracticing   Boolean?         @map("currently_practicing")
+  hasPracticeLimitation Boolean?         @map("has_practice_limitation")
+  practiceSpecialty     String?          @map("practice_specialty")
+  source                CredentialSource @default(manual_entry)
+
   // Billing address (if different from service address)
   billingAddressLine1 String? @map("billing_address_line_1")
   billingAddressLine2 String? @map("billing_address_line_2")
@@ -604,11 +629,14 @@ model License {
   licenseType        LicenseType      @map("license_type")
   licenseNumber      String           @map("license_number")
   state              String?
-  issueDate          DateTime         @map("issue_date")
+  issueDate          DateTime?        @map("issue_date") // Made optional — CAQH may not return
   expirationDate     DateTime         @map("expiration_date")
   status             CredentialStatus @default(active)
   verificationDate   DateTime?        @map("verification_date")
   verificationSource String?          @map("verification_source")
+  caqhLicenseId      String?          @map("caqh_license_id") // Stable CAQH ID for dedupe
+  isPrimary          Boolean?         @map("is_primary")
+  currentlyPracticing Boolean?        @map("currently_practicing")
   notes              String?
   source             CredentialSource @default(manual_entry)
 
@@ -650,10 +678,12 @@ model BoardCertification {
   boardName                String           @map("board_name")
   certificationNumber      String?          @map("certification_number")
   specialty                String
-  initialCertificationDate DateTime         @map("initial_certification_date")
+  initialCertificationDate DateTime?        @map("initial_certification_date") // Optional — CAQH may not return
   expirationDate           DateTime?        @map("expiration_date")
   status                   CredentialStatus @default(active)
   isBoardEligible          Boolean          @default(false) @map("is_board_eligible")
+  isBoardCertified         Boolean?         @map("is_board_certified")
+  nuccTaxonomyCode         String?          @map("nucc_taxonomy_code")
   notes                    String?
   source                   CredentialSource @default(manual_entry)
 
@@ -699,6 +729,12 @@ model MalpracticeInsurance {
   hasGapInCoverage Boolean   @default(false) @map("has_gap_in_coverage")
   gapExplanation   String?   @map("gap_explanation")
 
+  // CAQH extended fields
+  isSelfInsured        Boolean? @map("is_self_insured")
+  hasUnlimitedCoverage Boolean? @map("has_unlimited_coverage")
+  isIndividualCoverage Boolean? @map("is_individual_coverage")
+  source               CredentialSource @default(manual_entry)
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -738,11 +774,13 @@ model Education {
 
   institutionName String     @map("institution_name")
   degree          DegreeType
-  fieldOfStudy    String     @map("field_of_study")
+  fieldOfStudy    String?    @map("field_of_study") // Made optional — CAQH doesn't return
   city            String?
   state           String?
   country         String     @default("US")
-  startDate       DateTime   @map("start_date")
+  postalCode      String?    @map("postal_code")
+  addressLine1    String?    @map("address_line_1")
+  startDate       DateTime?  @map("start_date") // Made optional — CAQH may omit
   endDate         DateTime?  @map("end_date")
   graduationDate  DateTime?  @map("graduation_date")
   isCompleted     Boolean    @default(true) @map("is_completed")
@@ -775,20 +813,24 @@ model WorkHistory {
   providerId String @map("provider_id")
 
   organizationName String    @map("organization_name")
-  organizationType String    @map("organization_type")
-  position         String
+  organizationType String    @default("") @map("organization_type") // CAQH may not return — default empty
+  position         String    @default("") // CAQH may not return — default empty
   department       String?
   addressLine1     String?   @map("address_line_1")
   city             String?
   state            String?
   zipCode          String?   @map("zip_code")
+  country          String?   @default("US")
   phone            String?
-  startDate        DateTime  @map("start_date")
+  startDate        DateTime? @map("start_date") // Optional — CAQH WorkHistoryType may not include
   endDate          DateTime? @map("end_date")
   isCurrent        Boolean   @default(false) @map("is_current")
   reasonForLeaving String?   @map("reason_for_leaving")
   supervisorName   String?   @map("supervisor_name")
   supervisorPhone  String?   @map("supervisor_phone")
+  statusDescription String?  @map("status_description")
+  workHistoryType  String?   @map("work_history_type")
+  source           CredentialSource @default(manual_entry)
   notes            String?
 
   // Audit
@@ -812,6 +854,10 @@ enum PrivilegeType {
   consulting
   temporary
   locum_tenens
+  active
+  provisional
+  affiliate
+  teaching
 }
 
 enum AffiliationStatus {
@@ -844,6 +890,19 @@ model HospitalAffiliation {
   facilityState        String? @map("facility_state")
   facilityZipCode      String? @map("facility_zip_code")
 
+  // CAQH extended fields
+  hasTemporaryPrivileges    Boolean? @map("has_temporary_privileges")
+  hasUnrestrictedPrivileges Boolean? @map("has_unrestricted_privileges")
+  nonAhaHospitalName        String?  @map("non_aha_hospital_name")
+  hospitalAffiliationType   String?  @map("hospital_affiliation_type")
+  hospitalRecordType        String?  @map("hospital_record_type")
+  privilegeDescription      String?  @map("privilege_description")
+  country                   String?
+  zipCode                   String?  @map("zip_code")
+  addressLine1              String?  @map("address_line_1")
+  startDate                 DateTime? @map("start_date")
+  source                    CredentialSource @default(manual_entry)
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -864,13 +923,19 @@ model ProfessionalReference {
   providerId String @map("provider_id")
 
   name         String
-  title        String
-  organization String
-  relationship String
-  email        String
-  phone        String
-  yearsKnown   Int     @map("years_known")
-  canContact   Boolean @default(true) @map("can_contact")
+  title        String   @default("") // CAQH may not return
+  organization String   @default("") // CAQH may not return
+  relationship String   @default("") // CAQH may not return
+  email        String   @default("") // CAQH demo may not include
+  phone        String   @default("") // CAQH demo may not include
+  yearsKnown   Int?     @map("years_known") // Made optional — CAQH may not return
+  canContact   Boolean  @default(true) @map("can_contact")
+  addressLine1 String?  @map("address_line_1")
+  city         String?
+  state        String?
+  country      String?  @default("US")
+  postalCode   String?  @map("postal_code")
+  source       CredentialSource @default(manual_entry)
   notes        String?
 
   // Audit
@@ -888,6 +953,43 @@ model ProfessionalReference {
   @@map("professional_references")
 }
 
+// ==========================================
+// COVERING COLLEAGUES
+// Providers who cover patients when the primary provider is unavailable.
+// Populated from CAQH Associate section + supports manual entry.
+// ==========================================
+model CoveringColleague {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  name          String
+  npi           String?
+  specialty     String?
+  relationship  String? // e.g. 'peer', 'partner', 'on-call'
+  phone         String?
+  email         String?
+  startDate     DateTime? @map("start_date")
+  endDate       DateTime? @map("end_date")
+  isCurrent     Boolean   @default(true) @map("is_current")
+  caqhAssociateId String? @map("caqh_associate_id") // Stable CAQH ID for dedupe
+  source        CredentialSource @default(manual_entry)
+  notes         String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("CoveringColleagueCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("CoveringColleagueUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  // Relations
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("covering_colleagues")
+}
+
 enum DisciplinaryActionType {
   license_action
   hospital_action
@@ -902,13 +1004,20 @@ model DisciplinaryAction {
 
   actionType     DisciplinaryActionType @map("action_type")
   description    String
-  dateOfAction   DateTime               @map("date_of_action")
+  dateOfAction   DateTime?              @map("date_of_action") // Optional — CAQH may not return
   state          String?
   agency         String?
   outcome        String?
   isResolved     Boolean                @default(false) @map("is_resolved")
   resolutionDate DateTime?              @map("resolution_date")
   notes          String?
+
+  // CAQH extended fields — allows capturing CAQH's AdverseAction / CriminalAction / LiabilityAction detail
+  category          String?          // 'adverse' | 'criminal' | 'liability' | 'board' — denormalized for simple queries
+  effectiveDate     DateTime?        @map("effective_date")
+  appealStatus      String?          @map("appeal_status")
+  narrative         String?          @db.Text
+  source            CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -996,6 +1105,11 @@ enum IdentifierType {
   STATE_LICENSE_ID
   PAYER_SPECIFIC_ID
   UPIN
+  CDS
+  ACLS
+  BLS
+  PALS
+  CPR
   OTHER
 }
 
@@ -1062,8 +1176,8 @@ model MalpracticeClaim {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  dateOfIncident   DateTime    @map("date_of_incident")
-  dateOfClaim      DateTime    @map("date_of_claim")
+  dateOfIncident   DateTime?   @map("date_of_incident") // Optional — CAQH may not return
+  dateOfClaim      DateTime?   @map("date_of_claim")
   claimStatus      ClaimStatus @map("claim_status")
   description      String
   settlementAmount Decimal?    @map("settlement_amount") @db.Decimal(15, 2)
@@ -1074,6 +1188,14 @@ model MalpracticeClaim {
   courtName        String?     @map("court_name")
   caseNumber       String?     @map("case_number")
   notes            String?
+
+  // CAQH extended fields
+  allegationDescription String?          @map("allegation_description") @db.Text
+  defendantRole         String?          @map("defendant_role")
+  patientGenderAge      String?          @map("patient_gender_age")
+  narrative             String?          @db.Text
+  isLeadDefendant       Boolean?         @map("is_lead_defendant")
+  source                CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1101,6 +1223,8 @@ model ProviderDisclosure {
   dateOfOccurrence  DateTime?          @map("date_of_occurrence")
   state             String?
   resolutionDetails String?            @map("resolution_details") @db.Text
+  caqhQuestionId    String?            @map("caqh_question_id") // Stable CAQH question ID for dedupe
+  source            CredentialSource   @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1121,13 +1245,15 @@ model DeaRegistration {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  deaNumberEncrypted String           @map("dea_number_encrypted")
-  deaState           String?          @map("dea_state")
-  deaSchedules       String[]         @default([]) @map("dea_schedules") // e.g. ["II", "III", "IV", "V"]
-  issueDate          DateTime         @map("issue_date")
-  expirationDate     DateTime         @map("expiration_date")
-  status             CredentialStatus @default(active)
-  notes              String?
+  deaNumberEncrypted  String           @map("dea_number_encrypted")
+  deaState            String?          @map("dea_state")
+  deaSchedules        String[]         @default([]) @map("dea_schedules") // e.g. ["II", "III", "IV", "V"]
+  issueDate           DateTime?        @map("issue_date") // Optional — not always returned by CAQH
+  expirationDate      DateTime         @map("expiration_date")
+  buprenorphineWaiver Boolean?         @map("buprenorphine_waiver")
+  source              CredentialSource @default(manual_entry)
+  status              CredentialStatus @default(active)
+  notes               String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
