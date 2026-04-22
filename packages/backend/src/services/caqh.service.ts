@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
-import type { LicenseType, BoardType, DegreeType, CoverageType } from '@prisma/client';
+import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType } from '@prisma/client';
 import { logger } from '../utils/logger.js';
+import { encryptSafe } from '../utils/crypto.js';
 
 interface CaqhRosterResponse {
   caqhProviderId: string;
@@ -33,6 +34,85 @@ export interface CaqhDownloadResult {
   fileName?: string;
 }
 
+/**
+ * Real CAQH Credentialing API v8 response shape.
+ * XML-parsed root `<Provider>` becomes `{ Provider: {...} }` in JSON.
+ * All nested field names are PascalCase.
+ *
+ * Field presence varies per provider — all marked optional for safety.
+ * Source: captured payload from POID 6279 / CAQH ID 16174500 (2026-04-21)
+ * plus v8-only additions documented in the CAQH API Data Dictionary.
+ */
+export interface CaqhV8Response {
+  Provider?: CaqhV8Provider;
+}
+
+export interface CaqhV8Provider {
+  // Core identity
+  ID?: string | number;
+  NPI?: string | number;
+  SSN?: string | number;
+  ProviderFirstName?: string;
+  ProviderLastName?: string;
+  ProviderMiddleName?: string;
+  ProviderSuffix?: string;
+  FirstName?: string; // some payloads omit the `Provider` prefix
+  LastName?: string;
+  MiddleName?: string;
+  ProviderDateOfBirth?: string;
+  DateOfBirth?: string;
+  ProviderGender?: string;
+  Gender?: string;
+  ProviderEmail?: string;
+  Email?: string;
+  ProviderPhone?: string;
+  Phone?: string;
+
+  // V8 additions
+  ProviderAttestID?: string | number;
+  PrimaryPracticeState?: string;
+  OtherPracticeState?: string;
+  EthnicityDescription?: string;
+  HospitalBasedFlag?: string | boolean;
+  HospitalPrivilegeFlag?: string | boolean;
+  FellowshipTrainingFlag?: string | boolean;
+  SecondarySpecialtyFlag?: string | boolean;
+  ActiveMilitaryFlag?: string | boolean;
+  WorkHistoryGapFlag?: string | boolean;
+  MedicareProviderFlag?: string | boolean;
+  MedicaidProviderFlag?: string | boolean;
+
+  // Nested sections (detail handling deferred to Phases 2+)
+  ProviderAddress?: CaqhV8Address | CaqhV8Address[];
+  ProviderIdentifier?: CaqhV8Identifier | CaqhV8Identifier[];
+
+  // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
+  [key: string]: unknown;
+}
+
+export interface CaqhV8Address {
+  AddressType?: string;
+  AddressLine1?: string;
+  AddressLine2?: string;
+  City?: string;
+  State?: string;
+  ZipCode?: string;
+  PostalCode?: string;
+  Country?: string;
+  [key: string]: unknown;
+}
+
+export interface CaqhV8Identifier {
+  IdentifierType?: string;
+  IdentifierValue?: string | number;
+  IssuingEntity?: string;
+  State?: string;
+  EffectiveDate?: string;
+  ExpirationDate?: string;
+  [key: string]: unknown;
+}
+
+/** @deprecated — legacy camelCase shape kept for backward compatibility during phased rollout */
 export interface CaqhCredentialsResponse {
   provider: {
     firstName: string;
@@ -63,12 +143,54 @@ export interface CaqhCredentialsResponse {
   };
 }
 
+export interface MappedProviderCore {
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  suffix?: string;
+  npi: string;
+  ssn?: string;               // plaintext — caller encrypts before persist
+  dateOfBirth?: Date;
+  gender?: Gender;
+  email?: string;
+  phone?: string;
+  ethnicity?: string;
+  primaryPracticeState?: string;
+  otherPracticeState?: string;
+  // Phase 0 flags
+  hospitalBasedFlag?: boolean;
+  hospitalPrivilegeFlag?: boolean;
+  fellowshipTrainingFlag?: boolean;
+  secondarySpecialtyFlag?: boolean;
+  activeMilitaryFlag?: boolean;
+  workHistoryGapFlag?: boolean;
+  acceptingMedicare?: boolean;
+  acceptingMedicaid?: boolean;
+}
+
+export interface MappedProviderAddress {
+  type: AddressType;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country?: string;
+}
+
+export interface MappedProviderIdentifier {
+  identifierType: IdentifierType;
+  identifierValue: string;
+  issuingEntity?: string;
+  state?: string;
+  effectiveDate?: Date;
+  expirationDate?: Date;
+}
+
 export interface MappedCaqhData {
-  provider: {
-    firstName: string;
-    lastName: string;
-    npi: string;
-  };
+  provider: MappedProviderCore;
+  addresses: MappedProviderAddress[];
+  identifiers: MappedProviderIdentifier[];
   licenses: Array<{
     licenseType: LicenseType;
     licenseNumber: string;
@@ -99,6 +221,51 @@ export interface MappedCaqhData {
     coverageType?: CoverageType;
     effectiveDate?: string;
   }>;
+}
+
+/** Coerce various CAQH value shapes to an optional trimmed string. */
+function toOptString(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'string') {
+    const trimmed = v.trim();
+    return trimmed === '' ? undefined : trimmed;
+  }
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return undefined;
+}
+
+/**
+ * Coerce CAQH flag values to boolean.
+ * Accepts: true/false, "Y"/"N", "Yes"/"No", "true"/"false", "1"/"0".
+ */
+function toOptBool(v: unknown): boolean | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') {
+    const t = v.trim().toLowerCase();
+    if (t === '') return undefined;
+    if (['y', 'yes', 'true', '1'].includes(t)) return true;
+    if (['n', 'no', 'false', '0'].includes(t)) return false;
+  }
+  return undefined;
+}
+
+/** Parse CAQH date values (YYYYMMDD, YYYY-MM-DD, MM/DD/YYYY, ISO). */
+function parseCaqhDate(raw: unknown): Date | undefined {
+  if (raw == null) return undefined;
+  const s = typeof raw === 'string' ? raw.trim() : String(raw);
+  if (s === '' || s === '0') return undefined;
+  // YYYYMMDD
+  if (/^\d{8}$/.test(s)) {
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(4, 6));
+    const d = Number(s.slice(6, 8));
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return isNaN(dt.getTime()) ? undefined : dt;
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? undefined : dt;
 }
 
 export class CaqhService {
@@ -398,10 +565,73 @@ export class CaqhService {
     }
   }
 
-  // Map CAQH data to our internal format.
-  // Defensive against partial payloads: missing sections produce empty arrays
-  // rather than crashing, so `rawJson` is always preserved for debugging.
-  mapCaqhToInternal(caqhData: CaqhCredentialsResponse, providerId?: string): MappedCaqhData {
+  /**
+   * Map CAQH data to our internal format.
+   *
+   * Accepts two shapes:
+   *   1. v8 PascalCase — `{ Provider: {...} }` root wrapper (real CAQH API response)
+   *   2. Legacy camelCase — `{ provider, licenses, ... }` (older test fixtures, backward compat)
+   *
+   * Defensive against partial payloads: missing sections produce empty arrays
+   * rather than crashing, so `rawJson` is always preserved for debugging.
+   *
+   * Phase 1 scope: provider core (name, NPI, SSN, DOB, gender, practice state, flags)
+   * + addresses + identifiers. Licenses/certs/education/malpractice still use
+   * legacy camelCase path only — Phases 2+ will extend to v8 PascalCase for those.
+   */
+  mapCaqhToInternal(caqhData: unknown, providerId?: string): MappedCaqhData {
+    // Detect v8 PascalCase shape by presence of `Provider` root wrapper
+    const v8Root = (caqhData as CaqhV8Response | undefined)?.Provider;
+    if (v8Root && typeof v8Root === 'object') {
+      return this.mapV8(v8Root, providerId);
+    }
+    // Fall back to legacy camelCase shape
+    return this.mapLegacy(caqhData as CaqhCredentialsResponse | undefined, providerId);
+  }
+
+  private mapV8(p: CaqhV8Provider, providerId?: string): MappedCaqhData {
+    const addrList = this.asArray(p.ProviderAddress);
+    const idList = this.asArray(p.ProviderIdentifier);
+
+    return {
+      provider: {
+        firstName: String(p.ProviderFirstName ?? p.FirstName ?? ''),
+        lastName: String(p.ProviderLastName ?? p.LastName ?? ''),
+        middleName: toOptString(p.ProviderMiddleName ?? p.MiddleName),
+        suffix: toOptString(p.ProviderSuffix),
+        npi: p.NPI != null ? String(p.NPI) : '',
+        ssn: p.SSN != null ? this.normalizeSsn(String(p.SSN)) : undefined,
+        dateOfBirth: parseCaqhDate(p.ProviderDateOfBirth ?? p.DateOfBirth),
+        gender: this.mapGender(p.ProviderGender ?? p.Gender, providerId),
+        email: toOptString(p.ProviderEmail ?? p.Email),
+        phone: toOptString(p.ProviderPhone ?? p.Phone),
+        ethnicity: toOptString(p.EthnicityDescription),
+        primaryPracticeState: toOptString(p.PrimaryPracticeState),
+        otherPracticeState: toOptString(p.OtherPracticeState),
+        hospitalBasedFlag: toOptBool(p.HospitalBasedFlag),
+        hospitalPrivilegeFlag: toOptBool(p.HospitalPrivilegeFlag),
+        fellowshipTrainingFlag: toOptBool(p.FellowshipTrainingFlag),
+        secondarySpecialtyFlag: toOptBool(p.SecondarySpecialtyFlag),
+        activeMilitaryFlag: toOptBool(p.ActiveMilitaryFlag),
+        workHistoryGapFlag: toOptBool(p.WorkHistoryGapFlag),
+        acceptingMedicare: toOptBool(p.MedicareProviderFlag),
+        acceptingMedicaid: toOptBool(p.MedicaidProviderFlag),
+      },
+      addresses: addrList
+        .map(a => this.mapV8Address(a, providerId))
+        .filter((a): a is MappedProviderAddress => a !== null),
+      identifiers: idList
+        .map(i => this.mapV8Identifier(i, providerId))
+        .filter((i): i is MappedProviderIdentifier => i !== null),
+      // Deferred to Phases 2+
+      licenses: [],
+      certifications: [],
+      education: [],
+      malpractice: [],
+    };
+  }
+
+  private mapLegacy(caqhData: CaqhCredentialsResponse | undefined, providerId?: string): MappedCaqhData {
     const provider = caqhData?.provider ?? ({} as CaqhCredentialsResponse['provider']);
     const licenses = Array.isArray(caqhData?.licenses) ? caqhData.licenses : [];
     const certifications = Array.isArray(caqhData?.certifications) ? caqhData.certifications : [];
@@ -413,6 +643,8 @@ export class CaqhService {
         lastName: provider.lastName ?? '',
         npi: provider.npi ?? '',
       },
+      addresses: [],
+      identifiers: [],
       licenses: licenses.map(license => ({
         licenseType: this.mapLicenseType(license.type, providerId),
         licenseNumber: license.number,
@@ -441,6 +673,118 @@ export class CaqhService {
           }]
         : [],
     };
+  }
+
+  private asArray<T>(v: T | T[] | undefined): T[] {
+    if (v == null) return [];
+    return Array.isArray(v) ? v : [v];
+  }
+
+  private normalizeSsn(raw: string): string {
+    // Strip non-digits; CAQH sometimes returns with dashes or as numeric.
+    const digits = raw.replace(/\D/g, '');
+    return digits;
+  }
+
+  private mapGender(raw: string | undefined, providerId?: string): Gender | undefined {
+    if (!raw) return undefined;
+    const v = raw.trim().toLowerCase();
+    if (v === 'm' || v === 'male') return 'male';
+    if (v === 'f' || v === 'female') return 'female';
+    if (v === 'o' || v === 'other') return 'other';
+    logger.warn({
+      event: 'caqh_unknown_mapping',
+      field: 'gender',
+      rawValue: raw,
+      providerId,
+    });
+    return undefined;
+  }
+
+  private mapV8Address(a: CaqhV8Address, providerId?: string): MappedProviderAddress | null {
+    const line1 = toOptString(a.AddressLine1);
+    const city = toOptString(a.City);
+    const state = toOptString(a.State);
+    const zip = toOptString(a.ZipCode ?? a.PostalCode);
+    if (!line1 || !city || !state || !zip) {
+      logger.warn({
+        event: 'caqh_skip_address_incomplete',
+        providerId,
+        have: { line1: !!line1, city: !!city, state: !!state, zip: !!zip },
+      });
+      return null;
+    }
+    return {
+      type: this.mapAddressType(a.AddressType),
+      addressLine1: line1,
+      addressLine2: toOptString(a.AddressLine2),
+      city,
+      state,
+      zipCode: zip,
+      country: toOptString(a.Country) ?? 'US',
+    };
+  }
+
+  private mapAddressType(raw: string | undefined): AddressType {
+    if (!raw) return 'home';
+    const v = raw.trim().toLowerCase();
+    if (v.includes('practice')) return 'practice';
+    if (v.includes('mail')) return 'mailing';
+    if (v.includes('bill')) return 'billing';
+    return 'home';
+  }
+
+  private mapV8Identifier(i: CaqhV8Identifier, providerId?: string): MappedProviderIdentifier | null {
+    const value = i.IdentifierValue != null ? String(i.IdentifierValue).trim() : '';
+    if (!value) return null;
+    const type = this.mapIdentifierType(i.IdentifierType, providerId);
+    return {
+      identifierType: type,
+      identifierValue: value,
+      issuingEntity: toOptString(i.IssuingEntity),
+      state: toOptString(i.State),
+      effectiveDate: parseCaqhDate(i.EffectiveDate),
+      expirationDate: parseCaqhDate(i.ExpirationDate),
+    };
+  }
+
+  private mapIdentifierType(raw: string | undefined, providerId?: string): IdentifierType {
+    if (!raw) return 'OTHER';
+    const v = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const direct: Record<string, IdentifierType> = {
+      MEDICARE_PTAN: 'MEDICARE_PTAN',
+      PTAN: 'MEDICARE_PTAN',
+      MEDICARE_PECOS_ID: 'MEDICARE_PECOS_ID',
+      PECOS: 'MEDICARE_PECOS_ID',
+      MEDICARE_PECOS: 'MEDICARE_PECOS_ID',
+      MEDICAID: 'MEDICAID_ID',
+      MEDICAID_ID: 'MEDICAID_ID',
+      TRICARE: 'TRICARE_ID',
+      TRICARE_ID: 'TRICARE_ID',
+      RAILROAD_MEDICARE: 'RAILROAD_MEDICARE_ID',
+      RAILROAD_MEDICARE_ID: 'RAILROAD_MEDICARE_ID',
+      STATE_LICENSE: 'STATE_LICENSE_ID',
+      STATE_LICENSE_ID: 'STATE_LICENSE_ID',
+      PAYER: 'PAYER_SPECIFIC_ID',
+      PAYER_SPECIFIC_ID: 'PAYER_SPECIFIC_ID',
+      UPIN: 'UPIN',
+      CDS: 'CDS',
+      ACLS: 'ACLS',
+      BLS: 'BLS',
+      PALS: 'PALS',
+      CPR: 'CPR',
+    };
+    // eslint-disable-next-line security/detect-object-injection -- guarded by Object.hasOwn; `v` is derived from CAQH API payload
+    const match = Object.hasOwn(direct, v) ? direct[v] : undefined;
+    if (match) return match;
+    logger.warn({
+      event: 'caqh_unknown_mapping',
+      field: 'identifierType',
+      rawValue: raw,
+      defaultedTo: 'OTHER',
+      providerId,
+    });
+    return 'OTHER';
   }
 
   private mapLicenseType(caqhType: string, providerId?: string): LicenseType {
@@ -576,6 +920,7 @@ export class CaqhService {
         });
         throw mapError;
       }
+      await this.applyProviderCore(providerId, caqhData);
       const changes = await this.applyCaqhDataToProvider(providerId, caqhData);
 
       const durationMs = Date.now() - startTime;
@@ -621,6 +966,122 @@ export class CaqhService {
         },
       });
       throw error;
+    }
+  }
+
+  /**
+   * Phase 1: persist CAQH provider-core demographics, addresses, and identifiers.
+   * Fields already present on the ProviderProfile row are NOT overwritten if the
+   * incoming CAQH value is blank/undefined — CAQH is additive, not authoritative,
+   * for existing records.
+   */
+  async applyProviderCore(providerId: string, caqhData: MappedCaqhData): Promise<void> {
+    const core = caqhData.provider;
+    if (!core) return;
+
+    const updateData: Record<string, unknown> = {};
+    if (core.firstName) updateData['firstName'] = core.firstName;
+    if (core.lastName) updateData['lastName'] = core.lastName;
+    if (core.middleName !== undefined) updateData['middleName'] = core.middleName;
+    if (core.suffix !== undefined) updateData['suffix'] = core.suffix;
+    if (core.dateOfBirth) updateData['dateOfBirth'] = core.dateOfBirth;
+    if (core.gender) updateData['gender'] = core.gender;
+    if (core.ssn) updateData['ssnEncrypted'] = encryptSafe(core.ssn);
+    if (core.primaryPracticeState) updateData['primaryPracticeState'] = core.primaryPracticeState;
+    if (core.otherPracticeState) updateData['otherPracticeState'] = core.otherPracticeState;
+    if (core.hospitalBasedFlag !== undefined) updateData['hospitalBasedFlag'] = core.hospitalBasedFlag;
+    if (core.hospitalPrivilegeFlag !== undefined) updateData['hospitalPrivilegeFlag'] = core.hospitalPrivilegeFlag;
+    if (core.fellowshipTrainingFlag !== undefined) updateData['fellowshipTrainingFlag'] = core.fellowshipTrainingFlag;
+    if (core.secondarySpecialtyFlag !== undefined) updateData['secondarySpecialtyFlag'] = core.secondarySpecialtyFlag;
+    if (core.activeMilitaryFlag !== undefined) updateData['activeMilitaryFlag'] = core.activeMilitaryFlag;
+    if (core.workHistoryGapFlag !== undefined) updateData['workHistoryGapFlag'] = core.workHistoryGapFlag;
+    if (core.acceptingMedicare !== undefined) updateData['acceptingMedicare'] = core.acceptingMedicare;
+    if (core.acceptingMedicaid !== undefined) updateData['acceptingMedicaid'] = core.acceptingMedicaid;
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.providerProfile.update({
+        where: { id: providerId },
+        data: updateData,
+      });
+    }
+
+    // Ethnicity → demographics table (upsert, single row per provider)
+    if (core.ethnicity) {
+      await prisma.providerDemographics.upsert({
+        where: { providerId },
+        create: { providerId, ethnicity: core.ethnicity },
+        update: { ethnicity: core.ethnicity },
+      });
+    }
+
+    // Addresses — match on type+line1+zip (CAQH is source of truth for non-manual)
+    for (const addr of caqhData.addresses) {
+      const existing = await prisma.providerAddress.findFirst({
+        where: {
+          providerId,
+          type: addr.type,
+          addressLine1: addr.addressLine1,
+          zipCode: addr.zipCode,
+        },
+      });
+      if (existing) {
+        await prisma.providerAddress.update({
+          where: { id: existing.id },
+          data: {
+            addressLine2: addr.addressLine2 ?? existing.addressLine2,
+            city: addr.city,
+            state: addr.state,
+            country: addr.country ?? existing.country,
+          },
+        });
+      } else {
+        await prisma.providerAddress.create({
+          data: {
+            providerId,
+            type: addr.type,
+            addressLine1: addr.addressLine1,
+            addressLine2: addr.addressLine2,
+            city: addr.city,
+            state: addr.state,
+            zipCode: addr.zipCode,
+            country: addr.country ?? 'US',
+          },
+        });
+      }
+    }
+
+    // Identifiers — match on type + value
+    for (const ident of caqhData.identifiers) {
+      const existing = await prisma.providerIdentifier.findFirst({
+        where: {
+          providerId,
+          identifierType: ident.identifierType,
+          identifierValue: ident.identifierValue,
+        },
+      });
+      if (existing) {
+        await prisma.providerIdentifier.update({
+          where: { id: existing.id },
+          data: {
+            issuingEntity: ident.issuingEntity ?? existing.issuingEntity,
+            state: ident.state ?? existing.state,
+            effectiveDate: ident.effectiveDate ?? existing.effectiveDate,
+            expirationDate: ident.expirationDate ?? existing.expirationDate,
+          },
+        });
+      } else {
+        await prisma.providerIdentifier.create({
+          data: {
+            providerId,
+            identifierType: ident.identifierType,
+            identifierValue: ident.identifierValue,
+            issuingEntity: ident.issuingEntity,
+            state: ident.state,
+            effectiveDate: ident.effectiveDate,
+            expirationDate: ident.expirationDate,
+          },
+        });
+      }
     }
   }
 

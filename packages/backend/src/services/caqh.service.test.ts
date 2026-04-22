@@ -242,6 +242,188 @@ describe('CaqhService', () => {
         expect(result.education[0]!.degree).toBe(expected);
       }
     });
+
+    // ------- Phase 1: v8 PascalCase shape -------
+
+    it('detects v8 PascalCase shape via Provider wrapper', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1234567890,
+          SSN: '310-69-6807',
+          ProviderFirstName: 'Randy',
+          ProviderLastName: 'Ashingden',
+          ProviderMiddleName: 'J',
+          ProviderDateOfBirth: '19800315',
+          ProviderGender: 'M',
+          PrimaryPracticeState: 'CA',
+          OtherPracticeState: 'NY',
+          EthnicityDescription: 'White',
+          HospitalBasedFlag: 'Y',
+          FellowshipTrainingFlag: 'N',
+          MedicareProviderFlag: true,
+          ProviderAddress: [
+            { AddressType: 'Home', AddressLine1: '100 Main', City: 'SF', State: 'CA', ZipCode: '94105' },
+            { AddressType: 'Practice', AddressLine1: '200 Market', City: 'SF', State: 'CA', ZipCode: '94103' },
+          ],
+          ProviderIdentifier: [
+            { IdentifierType: 'Medicare PTAN', IdentifierValue: 'PTAN-123', State: 'CA' },
+            { IdentifierType: 'Medicaid', IdentifierValue: 987654 },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.provider.firstName).toBe('Randy');
+      expect(result.provider.lastName).toBe('Ashingden');
+      expect(result.provider.middleName).toBe('J');
+      expect(result.provider.npi).toBe('1234567890');
+      expect(result.provider.ssn).toBe('310696807');
+      expect(result.provider.dateOfBirth?.toISOString().startsWith('1980-03-15')).toBe(true);
+      expect(result.provider.gender).toBe('male');
+      expect(result.provider.primaryPracticeState).toBe('CA');
+      expect(result.provider.otherPracticeState).toBe('NY');
+      expect(result.provider.ethnicity).toBe('White');
+      expect(result.provider.hospitalBasedFlag).toBe(true);
+      expect(result.provider.fellowshipTrainingFlag).toBe(false);
+      expect(result.provider.acceptingMedicare).toBe(true);
+      expect(result.addresses).toHaveLength(2);
+      expect(result.addresses[0]!.type).toBe('home');
+      expect(result.addresses[1]!.type).toBe('practice');
+      expect(result.identifiers).toHaveLength(2);
+      expect(result.identifiers[0]!.identifierType).toBe('MEDICARE_PTAN');
+      expect(result.identifiers[0]!.identifierValue).toBe('PTAN-123');
+      expect(result.identifiers[1]!.identifierType).toBe('MEDICAID_ID');
+      expect(result.identifiers[1]!.identifierValue).toBe('987654');
+    });
+
+    it('handles single (non-array) ProviderAddress / ProviderIdentifier (XML-to-JSON quirk)', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1,
+          ProviderFirstName: 'A',
+          ProviderLastName: 'B',
+          ProviderAddress: {
+            AddressType: 'Home', AddressLine1: '1 Elm', City: 'Boston', State: 'MA', ZipCode: '02101',
+          },
+          ProviderIdentifier: {
+            IdentifierType: 'UPIN', IdentifierValue: 'U-1',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.addresses).toHaveLength(1);
+      expect(result.identifiers).toHaveLength(1);
+      expect(result.identifiers[0]!.identifierType).toBe('UPIN');
+    });
+
+    it('gracefully handles missing Provider wrapper (falls back to legacy path)', () => {
+      const result = service.mapCaqhToInternal({});
+      expect(result.provider.firstName).toBe('');
+      expect(result.addresses).toEqual([]);
+      expect(result.identifiers).toEqual([]);
+    });
+
+    it('legacy camelCase payload still maps (backward compat)', () => {
+      const result = service.mapCaqhToInternal(baseCaqhData);
+      expect(result.provider.firstName).toBe('Jane');
+      expect(result.licenses[0]!.licenseNumber).toBe('MD-123');
+      expect(result.addresses).toEqual([]);
+      expect(result.identifiers).toEqual([]);
+    });
+
+    it('skips incomplete addresses (missing required fields)', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderAddress: [
+            { AddressType: 'Home', AddressLine1: '1 Elm', City: 'Boston', State: 'MA' }, // missing zip
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.addresses).toHaveLength(0);
+    });
+
+    it('defaults unknown identifier type to OTHER', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderIdentifier: [{ IdentifierType: 'SOME_WEIRD_TYPE', IdentifierValue: 'x' }],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.identifiers[0]!.identifierType).toBe('OTHER');
+    });
+  });
+
+  // ==========================================
+  // applyProviderCore (Phase 1)
+  // ==========================================
+
+  describe('applyProviderCore', () => {
+    it('updates provider demographics fields and creates address + identifier rows', async () => {
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
+      prismaMock.providerDemographics.upsert.mockResolvedValue({} as any);
+      prismaMock.providerAddress.findFirst.mockResolvedValue(null);
+      prismaMock.providerAddress.create.mockResolvedValue({} as any);
+      prismaMock.providerIdentifier.findFirst.mockResolvedValue(null);
+      prismaMock.providerIdentifier.create.mockResolvedValue({} as any);
+
+      await service.applyProviderCore('p1', {
+        provider: {
+          firstName: 'Randy',
+          lastName: 'Ashingden',
+          npi: '1234567890',
+          ssn: '310696807',
+          dateOfBirth: new Date('1980-03-15'),
+          gender: 'male' as any,
+          primaryPracticeState: 'CA',
+          hospitalBasedFlag: true,
+          ethnicity: 'White',
+        },
+        addresses: [{
+          type: 'home' as any, addressLine1: '100 Main', city: 'SF', state: 'CA', zipCode: '94105',
+        }],
+        identifiers: [{
+          identifierType: 'MEDICARE_PTAN' as any, identifierValue: 'PTAN-123', state: 'CA',
+        }],
+        licenses: [], certifications: [], education: [], malpractice: [],
+      });
+
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p1' },
+          data: expect.objectContaining({
+            firstName: 'Randy',
+            lastName: 'Ashingden',
+            primaryPracticeState: 'CA',
+            hospitalBasedFlag: true,
+            gender: 'male',
+            dateOfBirth: expect.any(Date),
+          }),
+        }),
+      );
+      // SSN must be encrypted, not plaintext
+      const updateArgs = (prismaMock.providerProfile.update as any).mock.calls[0][0];
+      expect(updateArgs.data.ssnEncrypted).toBeDefined();
+      expect(updateArgs.data.ssnEncrypted).not.toBe('310696807');
+      expect(prismaMock.providerDemographics.upsert).toHaveBeenCalled();
+      expect(prismaMock.providerAddress.create).toHaveBeenCalled();
+      expect(prismaMock.providerIdentifier.create).toHaveBeenCalled();
+    });
+
+    it('does NOT overwrite provider fields when CAQH returns blank/undefined', async () => {
+      prismaMock.providerAddress.findFirst.mockResolvedValue(null);
+      prismaMock.providerIdentifier.findFirst.mockResolvedValue(null);
+
+      await service.applyProviderCore('p1', {
+        provider: { firstName: '', lastName: '', npi: '' },
+        addresses: [], identifiers: [],
+        licenses: [], certifications: [], education: [], malpractice: [],
+      });
+
+      // All fields blank → no update call at all
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
+    });
   });
 
   // ==========================================
@@ -256,7 +438,7 @@ describe('CaqhService', () => {
       const summary = await service.applyCaqhDataToProvider('p1', {
         provider: { firstName: 'J', lastName: 'D', npi: '123' },
         licenses: [{ licenseType: 'state_medical' as any, licenseNumber: 'MD-1', state: 'NY', expirationDate: new Date('2027-01-01') }],
-        certifications: [], education: [], malpractice: [],
+        certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
       });
 
       expect(summary.licenses.created).toBe(1);
@@ -280,7 +462,7 @@ describe('CaqhService', () => {
       const summary = await service.applyCaqhDataToProvider('p1', {
         provider: { firstName: 'J', lastName: 'D', npi: '123' },
         licenses: [{ licenseType: 'state_medical' as any, licenseNumber: 'MD-1', state: 'NY', expirationDate: new Date('2027-01-01') }],
-        certifications: [], education: [], malpractice: [],
+        certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
       });
 
       expect(summary.licenses.updated).toBe(1);
@@ -294,7 +476,7 @@ describe('CaqhService', () => {
       const summary = await service.applyCaqhDataToProvider('p1', {
         provider: { firstName: 'J', lastName: 'D', npi: '123' },
         licenses: [{ licenseType: 'state_medical' as any, licenseNumber: 'MD-1', state: 'NY', expirationDate: new Date('2027-01-01') }],
-        certifications: [], education: [], malpractice: [],
+        certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
       });
 
       expect(summary.licenses.skipped).toBe(1);
@@ -308,7 +490,7 @@ describe('CaqhService', () => {
       const summary = await service.applyCaqhDataToProvider('p1', {
         provider: { firstName: 'J', lastName: 'D', npi: '123' },
         licenses: [{ licenseType: 'state_medical' as any, licenseNumber: 'MD-1', state: 'NY', expirationDate: new Date('2027-01-01') }],
-        certifications: [], education: [], malpractice: [],
+        certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
       });
 
       expect(summary.licenses.failed).toBe(1);
@@ -320,7 +502,7 @@ describe('CaqhService', () => {
     it('skips malpractice without perClaimAmount', async () => {
       const summary = await service.applyCaqhDataToProvider('p1', {
         provider: { firstName: 'J', lastName: 'D', npi: '123' },
-        licenses: [], certifications: [], education: [],
+        licenses: [], certifications: [], education: [], addresses: [], identifiers: [],
         malpractice: [{ carrierName: 'PIAA', policyNumber: 'POL-1', expirationDate: '2027-01-01' }],
       });
 
