@@ -558,7 +558,7 @@ describe('CaqhService', () => {
       await service.pullCredentials('caqh-1', '2/9/2025');
 
       const url = fetchSpy.mock.calls[0]![0] as string;
-      expect(url).toContain('/credentialingapi/api/v9/entities');
+      expect(url).toContain('/credentialingapi/api/v8/entities');
       expect(url).toContain('caqhProviderId=caqh-1');
       expect(url).toContain('organizationId=org-123');
       expect(url).toContain('attestationDate=2%2F9%2F2025');
