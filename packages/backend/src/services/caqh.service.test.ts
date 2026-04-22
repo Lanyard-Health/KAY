@@ -343,6 +343,54 @@ describe('CaqhService', () => {
       expect(result.addresses).toHaveLength(0);
     });
 
+    it('handles non-string gender (fast-xml-parser text-node object)', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderGender: { '#text': 'M' },
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.provider.gender).toBe('male');
+    });
+
+    it('handles numeric gender fields without crashing', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderGender: 0, // bad data from CAQH
+        },
+      };
+      expect(() => service.mapCaqhToInternal(v8Payload)).not.toThrow();
+    });
+
+    it('handles text-node object as primary first/last name', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1,
+          ProviderFirstName: { '#text': 'Randy' },
+          ProviderLastName: { '#text': 'Ashingden' },
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.provider.firstName).toBe('Randy');
+      expect(result.provider.lastName).toBe('Ashingden');
+    });
+
+    it('handles non-string identifier type and value', () => {
+      const v8Payload = {
+        Provider: {
+          NPI: 1, ProviderFirstName: 'A', ProviderLastName: 'B',
+          ProviderIdentifier: [
+            { IdentifierType: { '#text': 'UPIN' }, IdentifierValue: 12345 },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8Payload);
+      expect(result.identifiers[0]!.identifierType).toBe('UPIN');
+      expect(result.identifiers[0]!.identifierValue).toBe('12345');
+    });
+
     it('defaults unknown identifier type to OTHER', () => {
       const v8Payload = {
         Provider: {

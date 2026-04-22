@@ -231,6 +231,17 @@ function toOptString(v: unknown): string | undefined {
     return trimmed === '' ? undefined : trimmed;
   }
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  // fast-xml-parser emits `{'#text': 'value'}` for elements with attributes.
+  // Also handle CAQH `{string: {'#text': 'value'}}` wrappers seen in probes.
+  if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>;
+    if (typeof obj['#text'] === 'string' || typeof obj['#text'] === 'number') {
+      return toOptString(obj['#text']);
+    }
+    if (obj['string'] != null) {
+      return toOptString(obj['string']);
+    }
+  }
   return undefined;
 }
 
@@ -242,20 +253,18 @@ function toOptBool(v: unknown): boolean | undefined {
   if (v == null) return undefined;
   if (typeof v === 'boolean') return v;
   if (typeof v === 'number') return v !== 0;
-  if (typeof v === 'string') {
-    const t = v.trim().toLowerCase();
-    if (t === '') return undefined;
-    if (['y', 'yes', 'true', '1'].includes(t)) return true;
-    if (['n', 'no', 'false', '0'].includes(t)) return false;
-  }
+  const s = toOptString(v);
+  if (!s) return undefined;
+  const t = s.toLowerCase();
+  if (['y', 'yes', 'true', '1'].includes(t)) return true;
+  if (['n', 'no', 'false', '0'].includes(t)) return false;
   return undefined;
 }
 
 /** Parse CAQH date values (YYYYMMDD, YYYY-MM-DD, MM/DD/YYYY, ISO). */
 function parseCaqhDate(raw: unknown): Date | undefined {
-  if (raw == null) return undefined;
-  const s = typeof raw === 'string' ? raw.trim() : String(raw);
-  if (s === '' || s === '0') return undefined;
+  const s = toOptString(raw);
+  if (!s || s === '0') return undefined;
   // YYYYMMDD
   if (/^\d{8}$/.test(s)) {
     const y = Number(s.slice(0, 4));
@@ -593,14 +602,16 @@ export class CaqhService {
     const addrList = this.asArray(p.ProviderAddress);
     const idList = this.asArray(p.ProviderIdentifier);
 
+    const npiStr = toOptString(p.NPI);
+    const ssnStr = toOptString(p.SSN);
     return {
       provider: {
-        firstName: String(p.ProviderFirstName ?? p.FirstName ?? ''),
-        lastName: String(p.ProviderLastName ?? p.LastName ?? ''),
+        firstName: toOptString(p.ProviderFirstName ?? p.FirstName) ?? '',
+        lastName: toOptString(p.ProviderLastName ?? p.LastName) ?? '',
         middleName: toOptString(p.ProviderMiddleName ?? p.MiddleName),
         suffix: toOptString(p.ProviderSuffix),
-        npi: p.NPI != null ? String(p.NPI) : '',
-        ssn: p.SSN != null ? this.normalizeSsn(String(p.SSN)) : undefined,
+        npi: npiStr ?? '',
+        ssn: ssnStr ? this.normalizeSsn(ssnStr) : undefined,
         dateOfBirth: parseCaqhDate(p.ProviderDateOfBirth ?? p.DateOfBirth),
         gender: this.mapGender(p.ProviderGender ?? p.Gender, providerId),
         email: toOptString(p.ProviderEmail ?? p.Email),
@@ -686,9 +697,10 @@ export class CaqhService {
     return digits;
   }
 
-  private mapGender(raw: string | undefined, providerId?: string): Gender | undefined {
-    if (!raw) return undefined;
-    const v = raw.trim().toLowerCase();
+  private mapGender(raw: unknown, providerId?: string): Gender | undefined {
+    const str = toOptString(raw);
+    if (!str) return undefined;
+    const v = str.toLowerCase();
     if (v === 'm' || v === 'male') return 'male';
     if (v === 'f' || v === 'female') return 'female';
     if (v === 'o' || v === 'other') return 'other';
@@ -725,9 +737,10 @@ export class CaqhService {
     };
   }
 
-  private mapAddressType(raw: string | undefined): AddressType {
-    if (!raw) return 'home';
-    const v = raw.trim().toLowerCase();
+  private mapAddressType(raw: unknown): AddressType {
+    const str = toOptString(raw);
+    if (!str) return 'home';
+    const v = str.toLowerCase();
     if (v.includes('practice')) return 'practice';
     if (v.includes('mail')) return 'mailing';
     if (v.includes('bill')) return 'billing';
@@ -735,7 +748,7 @@ export class CaqhService {
   }
 
   private mapV8Identifier(i: CaqhV8Identifier, providerId?: string): MappedProviderIdentifier | null {
-    const value = i.IdentifierValue != null ? String(i.IdentifierValue).trim() : '';
+    const value = toOptString(i.IdentifierValue);
     if (!value) return null;
     const type = this.mapIdentifierType(i.IdentifierType, providerId);
     return {
@@ -748,9 +761,10 @@ export class CaqhService {
     };
   }
 
-  private mapIdentifierType(raw: string | undefined, providerId?: string): IdentifierType {
-    if (!raw) return 'OTHER';
-    const v = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  private mapIdentifierType(raw: unknown, providerId?: string): IdentifierType {
+    const str = toOptString(raw);
+    if (!str) return 'OTHER';
+    const v = str.toUpperCase().replace(/[\s-]+/g, '_');
     const direct: Record<string, IdentifierType> = {
       MEDICARE_PTAN: 'MEDICARE_PTAN',
       PTAN: 'MEDICARE_PTAN',
