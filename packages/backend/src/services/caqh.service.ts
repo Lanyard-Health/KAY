@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma.js';
-import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType } from '@prisma/client';
+import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { encryptSafe } from '../utils/crypto.js';
 
@@ -87,6 +87,7 @@ export interface CaqhV8Provider {
   // Nested sections (detail handling deferred to Phases 2+)
   ProviderAddress?: CaqhV8Address | CaqhV8Address[];
   ProviderIdentifier?: CaqhV8Identifier | CaqhV8Identifier[];
+  ProviderLicense?: CaqhV8License | CaqhV8License[];
 
   // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
   [key: string]: unknown;
@@ -113,6 +114,26 @@ export interface CaqhV8Identifier {
   State?: string;
   EffectiveDate?: string;
   ExpirationDate?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 ProviderLicense element.
+ * LicenseType may be absent (observed in real payloads). LicenseNumber can be numeric.
+ * LicenseStatus is typically nested: `{LicenseStatusDescription: "Active"}`.
+ */
+export interface CaqhV8License {
+  ID?: string | number;
+  LicenseType?: string | { LicenseTypeDescription?: string } | unknown;
+  LicenseNumber?: string | number;
+  State?: string;
+  LicenseState?: string;
+  IssueDate?: string;
+  ExpirationDate?: string;
+  LicenseStatus?: string | { LicenseStatusDescription?: string } | unknown;
+  CurrentlyPracticingFlag?: string | number | boolean;
+  IsPrimary?: string | number | boolean;
+  IssuingAuthority?: string;
   [key: string]: unknown;
 }
 
@@ -202,6 +223,11 @@ export interface MappedCaqhData {
     state: string;
     expirationDate: Date;
     issueDate?: Date;
+    caqhLicenseId?: string;
+    isPrimary?: boolean;
+    currentlyPracticing?: boolean;
+    status?: CredentialStatus;
+    issuingAuthority?: string;
   }>;
   certifications: Array<{
     boardType: BoardType;
@@ -648,8 +674,10 @@ export class CaqhService {
       identifiers: idList
         .map(i => this.mapV8Identifier(i, providerId))
         .filter((i): i is MappedProviderIdentifier => i !== null),
+      licenses: this.asArray(p.ProviderLicense)
+        .map(l => this.mapV8License(l, providerId))
+        .filter((l): l is MappedCaqhData['licenses'][number] => l !== null),
       // Deferred to Phases 2+
-      licenses: [],
       certifications: [],
       education: [],
       malpractice: [],
@@ -776,6 +804,42 @@ export class CaqhService {
       expirationDate: parseCaqhDate(i.ExpirationDate),
       notes: type === 'OTHER' && description ? description : undefined,
     };
+  }
+
+  private mapV8License(l: CaqhV8License, providerId?: string): MappedCaqhData['licenses'][number] | null {
+    const licenseNumber = toOptString(l.LicenseNumber);
+    const state = toOptString(l.State ?? l.LicenseState);
+    const expirationDate = parseCaqhDate(l.ExpirationDate);
+    if (!licenseNumber || !state || !expirationDate) {
+      logger.warn({
+        event: 'caqh_skip_license_incomplete',
+        providerId,
+        have: { licenseNumber: !!licenseNumber, state: !!state, expirationDate: !!expirationDate },
+      });
+      return null;
+    }
+    return {
+      licenseType: this.mapLicenseType(toOptString(l.LicenseType) ?? '', providerId),
+      licenseNumber,
+      state,
+      expirationDate,
+      issueDate: parseCaqhDate(l.IssueDate),
+      caqhLicenseId: toOptString(l.ID),
+      currentlyPracticing: toOptBool(l.CurrentlyPracticingFlag),
+      isPrimary: toOptBool(l.IsPrimary),
+      status: this.mapLicenseStatus(toOptString(l.LicenseStatus)),
+      issuingAuthority: toOptString(l.IssuingAuthority),
+    };
+  }
+
+  private mapLicenseStatus(raw: string | undefined): CredentialStatus | undefined {
+    if (!raw) return undefined;
+    const v = raw.toLowerCase();
+    if (v.includes('active') || v.includes('current')) return 'active';
+    if (v.includes('expir')) return 'expired';
+    if (v.includes('revok') || v.includes('suspend')) return 'revoked';
+    if (v.includes('pend')) return 'pending';
+    return undefined;
   }
 
   private mapIdentifierType(raw: unknown, providerId?: string): IdentifierType {
@@ -1138,9 +1202,10 @@ export class CaqhService {
     if (caqhData.licenses?.length > 0) {
       for (const lic of caqhData.licenses) {
         try {
-          const existing = await prisma.license.findFirst({
-            where: { providerId, licenseNumber: lic.licenseNumber },
-          });
+          // Prefer stable CAQH record ID for dedupe; fall back to (providerId, licenseNumber, state)
+          const existing = lic.caqhLicenseId
+            ? await prisma.license.findFirst({ where: { providerId, caqhLicenseId: lic.caqhLicenseId } })
+            : await prisma.license.findFirst({ where: { providerId, licenseNumber: lic.licenseNumber, state: lic.state } });
 
           if (existing) {
             if (existing.source === 'manual_entry') {
@@ -1152,31 +1217,31 @@ export class CaqhService {
               data: {
                 licenseType: lic.licenseType ?? existing.licenseType,
                 state: lic.state ?? existing.state,
-                expirationDate: lic.expirationDate ? new Date(lic.expirationDate) : existing.expirationDate,
+                issueDate: lic.issueDate ?? existing.issueDate,
+                expirationDate: lic.expirationDate,
+                status: lic.status ?? existing.status,
+                caqhLicenseId: lic.caqhLicenseId ?? existing.caqhLicenseId,
+                isPrimary: lic.isPrimary ?? existing.isPrimary,
+                currentlyPracticing: lic.currentlyPracticing ?? existing.currentlyPracticing,
+                verificationSource: lic.issuingAuthority ?? existing.verificationSource,
                 source: 'caqh_sync',
               },
             });
             summary.licenses.updated++;
           } else {
-            const issueDate = lic.issueDate ? new Date(lic.issueDate) : null;
-            if (!issueDate) {
-              logger.warn({
-                event: 'caqh_missing_field',
-                field: 'issueDate',
-                category: 'license',
-                identifier: lic.licenseNumber,
-                providerId,
-                fallback: 'current date',
-              });
-            }
             await prisma.license.create({
               data: {
                 providerId,
                 licenseType: lic.licenseType,
                 licenseNumber: lic.licenseNumber,
                 state: lic.state,
-                issueDate: issueDate ?? new Date(),
-                expirationDate: new Date(lic.expirationDate),
+                issueDate: lic.issueDate,
+                expirationDate: lic.expirationDate,
+                status: lic.status ?? 'active',
+                caqhLicenseId: lic.caqhLicenseId,
+                isPrimary: lic.isPrimary,
+                currentlyPracticing: lic.currentlyPracticing,
+                verificationSource: lic.issuingAuthority,
                 source: 'caqh_sync',
               },
             });
