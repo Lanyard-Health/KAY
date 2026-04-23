@@ -12,6 +12,8 @@ ALTER TABLE "provider_specialties" ADD COLUMN "nucc_taxonomy_code" TEXT;
 ALTER TABLE "provider_specialties" ADD COLUMN "caqh_specialty_id" TEXT;
 ALTER TABLE "provider_specialties" ADD COLUMN "source" "CredentialSource" NOT NULL DEFAULT 'manual_entry';
 ALTER TABLE "provider_specialties" ADD COLUMN "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+-- @updatedAt is managed by Prisma at write-time; drop DB default after backfill
+ALTER TABLE "provider_specialties" ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- CreateIndex: dedupe lookup by (providerId, caqhSpecialtyId)
 CREATE INDEX "provider_specialties_provider_id_caqh_specialty_id_idx" ON "provider_specialties"("provider_id", "caqh_specialty_id");
