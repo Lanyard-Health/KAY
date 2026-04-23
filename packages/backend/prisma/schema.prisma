@@ -2893,12 +2893,13 @@ model OrganizationType {
 }
 
 model Specialty {
-  id              String          @id @default(uuid())
-  name            String
-  taxonomySection TaxonomySection @map("taxonomy_section")
-  isActive        Boolean         @default(true) @map("is_active")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id               String          @id @default(uuid())
+  name             String
+  taxonomySection  TaxonomySection @map("taxonomy_section")
+  nuccTaxonomyCode String?         @unique @map("nucc_taxonomy_code")
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
 
   subSpecialties      SubSpecialty[]
   practiceSpecialties PracticeSpecialty[]
@@ -3136,16 +3137,22 @@ model PracticeSpecialPopulation {
 // ==========================================
 
 model ProviderSpecialty {
-  id          String   @id @default(uuid())
-  providerId  String   @map("provider_id")
-  specialtyId String   @map("specialty_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  providerId       String   @map("provider_id")
+  specialtyId      String   @map("specialty_id")
+  isPrimary        Boolean  @default(false) @map("is_primary")
+  nuccTaxonomyCode String?  @map("nucc_taxonomy_code")
+  caqhSpecialtyId  String?  @map("caqh_specialty_id")
+  source           CredentialSource @default(manual_entry)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   specialty Specialty       @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, specialtyId])
   @@index([providerId])
+  @@index([providerId, caqhSpecialtyId])
   @@map("provider_specialties")
 }
 
