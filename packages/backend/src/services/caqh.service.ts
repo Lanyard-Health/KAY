@@ -89,6 +89,7 @@ export interface CaqhV8Provider {
   ProviderIdentifier?: CaqhV8Identifier | CaqhV8Identifier[];
   ProviderLicense?: CaqhV8License | CaqhV8License[];
   ProviderCertification?: CaqhV8Certification | CaqhV8Certification[];
+  Specialty?: CaqhV8Specialty | CaqhV8Specialty[];
 
   // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
   [key: string]: unknown;
@@ -129,6 +130,27 @@ export interface CaqhV8Certification {
   CertificationDescription?: string;
   ExpirationDate?: string;
   IssueDate?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 Specialty element — one entry per specialty the provider practices.
+ * Holds BOTH the specialty reference (NUCC taxonomy) AND medical board
+ * certification fields. Only entries with BoardCertifiedFlag=1 yield a
+ * board_certifications row; taxonomy mapping is handled in Phase 2d.
+ */
+export interface CaqhV8Specialty {
+  ID?: string | number;
+  SpecialtyName?: string | { SpecialtyNameDescription?: string } | unknown;
+  SpecialtyType?: string | unknown;
+  NUCCTaxonomyCode?: string | number;
+  BoardCertifiedFlag?: string | number | boolean;
+  SpecialtyBoardName?: string | { SpecialtyBoardNameDescription?: string } | unknown;
+  CertificationNumber?: string | number;
+  CertificationDate?: string;
+  RecertificationDate?: string;
+  BoardCertificationExpiresFlag?: string | number | boolean;
+  BoardCertificationExpirationDate?: string;
   [key: string]: unknown;
 }
 
@@ -250,6 +272,10 @@ export interface MappedCaqhData {
     specialty: string;
     expirationDate?: Date;
     initialCertificationDate?: Date;
+    caqhSpecialtyId?: string;
+    certificationNumber?: string;
+    nuccTaxonomyCode?: string;
+    isBoardCertified?: boolean;
   }>;
   education: Array<{
     institutionName: string;
@@ -698,8 +724,10 @@ export class CaqhService {
       licenses: this.asArray(p.ProviderLicense)
         .map(l => this.mapV8License(l, providerId))
         .filter((l): l is MappedCaqhData['licenses'][number] => l !== null),
+      certifications: this.asArray(p.Specialty)
+        .map(s => this.mapV8BoardCert(s, providerId))
+        .filter((c): c is MappedCaqhData['certifications'][number] => c !== null),
       // Deferred to Phases 2+
-      certifications: [],
       education: [],
       malpractice: [],
     };
@@ -861,6 +889,38 @@ export class CaqhService {
     if (s.includes('BLS') || s.includes('BASIC LIFE')) return 'BLS';
     if (s.includes('CPR') || s.includes('CARDIO-PULMONARY') || s.includes('CARDIOPULMONARY')) return 'CPR';
     return 'OTHER';
+  }
+
+  /**
+   * Map CAQH `Specialty` entry to a medical board certification row.
+   * Only imports when BoardCertifiedFlag=1. Requires boardName + specialty to
+   * be present. ExpirationDate is only set when BoardCertificationExpiresFlag=1.
+   */
+  private mapV8BoardCert(s: CaqhV8Specialty, providerId?: string): MappedCaqhData['certifications'][number] | null {
+    const isCertified = toOptBool(s.BoardCertifiedFlag);
+    if (isCertified !== true) return null;
+    const boardName = toOptString(s.SpecialtyBoardName);
+    const specialty = toOptString(s.SpecialtyName);
+    if (!boardName || !specialty) {
+      logger.warn({
+        event: 'caqh_skip_board_cert_incomplete',
+        providerId,
+        have: { boardName: !!boardName, specialty: !!specialty },
+      });
+      return null;
+    }
+    const hasExpiry = toOptBool(s.BoardCertificationExpiresFlag);
+    return {
+      boardType: this.mapBoardType(boardName, providerId),
+      boardName,
+      specialty,
+      initialCertificationDate: parseCaqhDate(s.CertificationDate),
+      expirationDate: hasExpiry ? parseCaqhDate(s.BoardCertificationExpirationDate) : undefined,
+      caqhSpecialtyId: toOptString(s.ID),
+      certificationNumber: toOptString(s.CertificationNumber),
+      nuccTaxonomyCode: toOptString(s.NUCCTaxonomyCode),
+      isBoardCertified: true,
+    };
   }
 
   private mapV8License(l: CaqhV8License, providerId?: string): MappedCaqhData['licenses'][number] | null {
@@ -1319,9 +1379,10 @@ export class CaqhService {
     if (caqhData.certifications?.length > 0) {
       for (const cert of caqhData.certifications) {
         try {
-          const existing = await prisma.boardCertification.findFirst({
-            where: { providerId, boardName: cert.boardName, specialty: cert.specialty },
-          });
+          // Prefer stable CAQH Specialty ID for dedupe; fall back to (boardName, specialty)
+          const existing = cert.caqhSpecialtyId
+            ? await prisma.boardCertification.findFirst({ where: { providerId, caqhSpecialtyId: cert.caqhSpecialtyId } })
+            : await prisma.boardCertification.findFirst({ where: { providerId, boardName: cert.boardName, specialty: cert.specialty } });
 
           if (existing) {
             if (existing.source === 'manual_entry') {
@@ -1332,7 +1393,16 @@ export class CaqhService {
               where: { id: existing.id },
               data: {
                 boardType: cert.boardType ?? existing.boardType,
+                boardName: cert.boardName ?? existing.boardName,
+                specialty: cert.specialty ?? existing.specialty,
+                certificationNumber: cert.certificationNumber ?? existing.certificationNumber,
+                nuccTaxonomyCode: cert.nuccTaxonomyCode ?? existing.nuccTaxonomyCode,
+                isBoardCertified: cert.isBoardCertified ?? existing.isBoardCertified,
+                initialCertificationDate: cert.initialCertificationDate
+                  ? new Date(cert.initialCertificationDate)
+                  : existing.initialCertificationDate,
                 expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : existing.expirationDate,
+                caqhSpecialtyId: cert.caqhSpecialtyId ?? existing.caqhSpecialtyId,
                 source: 'caqh_sync',
               },
             });
@@ -1344,10 +1414,14 @@ export class CaqhService {
                 boardType: cert.boardType ?? 'other',
                 boardName: cert.boardName,
                 specialty: cert.specialty,
+                certificationNumber: cert.certificationNumber,
+                nuccTaxonomyCode: cert.nuccTaxonomyCode,
+                isBoardCertified: cert.isBoardCertified ?? true,
                 initialCertificationDate: cert.initialCertificationDate
                   ? new Date(cert.initialCertificationDate)
-                  : new Date(),
+                  : null,
                 expirationDate: cert.expirationDate ? new Date(cert.expirationDate) : undefined,
+                caqhSpecialtyId: cert.caqhSpecialtyId,
                 source: 'caqh_sync',
               },
             });

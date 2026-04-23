@@ -684,6 +684,7 @@ model BoardCertification {
   isBoardEligible          Boolean          @default(false) @map("is_board_eligible")
   isBoardCertified         Boolean?         @map("is_board_certified")
   nuccTaxonomyCode         String?          @map("nucc_taxonomy_code")
+  caqhSpecialtyId          String?          @map("caqh_specialty_id")
   notes                    String?
   source                   CredentialSource @default(manual_entry)
 
