@@ -49,6 +49,7 @@ import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
 import TaxonomyAssistant from './TaxonomyAssistant';
 import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
+import SourceBadge from '../../components/ui/SourceBadge';
 import { ShieldCheckIcon, MapIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
@@ -1387,6 +1388,7 @@ export default function ProviderDetail() {
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200/80 text-gray-600">
                                       {license.state}
                                     </span>
+                                    <SourceBadge source={license.source} />
                                   </div>
                                   <p className="text-xs text-gray-500 mt-0.5">#{license.licenseNumber}</p>
                                   <p className={clsx('text-xs mt-1', isExpired ? 'text-red-600 font-medium' : 'text-gray-400')}>
@@ -1452,7 +1454,10 @@ export default function ProviderDetail() {
                           )}>
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-gray-900">{cert.boardName}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-sm text-gray-900">{cert.boardName}</p>
+                                  <SourceBadge source={cert.source} />
+                                </div>
                                 <p className="text-xs text-gray-500 mt-0.5">{cert.specialty}</p>
                                 {cert.expirationDate && (
                                   <p className="text-xs text-gray-400 mt-1">
