@@ -50,6 +50,7 @@ import MultiStateLicenseGrid from './MultiStateLicenseGrid';
 import TaxonomyAssistant from './TaxonomyAssistant';
 import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
 import SourceBadge from '../../components/ui/SourceBadge';
+import CaqhEditWarningModal from '../../components/ui/CaqhEditWarningModal';
 import { ShieldCheckIcon, MapIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
@@ -147,6 +148,9 @@ export default function ProviderDetail() {
   const [editingDisclosure, setEditingDisclosure] = useState<any>(null);
   const [deaRegistrationModalOpen, setDeaRegistrationModalOpen] = useState(false);
   const [editingDeaRegistration, setEditingDeaRegistration] = useState<any>(null);
+
+  // CAQH edit-warning modal (Phase 2f)
+  const [caqhWarning, setCaqhWarning] = useState<{ recordType: string; proceed: () => void } | null>(null);
   const [providerIdentifierModalOpen, setProviderIdentifierModalOpen] = useState(false);
   const [editingProviderIdentifier, setEditingProviderIdentifier] = useState<any>(null);
   const [bankingModalOpen, setBankingModalOpen] = useState(false);
@@ -284,9 +288,20 @@ export default function ProviderDetail() {
     setLicenseModalOpen(true);
   };
 
-  const handleEditLicense = (license: any) => {
+  const openLicenseEditor = (license: any) => {
     setEditingLicense(license);
     setLicenseModalOpen(true);
+  };
+
+  const handleEditLicense = (license: any) => {
+    if (license?.source === 'caqh_sync') {
+      setCaqhWarning({
+        recordType: 'license',
+        proceed: () => { setCaqhWarning(null); openLicenseEditor(license); },
+      });
+      return;
+    }
+    openLicenseEditor(license);
   };
 
   const handleDeleteLicense = (licenseId: string) => {
@@ -302,9 +317,20 @@ export default function ProviderDetail() {
     setCertModalOpen(true);
   };
 
-  const handleEditCert = (cert: any) => {
+  const openCertEditor = (cert: any) => {
     setEditingCert(cert);
     setCertModalOpen(true);
+  };
+
+  const handleEditCert = (cert: any) => {
+    if (cert?.source === 'caqh_sync') {
+      setCaqhWarning({
+        recordType: 'certification',
+        proceed: () => { setCaqhWarning(null); openCertEditor(cert); },
+      });
+      return;
+    }
+    openCertEditor(cert);
   };
 
   const handleDeleteCert = (certId: string) => {
@@ -1799,6 +1825,14 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         location={editingLocation}
+      />
+
+      {/* CAQH Edit Warning Modal (Phase 2f) */}
+      <CaqhEditWarningModal
+        isOpen={caqhWarning !== null}
+        onClose={() => setCaqhWarning(null)}
+        onEditAnyway={() => caqhWarning?.proceed()}
+        recordType={caqhWarning?.recordType}
       />
 
       {/* License Modal */}
