@@ -88,6 +88,7 @@ export interface CaqhV8Provider {
   ProviderAddress?: CaqhV8Address | CaqhV8Address[];
   ProviderIdentifier?: CaqhV8Identifier | CaqhV8Identifier[];
   ProviderLicense?: CaqhV8License | CaqhV8License[];
+  ProviderCertification?: CaqhV8Certification | CaqhV8Certification[];
 
   // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
   [key: string]: unknown;
@@ -114,6 +115,20 @@ export interface CaqhV8Identifier {
   State?: string;
   EffectiveDate?: string;
   ExpirationDate?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 ProviderCertification element (life-support / vocational certifications like BLS, ACLS, CPR).
+ * NOT to be confused with medical board certifications (those live in the `Specialty` section).
+ * Only records with CertificationFlag=1 should be imported.
+ */
+export interface CaqhV8Certification {
+  ID?: string | number;
+  CertificationFlag?: string | number | boolean;
+  CertificationDescription?: string;
+  ExpirationDate?: string;
+  IssueDate?: string;
   [key: string]: unknown;
 }
 
@@ -641,6 +656,9 @@ export class CaqhService {
   private mapV8(p: CaqhV8Provider, providerId?: string): MappedCaqhData {
     const addrList = this.asArray(p.ProviderAddress);
     const idList = this.asArray(p.ProviderIdentifier);
+    const lifeSupportCerts = this.asArray(p.ProviderCertification)
+      .map(c => this.mapV8LifeSupportCert(c, providerId))
+      .filter((c): c is MappedProviderIdentifier => c !== null);
 
     const npiStr = toOptString(p.NPI);
     const ssnStr = toOptString(p.SSN);
@@ -671,9 +689,12 @@ export class CaqhService {
       addresses: addrList
         .map(a => this.mapV8Address(a, providerId))
         .filter((a): a is MappedProviderAddress => a !== null),
-      identifiers: idList
-        .map(i => this.mapV8Identifier(i, providerId))
-        .filter((i): i is MappedProviderIdentifier => i !== null),
+      identifiers: [
+        ...idList
+          .map(i => this.mapV8Identifier(i, providerId))
+          .filter((i): i is MappedProviderIdentifier => i !== null),
+        ...lifeSupportCerts,
+      ],
       licenses: this.asArray(p.ProviderLicense)
         .map(l => this.mapV8License(l, providerId))
         .filter((l): l is MappedCaqhData['licenses'][number] => l !== null),
@@ -804,6 +825,42 @@ export class CaqhService {
       expirationDate: parseCaqhDate(i.ExpirationDate),
       notes: type === 'OTHER' && description ? description : undefined,
     };
+  }
+
+  /**
+   * Map CAQH `ProviderCertification` entries (life-support certs like BLS/ACLS/CPR) to
+   * ProviderIdentifier rows. Only active certs (CertificationFlag=1) are imported.
+   * The description is matched against the IdentifierType enum; unknown descriptions
+   * default to OTHER with the full label preserved in `notes`.
+   */
+  private mapV8LifeSupportCert(c: CaqhV8Certification, providerId?: string): MappedProviderIdentifier | null {
+    const active = toOptBool(c.CertificationFlag);
+    if (active !== true) return null;
+    const description = toOptString(c.CertificationDescription);
+    if (!description) return null;
+    const type = this.mapLifeSupportCertType(description);
+    return {
+      identifierType: type,
+      identifierValue: toOptString(c.ID) ?? description,
+      expirationDate: parseCaqhDate(c.ExpirationDate),
+      effectiveDate: parseCaqhDate(c.IssueDate),
+      notes: type === 'OTHER' ? description : undefined,
+    };
+  }
+
+  /**
+   * Match common life-support cert names to the IdentifierType enum.
+   * Descriptions seen in real CAQH: "Cardio-Pulmonary Resuscitation (CPR)",
+   * "Basic Life Support (BLS)", "Advanced Cardiac Life Support (ACLS)",
+   * "Pediatric Advanced Life Support (PALS)", etc.
+   */
+  private mapLifeSupportCertType(description: string): IdentifierType {
+    const s = description.toUpperCase();
+    if (s.includes('PALS') || s.includes('PEDIATRIC ADVANCED')) return 'PALS';
+    if (s.includes('ACLS') || s.includes('ADVANCED CARDIAC')) return 'ACLS';
+    if (s.includes('BLS') || s.includes('BASIC LIFE')) return 'BLS';
+    if (s.includes('CPR') || s.includes('CARDIO-PULMONARY') || s.includes('CARDIOPULMONARY')) return 'CPR';
+    return 'OTHER';
   }
 
   private mapV8License(l: CaqhV8License, providerId?: string): MappedCaqhData['licenses'][number] | null {

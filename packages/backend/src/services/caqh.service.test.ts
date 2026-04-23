@@ -554,6 +554,78 @@ describe('CaqhService', () => {
       }
     });
 
+    // ------- Phase 2b: Life-support certs (ProviderCertification) -------
+
+    it('imports ONLY ProviderCertification entries with CertificationFlag=1', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCertification: [
+            { ID: '1000', CertificationFlag: 0, CertificationDescription: 'CPR' }, // inactive
+            { ID: '1001', CertificationFlag: 1, CertificationDescription: 'Basic Life Support (BLS)' },
+            { ID: '1002', CertificationFlag: 1, CertificationDescription: 'Advanced Cardiac Life Support (ACLS)' },
+            { ID: '1003', CertificationFlag: 0, CertificationDescription: 'PALS' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.identifiers).toHaveLength(2);
+      expect(result.identifiers.map(i => i.identifierType).sort()).toEqual(['ACLS', 'BLS']);
+    });
+
+    it('matches common life-support cert descriptions to enum values', () => {
+      const cases: Array<[string, string]> = [
+        ['Cardio-Pulmonary Resucitation (CPR)', 'CPR'],
+        ['Basic Life Support (BLS)', 'BLS'],
+        ['Advanced Cardiac Life Support (ACLS)', 'ACLS'],
+        ['Pediatric Advanced Life Support (PALS)', 'PALS'],
+        ['Advanced Life Support in OB (ALSO)', 'OTHER'],
+        ['Neonatal Resuscitation Program (NRS)', 'OTHER'],
+      ];
+      for (const [desc, expected] of cases) {
+        const payload = {
+          Provider: {
+            NPI: 1, FirstName: 'A', LastName: 'B',
+            ProviderCertification: {
+              ID: 'x', CertificationFlag: 1, CertificationDescription: desc,
+            },
+          },
+        };
+        const result = service.mapCaqhToInternal(payload);
+        expect(result.identifiers[0]!.identifierType).toBe(expected);
+      }
+    });
+
+    it('preserves unknown cert description in notes when type defaults to OTHER', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCertification: {
+            ID: 'x', CertificationFlag: 1,
+            CertificationDescription: 'Neonatal Advanced Life Support (NALS)',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.identifiers[0]!.identifierType).toBe('OTHER');
+      expect(result.identifiers[0]!.notes).toBe('Neonatal Advanced Life Support (NALS)');
+    });
+
+    it('does not import any life-support certs when all CertificationFlag=0 (real James payload)', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'James', LastName: 'Ashingden',
+          ProviderCertification: [
+            { ID: '1000', CertificationFlag: 0, CertificationDescription: 'CPR' },
+            { ID: '1001', CertificationFlag: 0, CertificationDescription: 'BLS' },
+            { ID: '1002', CertificationFlag: 0, CertificationDescription: 'ACLS' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.identifiers).toHaveLength(0);
+    });
+
     it('reads EmailAddress at provider level when Email/ProviderEmail absent', () => {
       const v8Payload = {
         Provider: {
