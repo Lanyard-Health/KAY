@@ -449,6 +449,111 @@ describe('CaqhService', () => {
       expect(result.provider.gender).toBe('female');
     });
 
+    // ------- Phase 2a: Licenses mapping -------
+
+    it('maps real v8 ProviderLicense array with mixed shapes', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderLicense: [
+            // Minimal license — no type, no issue date, no status
+            {
+              ID: '1000',
+              State: 'AZ',
+              LicenseNumber: 400141579,
+              ExpirationDate: '2058-05-21T00:00:00',
+              CurrentlyPracticingFlag: 1,
+            },
+            // Full license — all fields including nested status
+            {
+              ID: '1001',
+              State: 'AK',
+              IssueDate: '2025-08-12T00:00:00',
+              LicenseType: 'PHA',
+              LicenseNumber: 44564576575,
+              LicenseStatus: { LicenseStatusDescription: 'Active' },
+              ExpirationDate: '2026-02-24T00:00:00',
+              CurrentlyPracticingFlag: 1,
+            },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.licenses).toHaveLength(2);
+
+      const first = result.licenses[0]!;
+      expect(first.caqhLicenseId).toBe('1000');
+      expect(first.state).toBe('AZ');
+      expect(first.licenseNumber).toBe('400141579');
+      expect(first.expirationDate.toISOString().startsWith('2058-05-21')).toBe(true);
+      expect(first.currentlyPracticing).toBe(true);
+      // LicenseType missing → defaults to state_medical
+      expect(first.licenseType).toBe('state_medical');
+      expect(first.status).toBeUndefined();
+
+      const second = result.licenses[1]!;
+      expect(second.caqhLicenseId).toBe('1001');
+      expect(second.state).toBe('AK');
+      expect(second.licenseNumber).toBe('44564576575');
+      expect(second.issueDate?.toISOString().startsWith('2025-08-12')).toBe(true);
+      expect(second.status).toBe('active');
+    });
+
+    it('skips ProviderLicense entries missing required fields', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderLicense: [
+            { ID: 'x', State: 'AZ' }, // no number, no expiration
+            { ID: 'y', LicenseNumber: 123, ExpirationDate: '2027-01-01' }, // no state
+            { ID: 'z', State: 'CA', LicenseNumber: 456 }, // no expiration
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.licenses).toHaveLength(0);
+    });
+
+    it('handles single (non-array) ProviderLicense object', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderLicense: {
+            ID: 'L1', State: 'CA', LicenseNumber: 'ABC-123',
+            ExpirationDate: '2028-06-30', LicenseType: 'MD',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.licenses).toHaveLength(1);
+      expect(result.licenses[0]!.licenseType).toBe('state_medical');
+    });
+
+    it('maps LicenseStatus variants', () => {
+      const cases: Array<[string, string | undefined]> = [
+        ['Active', 'active'],
+        ['Current', 'active'],
+        ['Expired', 'expired'],
+        ['Pending', 'pending'],
+        ['Revoked', 'revoked'],
+        ['Suspended', 'revoked'],
+        ['Unknown', undefined],
+      ];
+      for (const [raw, expected] of cases) {
+        const payload = {
+          Provider: {
+            NPI: 1, FirstName: 'A', LastName: 'B',
+            ProviderLicense: {
+              State: 'CA', LicenseNumber: '1', ExpirationDate: '2028-01-01',
+              LicenseStatus: raw,
+            },
+          },
+        };
+        const result = service.mapCaqhToInternal(payload);
+        expect(result.licenses[0]!.status).toBe(expected);
+      }
+    });
+
     it('reads EmailAddress at provider level when Email/ProviderEmail absent', () => {
       const v8Payload = {
         Provider: {
