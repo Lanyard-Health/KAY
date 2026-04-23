@@ -626,6 +626,137 @@ describe('CaqhService', () => {
       expect(result.identifiers).toHaveLength(0);
     });
 
+    // ------- Phase 2c: Medical board certifications (Specialty section) -------
+
+    it('imports a medical board certification when BoardCertifiedFlag=1', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            SpecialtyName: 'Psychiatry',
+            NUCCTaxonomyCode: '2084P0800X',
+            BoardCertifiedFlag: 1,
+            SpecialtyBoardName: 'American Board of Psychiatry and Neurology',
+            CertificationNumber: 'ABPN-12345',
+            CertificationDate: '2015-06-30T00:00:00',
+            BoardCertificationExpiresFlag: 1,
+            BoardCertificationExpirationDate: '2030-06-30T00:00:00',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(1);
+      const cert = result.certifications[0]!;
+      expect(cert.caqhSpecialtyId).toBe('1000');
+      expect(cert.boardType).toBe('abpn_psychiatry');
+      expect(cert.boardName).toBe('American Board of Psychiatry and Neurology');
+      expect(cert.specialty).toBe('Psychiatry');
+      expect(cert.certificationNumber).toBe('ABPN-12345');
+      expect(cert.nuccTaxonomyCode).toBe('2084P0800X');
+      expect(cert.isBoardCertified).toBe(true);
+      expect(cert.initialCertificationDate?.toISOString().startsWith('2015-06-30')).toBe(true);
+      expect(cert.expirationDate?.toISOString().startsWith('2030-06-30')).toBe(true);
+    });
+
+    it('skips Specialty entries with BoardCertifiedFlag=0', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            SpecialtyName: 'Psychiatry',
+            BoardCertifiedFlag: 0,
+            SpecialtyBoardName: 'American Board of Psychiatry and Neurology',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(0);
+    });
+
+    it('leaves expirationDate undefined when BoardCertificationExpiresFlag=0', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            SpecialtyName: 'Psychiatry',
+            BoardCertifiedFlag: 1,
+            SpecialtyBoardName: 'American Board of Psychiatry and Neurology',
+            CertificationDate: '2015-06-30T00:00:00',
+            BoardCertificationExpiresFlag: 0,
+            BoardCertificationExpirationDate: '2030-06-30T00:00:00',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications[0]!.expirationDate).toBeUndefined();
+    });
+
+    it('normalizes single Specialty object to array', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            SpecialtyName: 'Psychiatry',
+            BoardCertifiedFlag: 1,
+            SpecialtyBoardName: 'ABPN',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(1);
+    });
+
+    it('maps multiple Specialty entries independently', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: [
+            { ID: '1', SpecialtyName: 'Psychiatry', BoardCertifiedFlag: 1, SpecialtyBoardName: 'ABPN' },
+            { ID: '2', SpecialtyName: 'Family Medicine', BoardCertifiedFlag: 0, SpecialtyBoardName: 'ABFM' },
+            { ID: '3', SpecialtyName: 'Addiction Medicine', BoardCertifiedFlag: 1, SpecialtyBoardName: 'ABPN Addiction' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(2);
+      expect(result.certifications.map(c => c.specialty).sort()).toEqual(['Addiction Medicine', 'Psychiatry']);
+    });
+
+    it('skips board cert entries missing boardName or specialty', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: [
+            { ID: '1', BoardCertifiedFlag: 1, SpecialtyName: 'Psychiatry' }, // no board
+            { ID: '2', BoardCertifiedFlag: 1, SpecialtyBoardName: 'ABPN' }, // no specialty
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(0);
+    });
+
+    it('unwraps {XxxDescription} nested board name and specialty', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            SpecialtyName: { SpecialtyNameDescription: 'Psychiatry' },
+            BoardCertifiedFlag: 1,
+            SpecialtyBoardName: { SpecialtyBoardNameDescription: 'American Board of Psychiatry and Neurology' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications[0]!.boardName).toBe('American Board of Psychiatry and Neurology');
+      expect(result.certifications[0]!.specialty).toBe('Psychiatry');
+    });
+
     it('reads EmailAddress at provider level when Email/ProviderEmail absent', () => {
       const v8Payload = {
         Provider: {
@@ -791,6 +922,68 @@ describe('CaqhService', () => {
       expect(summary.failedRecords).toEqual([
         expect.objectContaining({ category: 'license', identifier: 'MD-1', error: 'DB constraint' }),
       ]);
+    });
+
+    it('creates a board certification with caqhSpecialtyId', async () => {
+      prismaMock.boardCertification.findFirst.mockResolvedValue(null);
+      prismaMock.boardCertification.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        certifications: [{
+          boardType: 'abpn_psychiatry' as any,
+          boardName: 'American Board of Psychiatry and Neurology',
+          specialty: 'Psychiatry',
+          caqhSpecialtyId: 'cs-1000',
+          certificationNumber: 'ABPN-12345',
+          nuccTaxonomyCode: '2084P0800X',
+          isBoardCertified: true,
+          initialCertificationDate: new Date('2015-06-30'),
+          expirationDate: new Date('2030-06-30'),
+        }],
+      });
+
+      expect(summary.certifications.created).toBe(1);
+      expect(prismaMock.boardCertification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            boardName: 'American Board of Psychiatry and Neurology',
+            caqhSpecialtyId: 'cs-1000',
+            certificationNumber: 'ABPN-12345',
+            nuccTaxonomyCode: '2084P0800X',
+            isBoardCertified: true,
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+      expect(prismaMock.boardCertification.findFirst).toHaveBeenCalledWith({
+        where: { providerId: 'p1', caqhSpecialtyId: 'cs-1000' },
+      });
+    });
+
+    it('updates existing board cert matched by caqhSpecialtyId', async () => {
+      prismaMock.boardCertification.findFirst.mockResolvedValue({
+        id: 'bc-1', source: 'caqh_sync', boardType: 'abpn_psychiatry',
+        boardName: 'ABPN', specialty: 'Psychiatry',
+      } as any);
+      prismaMock.boardCertification.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        certifications: [{
+          boardType: 'abpn_psychiatry' as any,
+          boardName: 'ABPN',
+          specialty: 'Psychiatry',
+          caqhSpecialtyId: 'cs-1000',
+          isBoardCertified: true,
+          expirationDate: new Date('2031-01-01'),
+        }],
+      });
+
+      expect(summary.certifications.updated).toBe(1);
     });
 
     it('skips malpractice without perClaimAmount', async () => {
