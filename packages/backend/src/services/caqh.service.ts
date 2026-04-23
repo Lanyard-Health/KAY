@@ -141,8 +141,12 @@ export interface CaqhV8Certification {
  */
 export interface CaqhV8Specialty {
   ID?: string | number;
+  // Real payloads nest the specialty name as `{ Specialty: { SpecialtyName: "..." } }`.
+  // Some payloads may flatten it to `SpecialtyName` at this level — both handled.
+  Specialty?: { SpecialtyName?: string | unknown } | unknown;
   SpecialtyName?: string | { SpecialtyNameDescription?: string } | unknown;
-  SpecialtyType?: string | unknown;
+  // SpecialtyType uses the coded-lookup pattern `{ SpecialtyTypeDescription: "Primary" }`.
+  SpecialtyType?: string | { SpecialtyTypeDescription?: string } | unknown;
   NUCCTaxonomyCode?: string | number;
   BoardCertifiedFlag?: string | number | boolean;
   SpecialtyBoardName?: string | { SpecialtyBoardNameDescription?: string } | unknown;
@@ -276,6 +280,12 @@ export interface MappedCaqhData {
     certificationNumber?: string;
     nuccTaxonomyCode?: string;
     isBoardCertified?: boolean;
+  }>;
+  specialties?: Array<{
+    name: string;
+    nuccTaxonomyCode?: string;
+    isPrimary: boolean;
+    caqhSpecialtyId?: string;
   }>;
   education: Array<{
     institutionName: string;
@@ -727,6 +737,9 @@ export class CaqhService {
       certifications: this.asArray(p.Specialty)
         .map(s => this.mapV8BoardCert(s, providerId))
         .filter((c): c is MappedCaqhData['certifications'][number] => c !== null),
+      specialties: this.asArray(p.Specialty)
+        .map(s => this.mapV8Specialty(s, providerId))
+        .filter((s): s is MappedCaqhData['specialties'][number] => s !== null),
       // Deferred to Phases 2+
       education: [],
       malpractice: [],
@@ -761,6 +774,7 @@ export class CaqhService {
           ? new Date(cert.expirationDate)
           : undefined,
       })),
+      specialties: [],
       education: education.map(edu => ({
         institutionName: edu.institution,
         degree: this.mapDegreeType(edu.degree, providerId),
@@ -892,6 +906,16 @@ export class CaqhService {
   }
 
   /**
+   * Extract the specialty name from a CAQH `Specialty` entry.
+   * Real payloads nest as `{ Specialty: { SpecialtyName: "..." } }`; some
+   * payloads flatten to `SpecialtyName` at the top level.
+   */
+  private extractSpecialtyName(s: CaqhV8Specialty): string | undefined {
+    const nested = s.Specialty as { SpecialtyName?: unknown } | undefined;
+    return toOptString(nested?.SpecialtyName) ?? toOptString(s.SpecialtyName);
+  }
+
+  /**
    * Map CAQH `Specialty` entry to a medical board certification row.
    * Only imports when BoardCertifiedFlag=1. Requires boardName + specialty to
    * be present. ExpirationDate is only set when BoardCertificationExpiresFlag=1.
@@ -900,7 +924,7 @@ export class CaqhService {
     const isCertified = toOptBool(s.BoardCertifiedFlag);
     if (isCertified !== true) return null;
     const boardName = toOptString(s.SpecialtyBoardName);
-    const specialty = toOptString(s.SpecialtyName);
+    const specialty = this.extractSpecialtyName(s);
     if (!boardName || !specialty) {
       logger.warn({
         event: 'caqh_skip_board_cert_incomplete',
@@ -920,6 +944,32 @@ export class CaqhService {
       certificationNumber: toOptString(s.CertificationNumber),
       nuccTaxonomyCode: toOptString(s.NUCCTaxonomyCode),
       isBoardCertified: true,
+    };
+  }
+
+  /**
+   * Map CAQH `Specialty` entry to a specialty link record (unlike board cert,
+   * this is NOT gated on BoardCertifiedFlag — every specialty the provider
+   * lists is stored). `isPrimary` is set when SpecialtyType description is
+   * "Primary" (case-insensitive).
+   */
+  private mapV8Specialty(s: CaqhV8Specialty, providerId?: string): MappedCaqhData['specialties'][number] | null {
+    const name = this.extractSpecialtyName(s);
+    if (!name) {
+      logger.warn({
+        event: 'caqh_skip_specialty_incomplete',
+        providerId,
+        have: { name: false },
+      });
+      return null;
+    }
+    const typeStr = toOptString(s.SpecialtyType)?.toLowerCase() ?? '';
+    const isPrimary = typeStr === 'primary' || typeStr.includes('primary');
+    return {
+      name,
+      nuccTaxonomyCode: toOptString(s.NUCCTaxonomyCode),
+      isPrimary,
+      caqhSpecialtyId: toOptString(s.ID),
     };
   }
 
@@ -1310,6 +1360,7 @@ export class CaqhService {
     const summary: CaqhSyncSummary = {
       licenses: { created: 0, updated: 0, skipped: 0, failed: 0 },
       certifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      specialties: { created: 0, updated: 0, skipped: 0, failed: 0 },
       education: { created: 0, updated: 0, skipped: 0, failed: 0 },
       malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
       failedRecords: [],
@@ -1438,6 +1489,82 @@ export class CaqhService {
       }
     }
 
+    // --- Specialties + NUCC Taxonomy (Phase 2d) ---
+    if (caqhData.specialties?.length > 0) {
+      let primaryTaxonomy: string | undefined;
+      for (const spec of caqhData.specialties) {
+        try {
+          const specialtyRow = await this.upsertSpecialtyRow(spec);
+
+          // Dedupe link on (providerId, specialtyId); caqhSpecialtyId preferred when present
+          const existing = spec.caqhSpecialtyId
+            ? await prisma.providerSpecialty.findFirst({
+                where: { providerId, caqhSpecialtyId: spec.caqhSpecialtyId },
+              })
+            : await prisma.providerSpecialty.findFirst({
+                where: { providerId, specialtyId: specialtyRow.id },
+              });
+
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.specialties.skipped++;
+              continue;
+            }
+            await prisma.providerSpecialty.update({
+              where: { id: existing.id },
+              data: {
+                specialtyId: specialtyRow.id,
+                isPrimary: spec.isPrimary,
+                nuccTaxonomyCode: spec.nuccTaxonomyCode ?? existing.nuccTaxonomyCode,
+                caqhSpecialtyId: spec.caqhSpecialtyId ?? existing.caqhSpecialtyId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.specialties.updated++;
+          } else {
+            await prisma.providerSpecialty.create({
+              data: {
+                providerId,
+                specialtyId: specialtyRow.id,
+                isPrimary: spec.isPrimary,
+                nuccTaxonomyCode: spec.nuccTaxonomyCode,
+                caqhSpecialtyId: spec.caqhSpecialtyId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.specialties.created++;
+          }
+
+          if (spec.isPrimary && spec.nuccTaxonomyCode) {
+            primaryTaxonomy = spec.nuccTaxonomyCode;
+          }
+        } catch (error) {
+          summary.specialties.failed++;
+          summary.failedRecords.push({
+            category: 'specialty',
+            identifier: spec.name,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // Copy primary NUCC code to ProviderProfile.taxonomy for convenience
+      if (primaryTaxonomy) {
+        try {
+          await prisma.providerProfile.update({
+            where: { id: providerId },
+            data: { taxonomy: primaryTaxonomy },
+          });
+        } catch (error) {
+          logger.warn({
+            event: 'caqh_primary_taxonomy_update_failed',
+            providerId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
     // --- Education ---
     if (caqhData.education?.length > 0) {
       for (const edu of caqhData.education) {
@@ -1544,6 +1671,46 @@ export class CaqhService {
   }
 
   /**
+   * Look up or create a Specialty row based on NUCC taxonomy code or name.
+   * Preferred match is on `nuccTaxonomyCode` (globally unique). Falls back to
+   * `(name, taxonomySection)` unique. Creates an INDIVIDUAL specialty with the
+   * CAQH-provided values when no match exists. NUCC code is back-filled when
+   * an existing name-matched row lacks one.
+   */
+  private async upsertSpecialtyRow(spec: MappedCaqhData['specialties'][number]): Promise<{ id: string }> {
+    if (spec.nuccTaxonomyCode) {
+      const byCode = await prisma.specialty.findUnique({
+        where: { nuccTaxonomyCode: spec.nuccTaxonomyCode },
+      });
+      if (byCode) return { id: byCode.id };
+    }
+
+    const byName = await prisma.specialty.findFirst({
+      where: { name: spec.name, taxonomySection: 'INDIVIDUAL' },
+    });
+    if (byName) {
+      // Back-fill NUCC code if we have one and the existing row is missing it
+      if (spec.nuccTaxonomyCode && !byName.nuccTaxonomyCode) {
+        await prisma.specialty.update({
+          where: { id: byName.id },
+          data: { nuccTaxonomyCode: spec.nuccTaxonomyCode },
+        });
+      }
+      return { id: byName.id };
+    }
+
+    const created = await prisma.specialty.create({
+      data: {
+        name: spec.name,
+        taxonomySection: 'INDIVIDUAL',
+        nuccTaxonomyCode: spec.nuccTaxonomyCode,
+        isActive: true,
+      },
+    });
+    return { id: created.id };
+  }
+
+  /**
    * Check if the CAQH API is configured.
    */
   isConfigured(): boolean {
@@ -1554,6 +1721,7 @@ export class CaqhService {
 export interface CaqhSyncSummary {
   licenses: { created: number; updated: number; skipped: number; failed: number };
   certifications: { created: number; updated: number; skipped: number; failed: number };
+  specialties: { created: number; updated: number; skipped: number; failed: number };
   education: { created: number; updated: number; skipped: number; failed: number };
   malpractice: { created: number; updated: number; skipped: number; failed: number };
   failedRecords: Array<{ category: string; identifier: string; error: string }>;

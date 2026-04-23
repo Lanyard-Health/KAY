@@ -757,6 +757,94 @@ describe('CaqhService', () => {
       expect(result.certifications[0]!.specialty).toBe('Psychiatry');
     });
 
+    // ------- Phase 2d: Specialties + NUCC taxonomy -------
+
+    it('(2c fix) reads SpecialtyName from nested Specialty object (real CAQH shape)', () => {
+      // James's real payload: { Specialty: { Specialty: { SpecialtyName: "Social Worker, Clinical" }, ... } }
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'James', LastName: 'Ashingden',
+          Specialty: {
+            ID: '1000',
+            Specialty: { SpecialtyName: 'Social Worker, Clinical' },
+            SpecialtyType: { SpecialtyTypeDescription: 'Primary' },
+            NUCCTaxonomyCode: '1041C0700X',
+            BoardCertifiedFlag: 1,
+            SpecialtyBoardName: 'American Academy of Health Providers in the Addictive Disorders',
+            CertificationDate: '2020-02-26T00:00:00',
+            BoardCertificationExpiresFlag: 0,
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.certifications).toHaveLength(1);
+      expect(result.certifications[0]!.specialty).toBe('Social Worker, Clinical');
+      expect(result.certifications[0]!.boardName).toBe('American Academy of Health Providers in the Addictive Disorders');
+    });
+
+    it('maps a Specialty entry into result.specialties with NUCC code and primary flag', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            Specialty: { SpecialtyName: 'Social Worker, Clinical' },
+            SpecialtyType: { SpecialtyTypeDescription: 'Primary' },
+            NUCCTaxonomyCode: '1041C0700X',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.specialties).toHaveLength(1);
+      const s = result.specialties![0]!;
+      expect(s.name).toBe('Social Worker, Clinical');
+      expect(s.nuccTaxonomyCode).toBe('1041C0700X');
+      expect(s.isPrimary).toBe(true);
+      expect(s.caqhSpecialtyId).toBe('1000');
+    });
+
+    it('marks isPrimary=false when SpecialtyType is not Primary', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: {
+            ID: '1000',
+            Specialty: { SpecialtyName: 'Addiction Medicine' },
+            SpecialtyType: { SpecialtyTypeDescription: 'Secondary' },
+            NUCCTaxonomyCode: '207LA0401X',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.specialties![0]!.isPrimary).toBe(false);
+    });
+
+    it('skips specialty entries missing a name', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: { ID: '1000', NUCCTaxonomyCode: '1041C0700X' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.specialties).toHaveLength(0);
+    });
+
+    it('maps multiple Specialty entries into result.specialties', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Specialty: [
+            { ID: '1', Specialty: { SpecialtyName: 'Psychiatry' }, SpecialtyType: { SpecialtyTypeDescription: 'Primary' }, NUCCTaxonomyCode: '2084P0800X' },
+            { ID: '2', Specialty: { SpecialtyName: 'Addiction Medicine' }, SpecialtyType: { SpecialtyTypeDescription: 'Secondary' }, NUCCTaxonomyCode: '207LA0401X' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.specialties).toHaveLength(2);
+      expect(result.specialties!.filter(s => s.isPrimary)).toHaveLength(1);
+    });
+
     it('reads EmailAddress at provider level when Email/ProviderEmail absent', () => {
       const v8Payload = {
         Provider: {
@@ -984,6 +1072,103 @@ describe('CaqhService', () => {
       });
 
       expect(summary.certifications.updated).toBe(1);
+    });
+
+    // ------- Phase 2d specialties -------
+
+    it('creates a provider specialty linked by NUCC taxonomy code and sets primary taxonomy on profile', async () => {
+      prismaMock.specialty.findUnique.mockResolvedValue({ id: 'spec-sw-clinical', name: 'Social Worker, Clinical', nuccTaxonomyCode: '1041C0700X' } as any);
+      prismaMock.providerSpecialty.findFirst.mockResolvedValue(null);
+      prismaMock.providerSpecialty.create.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        specialties: [{
+          name: 'Social Worker, Clinical',
+          nuccTaxonomyCode: '1041C0700X',
+          isPrimary: true,
+          caqhSpecialtyId: 'cs-1',
+        }],
+      });
+
+      expect(summary.specialties.created).toBe(1);
+      expect(prismaMock.specialty.findUnique).toHaveBeenCalledWith({ where: { nuccTaxonomyCode: '1041C0700X' } });
+      expect(prismaMock.providerSpecialty.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            specialtyId: 'spec-sw-clinical',
+            isPrimary: true,
+            nuccTaxonomyCode: '1041C0700X',
+            caqhSpecialtyId: 'cs-1',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { taxonomy: '1041C0700X' },
+      });
+    });
+
+    it('auto-creates a Specialty row when NUCC code is unknown', async () => {
+      prismaMock.specialty.findUnique.mockResolvedValue(null);
+      prismaMock.specialty.findFirst.mockResolvedValue(null);
+      prismaMock.specialty.create.mockResolvedValue({ id: 'spec-new', name: 'Niche Thing', nuccTaxonomyCode: '9999X0000X' } as any);
+      prismaMock.providerSpecialty.findFirst.mockResolvedValue(null);
+      prismaMock.providerSpecialty.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        specialties: [{ name: 'Niche Thing', nuccTaxonomyCode: '9999X0000X', isPrimary: false, caqhSpecialtyId: 'cs-2' }],
+      });
+
+      expect(summary.specialties.created).toBe(1);
+      expect(prismaMock.specialty.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: 'Niche Thing',
+          taxonomySection: 'INDIVIDUAL',
+          nuccTaxonomyCode: '9999X0000X',
+        }),
+      });
+    });
+
+    it('updates existing provider specialty matched by caqhSpecialtyId on re-sync', async () => {
+      prismaMock.specialty.findUnique.mockResolvedValue({ id: 'spec-sw-clinical' } as any);
+      prismaMock.providerSpecialty.findFirst.mockResolvedValue({
+        id: 'ps-1', source: 'caqh_sync', specialtyId: 'spec-sw-clinical', isPrimary: false, nuccTaxonomyCode: null, caqhSpecialtyId: 'cs-1',
+      } as any);
+      prismaMock.providerSpecialty.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        specialties: [{ name: 'Social Worker, Clinical', nuccTaxonomyCode: '1041C0700X', isPrimary: true, caqhSpecialtyId: 'cs-1' }],
+      });
+
+      expect(summary.specialties.updated).toBe(1);
+      expect(prismaMock.providerSpecialty.findFirst).toHaveBeenCalledWith({
+        where: { providerId: 'p1', caqhSpecialtyId: 'cs-1' },
+      });
+    });
+
+    it('skips provider specialty marked source=manual_entry', async () => {
+      prismaMock.specialty.findUnique.mockResolvedValue({ id: 'spec-1' } as any);
+      prismaMock.providerSpecialty.findFirst.mockResolvedValue({
+        id: 'ps-1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        specialties: [{ name: 'Psychiatry', nuccTaxonomyCode: '2084P0800X', isPrimary: false, caqhSpecialtyId: 'cs-1' }],
+      });
+
+      expect(summary.specialties.skipped).toBe(1);
+      expect(prismaMock.providerSpecialty.update).not.toHaveBeenCalled();
     });
 
     it('skips malpractice without perClaimAmount', async () => {
