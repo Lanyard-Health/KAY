@@ -254,6 +254,13 @@ export interface MappedProviderIdentifier {
   notes?: string;
 }
 
+export interface MappedSpecialty {
+  name: string;
+  nuccTaxonomyCode?: string;
+  isPrimary: boolean;
+  caqhSpecialtyId?: string;
+}
+
 export interface MappedCaqhData {
   provider: MappedProviderCore;
   addresses: MappedProviderAddress[];
@@ -281,12 +288,7 @@ export interface MappedCaqhData {
     nuccTaxonomyCode?: string;
     isBoardCertified?: boolean;
   }>;
-  specialties?: Array<{
-    name: string;
-    nuccTaxonomyCode?: string;
-    isPrimary: boolean;
-    caqhSpecialtyId?: string;
-  }>;
+  specialties?: MappedSpecialty[];
   education: Array<{
     institutionName: string;
     degree: DegreeType;
@@ -739,7 +741,7 @@ export class CaqhService {
         .filter((c): c is MappedCaqhData['certifications'][number] => c !== null),
       specialties: this.asArray(p.Specialty)
         .map(s => this.mapV8Specialty(s, providerId))
-        .filter((s): s is MappedCaqhData['specialties'][number] => s !== null),
+        .filter((s): s is MappedSpecialty => s !== null),
       // Deferred to Phases 2+
       education: [],
       malpractice: [],
@@ -953,7 +955,7 @@ export class CaqhService {
    * lists is stored). `isPrimary` is set when SpecialtyType description is
    * "Primary" (case-insensitive).
    */
-  private mapV8Specialty(s: CaqhV8Specialty, providerId?: string): MappedCaqhData['specialties'][number] | null {
+  private mapV8Specialty(s: CaqhV8Specialty, providerId?: string): MappedSpecialty | null {
     const name = this.extractSpecialtyName(s);
     if (!name) {
       logger.warn({
@@ -1490,9 +1492,10 @@ export class CaqhService {
     }
 
     // --- Specialties + NUCC Taxonomy (Phase 2d) ---
-    if (caqhData.specialties?.length > 0) {
+    const specList = caqhData.specialties ?? [];
+    if (specList.length > 0) {
       let primaryTaxonomy: string | undefined;
-      for (const spec of caqhData.specialties) {
+      for (const spec of specList) {
         try {
           const specialtyRow = await this.upsertSpecialtyRow(spec);
 
@@ -1677,7 +1680,7 @@ export class CaqhService {
    * CAQH-provided values when no match exists. NUCC code is back-filled when
    * an existing name-matched row lacks one.
    */
-  private async upsertSpecialtyRow(spec: MappedCaqhData['specialties'][number]): Promise<{ id: string }> {
+  private async upsertSpecialtyRow(spec: MappedSpecialty): Promise<{ id: string }> {
     if (spec.nuccTaxonomyCode) {
       const byCode = await prisma.specialty.findUnique({
         where: { nuccTaxonomyCode: spec.nuccTaxonomyCode },
