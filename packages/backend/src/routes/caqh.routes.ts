@@ -7,6 +7,7 @@ import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
 import { CaqhService } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
+import { scrubPii, buildCsv, buildPdf, slugifyForFilename, type ExportContext } from '../utils/caqh-export.js';
 import rateLimit from 'express-rate-limit';
 
 export const caqhRoutes = Router();
@@ -419,6 +420,106 @@ caqhRoutes.get(
       next(error);
     }
   }
+);
+
+// GET /api/v1/caqh/export/:providerId?format=json|csv|pdf - Export CAQH data
+// Phase 2g: PII-scrubbed (SSN, DOB redacted across all three formats).
+caqhRoutes.get(
+  '/export/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const formatSchema = z.enum(['json', 'csv', 'pdf']);
+      const formatResult = formatSchema.safeParse(req.query['format']);
+      if (!formatResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: 'format must be one of: json, csv, pdf',
+        });
+      }
+      const format = formatResult.data;
+
+      const providerId = req.params['providerId'] as string;
+
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+        include: {
+          practice: { select: { name: true } },
+          licenses: {
+            select: { state: true, licenseNumber: true, expirationDate: true },
+            orderBy: { expirationDate: 'desc' },
+          },
+          boardCertifications: {
+            select: { boardName: true, specialty: true, expirationDate: true },
+            orderBy: { expirationDate: 'desc' },
+          },
+        },
+      });
+
+      if (!provider) {
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+      }
+
+      const mirror = await prisma.providerCaqhMirror.findUnique({
+        where: { providerProfileId: providerId },
+      });
+
+      if (!mirror) {
+        return caqhError(
+          res,
+          'CAQH_NOT_SYNCED',
+          'No CAQH data available — sync this provider first',
+        );
+      }
+
+      const filenameBase = `${slugifyForFilename(provider.lastName)}-caqh-${new Date().toISOString().slice(0, 10)}`;
+
+      if (format === 'json') {
+        const scrubbed = scrubPii(mirror.rawJson);
+        const body = JSON.stringify(scrubbed, null, 2);
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.json"`);
+        return res.send(body);
+      }
+
+      const ctx: ExportContext = {
+        providerName: [provider.firstName, provider.middleName, provider.lastName]
+          .filter(Boolean)
+          .join(' '),
+        npi: provider.npi,
+        practiceName: provider.practice?.name ?? null,
+        licenses: provider.licenses.map((l) => ({
+          state: l.state,
+          licenseNumber: l.licenseNumber,
+          expirationDate: l.expirationDate,
+        })),
+        boardCertifications: provider.boardCertifications.map((b) => ({
+          boardName: b.boardName,
+          specialty: b.specialty,
+          expirationDate: b.expirationDate,
+        })),
+        lastSyncedAt: mirror.lastPulledAt,
+      };
+
+      if (format === 'csv') {
+        const body = buildCsv(ctx);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.csv"`);
+        return res.send(body);
+      }
+
+      // PDF
+      const pdfBytes = await buildPdf(ctx);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.pdf"`);
+      return res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+      next(error);
+    }
+  },
 );
 
 // GET /api/v1/caqh/config - Get CAQH integration configuration status

@@ -528,6 +528,126 @@ describe('CAQH Routes', () => {
     });
   });
 
+  // ==========================================
+  // EXPORT (Phase 2g)
+  // ==========================================
+  describe('GET /export/:providerId', () => {
+    const baseProvider = {
+      ...mockProvider,
+      practice: { name: 'Acme Clinic' },
+      licenses: [
+        { state: 'CA', licenseNumber: 'A123456', expirationDate: new Date('2026-03-01') },
+        { state: 'NY', licenseNumber: 'B789012', expirationDate: new Date('2025-11-15') },
+      ],
+      boardCertifications: [
+        { boardName: 'ABPN', specialty: 'Psychiatry', expirationDate: new Date('2027-01-01') },
+      ],
+    };
+
+    const mirror = {
+      id: 'mirror-1',
+      providerProfileId: 'provider-1-id',
+      rawJson: {
+        Provider: {
+          FirstName: 'Jane',
+          LastName: 'Doe',
+          SSN: '123-45-6789',
+          BirthDate: '1985-06-15',
+          Practice: [{ PracticeName: 'Acme', DOB: '1985-06-15' }],
+        },
+      },
+      lastPulledAt: new Date('2026-04-22T10:00:00Z'),
+      syncStatus: 'success',
+    };
+
+    it('returns scrubbed JSON with correct headers', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(baseProvider as any);
+      prismaMock.providerCaqhMirror.findUnique.mockResolvedValue(mirror as any);
+
+      const res = await request(app).get('/export/provider-1-id').query({ format: 'json' });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/json');
+      expect(res.headers['content-disposition']).toContain('attachment');
+      expect(res.headers['content-disposition']).toContain('doe-caqh-');
+      expect(res.headers['content-disposition']).toContain('.json');
+
+      const body = JSON.parse(res.text);
+      expect(body.Provider.SSN).toBe('[REDACTED]');
+      expect(body.Provider.BirthDate).toBe('[REDACTED]');
+      expect(body.Provider.Practice[0].DOB).toBe('[REDACTED]');
+      expect(body.Provider.FirstName).toBe('Jane'); // non-PII preserved
+    });
+
+    it('returns CSV with [REDACTED] DOB and semicolon-joined license cell', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(baseProvider as any);
+      prismaMock.providerCaqhMirror.findUnique.mockResolvedValue(mirror as any);
+
+      const res = await request(app).get('/export/provider-1-id').query({ format: 'csv' });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('.csv');
+      // CSV wraps cells containing ';' in quotes
+      expect(res.text).toContain('[REDACTED]');
+      expect(res.text).toContain('CA #A123456');
+      expect(res.text).toContain('NY #B789012');
+      expect(res.text).toContain('ABPN');
+      expect(res.text.split('\n')).toHaveLength(3); // header + row + trailing newline
+    });
+
+    it('returns PDF with correct content-type and PDF magic bytes', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(baseProvider as any);
+      prismaMock.providerCaqhMirror.findUnique.mockResolvedValue(mirror as any);
+
+      const res = await request(app)
+        .get('/export/provider-1-id')
+        .query({ format: 'pdf' })
+        .buffer(true)
+        .parse((r, cb) => {
+          const chunks: Buffer[] = [];
+          r.on('data', (c: Buffer) => chunks.push(c));
+          r.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('application/pdf');
+      expect(res.headers['content-disposition']).toContain('.pdf');
+      const body = res.body as Buffer;
+      expect(body.slice(0, 4).toString()).toBe('%PDF');
+    });
+
+    it('returns 400 when format is invalid', async () => {
+      const res = await request(app).get('/export/provider-1-id').query({ format: 'xml' });
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('returns 400 when format is missing', async () => {
+      const res = await request(app).get('/export/provider-1-id');
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 404 CAQH_NOT_SYNCED when no mirror exists', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(baseProvider as any);
+      prismaMock.providerCaqhMirror.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).get('/export/provider-1-id').query({ format: 'json' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('CAQH_NOT_SYNCED');
+    });
+
+    it('returns 404 PROVIDER_NOT_FOUND when provider does not exist', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).get('/export/missing').query({ format: 'json' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('PROVIDER_NOT_FOUND');
+    });
+  });
+
   describe('GET /documents/:providerId/download', () => {
     it('returns binary file with correct headers', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue({

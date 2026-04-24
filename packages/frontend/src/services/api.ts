@@ -172,6 +172,45 @@ class ApiClient {
 
     return { text: await response.text(), status: response.status, headers: response.headers };
   }
+
+  /**
+   * Download a file as a Blob (binary-safe — e.g., PDF). Use `download()` for text.
+   */
+  async downloadBlob(endpoint: string): Promise<{ blob: Blob; status: number; headers: Headers }> {
+    const token = await this.getAuthToken();
+
+    const devRole = isDevelopment && DEV_BYPASS_ENABLED
+      ? localStorage.getItem('dev_session')
+      : null;
+
+    const reqHeaders: HeadersInit = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(devRole && devRole !== 'true' && { 'X-Dev-Role': devRole }),
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: reqHeaders,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let message = 'Download failed';
+      let data: any = errorText;
+      try {
+        const errorData = JSON.parse(errorText);
+        message = errorData.error?.message || errorData.error || message;
+        data = errorData;
+      } catch { /* not JSON */ }
+      const error = new Error(message) as Error & {
+        response?: { data: any; status: number };
+      };
+      error.response = { data, status: response.status };
+      throw error;
+    }
+
+    return { blob: await response.blob(), status: response.status, headers: response.headers };
+  }
 }
 
 export const api = new ApiClient();
