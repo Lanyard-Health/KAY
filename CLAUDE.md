@@ -165,6 +165,13 @@ packages/
 - **Verify at each gate.** Run migrate, seed, query, then move on.
 - **No AI-generated test data.** User's spreadsheet is the single source of truth for knowledge base.
 
+### Third-party API Integration
+
+1. **Spec before code.** Before integrating with any third-party API, locate official docs/specs/sample payloads in the workspace (search `~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/`, `docs/`, `packages/*/docs/`). If they exist, read them first. If they don't, ask before inferring API behavior from error responses.
+2. **Evidence hierarchy** (highest to lowest): published spec → vendor sample payloads → captured real responses → inferred behavior from error envelopes. Inference is the floor, not the default. When sources conflict, flag the contradiction — don't silently pick one.
+3. **API errors mean what they say.** When a third-party returns "Required Field missing/invalid: X", X is the actual problem. Don't dismiss listed validation failures as "fallout from another issue." Treat error envelopes as authoritative descriptions of API expectations.
+4. **CAQH spec docs**: `~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/CAQH Specs 042526/drive-download-20260425T171441Z-3-001/` (Roster Individual v2.0 PDF, batch v3.2 PDF, Credentialing v9.0 PDF, sample payload txt files). Always read these before changing any CAQH integration code.
+
 ### Build and Run Commands
 
 ```bash
