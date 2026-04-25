@@ -60,6 +60,11 @@ packages/backend/scripts/aetna-screenshots/
 *.key
 
 # Test harness fixtures + generated outputs (real payer PDFs, filled artifacts)
-packages/backend/fixtures/
+# Exception: spec-derived sample fixtures (no PII, used by unit tests).
+# Pattern note: must allow parent dirs so git can descend to the un-ignored leaf.
+packages/backend/fixtures/*
+!packages/backend/fixtures/caqh
+packages/backend/fixtures/caqh/*
+!packages/backend/fixtures/caqh/spec-samples
 .claude/
 .libretto/

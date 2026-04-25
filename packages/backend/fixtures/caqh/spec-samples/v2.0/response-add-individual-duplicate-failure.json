@@ -1,0 +1,26 @@
+{
+  "provider": {
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "type": "MFT",
+    "address1": "123 Main St",
+    "address_city": "Austin",
+    "address_state": "TX",
+    "address_zip": "78701",
+    "birthdate": "19800115",
+    "npi": "1234567890",
+    "practice_state": "TX",
+    "status": null,
+    "status_date": null
+  },
+  "caqh_provider_id": null,
+  "po_provider_id": "",
+  "organization_id": "12345",
+  "roster_status": null,
+  "authorization_flag": null,
+  "non_responder_flag": null,
+  "delegation_flag": null,
+  "affiliation_flag": null,
+  "anniversary_date": null,
+  "exception_description": "Add Failed: Provider already on Roster (exact duplicate)"
+}

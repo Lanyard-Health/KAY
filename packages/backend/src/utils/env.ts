@@ -53,6 +53,9 @@ const envSchema = z.object({
   CAQH_USERNAME: z.string().optional(),
   CAQH_PASSWORD: z.string().optional(),
   CAQH_PRODUCT: z.string().optional(),
+  // 'batch' = legacy /RosterAPI/API/Roster path (default); 'individual' = new /ProviewAPI/API/rosterIndividual path.
+  // Flip to 'individual' after E3 verifies it against demo with a real provider.
+  CAQH_ROSTER_MODE: z.enum(['batch', 'individual']).default('batch'),
 
   // Embeddings (optional — knowledge base RAG degrades gracefully)
   OPENAI_API_KEY: z.string().optional(),

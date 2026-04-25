@@ -1,0 +1,47 @@
+{
+  "_source": "CAQH Roster Individual API Specification v2.0, Table 6: Response for Add to Roster Individual Request Exceptions (page 14)",
+  "_classification_rules": "Required/Optional/Conditionally Required/Add Failed = fatal. Warning = non-fatal (record was processed despite warning).",
+  "required_missing_or_invalid": [
+    "Required Field missing/invalid: Provider First Name",
+    "Required Field missing/invalid: Provider Last Name",
+    "Required Field missing/invalid: Provider Address1",
+    "Required Field missing/invalid: Provider Address City",
+    "Required Field missing/invalid: Provider Address State",
+    "Required Field missing/invalid: Provider Address Zip",
+    "Required Field missing/invalid: Provider Practice State",
+    "Required Field missing/invalid: Provider Birthdate",
+    "Required Field missing/invalid: Provider Type",
+    "Required Field missing/invalid: Organization ID",
+    "Missing Identifiers: At least one of the ID fields (NPI, DEA, UPIN, License State/License Number, SSN) must be populated.",
+    "Invalid Identifiers: At least one of the ID fields (NPI, DEA, UPIN, License State/License Number, SSN) must be valid."
+  ],
+  "optional_invalid": [
+    "Participating_Organization_Provider_ID is in invalid format",
+    "Provider_Address_Zip_Extn is in invalid format",
+    "Provider_DEA is in invalid format",
+    "Provider_Email_Address is in invalid format",
+    "Provider_Fax number is in invalid format",
+    "Provider_Gender is in invalid format",
+    "Provider_License_Number is in invalid format",
+    "Provider_License_State is in invalid format",
+    "Provider_Name_Suffix is invalid",
+    "Provider_NPI is in invalid format",
+    "Provider_Phone_Number is in invalid format",
+    "Provider_SSN is in invalid format",
+    "Provider_Tax_ID is in invalid format",
+    "Provider_UPIN is in invalid format"
+  ],
+  "warning_non_fatal": [
+    "Warning: One or more of the Provider IDs (NPI, DEA, UPIN, License State/License Number, SSN) are invalid; however, record was processed using other valid IDs provided."
+  ],
+  "conditionally_required": [
+    "License Number required when License state is populated.",
+    "License state required when License Number is populated."
+  ],
+  "add_failed": [
+    "Add Failed: Provider is in Opt Out status.",
+    "Add Failed: Provider already on Roster (exact duplicate)",
+    "Add Failed: CAQH Provider ID not found / invalid",
+    "Add Failed: More than one provider matches these criteria. Please use additional data to find a match for this provider or add this provider through the portal."
+  ]
+}

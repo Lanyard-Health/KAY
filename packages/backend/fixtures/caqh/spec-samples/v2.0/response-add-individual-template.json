@@ -1,0 +1,32 @@
+{
+  "provider": {
+    "first_name": "",
+    "middle_name": "",
+    "last_name": "",
+    "type": "",
+    "address1": "",
+    "address2": "",
+    "address_city": "",
+    "address_state": "",
+    "address_zip": "",
+    "birthdate": "",
+    "license_number": "",
+    "license_state": "",
+    "upin": "",
+    "dea": "",
+    "npi": "",
+    "practice_state": "",
+    "status": "",
+    "status_date": ""
+  },
+  "caqh_provider_id": "",
+  "po_provider_id": "",
+  "organization_id": "",
+  "roster_status": "",
+  "authorization_flag": "",
+  "non_responder_flag": "",
+  "delegation_flag": "",
+  "affiliation_flag": "",
+  "anniversary_date": "",
+  "exception_description": ""
+}

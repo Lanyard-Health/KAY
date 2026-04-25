@@ -264,6 +264,22 @@ AI_MODEL=claude-sonnet-4-20250514
 
 **Production**: `https://kay-os62.onrender.com` — all secrets stored in Render env vars. `USE_LOCALSTACK` must NOT be set in production. `DEV_AUTH_BYPASS=true` with `NODE_ENV=production` will intentionally crash the server.
 
+### CAQH environment configuration
+
+CAQH has two separate environments, and we keep strict separation between them to avoid accidentally writing test data to production or leaking prod credentials to local dev.
+
+| Environment | POID | Base URL                                | Credential location           |
+|-------------|------|-----------------------------------------|-------------------------------|
+| **Demo**    | 6279 | `https://proview-demo.nonprod.caqh.org` | `packages/backend/.env`       |
+| **Prod**    | 1873 | `https://proview.caqh.org`              | Render env vars only          |
+
+**Rules:**
+- Local dev and `.env` use **demo** credentials only.
+- Production CAQH credentials live **only** in Render env vars — never in `.env`, never in `.env.example`, never in committed files.
+- Discovery calls, integration tests, and any new CAQH endpoint validation run against demo first. Only flip to prod after the demo call has been captured, reviewed, and shipped behind a feature flag or equivalent rollback path.
+- Test providers added to the demo roster should be tracked in a "Phase X cleanup" checklist and derostered once the feature ships.
+- `.env.example` ships with demo URL + POID pre-filled because they're non-secret; username/password are the only blanks.
+
 ---
 
 ## Running typechecks and tests

@@ -5,7 +5,15 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
-import { CaqhService } from '../services/caqh.service.js';
+import {
+  CaqhService,
+  ProviderNotReadyForCaqhError,
+  CaqhRosterIndividualException,
+  CaqhDuplicateException,
+  CaqhOptOutException,
+  CaqhMultipleMatchException,
+  CaqhInvalidProviderIdException,
+} from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
 import { scrubPii, buildCsv, buildPdf, slugifyForFilename, type ExportContext } from '../utils/caqh-export.js';
 import rateLimit from 'express-rate-limit';
@@ -183,17 +191,8 @@ caqhRoutes.post(
     try {
       const { providerId } = addToRosterSchema.parse(req.body);
 
-      const provider = await prisma.providerProfile.findUnique({
-        where: { id: providerId },
-      });
+      const result = await caqhService.addToRoster(providerId);
 
-      if (!provider) {
-        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
-      }
-
-      const result = await caqhService.addToRoster(provider);
-
-      // Update provider with CAQH ID
       await prisma.providerProfile.update({
         where: { id: providerId },
         data: {
@@ -204,6 +203,24 @@ caqhRoutes.post(
 
       res.json({ success: true, data: result });
     } catch (error) {
+      if (error instanceof ProviderNotReadyForCaqhError) {
+        return caqhError(res, 'PROVIDER_NOT_READY', error.message, 400);
+      }
+      if (error instanceof CaqhDuplicateException) {
+        return caqhError(res, 'CAQH_DUPLICATE', error.exceptionDescription, 409);
+      }
+      if (error instanceof CaqhOptOutException) {
+        return caqhError(res, 'CAQH_OPT_OUT', error.exceptionDescription, 422);
+      }
+      if (error instanceof CaqhMultipleMatchException) {
+        return caqhError(res, 'CAQH_MULTIPLE_MATCH', error.exceptionDescription, 422);
+      }
+      if (error instanceof CaqhInvalidProviderIdException) {
+        return caqhError(res, 'CAQH_INVALID_PROVIDER_ID', error.exceptionDescription, 422);
+      }
+      if (error instanceof CaqhRosterIndividualException) {
+        return caqhError(res, 'CAQH_REJECTED', error.exceptionDescription, 422);
+      }
       next(error);
     }
   }
