@@ -165,6 +165,13 @@ packages/
 - **Verify at each gate.** Run migrate, seed, query, then move on.
 - **No AI-generated test data.** User's spreadsheet is the single source of truth for knowledge base.
 
+### Third-party API Integration
+
+1. **Spec before code.** Before integrating with any third-party API, locate official docs/specs/sample payloads in the workspace (search `~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/`, `docs/`, `packages/*/docs/`). If they exist, read them first. If they don't, ask before inferring API behavior from error responses.
+2. **Evidence hierarchy** (highest to lowest): published spec → vendor sample payloads → captured real responses → inferred behavior from error envelopes. Inference is the floor, not the default. When sources conflict, flag the contradiction — don't silently pick one.
+3. **API errors mean what they say.** When a third-party returns "Required Field missing/invalid: X", X is the actual problem. Don't dismiss listed validation failures as "fallout from another issue." Treat error envelopes as authoritative descriptions of API expectations.
+4. **CAQH spec docs**: `~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/CAQH Specs 042526/drive-download-20260425T171441Z-3-001/` (Roster Individual v2.0 PDF, batch v3.2 PDF, Credentialing v9.0 PDF, sample payload txt files). Always read these before changing any CAQH integration code.
+
 ### Build and Run Commands
 
 ```bash
@@ -279,6 +286,30 @@ CAQH has two separate environments, and we keep strict separation between them t
 - Discovery calls, integration tests, and any new CAQH endpoint validation run against demo first. Only flip to prod after the demo call has been captured, reviewed, and shipped behind a feature flag or equivalent rollback path.
 - Test providers added to the demo roster should be tracked in a "Phase X cleanup" checklist and derostered once the feature ships.
 - `.env.example` ships with demo URL + POID pre-filled because they're non-secret; username/password are the only blanks.
+
+---
+
+## Running typechecks and tests
+
+This codebase's `tsc --noEmit` and `vitest run` can legitimately take 5–15 minutes on a cold cache because the shared Prisma client + generated types are large. That's fine — but it means tooling defaults that assume fast commands will kill the run and produce a misleading "SIGTERM / exit 144" that looks like a code failure when it's actually a harness timeout.
+
+**Rules for AI agents in this repo:**
+
+1. **Foreground only.** Always run typechecks and tests in the foreground with an explicit 10-minute timeout. Never launch them as background tasks and poll. Polling loops and `pgrep`/`sleep` waiters add their own 2-minute timeouts on top and will kill the underlying process.
+   - In Claude Code: pass `timeout: 600000` to the Bash tool. Do not set `run_in_background: true`.
+2. **Pipe to a log, print exit.** Single command per check:
+   ```bash
+   npm run typecheck > /tmp/tsc.log 2>&1; echo "exit: $?"
+   ```
+   Then `cat /tmp/tsc.log | tail -60` only if you need to see errors.
+3. **Separate calls per package.** Run backend and frontend typechecks in two different bash invocations — never combine them with `&&`, never parallelize them. Each gets its own 10-minute budget.
+4. **Use incremental + changed.** Prefer `tsc --noEmit --incremental` and `vitest run --changed HEAD~1` when iterating on a single phase. Only run the full suite before pushing.
+5. **If a check legitimately needs more than 10 minutes**, stop and ask. Don't silently extend the timeout further or split via polling — raise it as a cache/hardware issue to investigate.
+6. **Never wrap in `npx`** for long-running checks — it adds an extra process layer that can hang. Invoke the binary directly: `node ./node_modules/typescript/bin/tsc --noEmit` or `./node_modules/.bin/vitest run`.
+
+**Symptoms to recognize:**
+- "exit code 144" on a tsc/vitest wrapper → the harness killed the parent shell, not the typecheck itself. Kill leftover processes (`pkill -f "tsc --noEmit"`) and re-run in the foreground with `timeout: 600000`.
+- Multiple stale tsc/vitest processes piling up → previous background invocations that weren't cleanly reaped. Always `pkill` before retrying.
 
 ---
 
