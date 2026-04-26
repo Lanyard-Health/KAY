@@ -49,7 +49,7 @@ describe('CaqhDirectAssureAdapter', () => {
       isConfigured: vi.fn().mockReturnValue(true),
       addToRoster: vi.fn().mockResolvedValue({ caqhProviderId: 'caqh-new', status: 'added' }),
       syncProvider: vi.fn().mockResolvedValue({ syncId: 'sync-1', changes: { licenses: 2 } }),
-      checkRosterReadiness: vi.fn().mockResolvedValue({ ready: true, missingFields: [], caqhType: 'LCSW', practiceState: 'CA' }),
+      checkRosterReadiness: vi.fn().mockResolvedValue({ ready: true, missingFields: [], caqhType: 'CSW', practiceState: 'CA' }),
     };
     adapter = new CaqhDirectAssureAdapter(mockCaqhService as any);
   });

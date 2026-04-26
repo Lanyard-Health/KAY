@@ -282,6 +282,70 @@ describe('CAQH Routes', () => {
       expect(res.body.code).toBe('CAQH_REJECTED');
       expect(res.body.error).toMatch(/Provider Type/);
     });
+
+    it('returns 409 CAQH_DUPLICATE when service throws CaqhDuplicateException', async () => {
+      const { CaqhDuplicateException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhDuplicateException(
+          'Add Failed: Provider already on Roster (exact duplicate)',
+          {} as any,
+          [{ raw: 'Add Failed: Provider already on Roster (exact duplicate)', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('CAQH_DUPLICATE');
+    });
+
+    it('returns 422 CAQH_OPT_OUT when service throws CaqhOptOutException', async () => {
+      const { CaqhOptOutException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhOptOutException(
+          'Add Failed: Provider is in Opt Out status.',
+          {} as any,
+          [{ raw: 'Add Failed: Provider is in Opt Out status.', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_OPT_OUT');
+    });
+
+    it('returns 422 CAQH_MULTIPLE_MATCH when service throws CaqhMultipleMatchException', async () => {
+      const { CaqhMultipleMatchException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhMultipleMatchException(
+          'Add Failed: More than one provider matches these criteria.',
+          {} as any,
+          [{ raw: 'Add Failed: More than one provider matches these criteria.', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_MULTIPLE_MATCH');
+    });
+
+    it('returns 422 CAQH_INVALID_PROVIDER_ID when service throws CaqhInvalidProviderIdException', async () => {
+      const { CaqhInvalidProviderIdException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhInvalidProviderIdException(
+          'Add Failed: CAQH Provider ID not found / invalid',
+          {} as any,
+          [{ raw: 'Add Failed: CAQH Provider ID not found / invalid', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_INVALID_PROVIDER_ID');
+    });
   });
 
   describe('DELETE /roster/:providerId', () => {
