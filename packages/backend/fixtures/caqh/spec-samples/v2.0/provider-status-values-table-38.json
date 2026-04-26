@@ -1,0 +1,19 @@
+{
+  "_source": "CAQH Roster Individual API Specification v2.0, Appendix A.2, Table 38: Provider Status (pages 33-34)",
+  "_field": "Returned in response as `provider.status` (Character 30). This is the practitioner's lifecycle status in the Provider Data Portal — distinct from `roster_status` (which is the plan's roster membership) and `authorization_flag` (which is whether the practitioner has authorized the plan to view data).",
+  "values": [
+    { "status": "Alternate Outreach",      "description": "Provider Status was Initial Outreach and the practitioner changed their primary email at registration, OR the Welcome email bounced back and a new email address was used." },
+    { "status": "Expired Attestation",     "description": "Practitioner's primary practice state is NOT IL and they have not attested in the last 120 days; OR primary practice state IS IL and they have not attested in the last 180 days." },
+    { "status": "First Provider Contact",  "description": "New practitioner has registered and logged into the Provider Data Portal with username/password, OR a new practitioner contacts the Help Desk." },
+    { "status": "Initial Outreach",        "description": "When the system sends a Welcome Email, OR when CAQH Operations sends a Welcome Letter through USPS. (Note: USPS no longer used as of 06/08/2020.)" },
+    { "status": "Initial Profile Complete","description": "Practitioner has attested for the first time and all required documents approved." },
+    { "status": "New Provider",            "description": "Practitioner record created." },
+    { "status": "OptOut",                  "description": "Practitioner has confirmed to CAQH Operations that they no longer wish to participate in the Provider Data Portal." },
+    { "status": "Profile Data Submitted",  "description": "Practitioner has attested for the first time and all required documents NOT approved." },
+    { "status": "Provider Deceased",       "description": "Practitioner confirmed by CAQH Operations as deceased." },
+    { "status": "Provider Retired",        "description": "Practitioner confirmed by CAQH Operations as retired." },
+    { "status": "Re-Attestation",          "description": "Practitioner's attestation after their first attestation." },
+    { "status": "Returned mail",           "description": "When the CAQH Welcome Letter to a Practitioner is returned by USPS as Return to Sender due to bad mailing address, and no alternate email or mailing addresses are available. (USPS no longer used as of 06/08/2020.)" },
+    { "status": "Undeliverable",           "description": "When the CAQH Welcome Letter is returned as Undeliverable due to bad address and no alternate email or mailing addresses are available. (USPS no longer used as of 06/08/2020.)" }
+  ]
+}

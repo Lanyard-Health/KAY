@@ -271,6 +271,46 @@ AI_MODEL=claude-sonnet-4-20250514
 
 **Production**: `https://kay-os62.onrender.com` — all secrets stored in Render env vars. `USE_LOCALSTACK` must NOT be set in production. `DEV_AUTH_BYPASS=true` with `NODE_ENV=production` will intentionally crash the server.
 
+### CAQH environment configuration
+
+CAQH has two separate environments, and we keep strict separation between them to avoid accidentally writing test data to production or leaking prod credentials to local dev.
+
+| Environment | POID | Base URL                                | Credential location           |
+|-------------|------|-----------------------------------------|-------------------------------|
+| **Demo**    | 6279 | `https://proview-demo.nonprod.caqh.org` | `packages/backend/.env`       |
+| **Prod**    | 1873 | `https://proview.caqh.org`              | Render env vars only          |
+
+**Rules:**
+- Local dev and `.env` use **demo** credentials only.
+- Production CAQH credentials live **only** in Render env vars — never in `.env`, never in `.env.example`, never in committed files.
+- Discovery calls, integration tests, and any new CAQH endpoint validation run against demo first. Only flip to prod after the demo call has been captured, reviewed, and shipped behind a feature flag or equivalent rollback path.
+- Test providers added to the demo roster should be tracked in a "Phase X cleanup" checklist and derostered once the feature ships.
+- `.env.example` ships with demo URL + POID pre-filled because they're non-secret; username/password are the only blanks.
+
+---
+
+## Running typechecks and tests
+
+This codebase's `tsc --noEmit` and `vitest run` can legitimately take 5–15 minutes on a cold cache because the shared Prisma client + generated types are large. That's fine — but it means tooling defaults that assume fast commands will kill the run and produce a misleading "SIGTERM / exit 144" that looks like a code failure when it's actually a harness timeout.
+
+**Rules for AI agents in this repo:**
+
+1. **Foreground only.** Always run typechecks and tests in the foreground with an explicit 10-minute timeout. Never launch them as background tasks and poll. Polling loops and `pgrep`/`sleep` waiters add their own 2-minute timeouts on top and will kill the underlying process.
+   - In Claude Code: pass `timeout: 600000` to the Bash tool. Do not set `run_in_background: true`.
+2. **Pipe to a log, print exit.** Single command per check:
+   ```bash
+   npm run typecheck > /tmp/tsc.log 2>&1; echo "exit: $?"
+   ```
+   Then `cat /tmp/tsc.log | tail -60` only if you need to see errors.
+3. **Separate calls per package.** Run backend and frontend typechecks in two different bash invocations — never combine them with `&&`, never parallelize them. Each gets its own 10-minute budget.
+4. **Use incremental + changed.** Prefer `tsc --noEmit --incremental` and `vitest run --changed HEAD~1` when iterating on a single phase. Only run the full suite before pushing.
+5. **If a check legitimately needs more than 10 minutes**, stop and ask. Don't silently extend the timeout further or split via polling — raise it as a cache/hardware issue to investigate.
+6. **Never wrap in `npx`** for long-running checks — it adds an extra process layer that can hang. Invoke the binary directly: `node ./node_modules/typescript/bin/tsc --noEmit` or `./node_modules/.bin/vitest run`.
+
+**Symptoms to recognize:**
+- "exit code 144" on a tsc/vitest wrapper → the harness killed the parent shell, not the typecheck itself. Kill leftover processes (`pkill -f "tsc --noEmit"`) and re-run in the foreground with `timeout: 600000`.
+- Multiple stale tsc/vitest processes piling up → previous background invocations that weren't cleanly reaped. Always `pkill` before retrying.
+
 ---
 
 ## Running typechecks and tests

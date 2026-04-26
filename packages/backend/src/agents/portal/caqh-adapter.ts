@@ -17,9 +17,6 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
   }
 
   async checkReadiness(input: SubmissionInput): Promise<ReadinessCheck> {
-    const missingFields: string[] = [];
-    const warnings: string[] = [];
-
     if (!this.caqhService.isConfigured()) {
       return {
         ready: false,
@@ -30,70 +27,50 @@ export class CaqhDirectAssureAdapter implements PayerAdapter {
 
     const provider = await prisma.providerProfile.findUnique({
       where: { id: input.providerId },
-      select: { id: true, caqhProviderId: true, npi: true, firstName: true, lastName: true, dateOfBirth: true },
+      select: { caqhProviderId: true },
     });
 
     if (!provider) {
       return { ready: false, missingFields: ['provider'], warnings: ['Provider not found'] };
     }
 
-    if (!provider.npi) missingFields.push('npi');
-    if (!provider.firstName) missingFields.push('firstName');
-    if (!provider.lastName) missingFields.push('lastName');
-    if (!provider.dateOfBirth) missingFields.push('dateOfBirth');
-
+    const warnings: string[] = [];
     if (!provider.caqhProviderId) {
       warnings.push('Provider does not have a CAQH Provider ID — will be added to roster first');
+      // Delegate to the service so readiness aligns with what addToRoster will actually validate.
+      const rosterReadiness = await this.caqhService.checkRosterReadiness(input.providerId);
+      return {
+        ready: rosterReadiness.ready,
+        missingFields: rosterReadiness.missingFields,
+        warnings,
+      };
     }
 
-    return {
-      ready: missingFields.length === 0,
-      missingFields,
-      warnings,
-    };
+    return { ready: true, missingFields: [], warnings };
   }
 
   async submit(input: SubmissionInput): Promise<PayerAdapterResult> {
     const provider = await prisma.providerProfile.findUnique({
       where: { id: input.providerId },
-      select: {
-        id: true,
-        caqhProviderId: true,
-        npi: true,
-        firstName: true,
-        lastName: true,
-        dateOfBirth: true,
-      },
+      select: { id: true, caqhProviderId: true },
     });
 
     if (!provider) {
       return { success: false, error: 'Provider not found' };
     }
 
-    if (!provider.npi || !provider.firstName || !provider.lastName || !provider.dateOfBirth) {
-      return { success: false, error: 'Provider missing required fields (npi, name, dateOfBirth)' };
-    }
-
     let caqhProviderId = provider.caqhProviderId;
 
     // If provider doesn't have a CAQH ID, add them to the roster first
     if (!caqhProviderId) {
-      logger.info(`Adding provider ${provider.npi} to CAQH roster`, {
+      logger.info('Adding provider to CAQH roster via portal adapter', {
         providerId: input.providerId,
         workflowId: input.workflowId,
       });
 
-      const rosterResult = await this.caqhService.addToRoster({
-        id: provider.id,
-        npi: provider.npi,
-        firstName: provider.firstName,
-        lastName: provider.lastName,
-        dateOfBirth: provider.dateOfBirth,
-      });
-
+      const rosterResult = await this.caqhService.addToRoster(provider.id);
       caqhProviderId = rosterResult.caqhProviderId;
 
-      // Persist the CAQH provider ID
       await prisma.providerProfile.update({
         where: { id: provider.id },
         data: { caqhProviderId },
