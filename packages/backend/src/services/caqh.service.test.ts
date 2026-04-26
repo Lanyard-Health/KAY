@@ -41,6 +41,7 @@ const FIXTURE_DIR = resolve(
   '../../fixtures/caqh/spec-samples/v2.0',
 );
 function fixture(name: string): unknown {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only fixture loader; FIXTURE_DIR is a constant absolute path and `name` is a hardcoded filename in each call site.
   return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), 'utf8'));
 }
 
