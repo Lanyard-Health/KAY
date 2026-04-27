@@ -1,0 +1,20 @@
+{
+  "provider": {
+    "first_name": null,
+    "last_name": null,
+    "type": null,
+    "address1": null,
+    "address_city": null,
+    "address_state": null,
+    "address_zip": null,
+    "birthdate": null,
+    "practice_state": null,
+    "status": null,
+    "status_date": null
+  },
+  "caqh_provider_id": null,
+  "organization_id": null,
+  "roster_status": null,
+  "authorization_flag": null,
+  "exception_description": "Required Field missing/invalid: Provider First Name;Required Field missing/invalid: Provider Last Name;Required Field missing/invalid: Provider Address1;Required Field missing/invalid: Provider Address City;Required Field missing/invalid: Provider Address State;Required Field missing/invalid: Provider Address Zip;Required Field missing/invalid: Provider Practice State;Required Field missing/invalid: Provider Birthdate;Required Field missing/invalid: Provider Type;Required Field missing/invalid: Organization ID;Missing Identifiers: At least one of the ID fields (NPI, DEA, UPIN, License State/License Number, SSN) must be populated."
+}

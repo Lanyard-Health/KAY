@@ -31,24 +31,27 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-// Mock CaqhService — all fns defined inside factory so hoisting works
-// NOTE: vitest v4 requires function() not arrow for mocks used as constructors
-vi.mock('../services/caqh.service.js', () => ({
-  CaqhService: vi.fn().mockImplementation(function () {
-    return {
-      addToRoster: vi.fn(),
-      removeFromRoster: vi.fn(),
-      checkStatus: vi.fn(),
-      pullCredentials: vi.fn(),
-      mapCaqhToInternal: vi.fn(),
-      syncProvider: vi.fn(),
-      applyCaqhDataToProvider: vi.fn(),
-      isConfigured: vi.fn().mockReturnValue(false),
-      getDocumentsList: vi.fn(),
-      downloadDocument: vi.fn(),
-    };
-  }),
-}));
+// Mock CaqhService class but preserve real exported error classes (used by route handler).
+vi.mock('../services/caqh.service.js', async () => {
+  const actual = await vi.importActual<typeof import('../services/caqh.service.js')>('../services/caqh.service.js');
+  return {
+    ...actual,
+    CaqhService: vi.fn().mockImplementation(function () {
+      return {
+        addToRoster: vi.fn(),
+        removeFromRoster: vi.fn(),
+        checkStatus: vi.fn(),
+        pullCredentials: vi.fn(),
+        mapCaqhToInternal: vi.fn(),
+        syncProvider: vi.fn(),
+        applyCaqhDataToProvider: vi.fn(),
+        isConfigured: vi.fn().mockReturnValue(false),
+        getDocumentsList: vi.fn(),
+        downloadDocument: vi.fn(),
+      };
+    }),
+  };
+});
 
 // Mock CaqhCredentialsService — use vi.fn() inside factory
 vi.mock('../services/caqh-credentials.service.js', () => ({
@@ -226,10 +229,9 @@ describe('CAQH Routes', () => {
     const validProviderId = '00000000-0000-4000-a000-000000000001';
 
     it('adds provider to roster and updates caqhProviderId', async () => {
-      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       caqhServiceInstance.addToRoster.mockResolvedValue({
         caqhProviderId: 'caqh-123',
-        status: 'pending',
+        status: 'ACTIVE',
       });
       prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
 
@@ -240,6 +242,7 @@ describe('CAQH Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.caqhProviderId).toBe('caqh-123');
+      expect(caqhServiceInstance.addToRoster).toHaveBeenCalledWith(validProviderId);
       expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -250,15 +253,98 @@ describe('CAQH Routes', () => {
       );
     });
 
-    it('returns 404 when provider not found', async () => {
-      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+    it('returns 400 PROVIDER_NOT_READY when service throws ProviderNotReadyForCaqhError', async () => {
+      const { ProviderNotReadyForCaqhError } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new ProviderNotReadyForCaqhError(['provider_not_found']),
+      );
 
       const res = await request(app)
         .post('/roster')
         .send({ providerId: validProviderId });
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
+      expect(res.body.code).toBe('PROVIDER_NOT_READY');
+    });
+
+    it('returns 422 CAQH_REJECTED when service throws CaqhRosterIndividualException', async () => {
+      const { CaqhRosterIndividualException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhRosterIndividualException('Required Field missing/invalid: Provider Type', {} as any),
+      );
+
+      const res = await request(app)
+        .post('/roster')
+        .send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_REJECTED');
+      expect(res.body.error).toMatch(/Provider Type/);
+    });
+
+    it('returns 409 CAQH_DUPLICATE when service throws CaqhDuplicateException', async () => {
+      const { CaqhDuplicateException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhDuplicateException(
+          'Add Failed: Provider already on Roster (exact duplicate)',
+          {} as any,
+          [{ raw: 'Add Failed: Provider already on Roster (exact duplicate)', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('CAQH_DUPLICATE');
+    });
+
+    it('returns 422 CAQH_OPT_OUT when service throws CaqhOptOutException', async () => {
+      const { CaqhOptOutException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhOptOutException(
+          'Add Failed: Provider is in Opt Out status.',
+          {} as any,
+          [{ raw: 'Add Failed: Provider is in Opt Out status.', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_OPT_OUT');
+    });
+
+    it('returns 422 CAQH_MULTIPLE_MATCH when service throws CaqhMultipleMatchException', async () => {
+      const { CaqhMultipleMatchException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhMultipleMatchException(
+          'Add Failed: More than one provider matches these criteria.',
+          {} as any,
+          [{ raw: 'Add Failed: More than one provider matches these criteria.', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_MULTIPLE_MATCH');
+    });
+
+    it('returns 422 CAQH_INVALID_PROVIDER_ID when service throws CaqhInvalidProviderIdException', async () => {
+      const { CaqhInvalidProviderIdException } = await import('../services/caqh.service.js');
+      caqhServiceInstance.addToRoster.mockRejectedValue(
+        new CaqhInvalidProviderIdException(
+          'Add Failed: CAQH Provider ID not found / invalid',
+          {} as any,
+          [{ raw: 'Add Failed: CAQH Provider ID not found / invalid', category: 'add_failed' }],
+        ),
+      );
+
+      const res = await request(app).post('/roster').send({ providerId: validProviderId });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('CAQH_INVALID_PROVIDER_ID');
     });
   });
 

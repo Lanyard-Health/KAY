@@ -1,0 +1,26 @@
+{
+  "provider": {
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "type": "MFT",
+    "address1": "123 Main St",
+    "address_city": "Austin",
+    "address_state": "TX",
+    "address_zip": "78701",
+    "birthdate": "19800115",
+    "npi": "1234567890",
+    "practice_state": "TX",
+    "status": "New Provider",
+    "status_date": "20260425"
+  },
+  "caqh_provider_id": "1234567890",
+  "po_provider_id": "",
+  "organization_id": "12345",
+  "roster_status": "ACTIVE",
+  "authorization_flag": "N",
+  "non_responder_flag": "N",
+  "delegation_flag": "N",
+  "affiliation_flag": "NA",
+  "anniversary_date": "20260425",
+  "exception_description": ""
+}

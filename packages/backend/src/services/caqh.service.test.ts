@@ -17,9 +17,98 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-import { CaqhService } from './caqh.service.js';
+import {
+  CaqhService,
+  ProviderNotReadyForCaqhError,
+  CaqhRosterIndividualException,
+  CaqhRequiredFieldException,
+  CaqhInvalidFieldException,
+  CaqhConditionalFieldException,
+  CaqhDuplicateException,
+  CaqhOptOutException,
+  CaqhInvalidProviderIdException,
+  CaqhMultipleMatchException,
+  parseExceptionDescription,
+} from './caqh.service.js';
 import type { CaqhCredentialsResponse, CaqhStatusResponse } from './caqh.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const FIXTURE_DIR = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../fixtures/caqh/spec-samples/v2.0',
+);
+function fixture(name: string): unknown {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only fixture loader; FIXTURE_DIR is a constant absolute path and `name` is a hardcoded filename in each call site.
+  return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), 'utf8'));
+}
+
+// Builds a fully-resolvable provider record. Override individual fields per test.
+function buildResolvableProvider(overrides: Partial<{
+  id: string;
+  npi: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: Date | null;
+  providerType: string;
+  taxonomy: string | null;
+  primaryPracticeState: string | null;
+  practiceLocations: Array<{
+    addressLine1: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    isPrimary: boolean | null;
+    createdAt: Date;
+  }>;
+}> = {}) {
+  return {
+    id: 'p1',
+    npi: '1234567890',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    dateOfBirth: new Date('1985-06-15'),
+    providerType: 'lcsw',
+    taxonomy: null,
+    primaryPracticeState: null,
+    practiceLocations: [
+      {
+        addressLine1: '123 Main St',
+        city: 'Austin',
+        state: 'CA',
+        zipCode: '78701',
+        isPrimary: true,
+        createdAt: new Date('2024-01-01'),
+      },
+    ],
+    ...overrides,
+  };
+}
+
+// Spec-sourced fixtures (lowercase per spec section 3.1.1).
+const SUCCESS_RESPONSE = fixture('response-add-individual-success.json');
+const REQUIRED_MISSING_RESPONSE = fixture('response-add-individual-required-missing.json');
+const WARNING_RESPONSE = fixture('response-add-individual-warning-non-fatal.json');
+const DUPLICATE_RESPONSE = fixture('response-add-individual-duplicate-failure.json');
+
+// PascalCase variant of the success response — models the demo server's
+// 2026-04-24 behavior. The Zod preprocess should normalize and accept this.
+const SUCCESS_RESPONSE_PASCAL = {
+  Provider: {
+    First_Name: 'Jane', Last_Name: 'Doe', Type: 'MFT',
+    Address1: '123 Main St', Address_City: 'Austin', Address_State: 'TX', Address_Zip: '78701',
+    Birthdate: '19800115', NPI: '1234567890', Practice_State: 'TX',
+    Status: 'New Provider', Status_Date: '20260425',
+  },
+  Caqh_Provider_Id: '1234567890',
+  Organization_Id: '12345',
+  Roster_Status: 'ACTIVE',
+  Authorization_Flag: 'N',
+  Anniversary_Date: '20260425',
+  Exception_Description: '',
+};
 
 let service: CaqhService;
 
@@ -94,12 +183,11 @@ describe('CaqhService', () => {
     });
 
     it('does not retry non-retryable operations (addToRoster)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
       const fetchSpy = vi.spyOn(globalThis, 'fetch')
         .mockResolvedValue({ ok: false, status: 500, text: () => Promise.resolve('err') } as Response);
 
-      await expect(service.addToRoster({
-        id: 'p1', npi: '1234567890', firstName: 'Jane', lastName: 'Doe', dateOfBirth: new Date('1985-01-01'),
-      })).rejects.toThrow('CAQH API error: 500');
+      await expect(service.addToRoster('p1')).rejects.toThrow('CAQH API error: 500');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -144,14 +232,16 @@ describe('CaqhService', () => {
   // Public API methods
   // ==========================================
 
-  describe('addToRoster', () => {
-    it('POSTs correct payload with formatted date', async () => {
+  describe('addToRoster — batch mode (legacy default)', () => {
+    beforeEach(() => {
+      delete process.env['CAQH_ROSTER_MODE'];
+    });
+
+    it('POSTs to /RosterAPI/API/Roster with snake_case payload', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
       const fetchSpy = mockFetchOk({ caqhProviderId: 'caqh-new', status: 'added' });
 
-      const result = await service.addToRoster({
-        id: 'p1', npi: '1234567890', firstName: 'Jane', lastName: 'Doe',
-        dateOfBirth: new Date('1985-06-15'),
-      });
+      const result = await service.addToRoster('p1');
 
       expect(result).toEqual({ caqhProviderId: 'caqh-new', status: 'added' });
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -159,7 +249,443 @@ describe('CaqhService', () => {
         expect.objectContaining({ method: 'POST' }),
       );
       const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
-      expect(body.date_of_birth).toBe('1985-06-15');
+      expect(body).toMatchObject({
+        provider_id: '1234567890',
+        first_name: 'Jane',
+        last_name: 'Doe',
+        date_of_birth: '1985-06-15',
+      });
+    });
+  });
+
+  describe('addToRoster — individual mode (Phase E2 — Roster Individual API v2.0)', () => {
+    beforeEach(() => {
+      process.env['CAQH_ROSTER_MODE'] = 'individual';
+    });
+
+    it('POSTs to /ProviewAPI/API/RosterIndividual (capital R) with lowercase nested envelope', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      const result = await service.addToRoster('p1');
+
+      expect(result.caqhProviderId).toBe('1234567890');
+      expect(result.status).toBe('ACTIVE');
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://caqh.test.com/ProviewAPI/API/RosterIndividual?product=PV',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      // Spec section 3.1.1: nested provider envelope, lowercase snake_case,
+      // request uses {city, state, zip} (response uses address_city/state/zip).
+      expect(body).toEqual({
+        provider: {
+          first_name: 'Jane',
+          last_name: 'Doe',
+          address1: '123 Main St',
+          city: 'Austin',
+          state: 'CA',
+          zip: '78701',
+          practice_state: 'CA',
+          birthdate: '19850615',  // YYYYMMDD per spec, no separators
+          type: 'CSW',            // lcsw → CSW per Table 37
+          npi: '1234567890',
+        },
+        organization_id: 'org-123',
+      });
+    });
+
+    it('formats birthdate as YYYYMMDD (8 digits, no separators)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        dateOfBirth: new Date('1980-01-05'),
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.birthdate).toBe('19800105');
+    });
+
+    it('surfaces authorization_flag and provider_status from response', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(SUCCESS_RESPONSE);
+
+      const result = await service.addToRoster('p1');
+
+      expect(result.authorizationFlag).toBe('N');
+      expect(result.providerStatus).toBe('New Provider');
+    });
+
+    it('treats whitespace-only exception_description as success', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ ...(SUCCESS_RESPONSE as object), exception_description: '   ' });
+
+      const result = await service.addToRoster('p1');
+      expect(result.caqhProviderId).toBe('1234567890');
+    });
+
+    it('treats Warning exception as success and surfaces warning text', async () => {
+      // Spec Table 6: "Warning: ..." is the only non-fatal category. Record
+      // was processed despite the warning. Code must NOT throw.
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(WARNING_RESPONSE);
+
+      const result = await service.addToRoster('p1');
+      expect(result.caqhProviderId).toBe('1234567890');
+      expect(result.warnings).toBeDefined();
+      expect(result.warnings![0]).toMatch(/^Warning:/);
+    });
+
+    it('throws CaqhRequiredFieldException when exception lists required missing fields', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(REQUIRED_MISSING_RESPONSE);
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhRequiredFieldException);
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhRosterIndividualException);
+    });
+
+    it('throws CaqhDuplicateException for "Add Failed: Provider already on Roster"', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(DUPLICATE_RESPONSE);
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhDuplicateException);
+    });
+
+    it('throws CaqhOptOutException for "Add Failed: Provider is in Opt Out status"', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({
+        ...(SUCCESS_RESPONSE as object),
+        caqh_provider_id: null,
+        roster_status: null,
+        exception_description: 'Add Failed: Provider is in Opt Out status.',
+      });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhOptOutException);
+    });
+
+    it('throws CaqhInvalidProviderIdException for "Add Failed: CAQH Provider ID not found / invalid"', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({
+        ...(SUCCESS_RESPONSE as object),
+        caqh_provider_id: null,
+        roster_status: null,
+        exception_description: 'Add Failed: CAQH Provider ID not found / invalid',
+      });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhInvalidProviderIdException);
+    });
+
+    it('throws CaqhMultipleMatchException for "Add Failed: More than one provider matches"', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({
+        ...(SUCCESS_RESPONSE as object),
+        caqh_provider_id: null,
+        roster_status: null,
+        exception_description: 'Add Failed: More than one provider matches these criteria. Please use additional data to find a match for this provider or add this provider through the portal.',
+      });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhMultipleMatchException);
+    });
+
+    it('throws CaqhConditionalFieldException for "License Number required when License state is populated"', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({
+        ...(SUCCESS_RESPONSE as object),
+        caqh_provider_id: null,
+        roster_status: null,
+        exception_description: 'License Number required when License state is populated.',
+      });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhConditionalFieldException);
+    });
+
+    it('throws CaqhInvalidFieldException for optional-format-invalid exceptions', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({
+        ...(SUCCESS_RESPONSE as object),
+        caqh_provider_id: null,
+        roster_status: null,
+        exception_description: 'Provider_DEA is in invalid format',
+      });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhInvalidFieldException);
+    });
+
+    it('throws on unrecognized roster_status (treats unknown enum values as non-success)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ ...(SUCCESS_RESPONSE as object), roster_status: 'PENDING_REVIEW' });
+
+      await expect(service.addToRoster('p1')).rejects.toThrow(/unrecognized roster_status: PENDING_REVIEW/);
+    });
+
+    it.each(['ACTIVE', 'INACTIVE', 'NOT ON ROSTER'])(
+      'accepts %s as a known roster_status (per spec Table 38)',
+      async (status) => {
+        prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+        mockFetchOk({ ...(SUCCESS_RESPONSE as object), roster_status: status });
+
+        const result = await service.addToRoster('p1');
+        expect(result.status).toBe(status);
+      },
+    );
+
+    it('tolerates PascalCase response keys (demo server 2026-04-24 behavior)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(SUCCESS_RESPONSE_PASCAL);
+
+      const result = await service.addToRoster('p1');
+      expect(result.caqhProviderId).toBe('1234567890');
+      expect(result.status).toBe('ACTIVE');
+      expect(result.authorizationFlag).toBe('N');
+    });
+
+    it('throws when 200 returns no caqh_provider_id and no exception_description', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ ...(SUCCESS_RESPONSE as object), caqh_provider_id: null });
+
+      await expect(service.addToRoster('p1')).rejects.toThrow(/no caqh_provider_id/);
+    });
+
+    it('coerces numeric caqh_provider_id to string', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ ...(SUCCESS_RESPONSE as object), caqh_provider_id: 99887766 });
+
+      const result = await service.addToRoster('p1');
+      expect(result.caqhProviderId).toBe('99887766');
+    });
+
+    it('throws schema-invalid error when response is not the expected shape', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk('totally unexpected');
+
+      await expect(service.addToRoster('p1')).rejects.toThrow(/unrecognized response shape/);
+    });
+  });
+
+  describe('addToRoster — Type resolution (per spec Appendix A.1 Table 37)', () => {
+    beforeEach(() => {
+      process.env['CAQH_ROSTER_MODE'] = 'individual';
+    });
+
+    // Direct mappings — values verified against Table 37's 43 valid codes.
+    const directMappings: Array<[string, string]> = [
+      ['lcsw', 'CSW'],   // Clinical Social Worker
+      ['lpc', 'PC'],     // Professional Counselor
+      ['lmft', 'MFT'],   // Marriage/Family Therapist
+      ['pmhnp', 'NP'],   // Nurse Practitioner
+    ];
+    for (const [providerType, expectedType] of directMappings) {
+      it(`maps providerType=${providerType} → CAQH Type=${expectedType}`, async () => {
+        prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({ providerType }) as any);
+        const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+        await service.addToRoster('p1');
+
+        const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+        expect(body.provider.type).toBe(expectedType);
+      });
+    }
+
+    it('defaults psychiatrist → MD (logged for audit, DO disambiguation parked)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({ providerType: 'psychiatrist' }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('MD');
+    });
+
+    it('defaults psychologist → CP (logged for audit, PhD disambiguation parked)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({ providerType: 'psychologist' }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('CP');
+    });
+
+    it('fails readiness when providerType=other (NUCC taxonomy fallback deferred)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: '2084P0800X', // valid prefix but fallback is parked
+      }) as any);
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+    });
+
+    it('fails readiness when providerType=other and taxonomy is null', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: null,
+      }) as any);
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+    });
+  });
+
+  describe('addToRoster — practice location resolution', () => {
+    beforeEach(() => {
+      process.env['CAQH_ROSTER_MODE'] = 'individual';
+    });
+
+    function fullLoc(overrides: Partial<{ addressLine1: string | null; city: string | null; state: string | null; zipCode: string | null; isPrimary: boolean; createdAt: Date }> = {}) {
+      return {
+        addressLine1: '123 Main St',
+        city: 'Austin',
+        state: 'CA',
+        zipCode: '78701',
+        isPrimary: true,
+        createdAt: new Date('2024-01-01'),
+        ...overrides,
+      };
+    }
+
+    it('uses primary practice location first (state, address, city, zip)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        primaryPracticeState: 'TX',
+        practiceLocations: [
+          fullLoc({ addressLine1: '99 Old Way', city: 'Albany', state: 'NY', zipCode: '12207', isPrimary: false, createdAt: new Date('2024-02-01') }),
+          fullLoc({ addressLine1: '500 Congress Ave', city: 'Austin', state: 'CA', zipCode: '78701', isPrimary: true, createdAt: new Date('2024-01-01') }),
+        ],
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.address1).toBe('500 Congress Ave');
+      expect(body.provider.city).toBe('Austin');
+      expect(body.provider.state).toBe('CA');
+      expect(body.provider.zip).toBe('78701');
+      expect(body.provider.practice_state).toBe('CA');
+    });
+
+    it('falls back to first location when no primary is flagged', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        primaryPracticeState: 'TX',
+        practiceLocations: [
+          fullLoc({ addressLine1: '99 Old Way', city: 'Albany', state: 'NY', zipCode: '12207', isPrimary: false, createdAt: new Date('2024-02-01') }),
+        ],
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.state).toBe('NY');
+    });
+
+    it('fails readiness with practice_location_missing when no locations exist', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        primaryPracticeState: 'TX',
+        practiceLocations: [],
+      }) as any);
+
+      const ready = await service.checkRosterReadiness('p1');
+      expect(ready.ready).toBe(false);
+      expect(ready.missingFields).toContain('practice_location_missing');
+    });
+
+    it('fails readiness with per-field reasons when location exists but address fields are blank', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        practiceLocations: [
+          fullLoc({ addressLine1: '', city: '', state: 'CA', zipCode: '' }),
+        ],
+      }) as any);
+
+      const ready = await service.checkRosterReadiness('p1');
+      expect(ready.ready).toBe(false);
+      expect(ready.missingFields).toEqual(expect.arrayContaining(['address1', 'city', 'zip']));
+      expect(ready.missingFields).not.toContain('practice_location_missing');
+    });
+
+    it('reports ALL failure reasons in one pass (not just the first)', async () => {
+      // The "Kenneth case" — providerType=other AND no practice location.
+      // Readiness should surface both reasons so the user sees the full picture.
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        practiceLocations: [],
+      }) as any);
+
+      const ready = await service.checkRosterReadiness('p1');
+      expect(ready.ready).toBe(false);
+      expect(ready.missingFields).toEqual(expect.arrayContaining([
+        expect.stringMatching(/provider_type_other_deferred/),
+        'practice_location_missing',
+      ]));
+    });
+  });
+
+  describe('checkRosterReadiness', () => {
+    it('returns ready=true with resolved values for a complete provider', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+
+      const result = await service.checkRosterReadiness('p1');
+
+      expect(result).toMatchObject({ ready: true, missingFields: [], caqhType: 'CSW', practiceState: 'CA' });
+    });
+
+    it('returns ready=false with missing fields list, does not throw', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        npi: null,
+        firstName: null,
+      }) as any);
+
+      const result = await service.checkRosterReadiness('p1');
+
+      expect(result.ready).toBe(false);
+      expect(result.missingFields).toContain('npi');
+      expect(result.missingFields).toContain('firstName');
+    });
+
+    it('returns ready=false when provider does not exist', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+
+      const result = await service.checkRosterReadiness('does-not-exist');
+
+      expect(result.ready).toBe(false);
+      expect(result.missingFields).toEqual(['provider_not_found']);
+    });
+  });
+
+  describe('parseExceptionDescription (spec Table 6 classifier)', () => {
+    it('classifies required-missing strings', () => {
+      const parsed = parseExceptionDescription(
+        'Required Field missing/invalid: Provider First Name;Missing Identifiers: At least one of the ID fields (NPI, DEA, UPIN, License State/License Number, SSN) must be populated.',
+      );
+      expect(parsed).toHaveLength(2);
+      expect(parsed.every((p) => p.category === 'required_missing')).toBe(true);
+    });
+
+    it('classifies optional-invalid strings', () => {
+      const parsed = parseExceptionDescription('Provider_DEA is in invalid format;Provider_Name_Suffix is invalid');
+      expect(parsed.map((p) => p.category)).toEqual(['optional_invalid', 'optional_invalid']);
+    });
+
+    it('classifies conditional-required strings', () => {
+      const parsed = parseExceptionDescription('License Number required when License state is populated.');
+      expect(parsed[0]!.category).toBe('conditionally_required');
+    });
+
+    it('classifies warning strings', () => {
+      const parsed = parseExceptionDescription(
+        'Warning: One or more of the Provider IDs (NPI, DEA, UPIN, License State/License Number, SSN) are invalid; however, record was processed using other valid IDs provided.',
+      );
+      // The semicolon inside the warning string splits into two segments; both should classify as warning
+      // because each segment that survives splitting still starts with the warning text or follows it.
+      // Spec strings don't typically contain `;` mid-message, so this test is somewhat synthetic — just
+      // verifies the leading classification.
+      expect(parsed[0]!.category).toBe('warning');
+    });
+
+    it('classifies add-failed strings', () => {
+      const parsed = parseExceptionDescription('Add Failed: Provider already on Roster (exact duplicate)');
+      expect(parsed[0]!.category).toBe('add_failed');
     });
   });
 

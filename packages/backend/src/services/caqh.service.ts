@@ -1,11 +1,18 @@
 import { prisma } from '../utils/prisma.js';
-import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus } from '@prisma/client';
+import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { encryptSafe } from '../utils/crypto.js';
+import { z } from 'zod';
 
-interface CaqhRosterResponse {
+export interface CaqhRosterResponse {
   caqhProviderId: string;
   status: string;
+  /** Per spec Table 38: practitioner lifecycle status (e.g. "New Provider", "Initial Outreach"). */
+  providerStatus?: string | null;
+  /** Per spec: Y if practitioner has authorized this organization to view their data; N otherwise. */
+  authorizationFlag?: 'Y' | 'N' | null;
+  /** Non-fatal warnings from `exception_description` — request succeeded but with caveats. */
+  warnings?: string[];
 }
 
 export interface CaqhStatusResponse {
@@ -370,6 +377,373 @@ function parseCaqhDate(raw: unknown): Date | undefined {
   return isNaN(dt.getTime()) ? undefined : dt;
 }
 
+// ============================================================================
+// Phase E2: Roster Individual API v2.0 support
+//
+// Wire format per spec section 3.1.1 / Table 3:
+//   - Endpoint: POST /ProviewAPI/API/RosterIndividual?product=PV  (capital R)
+//   - Request: lowercase snake_case throughout, nested provider envelope
+//     { provider: { first_name, last_name, address1, city, state, zip,
+//                   practice_state, birthdate, type, npi, ... },
+//       organization_id }
+//   - Response: lowercase snake_case in JSON. Demo server (POID 6279) returned
+//     PascalCase keys on 2026-04-24 — we lowercase keys before parsing as a
+//     defensive measure. Spec-correct prod casing is unknown until first prod
+//     call.
+//   - Birthdate / all dates: YYYYMMDD (8 digits, no separators).
+//
+// Required Initial Add fields (Table 3): provider.{first_name, last_name,
+//   address1, city, state, zip, practice_state, birthdate, type} +
+//   top-level organization_id + at least one identifier
+//   (npi / dea / upin / license_state+license_number / ssn).
+//
+// Spec PDFs: ~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/
+//   CAQH Specs 042526/drive-download-20260425T171441Z-3-001/
+// Local fixtures: packages/backend/fixtures/caqh/spec-samples/v2.0/
+// ============================================================================
+
+/**
+ * Maps Lanyard ProviderType enum values to CAQH Roster Individual `provider.type`
+ * values. Codes verified against spec Appendix A.1 Table 37 (43 valid codes).
+ * `psychiatrist` and `psychologist` use defaults that get logged via
+ * `caqh_type_default_applied` so we can audit if CAQH ever rejects them.
+ * `other` is intentionally absent — readiness fails until the NUCC taxonomy
+ * fallback ships (deferred; see resolveCaqhRosterData).
+ */
+const PROVIDER_TYPE_TO_CAQH_TYPE: Partial<Record<ProviderType, string>> = {
+  psychiatrist: 'MD',  // Table 37: Medical Doctor
+  psychologist: 'CP',  // Table 37: Clinical Psychologist (PsyD is not a valid CAQH Type)
+  lcsw: 'CSW',         // Table 37: Clinical Social Worker
+  lpc: 'PC',           // Table 37: Professional Counselor
+  lmft: 'MFT',         // Table 37: Marriage/Family Therapist
+  pmhnp: 'NP',         // Table 37: Nurse Practitioner
+};
+
+const CAQH_TYPE_DEFAULT_APPLIED: ReadonlySet<ProviderType> = new Set<ProviderType>(['psychiatrist', 'psychologist']);
+
+/**
+ * NUCC taxonomy → CAQH Type lookup. **Currently inactive** —
+ * `provider_type=other` always fails readiness until the taxonomy fallback
+ * ships in a later phase. Values pre-validated against spec Table 37 so the
+ * lookup returns valid CAQH Type codes when activated.
+ *
+ * Match strategy when activated: longest-prefix-wins.
+ * Extend ONLY after validating new entries against taxonomy.nucc.org.
+ */
+const NUCC_TAXONOMY_PREFIX_TO_CAQH_TYPE: ReadonlyArray<{ prefix: string; type: string }> = [
+  { prefix: '2084P', type: 'MD' },   // Psychiatry family
+  { prefix: '208M',  type: 'HOS' },  // Hospitalist (Table 37: HOS, not MD)
+  { prefix: '1041',  type: 'CSW' },  // Social Worker family (Table 37: CSW)
+  { prefix: '101Y',  type: 'PC' },   // Counselor (Table 37: PC, not LPC)
+];
+
+/**
+ * Per spec Table 38 (Roster Status, distinct from Provider Status). The
+ * spec lists three lifecycle values for plan-roster membership.
+ */
+const KNOWN_ROSTER_STATUS: ReadonlySet<string> = new Set(['ACTIVE', 'INACTIVE', 'NOT ON ROSTER']);
+
+/** Regex resolver for the 13 lifecycle Provider Status values in Table 38. */
+const KNOWN_PROVIDER_STATUS: ReadonlySet<string> = new Set([
+  'Alternate Outreach', 'Expired Attestation', 'First Provider Contact',
+  'Initial Outreach', 'Initial Profile Complete', 'New Provider', 'OptOut',
+  'Profile Data Submitted', 'Provider Deceased', 'Provider Retired',
+  'Re-Attestation', 'Returned mail', 'Undeliverable',
+]);
+
+/**
+ * Recursively lowercase all object keys. Defensive shim for the casing
+ * disagreement between spec (lowercase) and the 2026-04-24 demo server
+ * response (PascalCase). Lowercasing is one-way safe: `First_Name` and
+ * `first_name` both collapse to `first_name`.
+ */
+function lowercaseKeysDeep(input: unknown): unknown {
+  if (Array.isArray(input)) return input.map(lowercaseKeysDeep);
+  if (input && typeof input === 'object') {
+    return Object.fromEntries(
+      Object.entries(input as Record<string, unknown>).map(([k, v]) => [k.toLowerCase(), lowercaseKeysDeep(v)]),
+    );
+  }
+  return input;
+}
+
+/**
+ * Zod schema for /ProviewAPI/API/RosterIndividual response.
+ * Lowercase snake_case per spec; preprocess normalizes PascalCase variants.
+ * All fields nullable/optional because CAQH nulls everything when the request
+ * fails validation — we don't want a schema mismatch to mask the real failure
+ * carried by `exception_description`. `passthrough()` because CAQH may add
+ * fields without notice.
+ */
+const StringOrNumberLike = z.union([z.string(), z.number()]).nullable().optional()
+  .transform(v => (v == null ? null : String(v)));
+
+const RosterIndividualProviderSchema = z.object({
+  first_name: z.string().nullable().optional(),
+  middle_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+  address1: z.string().nullable().optional(),
+  address2: z.string().nullable().optional(),
+  // Note request/response asymmetry per spec: request uses {city, state, zip};
+  // response uses {address_city, address_state, address_zip}. Yes, really.
+  address_city: z.string().nullable().optional(),
+  address_state: z.string().nullable().optional(),
+  address_zip: z.string().nullable().optional(),
+  birthdate: z.string().nullable().optional(),
+  license_number: StringOrNumberLike,
+  license_state: z.string().nullable().optional(),
+  upin: StringOrNumberLike,
+  dea: StringOrNumberLike,
+  npi: StringOrNumberLike,
+  practice_state: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  status_date: z.string().nullable().optional(),
+}).passthrough();
+
+const RosterIndividualResponseSchemaLower = z.object({
+  provider: RosterIndividualProviderSchema.nullable().optional(),
+  caqh_provider_id: StringOrNumberLike,
+  po_provider_id: StringOrNumberLike,
+  organization_id: StringOrNumberLike,
+  roster_status: z.string().nullable().optional(),
+  authorization_flag: z.string().nullable().optional(),
+  non_responder_flag: z.string().nullable().optional(),
+  delegation_flag: z.string().nullable().optional(),
+  affiliation_flag: z.string().nullable().optional(),
+  anniversary_date: z.string().nullable().optional(),
+  exception_description: z.string().nullable().optional(),
+}).passthrough();
+
+const RosterIndividualResponseSchema = z.preprocess(
+  (raw) => lowercaseKeysDeep(raw),
+  RosterIndividualResponseSchemaLower,
+);
+
+export type RosterIndividualResponse = z.infer<typeof RosterIndividualResponseSchemaLower>;
+
+export class ProviderNotReadyForCaqhError extends Error {
+  constructor(public readonly missingFields: string[]) {
+    super(`Provider not ready for CAQH roster. Missing/invalid: ${missingFields.join(', ')}`);
+    this.name = 'ProviderNotReadyForCaqhError';
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Exception classifier
+//
+// Source of truth: spec Table 6 (page 14) — 22 exception strings across 5
+// categories. Required/Optional/Conditionally Required/Add Failed are fatal;
+// Warning is non-fatal (record was processed despite warning).
+//
+// Local fixture: fixtures/caqh/spec-samples/v2.0/exception-strings-table-6.json
+// ----------------------------------------------------------------------------
+
+export type CaqhExceptionCategory =
+  | 'required_missing'
+  | 'optional_invalid'
+  | 'conditionally_required'
+  | 'warning'
+  | 'add_failed';
+
+export interface ParsedException {
+  raw: string;
+  category: CaqhExceptionCategory;
+}
+
+/**
+ * Prefix-anchored category patterns. Each marks the START of an exception.
+ * Per spec Table 6, exceptions are concatenated with `;` separators — but
+ * the warning string itself contains a `;` mid-message ("...are invalid;
+ * however, record was processed..."), so naive `split(';')` mis-classifies
+ * the second half. We instead find every prefix match, use its position to
+ * carve up the description, and let the slice up to the next prefix (or
+ * end-of-string) be the full exception text.
+ */
+const PREFIX_PATTERNS: ReadonlyArray<{ category: CaqhExceptionCategory; regex: RegExp }> = [
+  { category: 'required_missing',       regex: /Required Field missing\/invalid:/gi },
+  { category: 'required_missing',       regex: /Missing Identifiers:/gi },
+  { category: 'required_missing',       regex: /Invalid Identifiers:/gi },
+  { category: 'conditionally_required', regex: /License Number required when/gi },
+  { category: 'conditionally_required', regex: /License [Ss]tate required when/gi },
+  { category: 'warning',                regex: /Warning:/gi },
+  { category: 'add_failed',             regex: /Add Failed:/gi },
+];
+
+/** Optional-invalid strings ("Provider_X is in invalid format" / "is invalid") have no
+ *  leading prefix — they appear standalone or `;`-separated from prefixed strings. */
+const SUFFIX_OPTIONAL_INVALID = /(?: is in invalid format$| is invalid$)/i;
+
+/**
+ * Classify the API's `exception_description` into structured exception
+ * segments per spec Table 6. Robust to warnings containing semicolons.
+ */
+export function parseExceptionDescription(description: string): ParsedException[] {
+  const hits: Array<{ start: number; category: CaqhExceptionCategory }> = [];
+  for (const { regex, category } of PREFIX_PATTERNS) {
+    for (const m of description.matchAll(regex)) {
+      if (m.index !== undefined) hits.push({ start: m.index, category });
+    }
+  }
+  hits.sort((a, b) => a.start - b.start);
+
+  const result: ParsedException[] = [];
+
+  // 1. Slice before the first prefix (or whole string if no prefix matched)
+  //    is split on `;` and matched against the optional-invalid suffix pattern.
+  const orphanEnd = hits.length > 0 ? hits[0]!.start : description.length;
+  const orphan = description.slice(0, orphanEnd);
+  for (const seg of orphan.split(';').map((s) => s.trim()).filter((s) => s.length > 0)) {
+    if (SUFFIX_OPTIONAL_INVALID.test(seg)) {
+      result.push({ raw: seg, category: 'optional_invalid' });
+    } else {
+      // Safety default — better to fail loud than silently treat unknown as warning.
+      result.push({ raw: seg, category: 'required_missing' });
+    }
+  }
+
+  // 2. Each prefix-anchored slice runs from this hit to the next hit
+  //    (or end of string). Strip any trailing separator/whitespace.
+  for (let i = 0; i < hits.length; i++) {
+    const start = hits[i]!.start;
+    const end = i + 1 < hits.length ? hits[i + 1]!.start : description.length;
+    const raw = description.slice(start, end).replace(/[\s;]+$/, '').trim();
+    if (raw.length > 0) {
+      result.push({ raw, category: hits[i]!.category });
+    }
+  }
+
+  return result;
+}
+
+export class CaqhRosterIndividualException extends Error {
+  public readonly category: CaqhExceptionCategory | 'mixed';
+  public readonly parsedExceptions: ParsedException[];
+
+  constructor(
+    public readonly exceptionDescription: string,
+    public readonly rawResponse: RosterIndividualResponse,
+    parsed?: ParsedException[],
+  ) {
+    super(`CAQH RosterIndividual rejected request: ${exceptionDescription}`);
+    this.name = 'CaqhRosterIndividualException';
+    this.parsedExceptions = parsed ?? parseExceptionDescription(exceptionDescription);
+    const categories = new Set(this.parsedExceptions.map((p) => p.category));
+    this.category = categories.size === 1 ? this.parsedExceptions[0]!.category : 'mixed';
+  }
+}
+
+export class CaqhRequiredFieldException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhRequiredFieldException';
+  }
+}
+
+export class CaqhInvalidFieldException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhInvalidFieldException';
+  }
+}
+
+export class CaqhConditionalFieldException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhConditionalFieldException';
+  }
+}
+
+export class CaqhDuplicateException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhDuplicateException';
+  }
+}
+
+export class CaqhOptOutException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhOptOutException';
+  }
+}
+
+export class CaqhInvalidProviderIdException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhInvalidProviderIdException';
+  }
+}
+
+export class CaqhMultipleMatchException extends CaqhRosterIndividualException {
+  constructor(description: string, rawResponse: RosterIndividualResponse, parsed: ParsedException[]) {
+    super(description, rawResponse, parsed);
+    this.name = 'CaqhMultipleMatchException';
+  }
+}
+
+/**
+ * Choose the most-specific exception subclass given a parsed list. Selection
+ * priority (most fatal first): add_failed > required > conditional > optional.
+ * Warnings alone never throw — handled by caller via the parsed list.
+ */
+function buildExceptionFromParsed(
+  description: string,
+  rawResponse: RosterIndividualResponse,
+  parsed: ParsedException[],
+): CaqhRosterIndividualException {
+  const addFailed = parsed.find((p) => p.category === 'add_failed');
+  if (addFailed) {
+    const raw = addFailed.raw;
+    if (/Provider already on Roster/i.test(raw)) return new CaqhDuplicateException(description, rawResponse, parsed);
+    if (/Opt Out/i.test(raw))                    return new CaqhOptOutException(description, rawResponse, parsed);
+    if (/CAQH Provider ID not found/i.test(raw)) return new CaqhInvalidProviderIdException(description, rawResponse, parsed);
+    if (/More than one provider matches/i.test(raw)) return new CaqhMultipleMatchException(description, rawResponse, parsed);
+    return new CaqhRosterIndividualException(description, rawResponse, parsed);
+  }
+  if (parsed.some((p) => p.category === 'required_missing')) {
+    return new CaqhRequiredFieldException(description, rawResponse, parsed);
+  }
+  if (parsed.some((p) => p.category === 'conditionally_required')) {
+    return new CaqhConditionalFieldException(description, rawResponse, parsed);
+  }
+  if (parsed.some((p) => p.category === 'optional_invalid')) {
+    return new CaqhInvalidFieldException(description, rawResponse, parsed);
+  }
+  return new CaqhRosterIndividualException(description, rawResponse, parsed);
+}
+
+export interface ResolvedRosterData {
+  providerId: string;
+  npi: string;
+  firstName: string;
+  lastName: string;
+  birthdate: string;     // YYYY-MM-DD ISO date — call-site formats per endpoint (RosterIndividual = YYYYMMDD; legacy batch = YYYY-MM-DD)
+  caqhType: string;
+  practiceState: string;
+  address1: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+/**
+ * Longest-prefix-wins NUCC taxonomy → CAQH Type lookup. Currently unused —
+ * `provider_type=other` always fails readiness until the fallback ships in
+ * a later phase. Kept here so the activation diff is small.
+ */
+function resolveCaqhTypeFromTaxonomy(taxonomy: string): string | null {
+  let best: { prefix: string; type: string } | null = null;
+  for (const entry of NUCC_TAXONOMY_PREFIX_TO_CAQH_TYPE) {
+    if (taxonomy.startsWith(entry.prefix) && (!best || entry.prefix.length > best.prefix.length)) {
+      best = entry;
+    }
+  }
+  return best?.type ?? null;
+}
+// Suppress "unused" diagnostics until the deferred phase calls this.
+void resolveCaqhTypeFromTaxonomy;
+
 export class CaqhService {
   private baseUrl: string;
   private orgId: string;
@@ -506,15 +880,59 @@ export class CaqhService {
     throw new Error('No usable XML parser found (fast-xml-parser)');
   }
 
-  async addToRoster(provider: {
-    id: string;
-    npi: string;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: Date;
-  }): Promise<CaqhRosterResponse> {
-    logger.info(`Adding provider ${provider.npi} to CAQH roster`);
+  /**
+   * Add a provider to the CAQH roster. Dispatches between the legacy batch endpoint
+   * and the new rosterIndividual endpoint based on `CAQH_ROSTER_MODE` (default 'batch').
+   *
+   * Throws `ProviderNotReadyForCaqhError` if required fields can't be resolved.
+   * Throws `CaqhRosterIndividualException` if CAQH rejects the request via
+   * `Exception_Description` envelope (rosterIndividual mode only — see issue #206).
+   */
+  async addToRoster(providerId: string): Promise<CaqhRosterResponse> {
+    const resolved = await this.resolveCaqhRosterData(providerId);
+    const mode = process.env['CAQH_ROSTER_MODE'] === 'individual' ? 'individual' : 'batch';
 
+    logger.info({
+      event: 'caqh_add_to_roster_start',
+      providerId,
+      npi: resolved.npi,
+      mode,
+    });
+
+    if (mode === 'individual') {
+      return this.addToRosterIndividual(resolved);
+    }
+    return this.addToRosterBatch(resolved);
+  }
+
+  /**
+   * Non-throwing readiness check used by adapters/UI. Mirrors `addToRoster`'s
+   * resolver but returns missingFields instead of throwing.
+   */
+  async checkRosterReadiness(providerId: string): Promise<{
+    ready: boolean;
+    missingFields: string[];
+    caqhType?: string;
+    practiceState?: string;
+  }> {
+    try {
+      const data = await this.resolveCaqhRosterData(providerId);
+      return {
+        ready: true,
+        missingFields: [],
+        caqhType: data.caqhType,
+        practiceState: data.practiceState,
+      };
+    } catch (e) {
+      if (e instanceof ProviderNotReadyForCaqhError) {
+        return { ready: false, missingFields: e.missingFields };
+      }
+      throw e;
+    }
+  }
+
+  /** Legacy batch endpoint. Known broken (issue #206) — kept default until E3 verifies individual mode. */
+  private async addToRosterBatch(resolved: ResolvedRosterData): Promise<CaqhRosterResponse> {
     const response = await this.request<CaqhRosterResponse>(
       `/RosterAPI/API/Roster?product=${encodeURIComponent(this.product)}`,
       {
@@ -524,16 +942,294 @@ export class CaqhService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          provider_id: provider.npi,
-          first_name: provider.firstName,
-          last_name: provider.lastName,
-          date_of_birth: provider.dateOfBirth.toISOString().split('T')[0],
+          provider_id: resolved.npi,
+          first_name: resolved.firstName,
+          last_name: resolved.lastName,
+          date_of_birth: resolved.birthdate,
         }),
       },
       false
     );
 
     return response;
+  }
+
+  /**
+   * Roster Individual API v2.0 endpoint. Sends lowercase snake_case nested
+   * envelope per spec section 3.1.1 / Table 3. Treats non-empty
+   * `exception_description` as failure (HTTP 200 != success per Table 6 —
+   * the discovery-call misread that prompted the Phase 2 rewrite). Warning
+   * exceptions return success with the warning surfaced on the response.
+   *
+   * Spec PDF: ~/Library/Mobile Documents/com~apple~CloudDocs/Lanyard Health/
+   *   CAQH Specs 042526/drive-download-20260425T171441Z-3-001/
+   *   CAQH Credentialing and Directory Management Roster Individual API
+   *   Specification v2.0.pdf
+   */
+  private async addToRosterIndividual(resolved: ResolvedRosterData): Promise<CaqhRosterResponse> {
+    const payload = {
+      provider: {
+        first_name: resolved.firstName,
+        last_name: resolved.lastName,
+        address1: resolved.address1,
+        // Request uses {city, state, zip}; response uses {address_city, address_state, address_zip} per spec.
+        city: resolved.city,
+        state: resolved.state,
+        zip: resolved.zip,
+        practice_state: resolved.practiceState,
+        // Spec section 3.1.1: dates are YYYYMMDD (no separators).
+        birthdate: resolved.birthdate.replace(/-/g, ''),
+        type: resolved.caqhType,
+        npi: resolved.npi,
+      },
+      organization_id: this.orgId,
+    };
+
+    const raw = await this.request<unknown>(
+      // Capital R — spec endpoint is `/RosterIndividual`, not lowercase r.
+      `/ProviewAPI/API/RosterIndividual?product=${encodeURIComponent(this.product)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+      // retryable=false: per spec Table 24 (Add to Roster Individual exceptions),
+      // the API is not idempotent — duplicate calls return
+      // "Add Failed: Provider already on Roster (exact duplicate)" instead of
+      // returning the original caqh_provider_id. Auto-retry would surface the
+      // duplicate exception as a false-failure on the retry, masking the
+      // original success. Manual retry is only safe after server-side
+      // investigation confirms the original add did not land.
+      false,
+    );
+
+    const parsed = RosterIndividualResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      logger.error({
+        event: 'caqh_roster_individual_response_schema_invalid',
+        providerId: resolved.providerId,
+        zodError: parsed.error.flatten(),
+        rawKeys: raw && typeof raw === 'object' ? Object.keys(raw as object) : [],
+      });
+      throw new Error('CAQH RosterIndividual returned an unrecognized response shape');
+    }
+    const body = parsed.data;
+
+    // exception_description envelope: classify segments per spec Table 6.
+    // Warnings are non-fatal (record was processed); everything else is fatal.
+    const exception = body.exception_description?.trim() ?? '';
+    let warnings: string[] = [];
+    if (exception.length > 0) {
+      const parsedExceptions = parseExceptionDescription(exception);
+      const fatal = parsedExceptions.filter((p) => p.category !== 'warning');
+      warnings = parsedExceptions.filter((p) => p.category === 'warning').map((p) => p.raw);
+
+      if (fatal.length > 0) {
+        logger.warn({
+          event: 'caqh_roster_individual_exception',
+          providerId: resolved.providerId,
+          exceptionDescription: exception,
+          categories: [...new Set(parsedExceptions.map((p) => p.category))],
+          rosterStatus: body.roster_status ?? null,
+        });
+        throw buildExceptionFromParsed(exception, body, parsedExceptions);
+      }
+
+      // Warnings only — log and continue to success path.
+      logger.warn({
+        event: 'caqh_roster_individual_warning',
+        providerId: resolved.providerId,
+        warnings,
+        rosterStatus: body.roster_status ?? null,
+        reason: 'Non-fatal warning per spec Table 6 — record processed',
+      });
+    }
+
+    // Defensive roster_status handling: log unknown enum values and treat as non-success.
+    const rosterStatus = body.roster_status;
+    if (rosterStatus != null && !KNOWN_ROSTER_STATUS.has(rosterStatus)) {
+      logger.warn({
+        event: 'caqh_roster_status_unknown',
+        providerId: resolved.providerId,
+        rawRosterStatus: rosterStatus,
+        reason: 'Unknown enum value — treating as non-success (extend KNOWN_ROSTER_STATUS once confirmed against spec Table 38)',
+      });
+      throw new Error(`CAQH RosterIndividual returned unrecognized roster_status: ${rosterStatus}`);
+    }
+
+    const caqhProviderId = body.caqh_provider_id;
+    if (!caqhProviderId) {
+      logger.error({
+        event: 'caqh_roster_individual_no_id',
+        providerId: resolved.providerId,
+        rosterStatus: rosterStatus ?? null,
+        hint: 'CAQH returned 200 with no exception_description but also no caqh_provider_id',
+      });
+      throw new Error('CAQH RosterIndividual returned no caqh_provider_id');
+    }
+
+    // Surface authorization_flag and provider_status (Table 38) as separate fields.
+    const authorizationFlag = (body.authorization_flag ?? null) as 'Y' | 'N' | null;
+    const providerStatus = body.provider?.status ?? null;
+    if (providerStatus != null && !KNOWN_PROVIDER_STATUS.has(providerStatus)) {
+      logger.warn({
+        event: 'caqh_provider_status_unknown',
+        providerId: resolved.providerId,
+        rawProviderStatus: providerStatus,
+        reason: 'Unknown lifecycle status — extend KNOWN_PROVIDER_STATUS after validating against spec Table 38',
+      });
+    }
+
+    logger.info({
+      event: 'caqh_roster_individual_success',
+      providerId: resolved.providerId,
+      caqhProviderId,
+      rosterStatus: rosterStatus ?? null,
+      authorizationFlag,
+      providerStatus,
+      warningCount: warnings.length,
+    });
+
+    return {
+      caqhProviderId,
+      status: rosterStatus ?? 'unknown',
+      authorizationFlag,
+      providerStatus,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
+  /**
+   * Resolve all RosterIndividual payload fields for a provider. Collects ALL
+   * missing-field reasons before throwing — so callers (readiness check, UI)
+   * see every blocker in one pass instead of fixing them one at a time.
+   *
+   * Field sources:
+   * - `npi`, `firstName`, `lastName`, `dateOfBirth` ← providerProfile
+   * - `caqhType` ← PROVIDER_TYPE_TO_CAQH_TYPE direct map. providerType=other
+   *   currently fails readiness with `provider_type_other_deferred` —
+   *   NUCC taxonomy fallback is parked for a future phase.
+   * - `practiceState`, `address1`, `city`, `state`, `zip` ← canonical
+   *   `practice_locations` table (primary first, fall back to first if no
+   *   primary is flagged). `primaryPracticeState` is the safety net for
+   *   `practiceState` only.
+   * - `birthdate` ← `dateOfBirth` reformatted YYYY-MM-DD → YYYYMMDD per spec.
+   */
+  private async resolveCaqhRosterData(providerId: string): Promise<ResolvedRosterData> {
+    const provider = await prisma.providerProfile.findUnique({
+      where: { id: providerId },
+      select: {
+        id: true,
+        npi: true,
+        firstName: true,
+        lastName: true,
+        dateOfBirth: true,
+        providerType: true,
+        taxonomy: true,
+        primaryPracticeState: true,
+        practiceLocations: {
+          select: {
+            addressLine1: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            isPrimary: true,
+            createdAt: true,
+          },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+        },
+      },
+    });
+
+    if (!provider) {
+      throw new ProviderNotReadyForCaqhError(['provider_not_found']);
+    }
+
+    const missing: string[] = [];
+    if (!provider.npi) missing.push('npi');
+    if (!provider.firstName) missing.push('firstName');
+    if (!provider.lastName) missing.push('lastName');
+    if (!provider.dateOfBirth) missing.push('dateOfBirth');
+
+    // Resolve CAQH Type
+    let caqhType: string | null = PROVIDER_TYPE_TO_CAQH_TYPE[provider.providerType] ?? null;
+    if (caqhType && CAQH_TYPE_DEFAULT_APPLIED.has(provider.providerType)) {
+      logger.warn({
+        event: 'caqh_type_default_applied',
+        providerId,
+        providerType: provider.providerType,
+        defaultedTo: caqhType,
+        reason: 'No DO/PhD disambiguation rule yet — default chosen for psychiatrist/psychologist',
+      });
+    }
+    if (!caqhType) {
+      // providerType=other: NUCC taxonomy fallback is deferred. Always fail
+      // readiness with a clear reason so the UI can surface this. The lookup
+      // function is kept for future activation; corrected entries in
+      // NUCC_TAXONOMY_PREFIX_TO_CAQH_TYPE will produce valid Type codes once
+      // the deferred phase ships.
+      missing.push('provider_type_other_deferred (NUCC taxonomy fallback not yet shipped)');
+    }
+
+    // Resolve practice location fields — practiceLocations is canonical
+    // (verified 2026-04-25; provider_addresses is inbound-only from CAQH v8 sync).
+    // primaryPracticeState is the practice_state safety net only.
+    const primaryLoc = provider.practiceLocations.find((loc) => loc.isPrimary)
+      ?? provider.practiceLocations[0]
+      ?? null;
+
+    let practiceState: string | null = null;
+    let address1: string | null = null;
+    let city: string | null = null;
+    let state: string | null = null;
+    let zip: string | null = null;
+
+    if (primaryLoc) {
+      address1 = primaryLoc.addressLine1?.trim() || null;
+      city = primaryLoc.city?.trim() || null;
+      state = primaryLoc.state?.trim() || null;
+      zip = primaryLoc.zipCode?.trim() || null;
+      practiceState = state;
+      if (!address1) missing.push('address1');
+      if (!city) missing.push('city');
+      if (!state) missing.push('state');
+      if (!zip) missing.push('zip');
+    } else {
+      missing.push('practice_location_missing');
+      // Even with no location, fall back to primaryPracticeState for practice_state
+      // so the user sees one concise blocker (the missing location) rather than
+      // a stack of cascading "missing X" entries.
+      if (provider.primaryPracticeState) {
+        practiceState = provider.primaryPracticeState;
+        logger.info({
+          event: 'caqh_practice_state_fallback',
+          providerId,
+          reason: 'No practiceLocations — falling back to primaryPracticeState (address fields still missing)',
+        });
+      }
+    }
+    if (!practiceState) missing.push('practiceState');
+
+    if (missing.length > 0) {
+      throw new ProviderNotReadyForCaqhError(missing);
+    }
+
+    return {
+      providerId,
+      npi: provider.npi!,
+      firstName: provider.firstName!,
+      lastName: provider.lastName!,
+      birthdate: provider.dateOfBirth!.toISOString().split('T')[0]!,
+      caqhType: caqhType!,
+      practiceState: practiceState!,
+      address1: address1!,
+      city: city!,
+      state: state!,
+      zip: zip!,
+    };
   }
 
   async removeFromRoster(caqhProviderId: string): Promise<void> {
