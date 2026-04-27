@@ -130,6 +130,8 @@ model User {
   emailTemplatesCreated       EmailTemplate[]         @relation("EmailTemplateCreator")
   providerCertsCreated        ProviderCertification[] @relation("ProviderCertCreatedBy")
   providerCertsUpdated        ProviderCertification[] @relation("ProviderCertUpdatedBy")
+  cdsRegsCreated              CdsRegistration[]       @relation("CdsRegCreatedBy")
+  cdsRegsUpdated              CdsRegistration[]       @relation("CdsRegUpdatedBy")
 
   @@map("users")
 }
@@ -456,6 +458,7 @@ model ProviderProfile {
   disclosures            ProviderDisclosure[]
   coveringColleagues     CoveringColleague[]
   deaRegistrations       DeaRegistration[]
+  cdsRegistrations       CdsRegistration[]
   providerCertifications ProviderCertification[]
   providerIdentifiers    ProviderIdentifier[]
   banking                ProviderBanking[]
@@ -1313,6 +1316,35 @@ model DeaRegistration {
 
   @@index([providerId])
   @@map("dea_registrations")
+}
+
+model CdsRegistration {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  cdsNumberEncrypted String           @map("cds_number_encrypted")
+  state              String
+  issueDate          DateTime?        @map("issue_date")
+  expirationDate     DateTime?        @map("expiration_date")
+  status             CredentialStatus @default(active)
+  source             CredentialSource @default(manual_entry)
+  notes              String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("CdsRegCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("CdsRegUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  // Relations
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, state])
+  @@index([providerId])
+  @@index([state])
+  @@map("cds_registrations")
 }
 
 model ProviderIdentifier {
