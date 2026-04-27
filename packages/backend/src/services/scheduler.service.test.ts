@@ -27,11 +27,6 @@ vi.mock('./ai.service.js', () => ({
   generateExpirationAlerts: vi.fn(),
 }));
 
-vi.mock('./providerDirectory.service.js', () => ({
-  getConfiguredPayers: vi.fn().mockReturnValue([]),
-  runScheduledDirectoryChecks: vi.fn(),
-}));
-
 vi.mock('./notification.service.js', () => ({
   notificationService: {
     notifyAdminUsers: vi.fn().mockResolvedValue(undefined),
