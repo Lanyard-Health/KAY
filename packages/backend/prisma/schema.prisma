@@ -593,8 +593,9 @@ model PracticeLocation {
   practiceId String? @map("practice_id")
 
   // Relations
-  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  practice Practice?       @relation(fields: [practiceId], references: [id])
+  provider            ProviderProfile             @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice            Practice?                   @relation(fields: [practiceId], references: [id])
+  malpracticePolicies MalpracticePolicyLocation[]
 
   @@map("practice_locations")
 }
@@ -716,6 +717,24 @@ enum CoverageType {
   claims_made
 }
 
+model MalpracticePolicyLocation {
+  id                     String @id @default(uuid())
+  malpracticeInsuranceId String @map("malpractice_insurance_id")
+  practiceLocationId     String @map("practice_location_id")
+
+  caqhRawLabel String? @map("caqh_raw_label")
+  matchedVia   String? @map("matched_via")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  malpracticeInsurance MalpracticeInsurance @relation(fields: [malpracticeInsuranceId], references: [id], onDelete: Cascade)
+  practiceLocation     PracticeLocation     @relation(fields: [practiceLocationId], references: [id], onDelete: Cascade)
+
+  @@unique([malpracticeInsuranceId, practiceLocationId])
+  @@index([practiceLocationId])
+  @@map("malpractice_policy_locations")
+}
+
 model MalpracticeInsurance {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
@@ -751,8 +770,9 @@ model MalpracticeInsurance {
   updatedBy   User?    @relation("MalpracticeUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
-  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  documents Document[]
+  provider         ProviderProfile             @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents        Document[]
+  coveredLocations MalpracticePolicyLocation[]
 
   @@index([providerId])
   @@index([expirationDate])
