@@ -128,6 +128,8 @@ model User {
   enrollmentsCreated          Enrollment[]            @relation("EnrollmentCreatedBy")
   enrollmentsUpdated          Enrollment[]            @relation("EnrollmentUpdatedBy")
   emailTemplatesCreated       EmailTemplate[]         @relation("EmailTemplateCreator")
+  providerCertsCreated        ProviderCertification[] @relation("ProviderCertCreatedBy")
+  providerCertsUpdated        ProviderCertification[] @relation("ProviderCertUpdatedBy")
 
   @@map("users")
 }
@@ -454,6 +456,7 @@ model ProviderProfile {
   disclosures            ProviderDisclosure[]
   coveringColleagues     CoveringColleague[]
   deaRegistrations       DeaRegistration[]
+  providerCertifications ProviderCertification[]
   providerIdentifiers    ProviderIdentifier[]
   banking                ProviderBanking[]
   demographics           ProviderDemographics?
@@ -1242,6 +1245,47 @@ model ProviderDisclosure {
   @@map("provider_disclosures")
 }
 
+enum ProviderCertificationType {
+  acls
+  bls
+  cpr
+  pals
+  other
+}
+
+model ProviderCertification {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  certType            ProviderCertificationType @map("cert_type")
+  certDescription     String                    @map("cert_description")
+  certNumber          String?                   @map("cert_number")
+  caqhCertificationId String?                   @map("caqh_certification_id")
+  issuingAuthority    String?                   @map("issuing_authority")
+  issueDate           DateTime?                 @map("issue_date")
+  expirationDate      DateTime?                 @map("expiration_date")
+  status              CredentialStatus          @default(active)
+  source              CredentialSource          @default(manual_entry)
+  notes               String?
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("ProviderCertCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("ProviderCertUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  // Relations
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([providerId])
+  @@index([expirationDate])
+  @@index([providerId, caqhCertificationId])
+  @@map("provider_certifications")
+}
+
 model DeaRegistration {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
@@ -1414,6 +1458,7 @@ model Document {
   linkedMalpracticeInsuranceId String? @map("linked_malpractice_insurance_id")
   linkedEducationId            String? @map("linked_education_id")
   linkedContinuingEducationId  String? @map("linked_continuing_education_id")
+  linkedProviderCertificationId String? @map("linked_provider_certification_id")
 
   // Expiration
   expirationDate DateTime? @map("expiration_date")
@@ -1449,6 +1494,7 @@ model Document {
   malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
   education            Education?            @relation(fields: [linkedEducationId], references: [id])
   continuingEducation  ContinuingEducation?  @relation(fields: [linkedContinuingEducationId], references: [id])
+  providerCertification ProviderCertification? @relation(fields: [linkedProviderCertificationId], references: [id])
   createdBy            User?                 @relation("DocumentCreatedBy", fields: [createdById], references: [id])
   ocrReviewer          User?                 @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
   documentReviewer     User?                 @relation("DocumentReviewer", fields: [reviewedById], references: [id])
