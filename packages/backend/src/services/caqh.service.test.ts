@@ -1392,6 +1392,299 @@ describe('CaqhService', () => {
       const result = service.mapCaqhToInternal(v8Payload);
       expect(result.identifiers[0]!.identifierType).toBe('OTHER');
     });
+
+    // ------- Day 1 PR 2: Education (educationType + location fields) -------
+
+    it('maps Education entry with educationType, dates, and location fields', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Education: {
+            ID: 'edu-1',
+            InstitutionName: 'Stanford School of Medicine',
+            Degree: 'MD',
+            EducationType: 'Medical School',
+            GraduationDate: '20100515',
+            StartDate: '20060801',
+            EndDate: '20100515',
+            City: 'Stanford',
+            State: 'CA',
+            PostalCode: '94305',
+            AddressLine1: '291 Campus Dr',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.education).toHaveLength(1);
+      const edu = result.education[0]!;
+      expect(edu.institutionName).toBe('Stanford School of Medicine');
+      expect(edu.degree).toBe('md');
+      expect(edu.educationType).toBe('MEDICAL_SCHOOL');
+      expect(edu.graduationDate?.toISOString().startsWith('2010-05-15')).toBe(true);
+      expect(edu.startDate?.toISOString().startsWith('2006-08-01')).toBe(true);
+      expect(edu.endDate?.toISOString().startsWith('2010-05-15')).toBe(true);
+      expect(edu.city).toBe('Stanford');
+      expect(edu.state).toBe('CA');
+      expect(edu.postalCode).toBe('94305');
+      expect(edu.addressLine1).toBe('291 Campus Dr');
+    });
+
+    it('maps EducationType variants to enum values', () => {
+      const cases: Array<[string, string]> = [
+        ['Medical School', 'MEDICAL_SCHOOL'],
+        ['Undergraduate', 'UNDERGRADUATE'],
+        ['Internship', 'INTERNSHIP'],
+        ['Residency', 'RESIDENCY'],
+        ['Fellowship', 'FELLOWSHIP'],
+        ['Post-doctoral', 'POST_DOCTORAL'],
+        ['Continuing Medical Education', 'CONTINUING_EDUCATION'],
+        ['Some unrecognized program', 'OTHER'],
+      ];
+      for (const [raw, expected] of cases) {
+        const payload = {
+          Provider: {
+            NPI: 1, FirstName: 'A', LastName: 'B',
+            Education: { InstitutionName: 'X', Degree: 'MD', EducationType: raw },
+          },
+        };
+        const result = service.mapCaqhToInternal(payload);
+        expect(result.education[0]!.educationType).toBe(expected);
+      }
+    });
+
+    it('handles nested EducationType description object (CAQH coded-lookup)', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Education: {
+            InstitutionName: 'X', Degree: 'MD',
+            EducationType: { EducationTypeDescription: 'Residency' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.education[0]!.educationType).toBe('RESIDENCY');
+    });
+
+    it('skips Education entry missing institutionName', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Education: { Degree: 'MD', GraduationDate: '20100515' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.education).toHaveLength(0);
+    });
+
+    it('omits educationType when EducationType not provided', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Education: { InstitutionName: 'X', Degree: 'MD' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.education[0]!.educationType).toBeUndefined();
+    });
+
+    // ------- Day 1 PR 2: Malpractice (CoveredPractices linkage) -------
+
+    it('maps Insurance entry to malpractice with CoveredPractices array', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: {
+            CarrierName: 'ProAssurance',
+            PolicyNumber: 'POL-12345',
+            EffectiveDate: '20240101',
+            ExpirationDate: '20251231',
+            CoverageType: 'Claims Made',
+            PerClaimAmount: 1000000,
+            AggregateAmount: 3000000,
+            IsSelfInsured: 'N',
+            HasUnlimitedCoverage: 'N',
+            IsIndividualCoverage: 'Y',
+            CoveredPractices: [
+              { PracticeName: 'Main Office', AddressLine1: '100 Main', City: 'SF', State: 'CA', ZipCode: '94105' },
+              { PracticeName: 'Satellite', AddressLine1: '200 Market', State: 'CA', ZipCode: '94103' },
+            ],
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpractice).toHaveLength(1);
+      const mal = result.malpractice[0]!;
+      expect(mal.carrierName).toBe('ProAssurance');
+      expect(mal.policyNumber).toBe('POL-12345');
+      expect(mal.expirationDate).toBe('20251231');
+      expect(mal.perClaimAmount).toBe(1000000);
+      expect(mal.aggregateAmount).toBe(3000000);
+      expect(mal.coverageType).toBe('claims_made');
+      expect(mal.isSelfInsured).toBe(false);
+      expect(mal.hasUnlimitedCoverage).toBe(false);
+      expect(mal.isIndividualCoverage).toBe(true);
+      expect(mal.coveredPractices).toHaveLength(2);
+      expect(mal.coveredPractices![0]!.rawLabel).toBe('Main Office');
+      expect(mal.coveredPractices![0]!.zipCode).toBe('94105');
+    });
+
+    it('handles single (non-array) CoveredPractice and wrapped CoveredPractice key', () => {
+      const wrappedPayload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: {
+            CarrierName: 'C', PolicyNumber: 'P-1', ExpirationDate: '20251231',
+            CoveredPractices: { CoveredPractice: { PracticeName: 'Solo' } },
+          },
+        },
+      };
+      const result1 = service.mapCaqhToInternal(wrappedPayload);
+      expect(result1.malpractice[0]!.coveredPractices).toHaveLength(1);
+      expect(result1.malpractice[0]!.coveredPractices![0]!.rawLabel).toBe('Solo');
+
+      const directPayload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: {
+            CarrierName: 'C', PolicyNumber: 'P-1', ExpirationDate: '20251231',
+            CoveredPractices: { PracticeName: 'Direct', AddressLine1: '1 Elm' },
+          },
+        },
+      };
+      const result2 = service.mapCaqhToInternal(directPayload);
+      expect(result2.malpractice[0]!.coveredPractices).toHaveLength(1);
+      expect(result2.malpractice[0]!.coveredPractices![0]!.rawLabel).toBe('Direct');
+    });
+
+    it('skips Insurance entry missing required fields', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: { CarrierName: 'C', PolicyNumber: '' }, // missing expiration + carrier
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpractice).toHaveLength(0);
+    });
+
+    it('omits coveredPractices when none provided', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: {
+            CarrierName: 'C', PolicyNumber: 'P-1', ExpirationDate: '20251231',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpractice[0]!.coveredPractices).toBeUndefined();
+    });
+
+    it('parses string-formatted PerClaimAmount with currency formatting', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Insurance: {
+            CarrierName: 'C', PolicyNumber: 'P-1', ExpirationDate: '20251231',
+            PerClaimAmount: '$1,000,000', AggregateAmount: '3000000',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpractice[0]!.perClaimAmount).toBe(1000000);
+      expect(result.malpractice[0]!.aggregateAmount).toBe(3000000);
+    });
+
+    // ------- Day 1 PR 2: ProviderCertification (dual-write) -------
+
+    it('emits ProviderCertification entries alongside ProviderIdentifier rows (dual-write)', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCertification: [
+            { ID: '1001', CertificationFlag: 1, CertificationDescription: 'Basic Life Support (BLS)', ExpirationDate: '20271231', IssueDate: '20220101' },
+            { ID: '1002', CertificationFlag: 1, CertificationDescription: 'Advanced Cardiac Life Support (ACLS)' },
+            { ID: '1003', CertificationFlag: 0, CertificationDescription: 'CPR' }, // inactive — both arrays should skip
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      // Identifier dual-write preserved
+      expect(result.identifiers).toHaveLength(2);
+      expect(result.identifiers.map(i => i.identifierType).sort()).toEqual(['ACLS', 'BLS']);
+      // New ProviderCertification array populated
+      expect(result.providerCertifications).toHaveLength(2);
+      const blsRow = result.providerCertifications!.find(c => c.certDescription.includes('BLS'));
+      expect(blsRow?.caqhCertificationId).toBe('1001');
+      expect(blsRow?.expirationDate?.toISOString().startsWith('2027-12-31')).toBe(true);
+      expect(blsRow?.issueDate?.toISOString().startsWith('2022-01-01')).toBe(true);
+    });
+
+    it('does not include inactive certs in providerCertifications', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCertification: { ID: '1', CertificationFlag: 0, CertificationDescription: 'BLS' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.providerCertifications).toHaveLength(0);
+    });
+
+    // ------- Day 1 PR 2: CDS Registration -------
+
+    it('maps ProviderCDS entry to cdsRegistrations with plaintext number', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCDS: {
+            CDSNumber: 'CDS-FL-00123',
+            State: 'FL',
+            ExpirationDate: '20281231',
+            IssueDate: '20230101',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.cdsRegistrations).toHaveLength(1);
+      const cds = result.cdsRegistrations![0]!;
+      expect(cds.cdsNumber).toBe('CDS-FL-00123');
+      expect(cds.state).toBe('FL');
+      expect(cds.expirationDate?.toISOString().startsWith('2028-12-31')).toBe(true);
+      expect(cds.issueDate?.toISOString().startsWith('2023-01-01')).toBe(true);
+    });
+
+    it('handles array of multiple CDS entries (multi-state providers)', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCDS: [
+            { CDSNumber: 'A-1', State: 'FL' },
+            { CDSNumber: 'B-2', State: 'GA' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.cdsRegistrations).toHaveLength(2);
+      expect(result.cdsRegistrations!.map(c => c.state).sort()).toEqual(['FL', 'GA']);
+    });
+
+    it('skips CDS entries missing CDSNumber or State', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          ProviderCDS: [
+            { CDSNumber: '', State: 'FL' },
+            { CDSNumber: 'X', State: '' },
+            { CDSNumber: 'OK', State: 'CA' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.cdsRegistrations).toHaveLength(1);
+      expect(result.cdsRegistrations![0]!.cdsNumber).toBe('OK');
+    });
   });
 
   // ==========================================
@@ -1706,6 +1999,233 @@ describe('CaqhService', () => {
 
       expect(summary.malpractice.skipped).toBe(1);
       expect(prismaMock.malpracticeInsurance.findFirst).not.toHaveBeenCalled();
+    });
+
+    // ------- Day 1 PR 2: Education educationType persistence -------
+
+    it('writes educationType + location fields to a new education row', async () => {
+      prismaMock.education.findFirst.mockResolvedValue(null);
+      prismaMock.education.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], malpractice: [], addresses: [], identifiers: [],
+        education: [{
+          institutionName: 'Stanford School of Medicine',
+          degree: 'md' as any,
+          educationType: 'MEDICAL_SCHOOL' as any,
+          graduationDate: new Date('2010-05-15'),
+          startDate: new Date('2006-08-01'),
+          city: 'Stanford',
+          state: 'CA',
+          postalCode: '94305',
+          addressLine1: '291 Campus Dr',
+        }],
+      });
+      expect(summary.education.created).toBe(1);
+      expect(prismaMock.education.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            institutionName: 'Stanford School of Medicine',
+            degree: 'md',
+            educationType: 'MEDICAL_SCHOOL',
+            city: 'Stanford',
+            state: 'CA',
+            postalCode: '94305',
+            addressLine1: '291 Campus Dr',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    // ------- Day 1 PR 2: Malpractice CoveredPractices linkage -------
+
+    it('links covered practices by exact name match (matched_via=exact_name)', async () => {
+      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
+      prismaMock.malpracticeInsurance.create.mockResolvedValue({ id: 'mp-1' } as any);
+      prismaMock.practiceLocation.findMany.mockResolvedValue([
+        { id: 'loc-1', locationName: 'Main Office', addressLine1: '100 Main', state: 'CA', zipCode: '94105' },
+        { id: 'loc-2', locationName: 'Other', addressLine1: '999 Other', state: 'CA', zipCode: '99999' },
+      ] as any);
+      prismaMock.malpracticePolicyLocation.upsert.mockResolvedValue({} as any);
+
+      await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], addresses: [], identifiers: [],
+        malpractice: [{
+          carrierName: 'C', policyNumber: 'P-1', expirationDate: '2027-01-01', perClaimAmount: 1000000,
+          coveredPractices: [{ rawLabel: 'main office' }],
+        }],
+      });
+
+      expect(prismaMock.malpracticePolicyLocation.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { malpracticeInsuranceId_practiceLocationId: { malpracticeInsuranceId: 'mp-1', practiceLocationId: 'loc-1' } },
+          create: expect.objectContaining({
+            malpracticeInsuranceId: 'mp-1',
+            practiceLocationId: 'loc-1',
+            matchedVia: 'exact_name',
+          }),
+        }),
+      );
+    });
+
+    it('falls back to address match when name does not match (matched_via=address)', async () => {
+      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
+      prismaMock.malpracticeInsurance.create.mockResolvedValue({ id: 'mp-1' } as any);
+      prismaMock.practiceLocation.findMany.mockResolvedValue([
+        { id: 'loc-1', locationName: 'Main Office', addressLine1: '100 Main', state: 'CA', zipCode: '94105' },
+      ] as any);
+      prismaMock.malpracticePolicyLocation.upsert.mockResolvedValue({} as any);
+
+      await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], addresses: [], identifiers: [],
+        malpractice: [{
+          carrierName: 'C', policyNumber: 'P-1', expirationDate: '2027-01-01', perClaimAmount: 1000000,
+          coveredPractices: [{ rawLabel: 'Some Different Name', addressLine1: '100 Main', state: 'CA', zipCode: '94105' }],
+        }],
+      });
+
+      expect(prismaMock.malpracticePolicyLocation.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ practiceLocationId: 'loc-1', matchedVia: 'address' }),
+        }),
+      );
+    });
+
+    it('logs unmatched covered practices without throwing', async () => {
+      prismaMock.malpracticeInsurance.findFirst.mockResolvedValue(null);
+      prismaMock.malpracticeInsurance.create.mockResolvedValue({ id: 'mp-1' } as any);
+      prismaMock.practiceLocation.findMany.mockResolvedValue([] as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], addresses: [], identifiers: [],
+        malpractice: [{
+          carrierName: 'C', policyNumber: 'P-1', expirationDate: '2027-01-01', perClaimAmount: 1000000,
+          coveredPractices: [{ rawLabel: 'Nowhere', addressLine1: '999 Imaginary' }],
+        }],
+      });
+
+      expect(summary.malpractice.created).toBe(1);
+      expect(prismaMock.malpracticePolicyLocation.upsert).not.toHaveBeenCalled();
+    });
+
+    // ------- Day 1 PR 2: ProviderCertification persistence -------
+
+    it('persists ProviderCertification rows with resolved enum at execution time', async () => {
+      prismaMock.providerCertification.findFirst.mockResolvedValue(null);
+      prismaMock.providerCertification.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        providerCertifications: [
+          { caqhCertificationId: '1001', certDescription: 'Basic Life Support (BLS)', expirationDate: new Date('2027-12-31') },
+          { caqhCertificationId: '1002', certDescription: 'Advanced Cardiac Life Support (ACLS)' },
+          { caqhCertificationId: '1003', certDescription: 'Cardio-Pulmonary Resuscitation (CPR)' },
+          { caqhCertificationId: '1004', certDescription: 'Pediatric Advanced Life Support (PALS)' },
+          { caqhCertificationId: '1005', certDescription: 'Wound Care Specialist' },
+        ],
+      });
+
+      expect(summary.providerCertifications.created).toBe(5);
+      const calls = (prismaMock.providerCertification.create as any).mock.calls;
+      const byDesc = (desc: string) => calls.find((c: any) => c[0].data.certDescription === desc)?.[0].data;
+      expect(byDesc('Basic Life Support (BLS)').certType).toBe('bls');
+      expect(byDesc('Advanced Cardiac Life Support (ACLS)').certType).toBe('acls');
+      expect(byDesc('Cardio-Pulmonary Resuscitation (CPR)').certType).toBe('cpr');
+      expect(byDesc('Pediatric Advanced Life Support (PALS)').certType).toBe('pals');
+      expect(byDesc('Wound Care Specialist').certType).toBe('other');
+    });
+
+    it('updates existing ProviderCertification matched by caqhCertificationId on re-sync', async () => {
+      prismaMock.providerCertification.findFirst.mockResolvedValue({
+        id: 'pc-1', source: 'caqh_sync', caqhCertificationId: '1001',
+      } as any);
+      prismaMock.providerCertification.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        providerCertifications: [
+          { caqhCertificationId: '1001', certDescription: 'Basic Life Support (BLS)', expirationDate: new Date('2030-01-01') },
+        ],
+      });
+      expect(summary.providerCertifications.updated).toBe(1);
+      expect(prismaMock.providerCertification.findFirst).toHaveBeenCalledWith({
+        where: { providerId: 'p1', caqhCertificationId: '1001' },
+      });
+    });
+
+    it('skips ProviderCertification rows marked source=manual_entry', async () => {
+      prismaMock.providerCertification.findFirst.mockResolvedValue({
+        id: 'pc-1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        providerCertifications: [{ caqhCertificationId: '1001', certDescription: 'BLS' }],
+      });
+      expect(summary.providerCertifications.skipped).toBe(1);
+      expect(prismaMock.providerCertification.update).not.toHaveBeenCalled();
+    });
+
+    // ------- Day 1 PR 2: CDS Registration persistence -------
+
+    it('encrypts CDS number before persisting (HIPAA)', async () => {
+      prismaMock.cdsRegistration.findFirst.mockResolvedValue(null);
+      prismaMock.cdsRegistration.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        cdsRegistrations: [{ cdsNumber: 'PLAINTEXT-12345', state: 'FL', expirationDate: new Date('2028-12-31') }],
+      });
+
+      expect(summary.cdsRegistrations.created).toBe(1);
+      const args = (prismaMock.cdsRegistration.create as any).mock.calls[0][0].data;
+      expect(args.providerId).toBe('p1');
+      expect(args.state).toBe('FL');
+      expect(args.cdsNumberEncrypted).toBeDefined();
+      expect(args.cdsNumberEncrypted).not.toBe('PLAINTEXT-12345');
+      expect(args.source).toBe('caqh_sync');
+    });
+
+    it('updates CDS by (providerId, state) on re-sync', async () => {
+      prismaMock.cdsRegistration.findFirst.mockResolvedValue({
+        id: 'cds-1', source: 'caqh_sync', state: 'FL',
+      } as any);
+      prismaMock.cdsRegistration.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        cdsRegistrations: [{ cdsNumber: 'NEW-CDS', state: 'FL', expirationDate: new Date('2030-01-01') }],
+      });
+
+      expect(summary.cdsRegistrations.updated).toBe(1);
+      expect(prismaMock.cdsRegistration.findFirst).toHaveBeenCalledWith({
+        where: { providerId: 'p1', state: 'FL' },
+      });
+    });
+
+    it('skips CDS rows marked source=manual_entry', async () => {
+      prismaMock.cdsRegistration.findFirst.mockResolvedValue({
+        id: 'cds-1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        cdsRegistrations: [{ cdsNumber: 'X', state: 'FL' }],
+      });
+      expect(summary.cdsRegistrations.skipped).toBe(1);
+      expect(prismaMock.cdsRegistration.update).not.toHaveBeenCalled();
     });
   });
 

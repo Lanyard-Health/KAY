@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma.js';
-import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType } from '@prisma/client';
+import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType, EducationType, ProviderCertificationType } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { encryptSafe } from '../utils/crypto.js';
 import { z } from 'zod';
@@ -97,6 +97,9 @@ export interface CaqhV8Provider {
   ProviderLicense?: CaqhV8License | CaqhV8License[];
   ProviderCertification?: CaqhV8Certification | CaqhV8Certification[];
   Specialty?: CaqhV8Specialty | CaqhV8Specialty[];
+  Education?: CaqhV8Education | CaqhV8Education[];
+  Insurance?: CaqhV8Insurance | CaqhV8Insurance[];
+  ProviderCDS?: CaqhV8CDS | CaqhV8CDS[];
 
   // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
   [key: string]: unknown;
@@ -182,6 +185,91 @@ export interface CaqhV8License {
   CurrentlyPracticingFlag?: string | number | boolean;
   IsPrimary?: string | number | boolean;
   IssuingAuthority?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 Education element. Per real payload: 12 fields per record including
+ * institution + location + program flag. Field shapes vary; defensive optional.
+ */
+export interface CaqhV8Education {
+  ID?: string | number;
+  InstitutionName?: string;
+  Institution?: string;
+  Degree?: string | { DegreeDescription?: string } | unknown;
+  DegreeType?: string | { DegreeTypeDescription?: string } | unknown;
+  // Per data dictionary, education programs are typed (e.g., MEDICAL_SCHOOL, RESIDENCY).
+  EducationType?: string | { EducationTypeDescription?: string } | unknown;
+  ProgramType?: string | { ProgramTypeDescription?: string } | unknown;
+  GraduationDate?: string;
+  StartDate?: string;
+  EndDate?: string;
+  // Location
+  AddressLine1?: string;
+  Address?: string;
+  City?: string;
+  State?: string;
+  Country?: string;
+  PostalCode?: string | number;
+  ZipCode?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 ProviderCDS element. State-level Controlled Dangerous Substance number.
+ * `CDSNumber` is encrypted at persistence time per HIPAA PII rule #8.
+ */
+export interface CaqhV8CDS {
+  CDSNumber?: string | number;
+  Number?: string | number;
+  State?: string;
+  ExpirationDate?: string;
+  IssueDate?: string;
+  EffectiveDate?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 CoveredPractice element. Each entry indicates a practice location
+ * covered by the malpractice policy. Auto-matched to PracticeLocation rows
+ * by exact name or normalized address (line1+state+zip).
+ */
+export interface CaqhV8CoveredPractice {
+  PracticeName?: string;
+  Name?: string;
+  PracticeID?: string | number;
+  ID?: string | number;
+  AddressLine1?: string;
+  Address?: string;
+  City?: string;
+  State?: string;
+  ZipCode?: string;
+  PostalCode?: string | number;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v8 Insurance element (malpractice). 14 fields in real payload — carrier,
+ * policy, coverage amounts, self-insured/unlimited flags, and CoveredPractices
+ * array linking to PracticeLocation rows.
+ */
+export interface CaqhV8Insurance {
+  ID?: string | number;
+  CarrierName?: string;
+  PolicyNumber?: string;
+  EffectiveDate?: string;
+  ExpirationDate?: string;
+  CoverageType?: string | { CoverageTypeDescription?: string } | unknown;
+  PerClaimAmount?: string | number;
+  AggregateAmount?: string | number;
+  PerOccurrenceAmount?: string | number;
+  IsSelfInsured?: string | boolean | number;
+  SelfInsuredFlag?: string | boolean | number;
+  HasUnlimitedCoverage?: string | boolean | number;
+  UnlimitedCoverageFlag?: string | boolean | number;
+  IsIndividualCoverage?: string | boolean | number;
+  IndividualCoverageFlag?: string | boolean | number;
+  CoveredPractices?: CaqhV8CoveredPractice | CaqhV8CoveredPractice[] | { CoveredPractice?: CaqhV8CoveredPractice | CaqhV8CoveredPractice[] };
   [key: string]: unknown;
 }
 
@@ -302,6 +390,13 @@ export interface MappedCaqhData {
     graduationDate?: Date;
     fieldOfStudy?: string;
     country?: string;
+    educationType?: EducationType;
+    startDate?: Date;
+    endDate?: Date;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    addressLine1?: string;
   }>;
   malpractice: Array<{
     carrierName: string;
@@ -311,6 +406,35 @@ export interface MappedCaqhData {
     aggregateAmount?: number;
     coverageType?: CoverageType;
     effectiveDate?: string;
+    isSelfInsured?: boolean;
+    hasUnlimitedCoverage?: boolean;
+    isIndividualCoverage?: boolean;
+    coveredPractices?: Array<{
+      rawLabel?: string;
+      addressLine1?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+    }>;
+  }>;
+  /**
+   * Life-support certs (ACLS, BLS, CPR, PALS) destined for the new
+   * `ProviderCertification` table. Same source as the entries in
+   * `identifiers` (mapV8LifeSupportCert) — dual-write keeps backwards
+   * compatibility while the new table is populated.
+   */
+  providerCertifications?: Array<{
+    caqhCertificationId?: string;
+    certDescription: string;
+    expirationDate?: Date;
+    issueDate?: Date;
+  }>;
+  /** State-level Controlled Dangerous Substance registrations (CAQH `Provider.ProviderCDS`). */
+  cdsRegistrations?: Array<{
+    cdsNumber: string;       // plaintext — caller encrypts before persist
+    state: string;
+    expirationDate?: Date;
+    issueDate?: Date;
   }>;
 }
 
@@ -359,6 +483,22 @@ function toOptBool(v: unknown): boolean | undefined {
   if (['y', 'yes', 'true', '1'].includes(t)) return true;
   if (['n', 'no', 'false', '0'].includes(t)) return false;
   return undefined;
+}
+
+/**
+ * Coerce CAQH amount values to a finite number. Handles numeric values,
+ * numeric strings (with `$`, `,`, whitespace stripped), and coded-lookup
+ * objects via `toOptString`. Returns undefined for non-finite or empty.
+ */
+function toOptNumber(v: unknown): number | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  const s = toOptString(v);
+  if (!s) return undefined;
+  const cleaned = s.replace(/[\s$,]/g, '');
+  if (cleaned === '') return undefined;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 /** Parse CAQH date values (YYYYMMDD, YYYY-MM-DD, MM/DD/YYYY, ISO). */
@@ -1390,9 +1530,22 @@ export class CaqhService {
   private mapV8(p: CaqhV8Provider, providerId?: string): MappedCaqhData {
     const addrList = this.asArray(p.ProviderAddress);
     const idList = this.asArray(p.ProviderIdentifier);
-    const lifeSupportCerts = this.asArray(p.ProviderCertification)
+    const certEntries = this.asArray(p.ProviderCertification);
+    const lifeSupportCerts = certEntries
       .map(c => this.mapV8LifeSupportCert(c, providerId))
       .filter((c): c is MappedProviderIdentifier => c !== null);
+    const providerCertifications = certEntries
+      .map(c => this.mapV8ProviderCertification(c, providerId))
+      .filter((c): c is NonNullable<MappedCaqhData['providerCertifications']>[number] => c !== null);
+    const education = this.asArray(p.Education)
+      .map(e => this.mapV8Education(e, providerId))
+      .filter((e): e is MappedCaqhData['education'][number] => e !== null);
+    const malpractice = this.asArray(p.Insurance)
+      .map(i => this.mapV8Malpractice(i, providerId))
+      .filter((m): m is MappedCaqhData['malpractice'][number] => m !== null);
+    const cdsRegistrations = this.asArray(p.ProviderCDS)
+      .map(c => this.mapV8CDS(c, providerId))
+      .filter((c): c is NonNullable<MappedCaqhData['cdsRegistrations']>[number] => c !== null);
 
     const npiStr = toOptString(p.NPI);
     const ssnStr = toOptString(p.SSN);
@@ -1438,9 +1591,10 @@ export class CaqhService {
       specialties: this.asArray(p.Specialty)
         .map(s => this.mapV8Specialty(s, providerId))
         .filter((s): s is MappedSpecialty => s !== null),
-      // Deferred to Phases 2+
-      education: [],
-      malpractice: [],
+      education,
+      malpractice,
+      providerCertifications,
+      cdsRegistrations,
     };
   }
 
@@ -1585,6 +1739,201 @@ export class CaqhService {
       expirationDate: parseCaqhDate(c.ExpirationDate),
       effectiveDate: parseCaqhDate(c.IssueDate),
       notes: type === 'OTHER' ? description : undefined,
+    };
+  }
+
+  /**
+   * Map CAQH `ProviderCertification` (life-support cert) entries to the new
+   * `provider_certifications` table. Output is a description-only payload —
+   * the `ProviderCertificationType` enum value is resolved at execution time
+   * during persistence (see `applyCaqhDataToProvider`). Only active certs
+   * (CertificationFlag=1) are imported, matching `mapV8LifeSupportCert`.
+   *
+   * This runs alongside `mapV8LifeSupportCert` (dual-write) — the same source
+   * entries produce both ProviderIdentifier rows (legacy) and
+   * ProviderCertification rows (canonical going forward).
+   */
+  private mapV8ProviderCertification(
+    c: CaqhV8Certification,
+    _providerId?: string,
+  ): NonNullable<MappedCaqhData['providerCertifications']>[number] | null {
+    const active = toOptBool(c.CertificationFlag);
+    if (active !== true) return null;
+    const description = toOptString(c.CertificationDescription);
+    if (!description) return null;
+    return {
+      caqhCertificationId: toOptString(c.ID),
+      certDescription: description,
+      expirationDate: parseCaqhDate(c.ExpirationDate),
+      issueDate: parseCaqhDate(c.IssueDate),
+    };
+  }
+
+  /**
+   * Map a CAQH `Education` entry to the internal education shape, including
+   * the `educationType` enum (UNDERGRADUATE / MEDICAL_SCHOOL / RESIDENCY /
+   * FELLOWSHIP / etc.) parsed from `EducationType` or `ProgramType`.
+   * Requires institutionName + degree to be present.
+   */
+  private mapV8Education(
+    e: CaqhV8Education,
+    providerId?: string,
+  ): MappedCaqhData['education'][number] | null {
+    const institutionName = toOptString(e.InstitutionName ?? e.Institution);
+    const degreeRaw = toOptString(e.Degree ?? e.DegreeType);
+    if (!institutionName) {
+      logger.warn({
+        event: 'caqh_skip_education_incomplete',
+        providerId,
+        have: { institutionName: false },
+      });
+      return null;
+    }
+    const educationType = this.mapEducationType(e.EducationType ?? e.ProgramType);
+    return {
+      institutionName,
+      degree: this.mapDegreeType(degreeRaw ?? '', providerId),
+      graduationDate: parseCaqhDate(e.GraduationDate),
+      startDate: parseCaqhDate(e.StartDate),
+      endDate: parseCaqhDate(e.EndDate),
+      country: toOptString(e.Country) ?? 'US',
+      city: toOptString(e.City),
+      state: toOptString(e.State),
+      postalCode: toOptString(e.PostalCode ?? e.ZipCode),
+      addressLine1: toOptString(e.AddressLine1 ?? e.Address),
+      educationType,
+    };
+  }
+
+  /**
+   * Match CAQH education type description to the internal `EducationType`
+   * enum. Tokenized matching with synonyms; returns undefined when the value
+   * doesn't fit any known bucket so the field is simply omitted (column is
+   * nullable).
+   */
+  private mapEducationType(raw: unknown): EducationType | undefined {
+    const s = toOptString(raw)?.toUpperCase();
+    if (!s) return undefined;
+    // Order matters: more-specific patterns first to avoid substring collisions
+    // (e.g., "Continuing Medical Education" must not match MEDICAL_SCHOOL).
+    if (s.includes('CONTINU')) return 'CONTINUING_EDUCATION';
+    if (s.includes('POST') && (s.includes('DOC') || s.includes('GRAD'))) return 'POST_DOCTORAL';
+    if (s.includes('FELLOW')) return 'FELLOWSHIP';
+    if (s.includes('RESIDEN')) return 'RESIDENCY';
+    if (s.includes('INTERN')) return 'INTERNSHIP';
+    if (s.includes('UNDERGRAD')) return 'UNDERGRADUATE';
+    if (s.includes('MEDICAL') || s.includes('MED SCHOOL')) return 'MEDICAL_SCHOOL';
+    if (s.includes('GRADUATE')) return 'GRADUATE_SCHOOL';
+    return 'OTHER';
+  }
+
+  /**
+   * Map a CAQH `Insurance` (malpractice) entry to the internal malpractice
+   * shape, including extended flags (self-insured, unlimited, individual)
+   * and a normalized `coveredPractices` hint array. Auto-matching of
+   * coveredPractices to `PracticeLocation` happens at persistence time
+   * (`applyCaqhDataToProvider`) by exact name then by address.
+   *
+   * Requires policyNumber + expirationDate to be present.
+   */
+  private mapV8Malpractice(
+    i: CaqhV8Insurance,
+    providerId?: string,
+  ): MappedCaqhData['malpractice'][number] | null {
+    const policyNumber = toOptString(i.PolicyNumber);
+    const expirationDate = toOptString(i.ExpirationDate);
+    const carrierName = toOptString(i.CarrierName);
+    if (!policyNumber || !expirationDate || !carrierName) {
+      logger.warn({
+        event: 'caqh_skip_malpractice_incomplete',
+        providerId,
+        have: { policyNumber: !!policyNumber, expirationDate: !!expirationDate, carrierName: !!carrierName },
+      });
+      return null;
+    }
+    const perClaim = toOptNumber(i.PerClaimAmount ?? i.PerOccurrenceAmount);
+    const aggregate = toOptNumber(i.AggregateAmount);
+    const coverageType = this.mapCoverageType(i.CoverageType);
+    // CoveredPractices may arrive as object/array/wrapped — normalize to array
+    const cpRaw = i.CoveredPractices;
+    let cpList: CaqhV8CoveredPractice[] = [];
+    if (cpRaw != null) {
+      if (Array.isArray(cpRaw)) {
+        cpList = cpRaw;
+      } else if (typeof cpRaw === 'object') {
+        // Handle `{CoveredPractice: [...] | {...}}` wrapper
+        const wrapper = cpRaw as { CoveredPractice?: CaqhV8CoveredPractice | CaqhV8CoveredPractice[] };
+        if (wrapper.CoveredPractice != null) {
+          cpList = this.asArray(wrapper.CoveredPractice);
+        } else {
+          cpList = [cpRaw as CaqhV8CoveredPractice];
+        }
+      }
+    }
+    const coveredPractices = cpList
+      .map(cp => this.mapCoveredPractice(cp))
+      .filter((c): c is NonNullable<MappedCaqhData['malpractice'][number]['coveredPractices']>[number] => c !== null);
+
+    return {
+      carrierName,
+      policyNumber,
+      expirationDate,
+      effectiveDate: toOptString(i.EffectiveDate),
+      perClaimAmount: perClaim,
+      aggregateAmount: aggregate,
+      coverageType,
+      isSelfInsured: toOptBool(i.IsSelfInsured ?? i.SelfInsuredFlag),
+      hasUnlimitedCoverage: toOptBool(i.HasUnlimitedCoverage ?? i.UnlimitedCoverageFlag),
+      isIndividualCoverage: toOptBool(i.IsIndividualCoverage ?? i.IndividualCoverageFlag),
+      coveredPractices: coveredPractices.length > 0 ? coveredPractices : undefined,
+    };
+  }
+
+  private mapCoverageType(raw: unknown): CoverageType | undefined {
+    const s = toOptString(raw)?.toLowerCase();
+    if (!s) return undefined;
+    if (s.includes('claim')) return 'claims_made';
+    if (s.includes('occurrence')) return 'occurrence';
+    return undefined;
+  }
+
+  private mapCoveredPractice(
+    cp: CaqhV8CoveredPractice,
+  ): NonNullable<MappedCaqhData['malpractice'][number]['coveredPractices']>[number] | null {
+    const rawLabel = toOptString(cp.PracticeName ?? cp.Name);
+    const addressLine1 = toOptString(cp.AddressLine1 ?? cp.Address);
+    const city = toOptString(cp.City);
+    const state = toOptString(cp.State);
+    const zipCode = toOptString(cp.ZipCode ?? cp.PostalCode);
+    if (!rawLabel && !addressLine1) return null;
+    return { rawLabel, addressLine1, city, state, zipCode };
+  }
+
+  /**
+   * Map a CAQH `ProviderCDS` entry to the internal CDS registration shape.
+   * `cdsNumber` is returned as plaintext — the persistence layer encrypts
+   * via `encryptSafe()` before writing to `cds_registrations.cds_number_encrypted`.
+   * Requires CDSNumber + State to be present.
+   */
+  private mapV8CDS(
+    c: CaqhV8CDS,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['cdsRegistrations']>[number] | null {
+    const cdsNumber = toOptString(c.CDSNumber ?? c.Number);
+    const state = toOptString(c.State);
+    if (!cdsNumber || !state) {
+      logger.warn({
+        event: 'caqh_skip_cds_incomplete',
+        providerId,
+        have: { cdsNumber: !!cdsNumber, state: !!state },
+      });
+      return null;
+    }
+    return {
+      cdsNumber,
+      state,
+      expirationDate: parseCaqhDate(c.ExpirationDate),
+      issueDate: parseCaqhDate(c.IssueDate ?? c.EffectiveDate),
     };
   }
 
@@ -2061,6 +2410,8 @@ export class CaqhService {
       specialties: { created: 0, updated: 0, skipped: 0, failed: 0 },
       education: { created: 0, updated: 0, skipped: 0, failed: 0 },
       malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      providerCertifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      cdsRegistrations: { created: 0, updated: 0, skipped: 0, failed: 0 },
       failedRecords: [],
     };
 
@@ -2276,13 +2627,19 @@ export class CaqhService {
             await prisma.education.update({
               where: { id: existing.id },
               data: {
-                graduationDate: edu.graduationDate ? new Date(edu.graduationDate) : existing.graduationDate,
-                source: 'caqh_sync' as any,
+                graduationDate: edu.graduationDate ?? existing.graduationDate,
+                startDate: edu.startDate ?? existing.startDate,
+                endDate: edu.endDate ?? existing.endDate,
+                educationType: edu.educationType ?? existing.educationType,
+                city: edu.city ?? existing.city,
+                state: edu.state ?? existing.state,
+                postalCode: edu.postalCode ?? existing.postalCode,
+                addressLine1: edu.addressLine1 ?? existing.addressLine1,
+                source: 'caqh_sync',
               },
             });
             summary.education.updated++;
           } else {
-            const gradDate = edu.graduationDate ? new Date(edu.graduationDate) : undefined;
             await prisma.education.create({
               data: {
                 providerId,
@@ -2290,9 +2647,15 @@ export class CaqhService {
                 degree: edu.degree,
                 fieldOfStudy: edu.fieldOfStudy ?? 'Not specified',
                 country: edu.country ?? 'US',
-                startDate: gradDate ?? new Date(),
-                graduationDate: gradDate,
-                source: 'caqh_sync' as any,
+                startDate: edu.startDate ?? edu.graduationDate ?? new Date(),
+                endDate: edu.endDate,
+                graduationDate: edu.graduationDate,
+                educationType: edu.educationType,
+                city: edu.city,
+                state: edu.state,
+                postalCode: edu.postalCode,
+                addressLine1: edu.addressLine1,
+                source: 'caqh_sync',
               },
             });
             summary.education.created++;
@@ -2330,6 +2693,7 @@ export class CaqhService {
             where: { providerId, policyNumber: mal.policyNumber },
           });
 
+          let policyId: string;
           if (existing) {
             await prisma.malpracticeInsurance.update({
               where: { id: existing.id },
@@ -2337,11 +2701,19 @@ export class CaqhService {
                 carrierName: mal.carrierName ?? existing.carrierName,
                 expirationDate: mal.expirationDate ? new Date(mal.expirationDate) : existing.expirationDate,
                 perClaimAmount: mal.perClaimAmount ?? existing.perClaimAmount,
+                aggregateAmount: mal.aggregateAmount ?? existing.aggregateAmount,
+                coverageType: mal.coverageType ?? existing.coverageType,
+                effectiveDate: mal.effectiveDate ? new Date(mal.effectiveDate) : existing.effectiveDate,
+                isSelfInsured: mal.isSelfInsured ?? existing.isSelfInsured,
+                hasUnlimitedCoverage: mal.hasUnlimitedCoverage ?? existing.hasUnlimitedCoverage,
+                isIndividualCoverage: mal.isIndividualCoverage ?? existing.isIndividualCoverage,
+                source: 'caqh_sync',
               },
             });
+            policyId = existing.id;
             summary.malpractice.updated++;
           } else {
-            await prisma.malpracticeInsurance.create({
+            const created = await prisma.malpracticeInsurance.create({
               data: {
                 providerId,
                 carrierName: mal.carrierName,
@@ -2351,9 +2723,22 @@ export class CaqhService {
                 aggregateAmount: mal.aggregateAmount ?? mal.perClaimAmount,
                 effectiveDate: mal.effectiveDate ? new Date(mal.effectiveDate) : new Date(),
                 expirationDate: new Date(mal.expirationDate),
+                isSelfInsured: mal.isSelfInsured,
+                hasUnlimitedCoverage: mal.hasUnlimitedCoverage,
+                isIndividualCoverage: mal.isIndividualCoverage,
+                source: 'caqh_sync',
               },
             });
+            policyId = created.id;
             summary.malpractice.created++;
+          }
+
+          // Auto-link covered practices to PracticeLocation rows.
+          // Match by exact location name (case-insensitive) first, then by
+          // (addressLine1, state, zipCode). Idempotent — unique constraint
+          // on (malpracticeInsuranceId, practiceLocationId).
+          if (mal.coveredPractices?.length) {
+            await this.linkCoveredPractices(providerId, policyId, mal.coveredPractices);
           }
         } catch (error) {
           summary.malpractice.failed++;
@@ -2366,7 +2751,219 @@ export class CaqhService {
       }
     }
 
+    // --- Provider Certifications (life-support certs to dedicated table) ---
+    if (caqhData.providerCertifications?.length) {
+      for (const cert of caqhData.providerCertifications) {
+        try {
+          // Dedupe by (providerId, caqhCertificationId) when present, else by description+expiration
+          const existing = cert.caqhCertificationId
+            ? await prisma.providerCertification.findFirst({
+                where: { providerId, caqhCertificationId: cert.caqhCertificationId },
+              })
+            : await prisma.providerCertification.findFirst({
+                where: { providerId, certDescription: cert.certDescription },
+              });
+
+          const certType = this.resolveProviderCertificationType(cert.certDescription);
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.providerCertifications.skipped++;
+              continue;
+            }
+            await prisma.providerCertification.update({
+              where: { id: existing.id },
+              data: {
+                certType,
+                certDescription: cert.certDescription,
+                caqhCertificationId: cert.caqhCertificationId ?? existing.caqhCertificationId,
+                issueDate: cert.issueDate ?? existing.issueDate,
+                expirationDate: cert.expirationDate ?? existing.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.providerCertifications.updated++;
+          } else {
+            await prisma.providerCertification.create({
+              data: {
+                providerId,
+                certType,
+                certDescription: cert.certDescription,
+                caqhCertificationId: cert.caqhCertificationId,
+                issueDate: cert.issueDate,
+                expirationDate: cert.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.providerCertifications.created++;
+          }
+        } catch (error) {
+          summary.providerCertifications.failed++;
+          summary.failedRecords.push({
+            category: 'providerCertification',
+            identifier: cert.certDescription,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- CDS Registrations (encrypted state-level Controlled Substance numbers) ---
+    if (caqhData.cdsRegistrations?.length) {
+      for (const cds of caqhData.cdsRegistrations) {
+        try {
+          // Unique constraint on (providerId, state); upsert by state.
+          const existing = await prisma.cdsRegistration.findFirst({
+            where: { providerId, state: cds.state },
+          });
+
+          const cdsNumberEncrypted = encryptSafe(cds.cdsNumber);
+
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.cdsRegistrations.skipped++;
+              continue;
+            }
+            await prisma.cdsRegistration.update({
+              where: { id: existing.id },
+              data: {
+                cdsNumberEncrypted,
+                issueDate: cds.issueDate ?? existing.issueDate,
+                expirationDate: cds.expirationDate ?? existing.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.cdsRegistrations.updated++;
+          } else {
+            await prisma.cdsRegistration.create({
+              data: {
+                providerId,
+                cdsNumberEncrypted,
+                state: cds.state,
+                issueDate: cds.issueDate,
+                expirationDate: cds.expirationDate,
+                source: 'caqh_sync',
+              },
+            });
+            summary.cdsRegistrations.created++;
+          }
+        } catch (error) {
+          summary.cdsRegistrations.failed++;
+          summary.failedRecords.push({
+            category: 'cdsRegistration',
+            identifier: cds.state,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
     return summary;
+  }
+
+  /**
+   * Resolve a free-form cert description (e.g., "Basic Life Support (BLS)")
+   * to the `ProviderCertificationType` enum. Mirrors the `IdentifierType`
+   * mapping in `mapLifeSupportCertType` but emits the lowercase enum used
+   * by the new `provider_certifications` table.
+   */
+  private resolveProviderCertificationType(description: string): ProviderCertificationType {
+    const s = description.toUpperCase();
+    if (s.includes('PALS') || s.includes('PEDIATRIC ADVANCED')) return 'pals';
+    if (s.includes('ACLS') || s.includes('ADVANCED CARDIAC')) return 'acls';
+    if (s.includes('BLS') || s.includes('BASIC LIFE')) return 'bls';
+    if (s.includes('CPR') || s.includes('CARDIO-PULMONARY') || s.includes('CARDIOPULMONARY')) return 'cpr';
+    return 'other';
+  }
+
+  /**
+   * Auto-link a malpractice policy to PracticeLocation rows for the same
+   * provider, based on covered-practice hints from CAQH.
+   *
+   * Matching priority (D3):
+   *   1. exact_name — PracticeLocation.locationName matches PracticeName (case-insensitive trim)
+   *   2. address — addressLine1 + state + zipCode all match (case-insensitive)
+   *
+   * Idempotent: uses upsert via the unique (malpracticeInsuranceId, practiceLocationId)
+   * constraint. Records the match path in `matched_via` and the original
+   * CAQH label in `caqh_raw_label` for audit.
+   */
+  private async linkCoveredPractices(
+    providerId: string,
+    malpracticeInsuranceId: string,
+    coveredPractices: NonNullable<MappedCaqhData['malpractice'][number]['coveredPractices']>,
+  ): Promise<void> {
+    const locations = await prisma.practiceLocation.findMany({
+      where: { providerId },
+    });
+    if (locations.length === 0) return;
+
+    const norm = (s?: string) => (s ?? '').trim().toLowerCase();
+
+    for (const cp of coveredPractices) {
+      let matchedId: string | null = null;
+      let matchedVia: 'exact_name' | 'address' | null = null;
+
+      if (cp.rawLabel) {
+        const target = norm(cp.rawLabel);
+        const byName = locations.find(l => norm(l.locationName) === target);
+        if (byName) {
+          matchedId = byName.id;
+          matchedVia = 'exact_name';
+        }
+      }
+      if (!matchedId && cp.addressLine1) {
+        const targetAddr = norm(cp.addressLine1);
+        const targetState = norm(cp.state);
+        const targetZip = norm(cp.zipCode);
+        const byAddr = locations.find(l =>
+          norm(l.addressLine1) === targetAddr &&
+          (!targetState || norm(l.state) === targetState) &&
+          (!targetZip || norm(l.zipCode) === targetZip)
+        );
+        if (byAddr) {
+          matchedId = byAddr.id;
+          matchedVia = 'address';
+        }
+      }
+      if (!matchedId || !matchedVia) {
+        logger.info({
+          event: 'caqh_covered_practice_unmatched',
+          providerId,
+          rawLabel: cp.rawLabel,
+          addressLine1: cp.addressLine1,
+        });
+        continue;
+      }
+
+      try {
+        await prisma.malpracticePolicyLocation.upsert({
+          where: {
+            malpracticeInsuranceId_practiceLocationId: {
+              malpracticeInsuranceId,
+              practiceLocationId: matchedId,
+            },
+          },
+          create: {
+            malpracticeInsuranceId,
+            practiceLocationId: matchedId,
+            caqhRawLabel: cp.rawLabel,
+            matchedVia,
+          },
+          update: {
+            caqhRawLabel: cp.rawLabel,
+            matchedVia,
+          },
+        });
+      } catch (error) {
+        logger.warn({
+          event: 'caqh_covered_practice_link_failed',
+          providerId,
+          malpracticeInsuranceId,
+          matchedId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
   }
 
   /**
@@ -2423,5 +3020,7 @@ export interface CaqhSyncSummary {
   specialties: { created: number; updated: number; skipped: number; failed: number };
   education: { created: number; updated: number; skipped: number; failed: number };
   malpractice: { created: number; updated: number; skipped: number; failed: number };
+  providerCertifications: { created: number; updated: number; skipped: number; failed: number };
+  cdsRegistrations: { created: number; updated: number; skipped: number; failed: number };
   failedRecords: Array<{ category: string; identifier: string; error: string }>;
 }
