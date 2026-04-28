@@ -105,5 +105,23 @@ export function validateEnv(): Env {
     }
   }
 
+  // CAQH integration env vars — fail fast in production, loud warning in dev/test.
+  // Mirrors CaqhService.isConfigured() so a booted server is guaranteed CAQH-capable.
+  // CAQH_PRODUCT and CAQH_SYNC_SCHEDULE have defaults at point of use and are NOT required.
+  const caqhRequired = ['CAQH_API_URL', 'CAQH_ORG_ID', 'CAQH_USERNAME', 'CAQH_PASSWORD'] as const;
+  const caqhMissing = caqhRequired.filter((k) => !result.data[k]);
+
+  if (caqhMissing.length > 0) {
+    if (result.data.NODE_ENV === 'production') {
+      const msg = `CAQH integration env vars are required in production but missing: ${caqhMissing.join(', ')}. Set these in Render env vars before deploying.`;
+      logger.error(msg);
+      throw new Error(msg);
+    } else {
+      logger.warn(
+        `CAQH integration env vars missing (${caqhMissing.join(', ')}) — CAQH sync features will be disabled. This is expected for local dev without a CAQH demo account.`
+      );
+    }
+  }
+
   return result.data;
 }
