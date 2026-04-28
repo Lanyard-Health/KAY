@@ -3,20 +3,18 @@ import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { useCreateDeaRegistration, useUpdateDeaRegistration } from '../../hooks/usePayerEnrollmentData';
+import { useCreateCdsRegistration, useUpdateCdsRegistration } from '../../hooks/usePayerEnrollmentData';
 
-interface DeaRegistrationFormData {
-  deaNumber: string;
-  deaState?: string;
-  deaSchedules: string[];
+interface CdsRegistrationFormData {
+  cdsNumber: string;
+  state: string;
   issueDate: string;
   expirationDate: string;
-  buprenorphineWaiver: boolean;
   status: string;
   notes?: string;
 }
 
-interface DeaRegistrationModalProps {
+interface CdsRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   providerId: string;
@@ -30,8 +28,6 @@ const US_STATES = [
   'UT','VT','VA','VI','WA','WV','WI','WY',
 ];
 
-const DEA_SCHEDULES = ['II', 'III', 'IV', 'V'];
-
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
   { value: 'expired', label: 'Expired' },
@@ -41,53 +37,44 @@ const STATUS_OPTIONS = [
 
 const formatDate = (d: string | undefined) => d ? d.substring(0, 10) : '';
 
-export default function DeaRegistrationModal({
+export default function CdsRegistrationModal({
   isOpen,
   onClose,
   providerId,
   registration,
-}: DeaRegistrationModalProps) {
+}: CdsRegistrationModalProps) {
   const isEditing = !!registration;
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
-    watch,
     formState: { errors },
-  } = useForm<DeaRegistrationFormData>({
+  } = useForm<CdsRegistrationFormData>({
     defaultValues: {
-      deaNumber: '',
-      deaState: '',
-      deaSchedules: [],
+      cdsNumber: '',
+      state: '',
       issueDate: '',
       expirationDate: '',
-      buprenorphineWaiver: false,
       status: 'active',
       notes: '',
     },
   });
 
-  const watchedSchedules = watch('deaSchedules');
-
   useEffect(() => {
     if (registration) {
       reset({
-        deaNumber: registration.deaNumber,
-        deaState: registration.deaState || '',
-        deaSchedules: registration.deaSchedules || [],
+        cdsNumber: registration.cdsNumber || '',
+        state: registration.state || '',
         issueDate: formatDate(registration.issueDate),
         expirationDate: formatDate(registration.expirationDate),
-        buprenorphineWaiver: registration.buprenorphineWaiver || false,
         status: registration.status || 'active',
         notes: registration.notes || '',
       });
     } else {
       reset({
-        deaNumber: '',
-        deaState: '',
-        deaSchedules: [],
+        cdsNumber: '',
+        state: '',
         issueDate: '',
         expirationDate: '',
         status: 'active',
@@ -96,23 +83,15 @@ export default function DeaRegistrationModal({
     }
   }, [registration, reset]);
 
-  const handleScheduleChange = (schedule: string, checked: boolean) => {
-    const current = watchedSchedules || [];
-    if (checked) {
-      setValue('deaSchedules', [...current, schedule]);
-    } else {
-      setValue('deaSchedules', current.filter((s) => s !== schedule));
-    }
-  };
-
-  const createMutation = useCreateDeaRegistration();
-  const updateMutation = useUpdateDeaRegistration();
+  const createMutation = useCreateCdsRegistration();
+  const updateMutation = useUpdateCdsRegistration();
   const mutation = isEditing ? updateMutation : createMutation;
 
-  const onSubmit = (data: DeaRegistrationFormData) => {
+  const onSubmit = (data: CdsRegistrationFormData) => {
     const payload = {
       ...data,
-      deaState: data.deaState || undefined,
+      issueDate: data.issueDate || undefined,
+      expirationDate: data.expirationDate || undefined,
       notes: data.notes || undefined,
     };
 
@@ -121,11 +100,11 @@ export default function DeaRegistrationModal({
         { id: registration.id, providerId, ...payload },
         {
           onSuccess: () => {
-            toast.success('DEA registration updated');
+            toast.success('CDS registration updated');
             onClose();
           },
           onError: (error: any) => {
-            toast.error(error.response?.data?.error?.message || 'Failed to update DEA registration');
+            toast.error(error.response?.data?.error?.message || 'Failed to update CDS registration');
           },
         }
       );
@@ -134,11 +113,11 @@ export default function DeaRegistrationModal({
         { providerId, ...payload },
         {
           onSuccess: () => {
-            toast.success('DEA registration added');
+            toast.success('CDS registration added');
             onClose();
           },
           onError: (error: any) => {
-            toast.error(error.response?.data?.error?.message || 'Failed to add DEA registration');
+            toast.error(error.response?.data?.error?.message || 'Failed to add CDS registration');
           },
         }
       );
@@ -175,7 +154,7 @@ export default function DeaRegistrationModal({
                 <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                   <div className="flex items-center justify-between mb-4">
                     <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900">
-                      {isEditing ? 'Edit DEA Registration' : 'Add DEA Registration'}
+                      {isEditing ? 'Edit CDS Registration' : 'Add CDS Registration'}
                     </Dialog.Title>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                       <XMarkIcon className="h-6 w-6" />
@@ -183,22 +162,22 @@ export default function DeaRegistrationModal({
                   </div>
 
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* DEA Number + State */}
+                    {/* CDS Number + State */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">DEA Number *</label>
+                        <label className="label">CDS Number *</label>
                         <input
-                          {...register('deaNumber', { required: 'Required' })}
+                          {...register('cdsNumber', { required: 'Required' })}
                           className="input"
-                          placeholder="e.g. AB1234567"
+                          placeholder="State CDS number"
                         />
-                        {errors.deaNumber && (
-                          <p className="mt-1 text-sm text-red-600">{errors.deaNumber.message}</p>
+                        {errors.cdsNumber && (
+                          <p className="mt-1 text-sm text-red-600">{errors.cdsNumber.message}</p>
                         )}
                       </div>
                       <div>
-                        <label className="label">State</label>
-                        <select {...register('deaState')} className="input">
+                        <label className="label">State *</label>
+                        <select {...register('state', { required: 'Required' })} className="input">
                           <option value="">Select</option>
                           {US_STATES.map((state) => (
                             <option key={state} value={state}>
@@ -206,64 +185,30 @@ export default function DeaRegistrationModal({
                             </option>
                           ))}
                         </select>
-                      </div>
-                    </div>
-
-                    {/* DEA Schedules */}
-                    <div>
-                      <label className="label">DEA Schedules</label>
-                      <div className="flex gap-6 mt-1">
-                        {DEA_SCHEDULES.map((schedule) => (
-                          <label key={schedule} className="flex items-center gap-2 text-sm text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(watchedSchedules || []).includes(schedule)}
-                              onChange={(e) => handleScheduleChange(schedule, e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            Schedule {schedule}
-                          </label>
-                        ))}
+                        {errors.state && (
+                          <p className="mt-1 text-sm text-red-600">{errors.state.message}</p>
+                        )}
                       </div>
                     </div>
 
                     {/* Dates */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">Issue Date *</label>
+                        <label className="label">Issue Date</label>
                         <input
                           type="date"
-                          {...register('issueDate', { required: 'Required' })}
+                          {...register('issueDate')}
                           className="input"
                         />
-                        {errors.issueDate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.issueDate.message}</p>
-                        )}
                       </div>
                       <div>
-                        <label className="label">Expiration Date *</label>
+                        <label className="label">Expiration Date</label>
                         <input
                           type="date"
-                          {...register('expirationDate', { required: 'Required' })}
+                          {...register('expirationDate')}
                           className="input"
                         />
-                        {errors.expirationDate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.expirationDate.message}</p>
-                        )}
                       </div>
-                    </div>
-
-                    {/* Buprenorphine Waiver */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        {...register('buprenorphineWaiver')}
-                        id="buprenorphineWaiver"
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <label htmlFor="buprenorphineWaiver" className="label mb-0">
-                        Buprenorphine (DATA 2000) Waiver
-                      </label>
                     </div>
 
                     {/* Status */}
@@ -301,7 +246,7 @@ export default function DeaRegistrationModal({
                         disabled={mutation.isPending}
                         className="btn-primary"
                       >
-                        {mutation.isPending ? 'Saving...' : isEditing ? 'Update' : 'Add DEA Registration'}
+                        {mutation.isPending ? 'Saving...' : isEditing ? 'Update' : 'Add CDS Registration'}
                       </button>
                     </div>
                   </form>

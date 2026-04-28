@@ -17,6 +17,10 @@ interface MalpracticeInsuranceFormData {
   hasTailCoverage: boolean;
   hasGapInCoverage: boolean;
   gapExplanation: string;
+  isSelfInsured: boolean;
+  hasUnlimitedCoverage: boolean;
+  isIndividualCoverage: boolean;
+  coveredLocationIds: string[];
   status: string;
   notes: string;
 }
@@ -26,6 +30,7 @@ interface MalpracticeInsuranceModalProps {
   onClose: () => void;
   providerId: string;
   insurance?: any;
+  practiceLocations?: Array<{ id: string; name?: string; locationName?: string; city?: string; state?: string }>;
 }
 
 const COVERAGE_TYPES = [
@@ -47,6 +52,7 @@ export default function MalpracticeInsuranceModal({
   onClose,
   providerId,
   insurance,
+  practiceLocations,
 }: MalpracticeInsuranceModalProps) {
   const isEditing = !!insurance;
 
@@ -55,6 +61,7 @@ export default function MalpracticeInsuranceModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<MalpracticeInsuranceFormData>({
     defaultValues: {
@@ -69,12 +76,26 @@ export default function MalpracticeInsuranceModal({
       hasTailCoverage: false,
       hasGapInCoverage: false,
       gapExplanation: '',
+      isSelfInsured: false,
+      hasUnlimitedCoverage: false,
+      isIndividualCoverage: false,
+      coveredLocationIds: [],
       status: 'active',
       notes: '',
     },
   });
 
   const hasGapInCoverage = watch('hasGapInCoverage');
+  const watchedCoveredLocationIds = watch('coveredLocationIds');
+
+  const handleLocationToggle = (locationId: string, checked: boolean) => {
+    const current = watchedCoveredLocationIds || [];
+    if (checked) {
+      setValue('coveredLocationIds', [...current, locationId]);
+    } else {
+      setValue('coveredLocationIds', current.filter((id) => id !== locationId));
+    }
+  };
 
   useEffect(() => {
     if (insurance) {
@@ -90,6 +111,10 @@ export default function MalpracticeInsuranceModal({
         hasTailCoverage: insurance.hasTailCoverage || false,
         hasGapInCoverage: insurance.hasGapInCoverage || false,
         gapExplanation: insurance.gapExplanation || '',
+        isSelfInsured: insurance.isSelfInsured || false,
+        hasUnlimitedCoverage: insurance.hasUnlimitedCoverage || false,
+        isIndividualCoverage: insurance.isIndividualCoverage || false,
+        coveredLocationIds: insurance.coveredLocationIds || [],
         status: insurance.status || 'active',
         notes: insurance.notes || '',
       });
@@ -106,6 +131,10 @@ export default function MalpracticeInsuranceModal({
         hasTailCoverage: false,
         hasGapInCoverage: false,
         gapExplanation: '',
+        isSelfInsured: false,
+        hasUnlimitedCoverage: false,
+        isIndividualCoverage: false,
+        coveredLocationIds: [],
         status: 'active',
         notes: '',
       });
@@ -123,6 +152,7 @@ export default function MalpracticeInsuranceModal({
       aggregateAmount: data.aggregateAmount ? Number(data.aggregateAmount) : undefined,
       retroactiveDate: data.retroactiveDate || undefined,
       gapExplanation: data.hasGapInCoverage ? data.gapExplanation || undefined : undefined,
+      coveredLocationIds: data.coveredLocationIds || [],
       notes: data.notes || undefined,
     };
 
@@ -344,6 +374,69 @@ export default function MalpracticeInsuranceModal({
                         {errors.gapExplanation && (
                           <p className="mt-1 text-sm text-red-600">{errors.gapExplanation.message}</p>
                         )}
+                      </div>
+                    )}
+
+                    {/* CAQH-extended flags */}
+                    <div className="flex items-center gap-6 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          {...register('isSelfInsured')}
+                          id="isSelfInsured"
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <label htmlFor="isSelfInsured" className="label mb-0">
+                          Self-Insured
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          {...register('hasUnlimitedCoverage')}
+                          id="hasUnlimitedCoverage"
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <label htmlFor="hasUnlimitedCoverage" className="label mb-0">
+                          Unlimited Coverage
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          {...register('isIndividualCoverage')}
+                          id="isIndividualCoverage"
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <label htmlFor="isIndividualCoverage" className="label mb-0">
+                          Individual Coverage
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Covered Practice Locations (multi-select) */}
+                    {practiceLocations && practiceLocations.length > 0 && (
+                      <div>
+                        <label className="label">Covered Practice Locations</label>
+                        <div className="mt-1 space-y-2 rounded-lg border border-gray-200 p-3 max-h-48 overflow-y-auto">
+                          {practiceLocations.map((loc) => {
+                            const checked = (watchedCoveredLocationIds || []).includes(loc.id);
+                            const labelLine = [loc.name || loc.locationName || 'Location', [loc.city, loc.state].filter(Boolean).join(', ')]
+                              .filter(Boolean)
+                              .join(' · ');
+                            return (
+                              <label key={loc.id} className="flex items-center gap-2 text-sm text-gray-700">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => handleLocationToggle(loc.id, e.target.checked)}
+                                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                {labelLine}
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 

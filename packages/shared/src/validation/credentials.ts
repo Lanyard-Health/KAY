@@ -68,6 +68,10 @@ export const createMalpracticeInsuranceSchema = z.object({
   retroactiveDate: dateStringSchema.optional(),
   hasGapInCoverage: z.boolean().default(false),
   gapExplanation: z.string().max(2000).optional(),
+  isSelfInsured: z.boolean().optional(),
+  hasUnlimitedCoverage: z.boolean().optional(),
+  isIndividualCoverage: z.boolean().optional(),
+  coveredLocationIds: z.array(z.string().uuid()).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -105,6 +109,7 @@ export const createWorkHistorySchema = z.object({
   city: z.string().max(100).optional(),
   state: z.string().length(2).optional(),
   zipCode: z.string().max(10).optional(),
+  country: z.string().max(100).optional(),
   phone: z.string().max(20).optional(),
   startDate: dateStringSchema,
   endDate: dateStringSchema.optional(),
@@ -112,6 +117,8 @@ export const createWorkHistorySchema = z.object({
   reasonForLeaving: z.string().max(500).optional(),
   supervisorName: z.string().max(100).optional(),
   supervisorPhone: z.string().max(20).optional(),
+  statusDescription: z.string().max(500).optional(),
+  workHistoryType: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -243,6 +250,31 @@ export const createDeaRegistrationSchema = z.object({
   deaSchedules: z.array(z.string().max(5)).default([]),
   issueDate: dateStringSchema,
   expirationDate: dateStringSchema,
+  buprenorphineWaiver: z.boolean().optional(),
+  status: credentialStatusSchema.default('active'),
+  notes: z.string().max(1000).optional(),
+});
+
+// CDS registration validation (state-issued controlled-substance registration,
+// independent of federal DEA). cdsNumber is encrypted via encryptSafe() before persistence.
+export const createCdsRegistrationSchema = z.object({
+  cdsNumber: z.string().min(1).max(50),
+  state: z.string().length(2),
+  issueDate: dateStringSchema.optional(),
+  expirationDate: dateStringSchema.optional(),
+  status: credentialStatusSchema.default('active'),
+  notes: z.string().max(1000).optional(),
+});
+
+// Provider certification validation (life-support / vocational certs: BLS, ACLS, CPR, PALS, other).
+export const providerCertificationTypeSchema = z.enum(['acls', 'bls', 'cpr', 'pals', 'other']);
+export const createProviderCertificationSchema = z.object({
+  certType: providerCertificationTypeSchema,
+  certDescription: z.string().min(1).max(200),
+  certNumber: z.string().max(100).optional(),
+  issuingAuthority: z.string().max(200).optional(),
+  issueDate: dateStringSchema.optional(),
+  expirationDate: dateStringSchema.optional(),
   status: credentialStatusSchema.default('active'),
   notes: z.string().max(1000).optional(),
 });
@@ -306,6 +338,8 @@ export type CreateSupervisingPhysicianInput = z.infer<typeof createSupervisingPh
 export type CreateMalpracticeClaimInput = z.infer<typeof createMalpracticeClaimSchema>;
 export type CreateDisclosureInput = z.infer<typeof createDisclosureSchema>;
 export type CreateDeaRegistrationInput = z.infer<typeof createDeaRegistrationSchema>;
+export type CreateCdsRegistrationInput = z.infer<typeof createCdsRegistrationSchema>;
+export type CreateProviderCertificationInput = z.infer<typeof createProviderCertificationSchema>;
 export type CreateProviderIdentifierInput = z.infer<typeof createProviderIdentifierSchema>;
 export type CreateBankingInput = z.infer<typeof createBankingSchema>;
 export type UpsertDemographicsInput = z.infer<typeof upsertDemographicsSchema>;

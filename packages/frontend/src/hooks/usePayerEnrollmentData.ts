@@ -773,3 +773,109 @@ export function useListCoveringColleagues(providerId: string) {
     enabled: !!providerId,
   });
 }
+
+// ==========================================
+// CDS Registrations (state-issued, separate from federal DEA)
+// ==========================================
+
+export function useListCdsRegistrations(providerId: string) {
+  return useQuery({
+    queryKey: ['cds-registrations', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/cds-registrations/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
+
+export function useCreateCdsRegistration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ providerId, ...data }: { providerId: string } & Record<string, any>) => {
+      const response = await api.post(`/credentials/cds-registrations/${providerId}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['cds-registrations', variables.providerId] });
+    },
+  });
+}
+
+export function useUpdateCdsRegistration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, providerId: _providerId, ...data }: { id: string; providerId: string } & Record<string, any>) => {
+      const response = await api.put(`/credentials/cds-registrations/${id}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['cds-registrations', variables.providerId] });
+    },
+  });
+}
+
+export function useDeleteCdsRegistration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, providerId: _providerId }: { id: string; providerId: string }) => {
+      await api.delete(`/credentials/cds-registrations/${id}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['cds-registrations', variables.providerId] });
+    },
+  });
+}
+
+// ==========================================
+// Provider Certifications (life-support / vocational: BLS, ACLS, CPR, PALS, other)
+// ==========================================
+
+export function useListProviderCertifications(providerId: string) {
+  return useQuery({
+    queryKey: ['provider-certifications', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/provider-certifications/provider/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
+
+export function useCreateProviderCertification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ providerId, ...data }: { providerId: string } & Record<string, any>) => {
+      const response = await api.post(`/credentials/provider-certifications/provider/${providerId}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider-certifications', variables.providerId] });
+    },
+  });
+}
+
+export function useUpdateProviderCertification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, providerId: _providerId, ...data }: { id: string; providerId: string } & Record<string, any>) => {
+      const response = await api.put(`/credentials/provider-certifications/${id}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider-certifications', variables.providerId] });
+    },
+  });
+}
+
+export function useDeleteProviderCertification() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, providerId: _providerId }: { id: string; providerId: string }) => {
+      await api.delete(`/credentials/provider-certifications/${id}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider-certifications', variables.providerId] });
+    },
+  });
+}

@@ -3,34 +3,33 @@ import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { useCreateDeaRegistration, useUpdateDeaRegistration } from '../../hooks/usePayerEnrollmentData';
+import { useCreateProviderCertification, useUpdateProviderCertification } from '../../hooks/usePayerEnrollmentData';
 
-interface DeaRegistrationFormData {
-  deaNumber: string;
-  deaState?: string;
-  deaSchedules: string[];
+interface LifeSupportCertFormData {
+  certType: string;
+  certDescription: string;
+  certNumber: string;
+  issuingAuthority: string;
   issueDate: string;
   expirationDate: string;
-  buprenorphineWaiver: boolean;
   status: string;
-  notes?: string;
+  notes: string;
 }
 
-interface DeaRegistrationModalProps {
+interface LifeSupportCertModalProps {
   isOpen: boolean;
   onClose: () => void;
   providerId: string;
-  registration?: any;
+  certification?: any;
 }
 
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN',
-  'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',
-  'NJ','NM','NY','NC','ND','OH','OK','OR','PA','PR','RI','SC','SD','TN','TX',
-  'UT','VT','VA','VI','WA','WV','WI','WY',
+const CERT_TYPES = [
+  { value: 'acls', label: 'ACLS — Advanced Cardiac Life Support' },
+  { value: 'bls', label: 'BLS — Basic Life Support' },
+  { value: 'cpr', label: 'CPR' },
+  { value: 'pals', label: 'PALS — Pediatric Advanced Life Support' },
+  { value: 'other', label: 'Other' },
 ];
-
-const DEA_SCHEDULES = ['II', 'III', 'IV', 'V'];
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -41,91 +40,82 @@ const STATUS_OPTIONS = [
 
 const formatDate = (d: string | undefined) => d ? d.substring(0, 10) : '';
 
-export default function DeaRegistrationModal({
+export default function LifeSupportCertModal({
   isOpen,
   onClose,
   providerId,
-  registration,
-}: DeaRegistrationModalProps) {
-  const isEditing = !!registration;
+  certification,
+}: LifeSupportCertModalProps) {
+  const isEditing = !!certification;
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
-    watch,
     formState: { errors },
-  } = useForm<DeaRegistrationFormData>({
+  } = useForm<LifeSupportCertFormData>({
     defaultValues: {
-      deaNumber: '',
-      deaState: '',
-      deaSchedules: [],
+      certType: 'bls',
+      certDescription: '',
+      certNumber: '',
+      issuingAuthority: '',
       issueDate: '',
       expirationDate: '',
-      buprenorphineWaiver: false,
       status: 'active',
       notes: '',
     },
   });
 
-  const watchedSchedules = watch('deaSchedules');
-
   useEffect(() => {
-    if (registration) {
+    if (certification) {
       reset({
-        deaNumber: registration.deaNumber,
-        deaState: registration.deaState || '',
-        deaSchedules: registration.deaSchedules || [],
-        issueDate: formatDate(registration.issueDate),
-        expirationDate: formatDate(registration.expirationDate),
-        buprenorphineWaiver: registration.buprenorphineWaiver || false,
-        status: registration.status || 'active',
-        notes: registration.notes || '',
+        certType: certification.certType || 'bls',
+        certDescription: certification.certDescription || '',
+        certNumber: certification.certNumber || '',
+        issuingAuthority: certification.issuingAuthority || '',
+        issueDate: formatDate(certification.issueDate),
+        expirationDate: formatDate(certification.expirationDate),
+        status: certification.status || 'active',
+        notes: certification.notes || '',
       });
     } else {
       reset({
-        deaNumber: '',
-        deaState: '',
-        deaSchedules: [],
+        certType: 'bls',
+        certDescription: '',
+        certNumber: '',
+        issuingAuthority: '',
         issueDate: '',
         expirationDate: '',
         status: 'active',
         notes: '',
       });
     }
-  }, [registration, reset]);
+  }, [certification, reset]);
 
-  const handleScheduleChange = (schedule: string, checked: boolean) => {
-    const current = watchedSchedules || [];
-    if (checked) {
-      setValue('deaSchedules', [...current, schedule]);
-    } else {
-      setValue('deaSchedules', current.filter((s) => s !== schedule));
-    }
-  };
-
-  const createMutation = useCreateDeaRegistration();
-  const updateMutation = useUpdateDeaRegistration();
+  const createMutation = useCreateProviderCertification();
+  const updateMutation = useUpdateProviderCertification();
   const mutation = isEditing ? updateMutation : createMutation;
 
-  const onSubmit = (data: DeaRegistrationFormData) => {
+  const onSubmit = (data: LifeSupportCertFormData) => {
     const payload = {
       ...data,
-      deaState: data.deaState || undefined,
+      certNumber: data.certNumber || undefined,
+      issuingAuthority: data.issuingAuthority || undefined,
+      issueDate: data.issueDate || undefined,
+      expirationDate: data.expirationDate || undefined,
       notes: data.notes || undefined,
     };
 
     if (isEditing) {
       updateMutation.mutate(
-        { id: registration.id, providerId, ...payload },
+        { id: certification.id, providerId, ...payload },
         {
           onSuccess: () => {
-            toast.success('DEA registration updated');
+            toast.success('Certification updated');
             onClose();
           },
           onError: (error: any) => {
-            toast.error(error.response?.data?.error?.message || 'Failed to update DEA registration');
+            toast.error(error.response?.data?.error?.message || 'Failed to update certification');
           },
         }
       );
@@ -134,11 +124,11 @@ export default function DeaRegistrationModal({
         { providerId, ...payload },
         {
           onSuccess: () => {
-            toast.success('DEA registration added');
+            toast.success('Certification added');
             onClose();
           },
           onError: (error: any) => {
-            toast.error(error.response?.data?.error?.message || 'Failed to add DEA registration');
+            toast.error(error.response?.data?.error?.message || 'Failed to add certification');
           },
         }
       );
@@ -175,7 +165,7 @@ export default function DeaRegistrationModal({
                 <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                   <div className="flex items-center justify-between mb-4">
                     <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900">
-                      {isEditing ? 'Edit DEA Registration' : 'Add DEA Registration'}
+                      {isEditing ? 'Edit Life-Support Cert' : 'Add Life-Support Cert'}
                     </Dialog.Title>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
                       <XMarkIcon className="h-6 w-6" />
@@ -183,87 +173,64 @@ export default function DeaRegistrationModal({
                   </div>
 
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* DEA Number + State */}
+                    {/* Cert Type + Description */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">DEA Number *</label>
-                        <input
-                          {...register('deaNumber', { required: 'Required' })}
-                          className="input"
-                          placeholder="e.g. AB1234567"
-                        />
-                        {errors.deaNumber && (
-                          <p className="mt-1 text-sm text-red-600">{errors.deaNumber.message}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="label">State</label>
-                        <select {...register('deaState')} className="input">
-                          <option value="">Select</option>
-                          {US_STATES.map((state) => (
-                            <option key={state} value={state}>
-                              {state}
+                        <label className="label">Cert Type *</label>
+                        <select {...register('certType', { required: 'Required' })} className="input">
+                          {CERT_TYPES.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
                             </option>
                           ))}
                         </select>
+                        {errors.certType && (
+                          <p className="mt-1 text-sm text-red-600">{errors.certType.message}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="label">Description *</label>
+                        <input
+                          {...register('certDescription', { required: 'Required' })}
+                          className="input"
+                          placeholder="e.g. AHA BLS Provider"
+                        />
+                        {errors.certDescription && (
+                          <p className="mt-1 text-sm text-red-600">{errors.certDescription.message}</p>
+                        )}
                       </div>
                     </div>
 
-                    {/* DEA Schedules */}
-                    <div>
-                      <label className="label">DEA Schedules</label>
-                      <div className="flex gap-6 mt-1">
-                        {DEA_SCHEDULES.map((schedule) => (
-                          <label key={schedule} className="flex items-center gap-2 text-sm text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={(watchedSchedules || []).includes(schedule)}
-                              onChange={(e) => handleScheduleChange(schedule, e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                            Schedule {schedule}
-                          </label>
-                        ))}
+                    {/* Cert Number + Issuing Authority */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="label">Cert Number</label>
+                        <input
+                          {...register('certNumber')}
+                          className="input"
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Issuing Authority</label>
+                        <input
+                          {...register('issuingAuthority')}
+                          className="input"
+                          placeholder="e.g. American Heart Association"
+                        />
                       </div>
                     </div>
 
                     {/* Dates */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">Issue Date *</label>
-                        <input
-                          type="date"
-                          {...register('issueDate', { required: 'Required' })}
-                          className="input"
-                        />
-                        {errors.issueDate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.issueDate.message}</p>
-                        )}
+                        <label className="label">Issue Date</label>
+                        <input type="date" {...register('issueDate')} className="input" />
                       </div>
                       <div>
-                        <label className="label">Expiration Date *</label>
-                        <input
-                          type="date"
-                          {...register('expirationDate', { required: 'Required' })}
-                          className="input"
-                        />
-                        {errors.expirationDate && (
-                          <p className="mt-1 text-sm text-red-600">{errors.expirationDate.message}</p>
-                        )}
+                        <label className="label">Expiration Date</label>
+                        <input type="date" {...register('expirationDate')} className="input" />
                       </div>
-                    </div>
-
-                    {/* Buprenorphine Waiver */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        {...register('buprenorphineWaiver')}
-                        id="buprenorphineWaiver"
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      />
-                      <label htmlFor="buprenorphineWaiver" className="label mb-0">
-                        Buprenorphine (DATA 2000) Waiver
-                      </label>
                     </div>
 
                     {/* Status */}
@@ -301,7 +268,7 @@ export default function DeaRegistrationModal({
                         disabled={mutation.isPending}
                         className="btn-primary"
                       >
-                        {mutation.isPending ? 'Saving...' : isEditing ? 'Update' : 'Add DEA Registration'}
+                        {mutation.isPending ? 'Saving...' : isEditing ? 'Update' : 'Add Certification'}
                       </button>
                     </div>
                   </form>
