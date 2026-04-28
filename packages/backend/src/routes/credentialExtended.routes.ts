@@ -212,3 +212,21 @@ registerCrud(credentialExtendedRoutes, {
   fieldMap: { provider: 'courseProvider' },
   orderBy: { completionDate: 'desc' },
 });
+
+// GET-only endpoint for covering colleagues (read-only display in Day 2 UI;
+// CRUD will be added later when manual entry is supported).
+credentialExtendedRoutes.get(
+  '/covering-colleagues/provider/:providerId',
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const records = await prisma.coveringColleague.findMany({
+        where: { providerId: req.params['providerId'] },
+        orderBy: [{ isCurrent: 'desc' }, { name: 'asc' }],
+      });
+      res.json({ success: true, data: records });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

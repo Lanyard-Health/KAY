@@ -728,3 +728,48 @@ export function useUpsertDemographics() {
     },
   });
 }
+
+// ==========================================
+// Hospital Affiliations (read-only list)
+// ==========================================
+
+export function useListHospitalAffiliations(providerId: string) {
+  return useQuery({
+    queryKey: ['hospital-affiliations', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/hospital-affiliations/provider/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
+
+// ==========================================
+// Professional References (read-only list)
+// ==========================================
+
+export function useListProfessionalReferences(providerId: string) {
+  return useQuery({
+    queryKey: ['professional-references', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/professional-references/provider/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
+
+// ==========================================
+// Covering Colleagues (read-only list)
+// ==========================================
+
+export function useListCoveringColleagues(providerId: string) {
+  return useQuery({
+    queryKey: ['covering-colleagues', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/covering-colleagues/provider/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
