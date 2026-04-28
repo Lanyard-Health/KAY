@@ -12,6 +12,7 @@ import {
   createMalpracticeClaimSchema,
   createDisclosureSchema,
   createDeaRegistrationSchema,
+  createCdsRegistrationSchema,
   createProviderIdentifierSchema,
   createBankingSchema,
   upsertDemographicsSchema,
@@ -345,7 +346,7 @@ payerEnrollmentDataRoutes.post(
 
       setAuditContext(req, { resourceType: 'dea_registration', action: 'create' });
 
-      const { deaNumber, ...rest } = data;
+      const { deaNumber, buprenorphineWaiver, ...rest } = data;
       const record = await prisma.deaRegistration.create({
         data: {
           providerId: req.params['providerId']!,
@@ -353,6 +354,7 @@ payerEnrollmentDataRoutes.post(
           deaNumberEncrypted: encryptSafe(deaNumber),
           issueDate: new Date(data.issueDate),
           expirationDate: new Date(data.expirationDate),
+          ...(buprenorphineWaiver !== undefined && { buprenorphineWaiver }),
           createdById: req.user?.id,
         },
       });
@@ -377,7 +379,7 @@ payerEnrollmentDataRoutes.put(
       if (!existing) throw new NotFoundError('DEA registration');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('DEA registration');
 
-      const { deaNumber, ...rest } = data;
+      const { deaNumber, buprenorphineWaiver, ...rest } = data;
       const record = await prisma.deaRegistration.update({
         where: { id: req.params['id'] },
         data: {
@@ -385,6 +387,7 @@ payerEnrollmentDataRoutes.put(
           ...(deaNumber !== undefined && { deaNumberEncrypted: encryptSafe(deaNumber) }),
           ...(data.issueDate && { issueDate: new Date(data.issueDate) }),
           ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
+          ...(buprenorphineWaiver !== undefined && { buprenorphineWaiver }),
           updatedById: req.user?.id,
         },
       });
@@ -409,6 +412,109 @@ payerEnrollmentDataRoutes.delete(
 
       await prisma.deaRegistration.delete({ where: { id: req.params['id'] } });
       res.json({ success: true, message: 'DEA registration deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
+// CDS REGISTRATIONS (state-issued, separate from federal DEA)
+// HIPAA: cdsNumber is encrypted via encryptSafe() before persistence.
+// ==========================================
+
+payerEnrollmentDataRoutes.get(
+  '/cds-registrations/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const records = await prisma.cdsRegistration.findMany({
+        where: { providerId: req.params['providerId'] },
+        orderBy: { state: 'asc' },
+      });
+      const decrypted = records.map((r) => ({ ...r, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(r.cdsNumberEncrypted) }));
+      res.json({ success: true, data: decrypted });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+payerEnrollmentDataRoutes.post(
+  '/cds-registrations/:providerId',
+  authorize(...ALL_AUTHENTICATED_ROLES),
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createCdsRegistrationSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'cds_registration', action: 'create' });
+
+      const { cdsNumber, ...rest } = data;
+      const record = await prisma.cdsRegistration.create({
+        data: {
+          providerId: req.params['providerId']!,
+          ...rest,
+          cdsNumberEncrypted: encryptSafe(cdsNumber),
+          ...(rest.issueDate && { issueDate: new Date(rest.issueDate) }),
+          ...(rest.expirationDate && { expirationDate: new Date(rest.expirationDate) }),
+          createdById: req.user?.id,
+        },
+      });
+      res.status(201).json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(record.cdsNumberEncrypted) } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+payerEnrollmentDataRoutes.put(
+  '/cds-registrations/:id',
+  authorize(...STAFF_ROLES),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = nullablePartial(createCdsRegistrationSchema).parse(req.body);
+
+      setAuditContext(req, { resourceType: 'cds_registration', resourceId: req.params['id'], action: 'update' });
+
+      const existing = await prisma.cdsRegistration.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('CDS registration');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('CDS registration');
+
+      const { cdsNumber, ...rest } = data;
+      const record = await prisma.cdsRegistration.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...rest,
+          ...(cdsNumber !== undefined && { cdsNumberEncrypted: encryptSafe(cdsNumber) }),
+          ...(rest.issueDate && { issueDate: new Date(rest.issueDate) }),
+          ...(rest.expirationDate && { expirationDate: new Date(rest.expirationDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+      res.json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(record.cdsNumberEncrypted) } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+payerEnrollmentDataRoutes.delete(
+  '/cds-registrations/:id',
+  authorize(...STAFF_ROLES),
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      setAuditContext(req, { resourceType: 'cds_registration', resourceId: req.params['id'], action: 'delete' });
+
+      const existing = await prisma.cdsRegistration.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('CDS registration');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('CDS registration');
+
+      await prisma.cdsRegistration.delete({ where: { id: req.params['id'] } });
+      res.json({ success: true, message: 'CDS registration deleted' });
     } catch (error) {
       next(error);
     }

@@ -237,9 +237,17 @@ credentialRoutes.get(
       const insurance = await prisma.malpracticeInsurance.findMany({
         where: { providerId: req.params['providerId'] },
         orderBy: { expirationDate: 'asc' },
+        include: { coveredLocations: { select: { practiceLocationId: true } } },
       });
 
-      res.json({ success: true, data: insurance });
+      // Surface coveredLocationIds as a flat string[] for the form
+      const enriched = insurance.map((m) => ({
+        ...m,
+        coveredLocationIds: (m.coveredLocations ?? []).map((cl) => cl.practiceLocationId),
+        coveredLocations: undefined,
+      }));
+
+      res.json({ success: true, data: enriched });
     } catch (error) {
       next(error);
     }
@@ -256,14 +264,29 @@ credentialRoutes.post(
 
       setAuditContext(req, { resourceType: 'malpractice_insurance', action: 'create' });
 
-      const insurance = await prisma.malpracticeInsurance.create({
-        data: {
-          providerId: req.params['providerId']!,
-          ...data,
-          effectiveDate: new Date(data.effectiveDate),
-          expirationDate: new Date(data.expirationDate),
-          createdById: req.user?.id,
-        },
+      const { coveredLocationIds, ...rest } = data;
+
+      const insurance = await prisma.$transaction(async (tx) => {
+        const created = await tx.malpracticeInsurance.create({
+          data: {
+            providerId: req.params['providerId']!,
+            ...rest,
+            effectiveDate: new Date(rest.effectiveDate),
+            expirationDate: new Date(rest.expirationDate),
+            createdById: req.user?.id,
+          },
+        });
+        if (coveredLocationIds && coveredLocationIds.length > 0) {
+          await tx.malpracticePolicyLocation.createMany({
+            data: coveredLocationIds.map((pid: string) => ({
+              malpracticeInsuranceId: created.id,
+              practiceLocationId: pid,
+              matchedVia: 'manual_entry',
+            })),
+            skipDuplicates: true,
+          });
+        }
+        return created;
       });
 
       res.status(201).json({ success: true, data: insurance });
@@ -287,15 +310,36 @@ credentialRoutes.put(
       if (!existing) throw new NotFoundError('Malpractice insurance');
       if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Malpractice insurance');
 
-      const insurance = await prisma.malpracticeInsurance.update({
-        where: { id: req.params['id'] },
-        data: {
-          ...data,
-          ...(data.effectiveDate && { effectiveDate: new Date(data.effectiveDate) }),
-          ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
-          ...(data.retroactiveDate && { retroactiveDate: new Date(data.retroactiveDate) }),
-          updatedById: req.user?.id,
-        },
+      const { coveredLocationIds, ...rest } = data;
+
+      const insurance = await prisma.$transaction(async (tx) => {
+        const updated = await tx.malpracticeInsurance.update({
+          where: { id: req.params['id'] },
+          data: {
+            ...rest,
+            ...(rest.effectiveDate && { effectiveDate: new Date(rest.effectiveDate) }),
+            ...(rest.expirationDate && { expirationDate: new Date(rest.expirationDate) }),
+            ...(rest.retroactiveDate && { retroactiveDate: new Date(rest.retroactiveDate) }),
+            updatedById: req.user?.id,
+          },
+        });
+        // Replace junction rows transactionally if caller submitted a new set
+        if (coveredLocationIds !== undefined) {
+          await tx.malpracticePolicyLocation.deleteMany({
+            where: { malpracticeInsuranceId: req.params['id']! },
+          });
+          if (coveredLocationIds.length > 0) {
+            await tx.malpracticePolicyLocation.createMany({
+              data: coveredLocationIds.map((pid: string) => ({
+                malpracticeInsuranceId: req.params['id']!,
+                practiceLocationId: pid,
+                matchedVia: 'manual_entry',
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+        return updated;
       });
 
       res.json({ success: true, data: insurance });

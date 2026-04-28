@@ -12,6 +12,7 @@ import {
   createProfessionalReferenceSchema,
   createDisciplinaryActionSchema,
   createContinuingEducationSchema,
+  createProviderCertificationSchema,
 } from '@credential-management/shared';
 
 // ---------------------------------------------------------------------------
@@ -211,6 +212,16 @@ registerCrud(credentialExtendedRoutes, {
   dateFields: ['completionDate'],
   fieldMap: { provider: 'courseProvider' },
   orderBy: { completionDate: 'desc' },
+});
+
+registerCrud(credentialExtendedRoutes, {
+  slug: 'provider-certifications',
+  label: 'Provider certification',
+  resourceType: 'provider_certification',
+  createSchema: createProviderCertificationSchema,
+  delegate: prisma.providerCertification,
+  dateFields: ['issueDate', 'expirationDate'],
+  orderBy: { expirationDate: 'asc' },
 });
 
 // GET-only endpoint for covering colleagues (read-only display in Day 2 UI;

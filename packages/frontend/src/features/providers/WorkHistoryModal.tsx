@@ -14,6 +14,7 @@ interface WorkHistoryFormData {
   city: string;
   state: string;
   zipCode: string;
+  country: string;
   phone: string;
   startDate: string;
   endDate: string;
@@ -21,6 +22,8 @@ interface WorkHistoryFormData {
   reasonForLeaving: string;
   supervisorName: string;
   supervisorPhone: string;
+  statusDescription: string;
+  workHistoryType: string;
   notes: string;
 }
 
@@ -63,6 +66,7 @@ export default function WorkHistoryModal({
       city: '',
       state: '',
       zipCode: '',
+      country: 'US',
       phone: '',
       startDate: '',
       endDate: '',
@@ -70,6 +74,8 @@ export default function WorkHistoryModal({
       reasonForLeaving: '',
       supervisorName: '',
       supervisorPhone: '',
+      statusDescription: '',
+      workHistoryType: '',
       notes: '',
     },
   });
@@ -85,6 +91,7 @@ export default function WorkHistoryModal({
         city: workHistory.city || '',
         state: workHistory.state || '',
         zipCode: workHistory.zipCode || '',
+        country: workHistory.country || 'US',
         phone: workHistory.phone || '',
         startDate: formatDate(workHistory.startDate),
         endDate: formatDate(workHistory.endDate),
@@ -92,6 +99,8 @@ export default function WorkHistoryModal({
         reasonForLeaving: workHistory.reasonForLeaving || '',
         supervisorName: workHistory.supervisorName || '',
         supervisorPhone: workHistory.supervisorPhone || '',
+        statusDescription: workHistory.statusDescription || '',
+        workHistoryType: workHistory.workHistoryType || '',
         notes: workHistory.notes || '',
       });
     } else {
@@ -128,11 +137,14 @@ export default function WorkHistoryModal({
       city: data.city || undefined,
       state: data.state || undefined,
       zipCode: data.zipCode || undefined,
+      country: data.country || undefined,
       phone: data.phone || undefined,
       endDate: data.endDate || undefined,
       reasonForLeaving: data.reasonForLeaving || undefined,
       supervisorName: data.supervisorName || undefined,
       supervisorPhone: data.supervisorPhone || undefined,
+      statusDescription: data.statusDescription || undefined,
+      workHistoryType: data.workHistoryType || undefined,
       notes: data.notes || undefined,
     };
 
@@ -367,6 +379,36 @@ export default function WorkHistoryModal({
                           placeholder="(555) 555-5555"
                         />
                       </div>
+                    </div>
+
+                    {/* Country + Work History Type */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="label">Country</label>
+                        <input
+                          {...register('country')}
+                          className="input"
+                          placeholder="US"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Work History Type</label>
+                        <input
+                          {...register('workHistoryType')}
+                          className="input"
+                          placeholder="e.g. employed, locum, contract"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Status Description */}
+                    <div>
+                      <label className="label">Status Description</label>
+                      <input
+                        {...register('statusDescription')}
+                        className="input"
+                        placeholder="e.g. on leave, retired, active"
+                      />
                     </div>
 
                     {/* Notes */}

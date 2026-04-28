@@ -258,6 +258,8 @@ describe('Credential Routes', () => {
     describe('POST /malpractice/:providerId', () => {
       it('creates malpractice insurance with date conversion', async () => {
         prismaMock.malpracticeInsurance.create.mockResolvedValue(mockMalpractice as any);
+        // Route wraps create in prisma.$transaction; default mock doesn't invoke the callback
+        (prismaMock.$transaction as any).mockImplementation(async (cb: any) => cb(prismaMock));
 
         const res = await request(app)
           .post('/malpractice/provider-1-id')

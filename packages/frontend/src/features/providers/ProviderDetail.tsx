@@ -28,6 +28,8 @@ const DisclosureModal = lazy(() => import('./DisclosureModal'));
 const DeaRegistrationModal = lazy(() => import('./DeaRegistrationModal'));
 const ProviderIdentifierModal = lazy(() => import('./ProviderIdentifierModal'));
 const BankingModal = lazy(() => import('./BankingModal'));
+const CdsRegistrationModal = lazy(() => import('./CdsRegistrationModal'));
+const LifeSupportCertModal = lazy(() => import('./LifeSupportCertModal'));
 import {
   useListEducation, useDeleteEducation,
   useListWorkHistory, useDeleteWorkHistory,
@@ -41,6 +43,8 @@ import {
   useListHospitalAffiliations,
   useListProfessionalReferences,
   useListCoveringColleagues,
+  useListCdsRegistrations, useDeleteCdsRegistration,
+  useListProviderCertifications, useDeleteProviderCertification,
 } from '../../hooks/usePayerEnrollmentData';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
@@ -151,6 +155,10 @@ export default function ProviderDetail() {
   const [editingDisclosure, setEditingDisclosure] = useState<any>(null);
   const [deaRegistrationModalOpen, setDeaRegistrationModalOpen] = useState(false);
   const [editingDeaRegistration, setEditingDeaRegistration] = useState<any>(null);
+  const [cdsRegistrationModalOpen, setCdsRegistrationModalOpen] = useState(false);
+  const [editingCdsRegistration, setEditingCdsRegistration] = useState<any>(null);
+  const [lifeSupportCertModalOpen, setLifeSupportCertModalOpen] = useState(false);
+  const [editingLifeSupportCert, setEditingLifeSupportCert] = useState<any>(null);
 
   // CAQH edit-warning modal (Phase 2f)
   const [caqhWarning, setCaqhWarning] = useState<{ recordType: string; proceed: () => void } | null>(null);
@@ -218,6 +226,8 @@ export default function ProviderDetail() {
   const { data: hospitalAffiliationsList } = useListHospitalAffiliations(id || '');
   const { data: professionalReferencesList } = useListProfessionalReferences(id || '');
   const { data: coveringColleaguesList } = useListCoveringColleagues(id || '');
+  const { data: cdsRegistrationsList } = useListCdsRegistrations(id || '');
+  const { data: lifeSupportCertsList } = useListProviderCertifications(id || '');
 
 
   // Existing delete mutations
@@ -245,6 +255,8 @@ export default function ProviderDetail() {
   const deleteMalpracticeClaimMutation = useDeleteMalpracticeClaim();
   const deleteDisclosureMutation = useDeleteDisclosure();
   const deleteDeaRegistrationMutation = useDeleteDeaRegistration();
+  const deleteCdsRegistrationMutation = useDeleteCdsRegistration();
+  const deleteLifeSupportCertMutation = useDeleteProviderCertification();
   const deleteProviderIdentifierMutation = useDeleteProviderIdentifier();
   const deleteBankingMutation = useDeleteBanking();
 
@@ -412,6 +424,26 @@ export default function ProviderDetail() {
   const handleDeleteDeaRegistration = (deaId: string) => {
     showConfirm('Delete DEA Registration', 'Are you sure you want to delete this DEA registration?', () => {
       deleteDeaRegistrationMutation.mutate({ id: deaId, providerId: id! });
+      closeConfirm();
+    });
+  };
+
+  // CDS registration handlers
+  const handleAddCdsRegistration = () => { setEditingCdsRegistration(null); setCdsRegistrationModalOpen(true); };
+  const handleEditCdsRegistration = (cds: any) => { setEditingCdsRegistration(cds); setCdsRegistrationModalOpen(true); };
+  const handleDeleteCdsRegistration = (cdsId: string) => {
+    showConfirm('Delete CDS Registration', 'Are you sure you want to delete this CDS registration?', () => {
+      deleteCdsRegistrationMutation.mutate({ id: cdsId, providerId: id! });
+      closeConfirm();
+    });
+  };
+
+  // Life-Support certification handlers
+  const handleAddLifeSupportCert = () => { setEditingLifeSupportCert(null); setLifeSupportCertModalOpen(true); };
+  const handleEditLifeSupportCert = (c: any) => { setEditingLifeSupportCert(c); setLifeSupportCertModalOpen(true); };
+  const handleDeleteLifeSupportCert = (cId: string) => {
+    showConfirm('Delete Certification', 'Are you sure you want to delete this certification?', () => {
+      deleteLifeSupportCertMutation.mutate({ id: cId, providerId: id! });
       closeConfirm();
     });
   };
@@ -1169,25 +1201,49 @@ export default function ProviderDetail() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {workHistoryList.map((wh: any) => (
+                      {workHistoryList.map((wh: any) => {
+                        const addressLine = [wh.addressLine1, wh.city, wh.state, wh.zipCode].filter(Boolean).join(', ');
+                        const orgLine = [wh.organizationType, wh.department].filter(Boolean).join(' \u00b7 ');
+                        return (
                         <div key={wh.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="flex gap-3">
+                          <div className="flex gap-3 flex-1 min-w-0">
                             <div className="mt-0.5 h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
                               <BriefcaseIcon className="h-4 w-4 text-purple-600" />
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-gray-900">{wh.organizationName}</p>
                                 {wh.isCurrent && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">Current</span>
                                 )}
+                                {wh.workHistoryType && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                    {wh.workHistoryType}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-gray-500">{wh.position}</p>
+                              <p className="text-xs text-gray-600">{wh.position}</p>
+                              {orgLine && <p className="text-xs text-gray-500">{orgLine}</p>}
+                              {addressLine && <p className="text-xs text-gray-400">{addressLine}</p>}
                               <p className="text-xs text-gray-400">
                                 {wh.startDate ? format(new Date(wh.startDate), 'MMM yyyy') : ''}
                                 {' \u2013 '}
                                 {wh.isCurrent ? 'Present' : (wh.endDate ? format(new Date(wh.endDate), 'MMM yyyy') : '')}
                               </p>
+                              {(wh.supervisorName || wh.supervisorPhone) && (
+                                <p className="text-xs text-gray-400">
+                                  Supervisor: {[wh.supervisorName, wh.supervisorPhone].filter(Boolean).join(' \u00b7 ')}
+                                </p>
+                              )}
+                              {wh.phone && (
+                                <p className="text-xs text-gray-400">Phone: {wh.phone}</p>
+                              )}
+                              {wh.statusDescription && (
+                                <p className="text-xs text-gray-400">Status: {wh.statusDescription}</p>
+                              )}
+                              {wh.reasonForLeaving && (
+                                <p className="text-xs text-gray-400">Reason for leaving: {wh.reasonForLeaving}</p>
+                              )}
                             </div>
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1199,7 +1255,8 @@ export default function ProviderDetail() {
                             </button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CollapsibleSection>
@@ -1722,6 +1779,139 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
+                {/* CDS Registrations (state-issued, separate from federal DEA) */}
+                <CollapsibleSection
+                  title="CDS Registrations"
+                  count={cdsRegistrationsList?.length || 0}
+                  onAdd={handleAddCdsRegistration}
+                  addLabel="Add"
+                >
+                  {(!cdsRegistrationsList || cdsRegistrationsList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No CDS registrations yet</p>
+                      <p className="text-xs text-gray-400 mt-0.5">State-issued controlled-substance registration, separate from federal DEA</p>
+                      <button onClick={handleAddCdsRegistration} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add CDS registration
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {cdsRegistrationsList.map((cds: any) => {
+                        const cdsExpDate = cds.expirationDate ? new Date(cds.expirationDate) : null;
+                        const cdsDaysUntil = cdsExpDate ? Math.floor((cdsExpDate.getTime() - Date.now()) / 86400000) : null;
+                        const cdsExpired = cdsDaysUntil !== null && cdsDaysUntil < 0;
+                        const cdsExpiringSoon = cdsDaysUntil !== null && !cdsExpired && cdsDaysUntil <= 90;
+                        return (
+                        <div key={cds.id} className={clsx(
+                          'group relative p-4 bg-gray-50 rounded-xl border hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4',
+                          cdsExpired ? 'border-red-200 border-l-red-400 bg-red-50/50' : cdsExpiringSoon ? 'border-gray-100 border-l-amber-400 hover:border-primary-200' : 'border-gray-100 border-l-green-400 hover:border-primary-200'
+                        )}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm text-gray-900">CDS #{cds.cdsNumber}</p>
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200/80 text-gray-600">
+                                  {cds.state}
+                                </span>
+                                <span className={clsx(
+                                  'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                  cds.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                )}>{cds.status}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                Expires: {cds.expirationDate ? format(new Date(cds.expirationDate), 'MMM d, yyyy') : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleEditCdsRegistration(cds)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit CDS">
+                                <PencilIcon className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteCdsRegistration(cds.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete CDS">
+                                <TrashIcon className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Life-Support Certifications (BLS, ACLS, CPR, PALS, other) */}
+                <div className="card">
+                  <div className="card-header flex items-center justify-between">
+                    <h2 className="text-base font-semibold text-gray-900">Life-Support Certifications</h2>
+                    <button onClick={handleAddLifeSupportCert} className="text-sm text-primary-600 hover:text-primary-500 flex items-center">
+                      <PlusIcon className="h-4 w-4 mr-1" />Add
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {(!lifeSupportCertsList || lifeSupportCertsList.length === 0) ? (
+                      <div className="text-center py-8">
+                        <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                          <ShieldCheckIcon className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500">No life-support certifications yet</p>
+                        <p className="text-xs text-gray-400 mt-0.5">BLS, ACLS, CPR, PALS, or other</p>
+                        <button onClick={handleAddLifeSupportCert} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                          <PlusIcon className="h-3.5 w-3.5" /> Add certification
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {lifeSupportCertsList.map((cert: any) => {
+                          const certExpDate = cert.expirationDate ? new Date(cert.expirationDate) : null;
+                          const certDaysUntil = certExpDate ? Math.floor((certExpDate.getTime() - Date.now()) / 86400000) : null;
+                          const certExpired = certDaysUntil !== null && certDaysUntil < 0;
+                          const certExpiringSoon = certDaysUntil !== null && !certExpired && certDaysUntil <= 90;
+                          return (
+                            <div key={cert.id} className={clsx(
+                              'group relative p-4 rounded-xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-4',
+                              certExpired ? 'bg-red-50/50 border-red-200 border-l-red-400' : certExpiringSoon ? 'bg-gray-50 border-gray-100 border-l-amber-400 hover:border-primary-200' : 'bg-gray-50 border-gray-100 border-l-green-400 hover:border-primary-200'
+                            )}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm text-gray-900 uppercase">
+                                      {cert.certType}
+                                    </p>
+                                    <span className={clsx(
+                                      'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                      cert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                    )}>{cert.status}</span>
+                                    {cert.source && <SourceBadge source={cert.source} />}
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">{cert.certDescription}</p>
+                                  {cert.issuingAuthority && (
+                                    <p className="text-xs text-gray-400 mt-0.5">{cert.issuingAuthority}</p>
+                                  )}
+                                  <p className={clsx('text-xs mt-1', certExpired ? 'text-red-600 font-medium' : 'text-gray-400')}>
+                                    {cert.expirationDate
+                                      ? `${certExpired ? 'Expired' : 'Expires'}: ${format(new Date(cert.expirationDate), 'MMM d, yyyy')}`
+                                      : 'No expiration'}
+                                  </p>
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => handleEditLifeSupportCert(cert)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit certification">
+                                    <PencilIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleDeleteLifeSupportCert(cert.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete certification">
+                                    <TrashIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Malpractice Insurance */}
                 <CollapsibleSection
                   title="Malpractice Insurance"
@@ -2039,6 +2229,7 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         insurance={editingMalpracticeInsurance}
+        practiceLocations={provider.practiceLocations || []}
       />
 
       {/* Supervising Physician Modal */}
@@ -2083,6 +2274,28 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         registration={editingDeaRegistration}
+      />
+
+      {/* CDS Registration Modal */}
+      <CdsRegistrationModal
+        isOpen={cdsRegistrationModalOpen}
+        onClose={() => {
+          setCdsRegistrationModalOpen(false);
+          setEditingCdsRegistration(null);
+        }}
+        providerId={id!}
+        registration={editingCdsRegistration}
+      />
+
+      {/* Life-Support Cert Modal */}
+      <LifeSupportCertModal
+        isOpen={lifeSupportCertModalOpen}
+        onClose={() => {
+          setLifeSupportCertModalOpen(false);
+          setEditingLifeSupportCert(null);
+        }}
+        providerId={id!}
+        certification={editingLifeSupportCert}
       />
 
       {/* Provider Identifier Modal */}
