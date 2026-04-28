@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 // jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
@@ -38,6 +38,9 @@ import {
   useListDeaRegistrations, useDeleteDeaRegistration,
   useListProviderIdentifiers, useDeleteProviderIdentifier,
   useListBanking, useDeleteBanking,
+  useListHospitalAffiliations,
+  useListProfessionalReferences,
+  useListCoveringColleagues,
 } from '../../hooks/usePayerEnrollmentData';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
@@ -212,6 +215,9 @@ export default function ProviderDetail() {
   const { data: deaRegistrationsList } = useListDeaRegistrations(id || '');
   const { data: providerIdentifiersList } = useListProviderIdentifiers(id || '');
   const { data: bankingList } = useListBanking(id || '');
+  const { data: hospitalAffiliationsList } = useListHospitalAffiliations(id || '');
+  const { data: professionalReferencesList } = useListProfessionalReferences(id || '');
+  const { data: coveringColleaguesList } = useListCoveringColleagues(id || '');
 
 
   // Existing delete mutations
@@ -1122,6 +1128,11 @@ export default function ProviderDetail() {
                                 {' \u2013 '}
                                 {edu.endDate ? format(new Date(edu.endDate), 'MMM yyyy') : 'Present'}
                               </p>
+                              {(edu.city || edu.state) && (
+                                <p className="text-xs text-gray-400">
+                                  {[edu.city, edu.state].filter(Boolean).join(', ')}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1286,6 +1297,141 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
+                {/* Hospital Affiliations (read-only) */}
+                <CollapsibleSection
+                  title="Hospital Affiliations"
+                  count={hospitalAffiliationsList?.length || 0}
+                >
+                  {(!hospitalAffiliationsList || hospitalAffiliationsList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <BuildingOfficeIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No hospital affiliations on record</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...hospitalAffiliationsList].sort((a: any, b: any) => {
+                        const aPrimary = a.privilegeType === 'admitting' || a.privilegeType === 'full' ? 1 : 0;
+                        const bPrimary = b.privilegeType === 'admitting' || b.privilegeType === 'full' ? 1 : 0;
+                        if (aPrimary !== bPrimary) return bPrimary - aPrimary;
+                        const aDate = a.appointmentDate ? new Date(a.appointmentDate).getTime() : 0;
+                        const bDate = b.appointmentDate ? new Date(b.appointmentDate).getTime() : 0;
+                        return bDate - aDate;
+                      }).map((ha: any) => (
+                        <div key={ha.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="mt-0.5 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-gray-900">{ha.facilityName}</p>
+                              {ha.status && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-700">
+                                  {String(ha.status).replace(/_/g, ' ')}
+                                </span>
+                              )}
+                              {ha.privilegeType && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                  {String(ha.privilegeType).replace(/_/g, ' ')}
+                                </span>
+                              )}
+                            </div>
+                            {(ha.appointmentDate || ha.reappointmentDate) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {ha.appointmentDate && `Appointed ${format(new Date(ha.appointmentDate), 'MMM yyyy')}`}
+                                {ha.appointmentDate && ha.reappointmentDate && ' · '}
+                                {ha.reappointmentDate && `Reappointed ${format(new Date(ha.reappointmentDate), 'MMM yyyy')}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Professional References (read-only) */}
+                <CollapsibleSection
+                  title="Professional References"
+                  count={professionalReferencesList?.length || 0}
+                >
+                  {(!professionalReferencesList || professionalReferencesList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <UsersIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No professional references on record</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {professionalReferencesList.map((ref: any) => (
+                        <div key={ref.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="mt-0.5 h-8 w-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <UsersIcon className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-gray-900">{ref.name}</p>
+                            {(ref.relationship || ref.title) && (
+                              <p className="text-xs text-gray-500">
+                                {[ref.title, ref.relationship].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                            {(ref.email || ref.phone) && (
+                              <p className="text-xs text-gray-400">
+                                {[ref.email, ref.phone].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Covering Colleagues (read-only) */}
+                <CollapsibleSection
+                  title="Covering Colleagues"
+                  count={coveringColleaguesList?.length || 0}
+                >
+                  {(!coveringColleaguesList || coveringColleaguesList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <UsersIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No covering colleagues on record</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {coveringColleaguesList.map((cc: any) => (
+                        <div key={cc.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="mt-0.5 h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                            <UsersIcon className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-gray-900">{cc.name}</p>
+                              {cc.isCurrent && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                                  Current
+                                </span>
+                              )}
+                            </div>
+                            {(cc.relationship || cc.specialty) && (
+                              <p className="text-xs text-gray-500">
+                                {[cc.specialty, cc.relationship].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
                 {/* Additional Demographics */}
                 <CollapsibleSection title="Additional Demographics">
                   <DemographicsForm providerId={id!} />
@@ -1414,6 +1560,11 @@ export default function ProviderDetail() {
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200/80 text-gray-600">
                                       {license.state}
                                     </span>
+                                    {license.isPrimary && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                                        Primary
+                                      </span>
+                                    )}
                                     <SourceBadge source={license.source} />
                                   </div>
                                   <p className="text-xs text-gray-500 mt-0.5">#{license.licenseNumber}</p>
