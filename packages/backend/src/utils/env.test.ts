@@ -126,3 +126,40 @@ describe('validateEnv — CAQH startup assertion', () => {
     });
   });
 });
+
+describe('validateEnv — CAQH_ROSTER_MODE default', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    snapshot(['NODE_ENV', 'DATABASE_URL', 'CAQH_ROSTER_MODE', ...CAQH_REQUIRED]);
+    process.env['NODE_ENV'] = 'development';
+    process.env['DATABASE_URL'] = 'postgresql://test';
+    for (const k of CAQH_REQUIRED) delete process.env[k];
+    delete process.env['CAQH_ROSTER_MODE'];
+  });
+
+  afterEach(() => {
+    restore(['NODE_ENV', 'DATABASE_URL', 'CAQH_ROSTER_MODE', ...CAQH_REQUIRED]);
+  });
+
+  it('defaults CAQH_ROSTER_MODE to "individual" when env var is not set', () => {
+    const env = validateEnv();
+    expect(env.CAQH_ROSTER_MODE).toBe('individual');
+  });
+
+  it('honors CAQH_ROSTER_MODE=batch as the explicit rollback path', () => {
+    process.env['CAQH_ROSTER_MODE'] = 'batch';
+    const env = validateEnv();
+    expect(env.CAQH_ROSTER_MODE).toBe('batch');
+  });
+
+  it('honors CAQH_ROSTER_MODE=individual when set explicitly', () => {
+    process.env['CAQH_ROSTER_MODE'] = 'individual';
+    const env = validateEnv();
+    expect(env.CAQH_ROSTER_MODE).toBe('individual');
+  });
+
+  it('rejects unknown CAQH_ROSTER_MODE values at startup', () => {
+    process.env['CAQH_ROSTER_MODE'] = 'asynchronous';
+    expect(() => validateEnv()).toThrow(/CAQH_ROSTER_MODE/);
+  });
+});

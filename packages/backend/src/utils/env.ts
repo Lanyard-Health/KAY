@@ -53,9 +53,10 @@ const envSchema = z.object({
   CAQH_USERNAME: z.string().optional(),
   CAQH_PASSWORD: z.string().optional(),
   CAQH_PRODUCT: z.string().optional(),
-  // 'batch' = legacy /RosterAPI/API/Roster path (default); 'individual' = new /ProviewAPI/API/rosterIndividual path.
-  // Flip to 'individual' after E3 verifies it against demo with a real provider.
-  CAQH_ROSTER_MODE: z.enum(['batch', 'individual']).default('batch'),
+  // 'individual' (default) = /ProviewAPI/API/RosterIndividual — synchronous response with per-provider success/failure visibility.
+  // 'batch' = legacy /RosterAPI/API/Roster — fire-and-forget enqueue; failures invisible until status-poll polling ships (#206 residual gap).
+  // Override to 'batch' on Render env vars to roll back if individual mode misbehaves in production.
+  CAQH_ROSTER_MODE: z.enum(['batch', 'individual']).default('individual'),
   // Failure-rate threshold (0-1) above which the nightly sync job sends an
   // email alert to ADMIN_EMAIL. Default 0.25 — at the current 33% (#207)
   // failure rate this means a nightly email until root cause is fixed.

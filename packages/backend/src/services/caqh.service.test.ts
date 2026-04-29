@@ -246,9 +246,9 @@ describe('CaqhService', () => {
   // Public API methods
   // ==========================================
 
-  describe('addToRoster — batch mode (legacy default)', () => {
+  describe('addToRoster — batch mode (legacy rollback path)', () => {
     beforeEach(() => {
-      delete process.env['CAQH_ROSTER_MODE'];
+      process.env['CAQH_ROSTER_MODE'] = 'batch';
     });
 
     it('POSTs to /RosterAPI/API/Roster with snake_case payload and accepts a non-empty batch_id', async () => {

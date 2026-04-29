@@ -1051,8 +1051,9 @@ export class CaqhService {
   }
 
   /**
-   * Add a provider to the CAQH roster. Dispatches between the legacy batch endpoint
-   * and the new rosterIndividual endpoint based on `CAQH_ROSTER_MODE` (default 'batch').
+   * Add a provider to the CAQH roster. Dispatches between the rosterIndividual endpoint
+   * (default) and the legacy batch endpoint based on `CAQH_ROSTER_MODE`. Set
+   * `CAQH_ROSTER_MODE=batch` to roll back to the legacy path.
    *
    * Throws `ProviderNotReadyForCaqhError` if required fields can't be resolved.
    * Throws `CaqhRosterIndividualException` if CAQH rejects the request via
@@ -1060,7 +1061,7 @@ export class CaqhService {
    */
   async addToRoster(providerId: string): Promise<CaqhRosterResponse> {
     const resolved = await this.resolveCaqhRosterData(providerId);
-    const mode = process.env['CAQH_ROSTER_MODE'] === 'individual' ? 'individual' : 'batch';
+    const mode = process.env['CAQH_ROSTER_MODE'] === 'batch' ? 'batch' : 'individual';
 
     logger.info({
       event: 'caqh_add_to_roster_start',
