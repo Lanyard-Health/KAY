@@ -12,7 +12,7 @@ A web-based credentialing repository for behavioral health and mental health pro
 
 Before you begin, make sure you have installed:
 
-1. **Node.js 20+** - Download from https://nodejs.org/
+1. **Node.js 22.11.0** (pinned via `.nvmrc`) - Download from https://nodejs.org/. See [Local Development](#local-development) for version-manager details.
 2. **Docker Desktop** - Download from https://www.docker.com/products/docker-desktop/
 3. **Git** - Download from https://git-scm.com/
 
@@ -88,6 +88,35 @@ npm run dev
 - **Health Check**: http://localhost:3002/health
 
 In development mode with `DEV_AUTH_BYPASS=true`, you can log in with any credentials.
+
+---
+
+## Local Development
+
+### Node Version
+
+This repo pins Node to **22.11.0** via `.nvmrc`. Stick to that version locally — newer Node releases (notably 25.x) have a known incompatibility with `tsx` that delays the original cold-transpile boot path. See [issue #225](https://github.com/Revella-Health/KAY/issues/225) for the full diagnosis.
+
+**With a version manager** (recommended):
+
+- **nvm**: run `nvm use` in the repo root. If `22.11.0` is not installed yet, run `nvm install 22.11.0` first.
+- **fnm**: `fnm use` picks up `.nvmrc` automatically.
+- **asdf**: install the `nodejs` plugin and run `asdf install nodejs 22.11.0`.
+
+**Without a version manager**: install Node 22.x manually from https://nodejs.org/.
+
+### Backend Dev Server
+
+`npm run dev` in `packages/backend` runs two parallel watchers via `concurrently`:
+
+1. **`tsc -w`** — incremental TypeScript compile that emits to `dist/`
+2. **`nodemon`** — watches `dist/`, restarts `node dist/index.js` on rebuild (with an 800ms debounce so a single tsc emit doesn't trigger multiple restarts)
+
+The first run does a full TypeScript compile (~20–30s on a cold cache) before either watcher takes over. After that, edits to `src/` trigger a sub-second incremental rebuild and a clean nodemon restart (~2s end-to-end).
+
+**On macOS**, expect a brief flurry of restarts in the first ~2 minutes after boot as the kernel finishes flushing FSEvents from the initial `tsc` compile. After that the watchers are stable indefinitely. We initially tried Node's built-in `--watch`, but on macOS it interacts with `tsc -w` via `concurrently` to produce a continuous restart cascade; `nodemon`'s built-in debounce resolves this. See [issue #225](https://github.com/Revella-Health/KAY/issues/225) for the full diagnostic.
+
+Production deploys on Render are unaffected — they run the same compiled `node dist/index.js` after a full `tsc` build, so local dev now mirrors production's run path.
 
 ---
 
