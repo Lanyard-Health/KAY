@@ -12,7 +12,7 @@ A web-based credentialing repository for behavioral health and mental health pro
 
 Before you begin, make sure you have installed:
 
-1. **Node.js 20+** - Download from https://nodejs.org/
+1. **Node.js 22.11.0** (pinned via `.nvmrc`) - Download from https://nodejs.org/. See [Local Development](#local-development) for version-manager details.
 2. **Docker Desktop** - Download from https://www.docker.com/products/docker-desktop/
 3. **Git** - Download from https://git-scm.com/
 
@@ -88,6 +88,24 @@ npm run dev
 - **Health Check**: http://localhost:3002/health
 
 In development mode with `DEV_AUTH_BYPASS=true`, you can log in with any credentials.
+
+---
+
+## Local Development
+
+### Node Version
+
+This repo pins Node to **22.11.0** via `.nvmrc`. Stick to that version locally — newer Node releases (notably 25.x) have a known incompatibility with `tsx` 4.21 that causes `npm run dev` in `packages/backend` to hang for minutes during startup. See [issue #225](https://github.com/Revella-Health/KAY/issues/225) for the full diagnosis.
+
+**With a version manager** (recommended):
+
+- **nvm**: run `nvm use` in the repo root. If `22.11.0` is not installed yet, run `nvm install 22.11.0` first.
+- **fnm**: `fnm use` picks up `.nvmrc` automatically.
+- **asdf**: install the `nodejs` plugin and run `asdf install nodejs 22.11.0`.
+
+**Without a version manager**: install Node 22.x manually from https://nodejs.org/. Avoid Node 25.x until PR 2 of #225 lands (which will replace `tsx watch` with `tsc -w` + `node --watch dist/index.js` and remove the version sensitivity).
+
+Production deploys on Render are unaffected — they build with `tsc` and run `node dist/index.js`, never going through the `tsx` transpile path.
 
 ---
 
