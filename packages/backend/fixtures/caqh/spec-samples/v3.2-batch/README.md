@@ -10,4 +10,4 @@ Sourced from:
 
 ## Why batch is async
 
-The `/RosterAPI/API/Roster` endpoint is a **fire-and-forget enqueue**. The immediate POST response only acknowledges that CAQH accepted the request into its batch queue (`batch_id` returned) or rejected the enqueue (empty/missing `batch_id`). Per-provider success/failure outcomes arrive later via `GET /RosterAPI/api/ProviderStatus` polling, which is **not yet implemented** (#206 residual gap). Use `CAQH_ROSTER_MODE=individual` for synchronous failure detection.
+The `/RosterAPI/API/Roster` endpoint is a **fire-and-forget enqueue**. The immediate POST response only acknowledges that CAQH accepted the request into its batch queue (`batch_id` returned) or rejected the enqueue (empty/missing `batch_id`). Per-provider success/failure outcomes arrive later via `GET /RosterAPI/api/ProviderStatus` polling, which is **not yet implemented** (#206 residual gap). This blindness is why `CAQH_ROSTER_MODE` now defaults to `individual` — set `CAQH_ROSTER_MODE=batch` only as a rollback if the synchronous individual path misbehaves.
