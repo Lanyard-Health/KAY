@@ -9,6 +9,7 @@ import {
   CaqhService,
   ProviderNotReadyForCaqhError,
   CaqhRosterIndividualException,
+  CaqhBatchEnqueueException,
   CaqhDuplicateException,
   CaqhOptOutException,
   CaqhMultipleMatchException,
@@ -220,6 +221,15 @@ caqhRoutes.post(
       }
       if (error instanceof CaqhRosterIndividualException) {
         return caqhError(res, 'CAQH_REJECTED', error.exceptionDescription, 422);
+      }
+      if (error instanceof CaqhBatchEnqueueException) {
+        // 502: CAQH responded but rejected the enqueue itself (issue #206).
+        return caqhError(
+          res,
+          'CAQH_BATCH_ENQUEUE_REJECTED',
+          `CAQH did not return a usable batch_id (${error.reason}). The roster request was not accepted; provider was NOT added.`,
+          502,
+        );
       }
       next(error);
     }
