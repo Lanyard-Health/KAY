@@ -662,6 +662,36 @@ const RosterIndividualResponseSchema = z.preprocess(
 
 export type RosterIndividualResponse = z.infer<typeof RosterIndividualResponseSchemaLower>;
 
+/**
+ * Zod schema for /RosterAPI/API/Roster (legacy batch enqueue) response.
+ * Per spec sample (Roster Response for Add Update Delete Request Sample.txt),
+ * the immediate POST response is `{ "batch_id": "<id>" }` — async ack only.
+ * Empty/missing batch_id means CAQH rejected the enqueue itself; per-provider
+ * outcomes arrive later via GET /RosterAPI/api/ProviderStatus polling.
+ */
+const RosterBatchEnqueueResponseSchema = z.object({
+  batch_id: z.string(),
+}).passthrough();
+
+/**
+ * Thrown when /RosterAPI/API/Roster (batch) returns a response that doesn't
+ * contain a usable batch_id — either malformed shape or empty string.
+ * Distinct from CaqhRosterIndividualException because batch enqueue failures
+ * have no per-provider exception_description; the only signal is the missing
+ * batch_id at the envelope level. See issue #206.
+ */
+export class CaqhBatchEnqueueException extends Error {
+  public readonly reason: 'missing_batch_id' | 'empty_batch_id' | 'invalid_shape';
+  public readonly rawResponse: unknown;
+
+  constructor(reason: 'missing_batch_id' | 'empty_batch_id' | 'invalid_shape', rawResponse: unknown) {
+    super(`CAQH batch roster enqueue rejected (reason: ${reason})`);
+    this.name = 'CaqhBatchEnqueueException';
+    this.reason = reason;
+    this.rawResponse = rawResponse;
+  }
+}
+
 export class ProviderNotReadyForCaqhError extends Error {
   constructor(public readonly missingFields: string[]) {
     super(`Provider not ready for CAQH roster. Missing/invalid: ${missingFields.join(', ')}`);
@@ -1039,10 +1069,76 @@ export class CaqhService {
       mode,
     });
 
-    if (mode === 'individual') {
-      return this.addToRosterIndividual(resolved);
+    // Persist every roster attempt — success and failure — to caqh_sync_logs
+    // so the audit trail of "we tried to roster X" survives even when CAQH
+    // rejects. Direction is 'push' (vs 'pull' used by syncProvider).
+    // Issue #206: previously failures returned 200 silently with no DB record.
+    const startTime = Date.now();
+    const syncLog = await prisma.caqhSyncLog.create({
+      data: {
+        providerId,
+        direction: 'push',
+        status: 'in_progress',
+      },
+    });
+
+    try {
+      const result = mode === 'individual'
+        ? await this.addToRosterIndividual(resolved)
+        : await this.addToRosterBatch(resolved);
+
+      await prisma.caqhSyncLog.update({
+        where: { id: syncLog.id },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+          durationMs: Date.now() - startTime,
+          // No raw payload — providerId+npi are sufficient to trace; payload
+          // would contain PII (DOB, address) and violate HIPAA rule #8.
+          changesApplied: {
+            mode,
+            caqhProviderId: result.caqhProviderId ?? null,
+            rosterStatus: result.status ?? null,
+            warnings: result.warnings ?? [],
+          } as never,
+        },
+      });
+
+      return result;
+    } catch (err) {
+      await prisma.caqhSyncLog.update({
+        where: { id: syncLog.id },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          durationMs: Date.now() - startTime,
+          errorMessage: this.formatRosterFailureMessage(err, mode, resolved.npi),
+        },
+      });
+
+      logger.error({
+        event: 'caqh_add_to_roster_failed',
+        providerId,
+        npi: resolved.npi,
+        mode,
+        errorName: err instanceof Error ? err.name : 'Unknown',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
+
+      throw err;
     }
-    return this.addToRosterBatch(resolved);
+  }
+
+  /**
+   * Format the failure message persisted to caqh_sync_logs.errorMessage.
+   * Carries the typed exception name + provider NPI reference for traceability.
+   * Truncated to 500 chars; no raw CAQH payload (PII protection per HIPAA rule #8).
+   */
+  private formatRosterFailureMessage(err: unknown, mode: string, npi: string): string {
+    const name = err instanceof Error ? err.name : 'UnknownError';
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    const reason = err instanceof CaqhBatchEnqueueException ? ` reason=${err.reason}` : '';
+    return `[${mode}] ${name}: ${message} (npi=${npi}${reason})`.substring(0, 500);
   }
 
   /**
@@ -1071,9 +1167,15 @@ export class CaqhService {
     }
   }
 
-  /** Legacy batch endpoint. Known broken (issue #206) — kept default until E3 verifies individual mode. */
+  /**
+   * Legacy batch endpoint. The immediate POST response is async — only acks
+   * "queued" via `{ batch_id: "<id>" }`. Per-provider success/failure arrives
+   * later via GET /RosterAPI/api/ProviderStatus polling (NOT YET IMPLEMENTED —
+   * see #206 residual gap). This method only detects enqueue rejection
+   * (missing/empty batch_id or invalid response shape).
+   */
   private async addToRosterBatch(resolved: ResolvedRosterData): Promise<CaqhRosterResponse> {
-    const response = await this.request<CaqhRosterResponse>(
+    const raw = await this.request<unknown>(
       `/RosterAPI/API/Roster?product=${encodeURIComponent(this.product)}`,
       {
         method: 'POST',
@@ -1091,7 +1193,39 @@ export class CaqhService {
       false
     );
 
-    return response;
+    const parsed = RosterBatchEnqueueResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      logger.error({
+        event: 'caqh_batch_enqueue_invalid_shape',
+        providerId: resolved.providerId,
+        npi: resolved.npi,
+        rawKeys: raw && typeof raw === 'object' ? Object.keys(raw as object) : [],
+        zodError: parsed.error.flatten(),
+      });
+      throw new CaqhBatchEnqueueException('invalid_shape', raw);
+    }
+
+    if (parsed.data.batch_id.trim().length === 0) {
+      logger.error({
+        event: 'caqh_batch_enqueue_rejected',
+        providerId: resolved.providerId,
+        npi: resolved.npi,
+        reason: 'empty_batch_id',
+      });
+      throw new CaqhBatchEnqueueException('empty_batch_id', raw);
+    }
+
+    logger.info({
+      event: 'caqh_batch_enqueue_accepted',
+      providerId: resolved.providerId,
+      npi: resolved.npi,
+      batchId: parsed.data.batch_id,
+      reason: 'Batch enqueued — actual roster outcome requires GET /RosterAPI/api/ProviderStatus poll (not yet implemented, #206 residual gap)',
+    });
+
+    // Preserve existing behavior for the success path: cast and return raw.
+    // Callers should not assume caqhProviderId is present in batch mode.
+    return raw as CaqhRosterResponse;
   }
 
   /**

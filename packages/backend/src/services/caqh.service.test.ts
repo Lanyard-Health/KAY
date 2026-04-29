@@ -28,6 +28,7 @@ import {
   CaqhOptOutException,
   CaqhInvalidProviderIdException,
   CaqhMultipleMatchException,
+  CaqhBatchEnqueueException,
   parseExceptionDescription,
 } from './caqh.service.js';
 import type { CaqhCredentialsResponse, CaqhStatusResponse } from './caqh.service.js';
@@ -40,9 +41,17 @@ const FIXTURE_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../fixtures/caqh/spec-samples/v2.0',
 );
+const BATCH_FIXTURE_DIR = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../fixtures/caqh/spec-samples/v3.2-batch',
+);
 function fixture(name: string): unknown {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only fixture loader; FIXTURE_DIR is a constant absolute path and `name` is a hardcoded filename in each call site.
   return JSON.parse(readFileSync(resolve(FIXTURE_DIR, name), 'utf8'));
+}
+function batchFixture(name: string): unknown {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only fixture loader; BATCH_FIXTURE_DIR is a constant absolute path and `name` is a hardcoded filename in each call site.
+  return JSON.parse(readFileSync(resolve(BATCH_FIXTURE_DIR, name), 'utf8'));
 }
 
 // Builds a fully-resolvable provider record. Override individual fields per test.
@@ -118,6 +127,11 @@ beforeEach(() => {
   service = new CaqhService();
   // Speed up retry tests by mocking the private sleep method
   vi.spyOn(service as any, 'sleep').mockResolvedValue(undefined);
+  // Default caqhSyncLog mocks — every addToRoster() call now persists a
+  // sync log entry (issue #206 audit trail). Tests can override per-case
+  // via mockResolvedValueOnce when they need to assert on call args.
+  prismaMock.caqhSyncLog.create.mockResolvedValue({ id: 'roster-log-1' } as any);
+  prismaMock.caqhSyncLog.update.mockResolvedValue({ id: 'roster-log-1' } as any);
 });
 
 // ==========================================
@@ -237,13 +251,15 @@ describe('CaqhService', () => {
       delete process.env['CAQH_ROSTER_MODE'];
     });
 
-    it('POSTs to /RosterAPI/API/Roster with snake_case payload', async () => {
+    it('POSTs to /RosterAPI/API/Roster with snake_case payload and accepts a non-empty batch_id', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
-      const fetchSpy = mockFetchOk({ caqhProviderId: 'caqh-new', status: 'added' });
+      // Real CAQH batch response shape per spec sample (Roster Response for
+      // Add Update Delete Request Sample.txt): `{batch_id: "<id>"}`.
+      const fetchSpy = mockFetchOk(batchFixture('response-batch-add-success.json'));
 
       const result = await service.addToRoster('p1');
 
-      expect(result).toEqual({ caqhProviderId: 'caqh-new', status: 'added' });
+      expect(result).toEqual({ batch_id: 'batch-2026-04-28-abc123' });
       expect(fetchSpy).toHaveBeenCalledWith(
         'https://caqh.test.com/RosterAPI/API/Roster?product=PV',
         expect.objectContaining({ method: 'POST' }),
@@ -256,11 +272,147 @@ describe('CaqhService', () => {
         date_of_birth: '1985-06-15',
       });
     });
+
+    // ==========================================
+    // Issue #206: silent roster failures fixed
+    // ==========================================
+
+    it('throws CaqhBatchEnqueueException(empty_batch_id) on the literal spec sample (batch_id: "")', async () => {
+      // Verbatim copy of `Roster Response for Add Update Delete Request Sample.txt`.
+      // The spec sample literally ships an empty batch_id — pre-#206, our code
+      // returned 200 success on this; now it must throw with reason=empty_batch_id.
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(batchFixture('response-batch-add-rejected-empty.json'));
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhBatchEnqueueException);
+      await expect(service.addToRoster('p1')).rejects.toMatchObject({
+        reason: 'empty_batch_id',
+        rawResponse: { batch_id: '' },
+      });
+    });
+
+    it('throws CaqhBatchEnqueueException(empty_batch_id) on whitespace-only batch_id', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ batch_id: '   ' });
+
+      await expect(service.addToRoster('p1')).rejects.toMatchObject({
+        name: 'CaqhBatchEnqueueException',
+        reason: 'empty_batch_id',
+      });
+    });
+
+    it('throws CaqhBatchEnqueueException(invalid_shape) when batch_id field is missing entirely', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      // Pre-#206 mock shape — caller would've happily cast this to CaqhRosterResponse
+      // and the route would've returned 200. Now it throws.
+      mockFetchOk({ caqhProviderId: 'caqh-new', status: 'added' });
+
+      await expect(service.addToRoster('p1')).rejects.toMatchObject({
+        name: 'CaqhBatchEnqueueException',
+        reason: 'invalid_shape',
+      });
+    });
+
+    it('throws CaqhBatchEnqueueException(invalid_shape) when batch_id is not a string', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ batch_id: 12345 });
+
+      await expect(service.addToRoster('p1')).rejects.toMatchObject({
+        name: 'CaqhBatchEnqueueException',
+        reason: 'invalid_shape',
+      });
+    });
+
+    it('persists CaqhSyncLog with status=failed on enqueue rejection (audit trail for #206)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(batchFixture('response-batch-add-rejected-empty.json'));
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhBatchEnqueueException);
+
+      expect(prismaMock.caqhSyncLog.create).toHaveBeenCalledWith({
+        data: { providerId: 'p1', direction: 'push', status: 'in_progress' },
+      });
+      expect(prismaMock.caqhSyncLog.update).toHaveBeenCalledWith({
+        where: { id: 'roster-log-1' },
+        data: expect.objectContaining({
+          status: 'failed',
+          errorMessage: expect.stringContaining('CaqhBatchEnqueueException'),
+          completedAt: expect.any(Date),
+        }),
+      });
+    });
+
+    it('persists CaqhSyncLog with status=completed on accepted enqueue', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(batchFixture('response-batch-add-success.json'));
+
+      await service.addToRoster('p1');
+
+      expect(prismaMock.caqhSyncLog.update).toHaveBeenCalledWith({
+        where: { id: 'roster-log-1' },
+        data: expect.objectContaining({
+          status: 'completed',
+          completedAt: expect.any(Date),
+        }),
+      });
+    });
+
+    it('CaqhSyncLog errorMessage does not include raw payload PII (HIPAA rule #8)', async () => {
+      // The persisted errorMessage should reference NPI for traceability but
+      // not include the raw payload (which contains DOB, address, names).
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk({ batch_id: '' });
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhBatchEnqueueException);
+
+      const updateCall = prismaMock.caqhSyncLog.update.mock.calls[0]![0];
+      const errorMessage = (updateCall.data as any).errorMessage as string;
+
+      expect(errorMessage).toContain('npi=1234567890');
+      expect(errorMessage).not.toContain('Jane');         // no first name
+      expect(errorMessage).not.toContain('Doe');          // no last name
+      expect(errorMessage).not.toContain('1985-06-15');   // no DOB
+      expect(errorMessage).not.toContain('123 Main St');  // no address
+      expect(errorMessage.length).toBeLessThanOrEqual(500);
+    });
   });
 
   describe('addToRoster — individual mode (Phase E2 — Roster Individual API v2.0)', () => {
     beforeEach(() => {
       process.env['CAQH_ROSTER_MODE'] = 'individual';
+    });
+
+    // Issue #206: ensure the audit trail covers individual mode too. The
+    // existing exception-throwing tests above already cover the failure
+    // signaling; these check that the persisted CaqhSyncLog row matches.
+    it('persists CaqhSyncLog (push) with status=completed on accepted RosterIndividual response', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      expect(prismaMock.caqhSyncLog.create).toHaveBeenCalledWith({
+        data: { providerId: 'p1', direction: 'push', status: 'in_progress' },
+      });
+      expect(prismaMock.caqhSyncLog.update).toHaveBeenCalledWith({
+        where: { id: 'roster-log-1' },
+        data: expect.objectContaining({ status: 'completed' }),
+      });
+    });
+
+    it('persists CaqhSyncLog (push) with status=failed when CAQH rejects via exception_description', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      mockFetchOk(REQUIRED_MISSING_RESPONSE);
+
+      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(CaqhRequiredFieldException);
+
+      expect(prismaMock.caqhSyncLog.update).toHaveBeenCalledWith({
+        where: { id: 'roster-log-1' },
+        data: expect.objectContaining({
+          status: 'failed',
+          errorMessage: expect.stringContaining('CaqhRequiredFieldException'),
+        }),
+      });
     });
 
     it('POSTs to /ProviewAPI/API/RosterIndividual (capital R) with lowercase nested envelope', async () => {
