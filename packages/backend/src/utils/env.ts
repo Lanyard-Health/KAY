@@ -56,6 +56,10 @@ const envSchema = z.object({
   // 'batch' = legacy /RosterAPI/API/Roster path (default); 'individual' = new /ProviewAPI/API/rosterIndividual path.
   // Flip to 'individual' after E3 verifies it against demo with a real provider.
   CAQH_ROSTER_MODE: z.enum(['batch', 'individual']).default('batch'),
+  // Failure-rate threshold (0-1) above which the nightly sync job sends an
+  // email alert to ADMIN_EMAIL. Default 0.25 — at the current 33% (#207)
+  // failure rate this means a nightly email until root cause is fixed.
+  CAQH_SYNC_ALERT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.25),
 
   // Embeddings (optional — knowledge base RAG degrades gracefully)
   OPENAI_API_KEY: z.string().optional(),

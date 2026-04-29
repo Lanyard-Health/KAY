@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import * as Sentry from '@sentry/node';
 import { followUpService } from './followup.service.js';
 import { emailService } from './email.service.js';
 import { isConfigured, generateExpirationAlerts } from './ai.service.js';
@@ -8,6 +9,24 @@ import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Classify a CAQH sync error message into a stable bucket for log analytics
+ * and Sentry fingerprinting. Stable across runs so the same failure mode
+ * dedups in Sentry instead of creating one issue per provider.
+ */
+function classifyCaqhSyncError(err: unknown): string {
+  if (!(err instanceof Error)) return 'unknown';
+  if (err.name && err.name !== 'Error') return err.name;
+  const m = err.message;
+  if (m.includes('CAQH API request timed out')) return 'caqh_timeout';
+  if (/CAQH API error: 5\d\d/.test(m)) return 'caqh_5xx';
+  if (/CAQH API error: 4\d\d/.test(m)) return 'caqh_4xx';
+  if (m.includes('CAQH API returned invalid JSON')) return 'caqh_invalid_json';
+  if (m.includes('Failed to parse CAQH credentialing')) return 'caqh_xml_parse_error';
+  if (m.includes('CAQH status response missing attestation date')) return 'caqh_missing_attestation_date';
+  return 'caqh_other';
+}
 
 class SchedulerService {
   private followUpJob: cron.ScheduledTask | null = null;
@@ -268,6 +287,7 @@ class SchedulerService {
 
       for (const provider of providers) {
         const providerName = `${provider.firstName} ${provider.lastName}`;
+        const startedAt = Date.now();
         try {
           const result = await this.caqhService.syncProvider(provider.id, provider.caqhProviderId!);
           const totalChanges =
@@ -290,14 +310,68 @@ class SchedulerService {
 
           logger.info(`[Scheduler] CAQH sync completed for ${providerName}: ${totalChanges} changes`);
         } catch (error) {
+          // Issue #207: structured error log + Sentry capture for analytics-driven
+          // observability. errorClass is stable so Sentry dedups by failure mode,
+          // not per-provider.
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorClass = classifyCaqhSyncError(error);
+          const durationMs = Date.now() - startedAt;
           results.push({ providerId: provider.id, providerName, success: false, error: errMsg });
           failed++;
-          logger.error(`[Scheduler] CAQH sync failed for ${providerName}: ${errMsg}`);
+
+          logger.error({
+            event: 'caqh_sync_provider_failed',
+            providerId: provider.id,
+            providerName,
+            errorClass,
+            errorMessage: errMsg,
+            durationMs,
+          });
+
+          // Sentry: tag with job + providerId for filtering, fingerprint on
+          // [job, errorClass] so repeated 5xx / timeout / etc. dedup into one
+          // issue instead of creating one per provider per night.
+          Sentry.withScope((scope) => {
+            scope.setTags({ job: 'caqh-sync', providerId: provider.id, errorClass });
+            scope.setFingerprint(['caqh-sync', errorClass]);
+            Sentry.captureException(error);
+          });
         }
       }
 
+      const total = providers.length;
       logger.info(`[Scheduler] CAQH sync job completed: ${synced} synced, ${failed} failed`);
+
+      // Always-on in-app summary notification (admins see this in their badge).
+      // No actionUrl — admin sync-logs UI doesn't exist yet (separate PR).
+      await notificationService.notifyAdminUsers({
+        type: 'system_announcement',
+        title: 'CAQH nightly sync complete',
+        message: `${synced}/${total} synced, ${failed} failed.`,
+      });
+
+      // Threshold email alert. Wrapped so a Resend/SES outage doesn't cascade
+      // and break the sync job itself; email failures go to Sentry but the
+      // job completes normally.
+      if (failed > 0 && total > 0) {
+        const threshold = Number(process.env['CAQH_SYNC_ALERT_THRESHOLD'] ?? '0.25');
+        const failureRate = failed / total;
+        if (failureRate >= threshold) {
+          try {
+            await this.sendCaqhSyncFailureEmail({ synced, failed, total, threshold, results });
+          } catch (emailErr) {
+            logger.error({
+              event: 'caqh_sync_alert_email_failed',
+              error: emailErr instanceof Error ? emailErr.message : 'Unknown error',
+            });
+            Sentry.withScope((scope) => {
+              scope.setTags({ job: 'caqh-sync', stage: 'alert_email' });
+              Sentry.captureException(emailErr);
+            });
+          }
+        }
+      }
+
       return { synced, failed, skipped: 0, results };
     } catch (error) {
       logger.error('[Scheduler] CAQH sync job error:', error);
@@ -305,6 +379,85 @@ class SchedulerService {
     } finally {
       this.isCaqhSyncJobRunning = false;
     }
+  }
+
+  /**
+   * Send a threshold-triggered failure-rate email to ADMIN_EMAIL.
+   * No-op if ADMIN_EMAIL is not set or email service is not configured.
+   * Per-error-class breakdown is the actionable signal — tells admins
+   * whether failures are transient (caqh_5xx, caqh_timeout) or structural
+   * (caqh_xml_parse_error, caqh_missing_attestation_date).
+   */
+  private async sendCaqhSyncFailureEmail(params: {
+    synced: number;
+    failed: number;
+    total: number;
+    threshold: number;
+    results: Array<{ providerName: string; success: boolean; error?: string }>;
+  }): Promise<void> {
+    const adminEmail = process.env['ADMIN_EMAIL'];
+    if (!adminEmail) {
+      logger.warn('[Scheduler] CAQH sync failure rate exceeded threshold but ADMIN_EMAIL is not set — skipping email alert');
+      return;
+    }
+    if (!emailService.isConfigured()) {
+      logger.warn('[Scheduler] CAQH sync failure rate exceeded threshold but emailService is not configured — skipping email alert');
+      return;
+    }
+
+    const { synced, failed, total, threshold, results } = params;
+    const failureRate = ((failed / total) * 100).toFixed(1);
+    const thresholdPct = (threshold * 100).toFixed(0);
+
+    // Group failures by classified errorClass for the actionable breakdown.
+    const byClass = new Map<string, number>();
+    for (const r of results) {
+      if (r.success) continue;
+      const cls = classifyCaqhSyncError(r.error ? new Error(r.error) : null);
+      byClass.set(cls, (byClass.get(cls) ?? 0) + 1);
+    }
+    const breakdownRows = [...byClass.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([cls, count]) => `<tr><td style="padding:6px 12px;border:1px solid #e5e7eb;">${cls}</td><td style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;">${count}</td></tr>`)
+      .join('');
+
+    const html = `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;">
+        <h2 style="color:#dc2626;margin-bottom:16px;">CAQH Nightly Sync — Failure Threshold Exceeded</h2>
+        <p>The nightly CAQH credential sync had a <strong>${failureRate}% failure rate</strong> (threshold: ${thresholdPct}%).</p>
+        <p><strong>${synced}/${total}</strong> providers synced; <strong>${failed}/${total}</strong> failed.</p>
+        <h3>Failure breakdown by error class</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <thead>
+            <tr><th style="padding:6px 12px;border:1px solid #e5e7eb;text-align:left;background:#f9fafb;">Error class</th><th style="padding:6px 12px;border:1px solid #e5e7eb;text-align:right;background:#f9fafb;">Count</th></tr>
+          </thead>
+          <tbody>${breakdownRows}</tbody>
+        </table>
+        <p>Full per-provider error messages are in <code>caqh_sync_logs</code> (filter by <code>direction='pull'</code> and <code>status='failed'</code>) and Sentry (filter by tag <code>job:caqh-sync</code>).</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;" />
+        <p style="color:#6b7280;font-size:12px;">Sent by Lanyard CAQH sync scheduler. Adjust threshold via <code>CAQH_SYNC_ALERT_THRESHOLD</code>.</p>
+      </div>
+    `;
+
+    const result = await emailService.sendEmail({
+      to: adminEmail,
+      subject: `[CAQH] Nightly sync ${failureRate}% failure rate (${failed}/${total})`,
+      html,
+    });
+
+    if (!result.success) {
+      // emailService.sendEmail returns errors instead of throwing; surface
+      // failures to Sentry the same way as a thrown exception.
+      throw new Error(`emailService.sendEmail returned failure: ${result.error ?? 'unknown'}`);
+    }
+
+    logger.info({
+      event: 'caqh_sync_alert_email_sent',
+      to: adminEmail,
+      failureRate: Number(failureRate),
+      failed,
+      total,
+    });
   }
 
   /**
