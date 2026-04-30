@@ -34,6 +34,62 @@ services:
       - key: AETNA_PORTAL_URL
         value: https://extaz-oci.aetna.com/pocui/join-the-aetna-network
 
+      # Redis & queues
+      - key: REDIS_URL
+        sync: false
+
+      # Auth (Cognito)
+      - key: COGNITO_USER_POOL_ID
+        sync: false
+      - key: COGNITO_CLIENT_ID
+        sync: false
+
+      # Email (Resend)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: ADMIN_EMAIL
+        value: kay@lanyardhealth.com
+
+      # Storage (S3)
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+      # Observability (Sentry, Linear)
+      - key: SENTRY_DSN
+        sync: false
+      - key: LINEAR_API_KEY
+        sync: false
+      - key: LINEAR_TEAM_ID
+        sync: false
+      - key: LINEAR_BUG_MONITOR_ENABLED
+        value: "true"
+
+      # AI (OpenAI for embeddings)
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # CAQH integration
+      - key: CAQH_API_URL
+        value: https://proview.caqh.org
+      - key: CAQH_ORG_ID
+        sync: false
+      - key: CAQH_USERNAME
+        sync: false
+      - key: CAQH_PASSWORD
+        sync: false
+
+      # App config
+      - key: APP_URL
+        value: https://kay-frontend.onrender.com
+
   - type: web
     name: kay-frontend
     runtime: static
