@@ -154,6 +154,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   const dispatchedTaskIds: string[] = [];
   let requestedApproval = false;
   let escalatedToException = false;
+  let loopExitReason: 'natural' | 'cap_hit' = 'natural';
 
   try {
     while (true) {
@@ -219,6 +220,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       toolCallCount += toolUseBlocks.length;
       if (toolCallCount >= MAX_TOOL_CALLS_PER_INVOCATION) {
         logger.info('Orchestrator max tool calls reached', { workflowId, toolCallCount });
+        loopExitReason = 'cap_hit';
         break;
       }
     }
@@ -244,16 +246,9 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   // 5. Post-loop: persist plan and update workflow
   const tokensUsed = totalInputTokens + totalOutputTokens;
 
-  // Build updated plan
-  const existingSteps = ((plan['steps'] as unknown[]) ?? []) as Record<string, unknown>[];
-  const updatedPlan = {
-    steps: existingSteps,
-    replanCount: jobType === 'task_callback' && data.event === 'task_failed' ? replanCount + 1 : replanCount,
-    reasoning: finalReasoning,
-  };
-
   // Determine new workflow status
   let newStatus = workflow.status;
+  let failureReason: string | undefined;
   if (escalatedToException && dispatchedTaskIds.length === 0) {
     // Escalated with no other tasks — workflow cannot proceed automatically
     newStatus = 'failed';
@@ -261,10 +256,35 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
     newStatus = 'waiting_approval';
   } else if (dispatchedTaskIds.length > 0) {
     newStatus = 'active';
-  } else if (toolCallCount === 0) {
-    // No tool calls at all — Claude decided the workflow is done
+  } else if (loopExitReason === 'natural') {
+    // Claude finished naturally with no dispatch / approval / escalation —
+    // the workflow has nothing more to do. Subsumes the prior toolCallCount===0 case.
     newStatus = 'completed';
+  } else if (workflow.status === 'planning') {
+    // Cap hit on the very first turn with no work dispatched — the workflow
+    // has no callback path to recover, so fail it loudly.
+    newStatus = 'failed';
+    failureReason = 'cap_hit_on_first_turn';
+  } else {
+    // loopExitReason === 'cap_hit' on an already-'active' workflow with no new
+    // dispatches — preserve existing behavior (stays 'active'). A separate
+    // stuck-workflow watchdog cron will catch these. Log for telemetry until then.
+    logger.warn('Orchestrator cap hit with no progress; workflow remains active', {
+      workflowId,
+      workflowStatus: workflow.status,
+      toolCallCount,
+      dispatchedTaskIds: dispatchedTaskIds.length,
+    });
   }
+
+  // Build updated plan
+  const existingSteps = ((plan['steps'] as unknown[]) ?? []) as Record<string, unknown>[];
+  const updatedPlan = {
+    steps: existingSteps,
+    replanCount: jobType === 'task_callback' && data.event === 'task_failed' ? replanCount + 1 : replanCount,
+    reasoning: finalReasoning,
+    ...(failureReason ? { failureReason } : {}),
+  };
 
   await prisma.agentWorkflow.update({
     where: { id: workflowId },
@@ -275,6 +295,30 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       ...(newStatus === 'completed' || newStatus === 'failed' ? { completedAt: new Date() } : {}),
     },
   });
+
+  if (newStatus === 'completed') {
+    Sentry.captureMessage('Orchestrator workflow completed', {
+      level: 'info',
+      tags: {
+        workflow_id: workflowId,
+        agent: 'orchestrator',
+        replan_count: String(updatedPlan.replanCount),
+      },
+      extra: { tokensUsed: workflow.totalTokensUsed + tokensUsed, toolCallCount },
+    });
+  }
+
+  if (failureReason === 'cap_hit_on_first_turn') {
+    Sentry.captureMessage('Orchestrator workflow failed: cap_hit_on_first_turn', {
+      level: 'warning',
+      tags: {
+        workflow_id: workflowId,
+        agent: 'orchestrator',
+        failure_reason: 'cap_hit_on_first_turn',
+      },
+      extra: { toolCallCount, limit: MAX_TOOL_CALLS_PER_INVOCATION },
+    });
+  }
 
   await logAgentEvent({
     workflowId,
