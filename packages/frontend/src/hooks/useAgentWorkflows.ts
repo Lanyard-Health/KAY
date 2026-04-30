@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 export type WorkflowStatus =
   | 'planning'
   | 'active'
+  | 'paused'
   | 'waiting_approval'
   | 'completed'
   | 'failed'

@@ -4,6 +4,7 @@ import { logAgentEvent } from '../event-logger.js';
 import { emitWorkflowEvent } from '../websocket.js';
 import { getAdapter } from './payer-adapter.js';
 import { decryptSafe } from '../../utils/crypto.js';
+import { notifyTaskCompletion } from '../coordinator.service.js';
 
 // ==========================================
 // Types
@@ -103,6 +104,8 @@ export async function processPortalJob(data: PortalJobData): Promise<PortalJobRe
         readiness,
       });
 
+      await notifyTaskCompletion(workflowId, taskId, 'task_completed');
+
       return { status: 'completed', data: readiness as any };
     }
 
@@ -134,6 +137,8 @@ export async function processPortalJob(data: PortalJobData): Promise<PortalJobRe
         taskId,
         result,
       });
+
+      await notifyTaskCompletion(workflowId, taskId, 'task_completed');
 
       return { status: 'completed', data: result as any };
     }
@@ -177,4 +182,6 @@ async function markTaskFailed(taskId: string, workflowId: string, error: string)
     taskId,
     error,
   });
+
+  await notifyTaskCompletion(workflowId, taskId, 'task_failed');
 }
