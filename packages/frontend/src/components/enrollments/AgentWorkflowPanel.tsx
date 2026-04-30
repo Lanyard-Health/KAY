@@ -110,6 +110,7 @@ function WorkflowStatusBadge({ status }: { status: WorkflowStatus }) {
   const styles: Record<WorkflowStatus, string> = {
     planning: 'bg-amber-100 text-amber-700',
     active: 'bg-blue-100 text-blue-700',
+    paused: 'bg-yellow-100 text-yellow-800',
     waiting_approval: 'bg-amber-100 text-amber-700',
     completed: 'bg-green-100 text-green-700',
     failed: 'bg-red-100 text-red-700',

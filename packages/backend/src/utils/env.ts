@@ -30,6 +30,7 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('claude-sonnet-4-20250514'),
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().default(100000),
+  MAX_REPLANS_PER_WORKFLOW: z.coerce.number().int().min(0).max(50).default(5),
 
   // Gmail API (optional — email features degrade gracefully)
   GMAIL_CLIENT_ID: z.string().optional(),

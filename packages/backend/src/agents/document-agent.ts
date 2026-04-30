@@ -8,6 +8,7 @@ import { extractWithTextract } from './extractors/textract-extractor.js';
 import { extractWithVision } from './extractors/vision-extractor.js';
 import { classifyDocumentType } from './document-classifier.js';
 import { mapToCredential } from './credential-mapper.js';
+import { notifyTaskCompletion } from './coordinator.service.js';
 
 const CONFIDENCE_THRESHOLD = 0.90;
 
@@ -298,6 +299,10 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
           } as Prisma.InputJsonValue,
         },
       });
+
+      if (status === 'completed') {
+        await notifyTaskCompletion(workflowId, taskId, 'task_completed');
+      }
     }
 
     emitWorkflowEvent(workflowId, 'agent:document_complete', {
@@ -320,6 +325,17 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
     const errorMsg = (err as Error).message;
     logger.error('Document agent failed', { error: errorMsg, documentId });
 
+    if (taskId) {
+      await prisma.agentTask.update({
+        where: { id: taskId },
+        data: {
+          status: 'failed',
+          error: { message: errorMsg } as Prisma.InputJsonValue,
+          completedAt: new Date(),
+        },
+      });
+    }
+
     await logAgentEvent({
       workflowId,
       taskId,
@@ -333,6 +349,10 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       documentId,
       error: errorMsg,
     });
+
+    if (taskId) {
+      await notifyTaskCompletion(workflowId, taskId, 'task_failed');
+    }
 
     return {
       status: 'failed',

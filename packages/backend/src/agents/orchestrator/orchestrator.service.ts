@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import * as Sentry from '@sentry/node';
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { logAgentEvent } from '../event-logger.js';
@@ -11,7 +12,7 @@ import { buildSystemPrompt, buildUserMessage } from './system-prompt.js';
 // ==========================================
 
 const WORKFLOW_TOKEN_BUDGET = parseInt(process.env['AGENT_WORKFLOW_TOKEN_BUDGET'] ?? '50000', 10);
-const MAX_REPLAN_COUNT = 5;
+const MAX_REPLANS_PER_WORKFLOW = parseInt(process.env['MAX_REPLANS_PER_WORKFLOW'] ?? '5', 10);
 const MAX_TOOL_CALLS_PER_INVOCATION = 20;
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 
@@ -63,6 +64,14 @@ export function setAnthropicClient(client: Anthropic | null): void {
 export async function processOrchestratorJob(data: OrchestratorJobData): Promise<OrchestratorResult> {
   const { workflowId, jobType } = data;
 
+  if (jobType === 'task_callback' && data.event === 'task_failed') {
+    Sentry.captureMessage('Orchestrator recovery turn triggered', {
+      level: 'warning',
+      tags: { workflow_id: workflowId, agent: 'orchestrator', event: 'task_failed' },
+      extra: { taskId: data.taskId },
+    });
+  }
+
   // 1. Load workflow with tasks and approvals
   const workflow = await prisma.agentWorkflow.findUnique({
     where: { id: workflowId },
@@ -80,20 +89,33 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   const plan = (workflow.plan as Record<string, unknown>) ?? {};
   const replanCount = (plan['replanCount'] as number) ?? 0;
 
-  if (replanCount >= MAX_REPLAN_COUNT) {
+  if (replanCount >= MAX_REPLANS_PER_WORKFLOW) {
     await prisma.agentWorkflow.update({
       where: { id: workflowId },
-      data: { status: 'paused' },
+      data: {
+        status: 'failed',
+        completedAt: new Date(),
+        plan: {
+          ...((workflow.plan as Record<string, unknown>) ?? {}),
+          failureReason: 'max_replans_exceeded',
+          replanCount,
+        } as any,
+      },
     });
     await logAgentEvent({
       workflowId,
       agent: 'orchestrator',
       action: 'replan_limit_reached',
-      data: { replanCount, limit: MAX_REPLAN_COUNT },
+      data: { replanCount, limit: MAX_REPLANS_PER_WORKFLOW, failureReason: 'max_replans_exceeded' },
       level: 'warn',
     });
+    Sentry.captureMessage('Orchestrator workflow failed: max_replans_exceeded', {
+      level: 'warning',
+      tags: { workflow_id: workflowId, agent: 'orchestrator', failure_reason: 'max_replans_exceeded' },
+      extra: { replanCount, limit: MAX_REPLANS_PER_WORKFLOW },
+    });
     logger.warn('Orchestrator replan limit reached', { workflowId, replanCount });
-    return { workflowId, status: 'paused', tokensUsed: 0, toolCallCount: 0, reasoning: 'Replan limit reached' };
+    return { workflowId, status: 'failed', tokensUsed: 0, toolCallCount: 0, reasoning: 'max_replans_exceeded' };
   }
 
   if (workflow.totalTokensUsed >= WORKFLOW_TOKEN_BUDGET) {
