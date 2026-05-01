@@ -2301,6 +2301,12 @@ model AgentWorkflow {
   priority   String              @default("normal")
   plan       Json?
 
+  // Atomic counter for replan attempts. Promoted from plan.replanCount JSON
+  // path to a top-level Int column so we can use Prisma's atomic { increment }
+  // operator under concurrency=3. Mirrored back into plan JSON for one-release
+  // rollback safety; remove the JSON mirror in a follow-up after burn-in.
+  replanCount Int @default(0) @map("replan_count")
+
   // Relations
   providerId   String          @map("provider_id")
   provider     ProviderProfile @relation(fields: [providerId], references: [id])

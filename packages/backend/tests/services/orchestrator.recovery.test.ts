@@ -66,7 +66,8 @@ function buildWorkflow(overrides: Partial<Record<string, unknown>> = {}): any {
     goalParams: { providerId: 'p-1' },
     status: 'active',
     priority: 'normal',
-    plan: { steps: [], replanCount: 0 },
+    plan: { steps: [] },
+    replanCount: 0,
     providerId: 'p-1',
     payerId: null,
     enrollmentId: null,
@@ -92,10 +93,13 @@ beforeEach(() => {
 
 describe('Orchestrator recovery loop', () => {
   // ----------------------------------------------------------------------
-  // Test A — failed task triggers a recovery turn, replanCount goes 0 → 1
+  // Test A — failed task triggers a recovery turn, replanCount goes 0 → 1.
+  // The increment fires BEFORE findUnique; findUnique returns the post-
+  // increment value (1) which is what the JSON mirror persists.
   // ----------------------------------------------------------------------
   it('takes a recovery turn when a dispatched task has failed (replanCount 0 → 1)', async () => {
     const wf = buildWorkflow({
+      replanCount: 1, // post-increment value findUnique sees in prod
       tasks: [{ id: 't-1', status: 'failed', error: { message: 'Prisma error' } }],
     });
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(wf as any);
@@ -122,16 +126,25 @@ describe('Orchestrator recovery loop', () => {
       expect.objectContaining({ level: 'warning' })
     );
 
-    const updateCall = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
-    expect(updateCall).toBeDefined();
-    expect(updateCall.data.plan.replanCount).toBe(1);
+    // Two update calls: (1) atomic increment, (2) post-loop persist
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledTimes(2);
+
+    const incrementCall = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
+    expect(incrementCall.where).toEqual({ id: 'wf-1' });
+    expect(incrementCall.data).toEqual({ replanCount: { increment: 1 } });
+
+    const persistCall = prismaMock.agentWorkflow.update.mock.calls[1]?.[0] as any;
+    expect(persistCall.data.plan.replanCount).toBe(1);
   });
 
   // ----------------------------------------------------------------------
-  // Test B — cap hit → workflow 'failed' with reason, no Claude call
+  // Test B — post-increment cap hit → workflow 'failed' with reason, no Claude call.
+  // Pre-fix the cap check used `>= 5` against a pre-increment value; post-fix
+  // it uses `> 5` against the post-increment value, so to trip it findUnique
+  // must return replanCount=6 (after the increment ran).
   // ----------------------------------------------------------------------
   it('marks workflow failed with max_replans_exceeded after the cap, without calling Claude', async () => {
-    const wf = buildWorkflow({ plan: { steps: [], replanCount: 5 } });
+    const wf = buildWorkflow({ replanCount: 6 }); // post-increment value > MAX (5)
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(wf as any);
     prismaMock.agentWorkflow.update.mockResolvedValue(wf as any);
 
@@ -149,10 +162,17 @@ describe('Orchestrator recovery loop', () => {
     expect(result.reasoning).toBe('max_replans_exceeded');
     expect(claude.messages.create).not.toHaveBeenCalled();
 
-    const updateCall = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
-    expect(updateCall.data.status).toBe('failed');
-    expect(updateCall.data.plan.failureReason).toBe('max_replans_exceeded');
-    expect(updateCall.data.completedAt).toBeInstanceOf(Date);
+    // Two update calls: (1) atomic increment, (2) the failed-status update
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledTimes(2);
+
+    const incrementCall = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
+    expect(incrementCall.data).toEqual({ replanCount: { increment: 1 } });
+
+    const failCall = prismaMock.agentWorkflow.update.mock.calls[1]?.[0] as any;
+    expect(failCall.data.status).toBe('failed');
+    expect(failCall.data.plan.failureReason).toBe('max_replans_exceeded');
+    expect(failCall.data.plan.replanCount).toBe(6);
+    expect(failCall.data.completedAt).toBeInstanceOf(Date);
 
     // Two Sentry warnings: recovery turn + max_replans_exceeded
     expect(Sentry.captureMessage).toHaveBeenCalledWith(
@@ -166,15 +186,18 @@ describe('Orchestrator recovery loop', () => {
   });
 
   // ----------------------------------------------------------------------
-  // Test C — failure → recovery dispatches retry → retry succeeds → completed
+  // Test C — failure → recovery dispatches retry → retry succeeds → completed.
+  // Turn 1: increment fires + persist (2 updates).
+  // Turn 2 (task_completed event): no increment, only persist (1 update).
   // ----------------------------------------------------------------------
   it('recovers from a failed task and completes when the replan succeeds', async () => {
     // ---- Turn 1: orchestrator sees a failed task and dispatches a recovery task ----
     const wfFailed = buildWorkflow({
+      replanCount: 1, // post-increment value findUnique sees
       tasks: [{ id: 't-1', status: 'failed', error: { message: 'bad input' } }],
     });
     prismaMock.agentWorkflow.findUnique.mockResolvedValueOnce(wfFailed as any);
-    prismaMock.agentWorkflow.update.mockResolvedValueOnce(wfFailed as any);
+    prismaMock.agentWorkflow.update.mockResolvedValue(wfFailed as any);
 
     // dispatch_task tool returns a new task id
     (executeToolCall as any).mockResolvedValueOnce({ taskId: 't-2', queue: 'agent-portal' });
@@ -212,13 +235,17 @@ describe('Orchestrator recovery loop', () => {
     });
 
     expect(r1.status).toBe('active');
-    const turn1Update = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
-    expect(turn1Update.data.plan.replanCount).toBe(1);
+    // Turn 1: 2 update calls (increment + persist)
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledTimes(2);
+    const turn1Increment = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
+    expect(turn1Increment.data).toEqual({ replanCount: { increment: 1 } });
+    const turn1Persist = prismaMock.agentWorkflow.update.mock.calls[1]?.[0] as any;
+    expect(turn1Persist.data.plan.replanCount).toBe(1);
 
     // ---- Turn 2: simulated callback for the recovery task t-2 succeeding ----
     vi.clearAllMocks();
     const wfRecovered = buildWorkflow({
-      plan: { steps: [], replanCount: 1 },
+      replanCount: 1,
       tasks: [
         { id: 't-1', status: 'failed' },
         { id: 't-2', status: 'completed' },
@@ -244,8 +271,10 @@ describe('Orchestrator recovery loop', () => {
     });
 
     expect(r2.status).toBe('completed');
-    const turn2Update = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
-    expect(turn2Update.data.plan.replanCount).toBe(1); // unchanged on success path
-    expect(turn2Update.data.status).toBe('completed');
+    // Turn 2: only 1 update call (no increment for task_completed)
+    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledTimes(1);
+    const turn2Persist = prismaMock.agentWorkflow.update.mock.calls[0]?.[0] as any;
+    expect(turn2Persist.data.plan.replanCount).toBe(1); // unchanged on success path
+    expect(turn2Persist.data.status).toBe('completed');
   });
 });

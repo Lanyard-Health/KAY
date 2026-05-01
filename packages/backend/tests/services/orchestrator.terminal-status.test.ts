@@ -66,6 +66,7 @@ function buildWorkflow(overrides: Partial<Record<string, unknown>> = {}): any {
     goal: 'credential_check',
     goalParams: { providerId: 'p-1' },
     status: 'active',
+    replanCount: 0,
     priority: 'normal',
     plan: { steps: [], replanCount: 0 },
     providerId: 'p-1',
