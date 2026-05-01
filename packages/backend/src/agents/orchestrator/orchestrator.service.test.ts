@@ -84,6 +84,7 @@ const baseWorkflow = {
   goalParams: { providerId: 'p-1', payerId: 'pay-1' },
   status: 'planning',
   plan: null,
+  replanCount: 0,
   providerId: 'p-1',
   payerId: 'pay-1',
   enrollmentId: null,
@@ -259,13 +260,14 @@ describe('processOrchestratorJob', () => {
   });
 
   // ========================================
-  // Test 4: Replan limit
+  // Test 4: Replan limit (post-fix: post-increment cap, fails workflow)
   // ========================================
-  it('pauses workflow when replan limit reached', async () => {
+  it('fails workflow with max_replans_exceeded when post-increment count exceeds the cap', async () => {
     const workflow = {
       ...baseWorkflow,
       status: 'active',
-      plan: { steps: [], replanCount: 5 },
+      plan: { steps: [] },
+      replanCount: 6, // post-increment value > MAX_REPLANS_PER_WORKFLOW (5)
     };
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(workflow as any);
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
@@ -277,12 +279,12 @@ describe('processOrchestratorJob', () => {
       event: 'task_failed',
     });
 
-    expect(result.status).toBe('paused');
-    expect(result.reasoning).toContain('Replan limit');
-    expect(prismaMock.agentWorkflow.update).toHaveBeenCalledWith({
-      where: { id: 'wf-1' },
-      data: { status: 'paused' },
-    });
+    expect(result.status).toBe('failed');
+    expect(result.reasoning).toBe('max_replans_exceeded');
+    // First call is the atomic increment, second is the failed-status update
+    const failCall = prismaMock.agentWorkflow.update.mock.calls[1]?.[0] as any;
+    expect(failCall.data.status).toBe('failed');
+    expect(failCall.data.plan.failureReason).toBe('max_replans_exceeded');
     expect(logAgentEvent).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'replan_limit_reached' })
     );

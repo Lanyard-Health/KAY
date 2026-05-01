@@ -70,6 +70,23 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       tags: { workflow_id: workflowId, agent: 'orchestrator', event: 'task_failed' },
       extra: { taskId: data.taskId },
     });
+
+    // Atomic increment of replanCount BEFORE we read the workflow row.
+    //
+    // The orchestrator queue runs at concurrency=3. Two task_failed callbacks
+    // for the same workflow can land on different worker slots within ~50ms;
+    // a JSON read-modify-write (read plan.replanCount → set plan.replanCount = n+1)
+    // loses one of the increments and lets the workflow exceed MAX_REPLANS_PER_WORKFLOW
+    // before the cap fires. Prisma's `{ increment: 1 }` translates to a single
+    // SQL `UPDATE ... SET replan_count = replan_count + 1` which Postgres
+    // serializes per row, so concurrent failures both register.
+    //
+    // Increment must come BEFORE findUnique below so `workflow.replanCount`
+    // reflects the post-increment value used by the cap check (strict `>`).
+    await prisma.agentWorkflow.update({
+      where: { id: workflowId },
+      data: { replanCount: { increment: 1 } },
+    });
   }
 
   // 1. Load workflow with tasks and approvals
@@ -87,9 +104,12 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
 
   // 2. Check guardrails
   const plan = (workflow.plan as Record<string, unknown>) ?? {};
-  const replanCount = (plan['replanCount'] as number) ?? 0;
+  // Cap check uses the post-increment column value. Strict `>` (not `>=`)
+  // because a workflow that has just hit the cap exactly should still get
+  // its final recovery turn before we fail it.
+  const replanCount = workflow.replanCount;
 
-  if (replanCount >= MAX_REPLANS_PER_WORKFLOW) {
+  if (replanCount > MAX_REPLANS_PER_WORKFLOW) {
     await prisma.agentWorkflow.update({
       where: { id: workflowId },
       data: {
@@ -277,11 +297,14 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
     });
   }
 
-  // Build updated plan
+  // Build updated plan. The atomic increment already happened in the
+  // task_failed branch above, so workflow.replanCount is the authoritative
+  // post-increment value. Mirror it into the JSON plan so a one-release
+  // rollback that drops the column still has the count visible.
   const existingSteps = ((plan['steps'] as unknown[]) ?? []) as Record<string, unknown>[];
   const updatedPlan = {
     steps: existingSteps,
-    replanCount: jobType === 'task_callback' && data.event === 'task_failed' ? replanCount + 1 : replanCount,
+    replanCount: workflow.replanCount,
     reasoning: finalReasoning,
     ...(failureReason ? { failureReason } : {}),
   };
@@ -302,7 +325,7 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       tags: {
         workflow_id: workflowId,
         agent: 'orchestrator',
-        replan_count: String(updatedPlan.replanCount),
+        replan_count: String(workflow.replanCount),
       },
       extra: { tokensUsed: workflow.totalTokensUsed + tokensUsed, toolCallCount },
     });
