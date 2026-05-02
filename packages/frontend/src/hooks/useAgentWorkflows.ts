@@ -171,7 +171,7 @@ export function useWorkflowDetail(workflowId: string | null) {
   });
 }
 
-export function useWorkflowEvents(workflowId: string | null) {
+export function useWorkflowEvents(workflowId: string | null, workflowStatus?: WorkflowStatus) {
   return useQuery<AgentEvent[]>({
     queryKey: ['agent-workflow-events', workflowId],
     queryFn: async () => {
@@ -180,6 +180,10 @@ export function useWorkflowEvents(workflowId: string | null) {
       return data;
     },
     enabled: !!workflowId,
+    refetchInterval: () => {
+      if (!workflowStatus || TERMINAL_STATUSES.includes(workflowStatus)) return false;
+      return 2_000;
+    },
   });
 }
 
