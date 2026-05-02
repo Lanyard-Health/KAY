@@ -8,6 +8,7 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
   ChevronDownIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import {
   useWorkflowsForEnrollment,
@@ -16,10 +17,18 @@ import {
   useLaunchWorkflow,
   useCancelWorkflow,
   isUuid,
+  isNarrationEvent,
 } from '../../hooks/useAgentWorkflows';
 import { useDecideApproval } from '../../hooks/useApprovals';
 import { useWorkflowSocket } from '../../hooks/useAgentSocket';
-import type { WorkflowStatus, TaskStatus, AgentTask, AgentEvent, WorkflowListItem } from '../../hooks/useAgentWorkflows';
+import type {
+  WorkflowStatus,
+  TaskStatus,
+  AgentTask,
+  AgentEvent,
+  WorkflowListItem,
+  NarrationEventData,
+} from '../../hooks/useAgentWorkflows';
 
 interface AgentWorkflowPanelProps {
   enrollmentId: string;
@@ -61,6 +70,64 @@ function formatTimestamp(dateStr: string): string {
     minute: '2-digit',
     second: '2-digit',
   });
+}
+
+function goalLabel(goal: string): string {
+  if (goal === 'populate_forms') return 'Auto-fill enrollment forms';
+  return goal;
+}
+
+function NarrationTimeline({ events }: { events: AgentEvent[] }) {
+  const narrations = events.filter(isNarrationEvent);
+  if (narrations.length === 0) return null;
+
+  // Order by step (when present), falling back to timestamp/createdAt.
+  const sorted = [...narrations].sort((a, b) => {
+    const aStep = (a.data as NarrationEventData).step ?? Number.POSITIVE_INFINITY;
+    const bStep = (b.data as NarrationEventData).step ?? Number.POSITIVE_INFINITY;
+    if (aStep !== bStep) return aStep - bStep;
+    const aTs = new Date(a.timestamp || a.createdAt).getTime();
+    const bTs = new Date(b.timestamp || b.createdAt).getTime();
+    return aTs - bTs;
+  });
+
+  return (
+    <div className="px-6 py-4 space-y-3 bg-gradient-to-b from-primary-50/40 to-transparent">
+      {sorted.map((event) => {
+        const data = event.data as NarrationEventData;
+        return (
+          <div key={event.id} className="flex items-start gap-3">
+            <div className="shrink-0 mt-0.5">
+              <div className="h-7 w-7 rounded-full bg-primary-100 flex items-center justify-center ring-2 ring-white">
+                <SparklesIcon className="h-4 w-4 text-primary-600" />
+              </div>
+            </div>
+            <div className="flex-1 max-w-[92%]">
+              <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-2.5 border border-gray-200 shadow-sm">
+                <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
+                  {data.message}
+                </p>
+                {data.downloadUrl && (
+                  <a
+                    href={data.downloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-md hover:bg-primary-700 transition-colors"
+                  >
+                    <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                    Download filled PDF
+                  </a>
+                )}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1 ml-1 font-mono">
+                {formatTimestamp(event.timestamp || event.createdAt)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StatusDot({ status }: { status: TaskStatus }) {
@@ -157,9 +224,11 @@ export default function AgentWorkflowPanel({
   }, [workflows, selectedWorkflowId]);
 
   const handleLaunch = () => {
-    const goal = `Complete payer enrollment for ${providerName} with ${payerName}`;
+    // Use the scripted populate_forms goal so the agent runs the
+    // narrate→populate→narrate flow defined in the orchestrator system prompt.
+    // The friendly label "Auto-fill enrollment forms" is rendered via goalLabel().
     launchWorkflow.mutateAsync({
-      goal,
+      goal: 'populate_forms',
       providerId,
       payerId,
       enrollmentId,
@@ -208,9 +277,9 @@ export default function AgentWorkflowPanel({
           <SparklesIcon className="h-10 w-10 text-primary-400 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-900 mb-1">AI Agent Workflow</h3>
           <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-            Launch an AI agent to automate the enrollment process for{' '}
+            Launch an AI agent to auto-fill the enrollment form for{' '}
             <span className="font-medium">{providerName}</span> with{' '}
-            <span className="font-medium">{payerName}</span>.
+            <span className="font-medium">{payerName}</span>. The agent narrates each step and produces a downloadable filled PDF.
           </p>
           <button
             onClick={handleLaunch}
@@ -294,6 +363,11 @@ export default function AgentWorkflowPanel({
       {/* Main content — status-based rendering */}
       {detail && (
         <div className={`border-l-4 ${borderColor(detail.status)}`}>
+          {/* AI narration timeline — primary content for populate_forms goal,
+              also visible alongside task timelines for any workflow that emits
+              narrate() events. */}
+          {events && <NarrationTimeline events={events} />}
+
           {/* Planning */}
           {detail.status === 'planning' && (
             <div className="px-6 py-6">
@@ -301,7 +375,7 @@ export default function AgentWorkflowPanel({
                 <ArrowPathIcon className="h-5 w-5 text-amber-500 animate-spin" />
                 <span className="text-sm font-medium text-amber-700">Analyzing requirements...</span>
               </div>
-              <p className="text-sm text-gray-500">{detail.goal}</p>
+              <p className="text-sm text-gray-500">{goalLabel(detail.goal)}</p>
             </div>
           )}
 
@@ -433,18 +507,29 @@ export default function AgentWorkflowPanel({
               </button>
               {showEvents && (
                 <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {events.map((event: AgentEvent) => (
-                    <div key={event.id} className="px-3 py-2 text-xs flex items-start gap-2">
-                      <span className="text-gray-400 shrink-0 font-mono">
-                        {formatTimestamp(event.createdAt)}
-                      </span>
-                      <LevelBadge level={event.level} />
-                      {event.agent && (
-                        <span className="text-gray-500 shrink-0">[{event.agent}]</span>
-                      )}
-                      <span className="text-gray-700">{event.action}</span>
-                    </div>
-                  ))}
+                  {events.map((event: AgentEvent) => {
+                    const ts = event.timestamp || event.createdAt;
+                    const narrationMessage =
+                      event.action === 'narration' &&
+                      typeof (event.data as { message?: unknown })?.message === 'string'
+                        ? ((event.data as { message: string }).message)
+                        : null;
+                    return (
+                      <div key={event.id} className="px-3 py-2 text-xs flex items-start gap-2">
+                        <span className="text-gray-400 shrink-0 font-mono">
+                          {formatTimestamp(ts)}
+                        </span>
+                        <LevelBadge level={event.level} />
+                        {event.agent && (
+                          <span className="text-gray-500 shrink-0">[{event.agent}]</span>
+                        )}
+                        <span className="text-gray-700">
+                          {event.action}
+                          {narrationMessage ? ` — ${narrationMessage}` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

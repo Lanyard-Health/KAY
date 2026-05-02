@@ -28,9 +28,28 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('../../services/form-fill/pdf-fill-runner.js', () => ({
+  runPdfFill: vi.fn(),
+}));
+
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn(),
+}));
+
+vi.mock('@aws-sdk/client-s3', () => ({
+  S3Client: vi.fn().mockImplementation(function () {
+    return {};
+  }),
+  GetObjectCommand: vi.fn().mockImplementation(function (input: any) {
+    return { input };
+  }),
+}));
+
 import { prismaMock } from '../../../tests/helpers/mock-prisma.js';
 import { getQueue } from '../queues.js';
 import { logAgentEvent } from '../event-logger.js';
+import { runPdfFill } from '../../services/form-fill/pdf-fill-runner.js';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const ctx: ToolContext = { workflowId: 'wf-1' };
 
@@ -325,6 +344,242 @@ describe('executeToolCall', () => {
           level: 'error',
         })
       );
+    });
+  });
+
+  // ========================================
+  // narrate
+  // ========================================
+  describe('narrate', () => {
+    it('writes a narration event with message and step', async () => {
+      const result = await executeToolCall(
+        'narrate',
+        { message: "I'll fill this enrollment for you.", step: 1 },
+        ctx
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(logAgentEvent).toHaveBeenCalledWith({
+        workflowId: 'wf-1',
+        agent: 'orchestrator',
+        action: 'narration',
+        data: {
+          message: "I'll fill this enrollment for you.",
+          step: 1,
+        },
+      });
+    });
+
+    it('includes downloadUrl in event data when provided', async () => {
+      await executeToolCall(
+        'narrate',
+        {
+          message: 'Done. Your filled PDF is ready.',
+          step: 3,
+          downloadUrl: 'https://signed.example/filled.pdf',
+        },
+        ctx
+      );
+
+      expect(logAgentEvent).toHaveBeenCalledWith({
+        workflowId: 'wf-1',
+        agent: 'orchestrator',
+        action: 'narration',
+        data: {
+          message: 'Done. Your filled PDF is ready.',
+          step: 3,
+          downloadUrl: 'https://signed.example/filled.pdf',
+        },
+      });
+    });
+
+    it('rejects empty messages', async () => {
+      const result = await executeToolCall('narrate', { message: '   ' }, ctx);
+
+      expect(result).toEqual({ error: 'narrate requires a non-empty message' });
+      expect(logAgentEvent).not.toHaveBeenCalled();
+    });
+
+    it('omits step from event data when not provided', async () => {
+      await executeToolCall('narrate', { message: 'Working on it' }, ctx);
+
+      expect(logAgentEvent).toHaveBeenCalledWith({
+        workflowId: 'wf-1',
+        agent: 'orchestrator',
+        action: 'narration',
+        data: { message: 'Working on it' },
+      });
+    });
+  });
+
+  // ========================================
+  // populate_enrollment_forms
+  // ========================================
+  describe('populate_enrollment_forms', () => {
+    it('runs PDF fill for each fillable form and returns signed download URLs', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: 'enr-1',
+        payerTrackId: 'pt-1',
+        payerTrack: {
+          id: 'pt-1',
+          forms: [
+            { id: 'pf-1', formName: 'Provider Application', assetUrl: 'templates/app.pdf' },
+            { id: 'pf-2', formName: 'W-9', assetUrl: 'templates/w9.pdf' },
+          ],
+        },
+      } as any);
+
+      vi.mocked(runPdfFill)
+        .mockResolvedValueOnce({
+          enrollmentRunId: 'run-1',
+          artifact: {
+            payerFormId: 'pf-1',
+            engine: 'pdf',
+            filledS3Key: 'filled/run-1/pf-1.pdf',
+            fieldLog: [],
+            filledCount: 23,
+            skippedCount: 1,
+          },
+          missingRequired: [],
+        })
+        .mockResolvedValueOnce({
+          enrollmentRunId: 'run-1',
+          artifact: {
+            payerFormId: 'pf-2',
+            engine: 'pdf',
+            filledS3Key: 'filled/run-1/pf-2.pdf',
+            fieldLog: [],
+            filledCount: 5,
+            skippedCount: 0,
+          },
+          missingRequired: ['ein'],
+        });
+
+      vi.mocked(getSignedUrl)
+        .mockResolvedValueOnce('https://signed.example/pf-1.pdf')
+        .mockResolvedValueOnce('https://signed.example/pf-2.pdf');
+
+      const result = (await executeToolCall(
+        'populate_enrollment_forms',
+        { enrollmentId: 'enr-1' },
+        ctx
+      )) as any;
+
+      expect(result).toEqual({
+        enrollmentRunId: 'run-1',
+        formsFilled: 2,
+        forms: [
+          {
+            payerFormId: 'pf-1',
+            formName: 'Provider Application',
+            filledCount: 23,
+            skippedCount: 1,
+            missingRequired: [],
+            downloadUrl: 'https://signed.example/pf-1.pdf',
+          },
+          {
+            payerFormId: 'pf-2',
+            formName: 'W-9',
+            filledCount: 5,
+            skippedCount: 0,
+            missingRequired: ['ein'],
+            downloadUrl: 'https://signed.example/pf-2.pdf',
+          },
+        ],
+      });
+
+      expect(runPdfFill).toHaveBeenCalledTimes(2);
+      // Second call must reuse the enrollmentRunId from the first
+      expect(vi.mocked(runPdfFill).mock.calls[1]?.[0]).toMatchObject({
+        enrollmentId: 'enr-1',
+        payerFormId: 'pf-2',
+        enrollmentRunId: 'run-1',
+      });
+    });
+
+    it('returns error when enrollment not found', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(null);
+
+      const result = await executeToolCall(
+        'populate_enrollment_forms',
+        { enrollmentId: 'missing' },
+        ctx
+      );
+
+      expect(result).toEqual({ error: 'Enrollment missing not found' });
+      expect(runPdfFill).not.toHaveBeenCalled();
+    });
+
+    it('returns error when payer track has no PDF forms', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: 'enr-1',
+        payerTrackId: 'pt-1',
+        payerTrack: { id: 'pt-1', forms: [] },
+      } as any);
+
+      const result = await executeToolCall(
+        'populate_enrollment_forms',
+        { enrollmentId: 'enr-1' },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: 'No fillable PDF forms configured for this payer track',
+      });
+      expect(runPdfFill).not.toHaveBeenCalled();
+    });
+
+    it('returns guidance when enrollment has no payer track', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: 'enr-1',
+        payerTrackId: null,
+        payerTrack: null,
+      } as any);
+
+      const result = await executeToolCall(
+        'populate_enrollment_forms',
+        { enrollmentId: 'enr-1' },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: 'Enrollment is not linked to a PayerTrack — pick a payer before populating forms',
+      });
+    });
+
+    it('continues with null downloadUrl when signing fails', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: 'enr-1',
+        payerTrackId: 'pt-1',
+        payerTrack: {
+          id: 'pt-1',
+          forms: [{ id: 'pf-1', formName: 'App', assetUrl: 'templates/app.pdf' }],
+        },
+      } as any);
+
+      vi.mocked(runPdfFill).mockResolvedValueOnce({
+        enrollmentRunId: 'run-1',
+        artifact: {
+          payerFormId: 'pf-1',
+          engine: 'pdf',
+          filledS3Key: 'filled/run-1/pf-1.pdf',
+          fieldLog: [],
+          filledCount: 10,
+          skippedCount: 0,
+        },
+        missingRequired: [],
+      });
+
+      vi.mocked(getSignedUrl).mockRejectedValueOnce(new Error('AccessDenied'));
+
+      const result = (await executeToolCall(
+        'populate_enrollment_forms',
+        { enrollmentId: 'enr-1' },
+        ctx
+      )) as any;
+
+      expect(result.formsFilled).toBe(1);
+      expect(result.forms[0].downloadUrl).toBeNull();
     });
   });
 

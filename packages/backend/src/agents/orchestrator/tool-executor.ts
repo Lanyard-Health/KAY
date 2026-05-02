@@ -1,7 +1,29 @@
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { getQueue, QUEUE_NAMES } from '../queues.js';
 import { logAgentEvent } from '../event-logger.js';
+import { runPdfFill } from '../../services/form-fill/pdf-fill-runner.js';
+
+// Signed-URL TTL for filled-PDF download links surfaced via narrate(). 30 min
+// is plenty for a demo turn and short enough that links don't leak in logs.
+const ARTIFACT_URL_TTL_SECONDS = 30 * 60;
+const S3_BUCKET = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
+
+function buildS3Client(): S3Client {
+  const s3Endpoint = process.env['S3_ENDPOINT'];
+  return new S3Client({
+    region: process.env['AWS_REGION'] || 'us-east-1',
+    ...(s3Endpoint && { endpoint: s3Endpoint, forcePathStyle: true }),
+    ...(process.env['AWS_ACCESS_KEY_ID'] && {
+      credentials: {
+        accessKeyId: process.env['AWS_ACCESS_KEY_ID'],
+        secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || '',
+      },
+    }),
+  });
+}
 
 // ==========================================
 // Types
@@ -331,6 +353,132 @@ async function escalateToException(
 }
 
 // ==========================================
+// narrate — live progress messages to the user
+// ==========================================
+
+async function narrate(
+  input: { message: string; step?: number; downloadUrl?: string },
+  ctx: ToolContext
+) {
+  const message = (input.message ?? '').trim();
+  if (!message) {
+    return { error: 'narrate requires a non-empty message' };
+  }
+
+  await logAgentEvent({
+    workflowId: ctx.workflowId,
+    agent: 'orchestrator',
+    action: 'narration',
+    data: {
+      message,
+      ...(typeof input.step === 'number' ? { step: input.step } : {}),
+      ...(input.downloadUrl ? { downloadUrl: input.downloadUrl } : {}),
+    },
+  });
+
+  return { ok: true };
+}
+
+// ==========================================
+// populate_enrollment_forms — fill all PDF forms for an enrollment
+// ==========================================
+
+interface PopulatedFormSummary {
+  payerFormId: string;
+  formName: string;
+  filledCount: number;
+  skippedCount: number;
+  missingRequired: string[];
+  downloadUrl: string | null;
+}
+
+async function populateEnrollmentForms(
+  input: { enrollmentId: string },
+  _ctx: ToolContext
+): Promise<{
+  enrollmentRunId: string | null;
+  formsFilled: number;
+  forms: PopulatedFormSummary[];
+} | { error: string }> {
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { id: input.enrollmentId },
+    select: {
+      id: true,
+      payerTrackId: true,
+      payerTrack: {
+        select: {
+          id: true,
+          forms: {
+            where: { deliveryEngine: 'pdf' },
+            select: { id: true, formName: true, assetUrl: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!enrollment) {
+    return { error: `Enrollment ${input.enrollmentId} not found` };
+  }
+
+  const forms = enrollment.payerTrack?.forms ?? [];
+  const fillable = forms.filter((f) => f.assetUrl);
+
+  if (fillable.length === 0) {
+    return {
+      error: enrollment.payerTrackId
+        ? 'No fillable PDF forms configured for this payer track'
+        : 'Enrollment is not linked to a PayerTrack — pick a payer before populating forms',
+    };
+  }
+
+  // Run each PDF fill; share one EnrollmentRun across all forms (mirrors the
+  // form-fill route's behavior so artifacts cluster under one run).
+  let enrollmentRunId: string | undefined;
+  const summaries: PopulatedFormSummary[] = [];
+  const s3 = buildS3Client();
+
+  for (const form of fillable) {
+    const result = await runPdfFill({
+      enrollmentId: input.enrollmentId,
+      payerFormId: form.id,
+      ...(enrollmentRunId ? { enrollmentRunId } : {}),
+    });
+    enrollmentRunId = result.enrollmentRunId;
+
+    let downloadUrl: string | null = null;
+    try {
+      downloadUrl = await getSignedUrl(
+        s3,
+        new GetObjectCommand({ Bucket: S3_BUCKET, Key: result.artifact.filledS3Key }),
+        { expiresIn: ARTIFACT_URL_TTL_SECONDS }
+      );
+    } catch (err) {
+      logger.warn('Failed to sign filled-PDF URL for narration', {
+        payerFormId: form.id,
+        filledS3Key: result.artifact.filledS3Key,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    summaries.push({
+      payerFormId: form.id,
+      formName: form.formName,
+      filledCount: result.artifact.filledCount,
+      skippedCount: result.artifact.skippedCount,
+      missingRequired: result.missingRequired,
+      downloadUrl,
+    });
+  }
+
+  return {
+    enrollmentRunId: enrollmentRunId ?? null,
+    formsFilled: summaries.length,
+    forms: summaries,
+  };
+}
+
+// ==========================================
 // Dispatcher
 // ==========================================
 
@@ -355,6 +503,10 @@ export async function executeToolCall(
         return await getWorkflowState(context);
       case 'escalate_to_exception':
         return await escalateToException(input as { issue: string; taskId?: string }, context);
+      case 'narrate':
+        return await narrate(input as { message: string; step?: number; downloadUrl?: string }, context);
+      case 'populate_enrollment_forms':
+        return await populateEnrollmentForms(input as { enrollmentId: string }, context);
       default:
         return { error: `Unknown tool: ${name}` };
     }

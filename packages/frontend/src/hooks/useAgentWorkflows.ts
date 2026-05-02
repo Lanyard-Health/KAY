@@ -30,6 +30,12 @@ export interface AgentTask {
   createdAt: string;
 }
 
+export interface NarrationEventData {
+  message: string;
+  step?: number;
+  downloadUrl?: string;
+}
+
 export interface AgentEvent {
   id: string;
   workflowId: string;
@@ -37,8 +43,27 @@ export interface AgentEvent {
   agent: string | null;
   action: string;
   level: 'info' | 'warn' | 'error';
-  details: Record<string, unknown> | null;
+  /**
+   * Per-event payload. Field name mirrors the backend `agent_events.data`
+   * column. Shape varies by action; for `action: 'narration'` it's
+   * `NarrationEventData`.
+   */
+  data: Record<string, unknown> | null;
+  /** ISO timestamp when the event was created (backend sends `timestamp`). */
+  timestamp?: string;
   createdAt: string;
+}
+
+/**
+ * Extract narration messages emitted by the AI agent (action='narration').
+ * The agent's `narrate` tool writes one of these per progress message.
+ */
+export function isNarrationEvent(
+  event: AgentEvent
+): event is AgentEvent & { data: NarrationEventData } {
+  if (event.action !== 'narration' || !event.data) return false;
+  const message = (event.data as { message?: unknown }).message;
+  return typeof message === 'string';
 }
 
 export interface AgentWorkflow {
