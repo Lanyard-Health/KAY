@@ -54,7 +54,26 @@ Most payers do NOT have automated portal adapters configured. When get_payer_req
 - dispatch_task: Create and queue a task (parse_document, submit_to_portal, check_readiness, monitor_status)
 - request_human_approval: Pause workflow for human review before sensitive actions
 - get_workflow_state: Get current tasks, approvals, and plan
-- escalate_to_exception: Escalate unresolvable issues for human review`;
+- escalate_to_exception: Escalate unresolvable issues for human review
+- narrate: Send a short, plain-English progress message to the user (shows up live in their UI). Use this between actions so the user can follow what you're doing.
+- populate_enrollment_forms: Fill all PDF forms for an enrollment using the provider's credentialing data. Returns per-form fill counts and signed download URLs (30-min TTL).
+
+## Goal: populate_forms (live form-fill flow)
+
+When the workflow goal is exactly \`populate_forms\`, follow this scripted sequence and call NO other tools:
+
+1. Call \`narrate\` with step 1 and a brief opening line (e.g., "I'll fill this enrollment for you.").
+2. Call \`narrate\` with step 2 saying you're pulling provider data and mapping it into the form.
+3. Call \`populate_enrollment_forms\` with the \`enrollmentId\` from the user message.
+4. Read the tool result. If it returned an \`error\`, call \`narrate\` once with that user-facing message in plain English, then stop with a short final response.
+5. Otherwise, take the \`downloadUrl\` from the first form in \`forms[]\`. Call \`narrate\` with step 3, a short success message ("Done. Your filled PDF is ready."), and pass that URL as \`downloadUrl\`.
+6. If \`forms.length > 1\`, call \`narrate\` once more (step 4) summarising "Filled N forms" — do NOT include further URLs (the UI surfaces them from the run).
+7. End with a one-line text response. No more tool calls.
+
+Constraints for populate_forms:
+- Do NOT call \`dispatch_task\`, \`request_human_approval\`, \`escalate_to_exception\`, \`get_provider_profile\`, \`get_payer_requirements\`, \`check_credential_completeness\`, or \`get_workflow_state\`. They are not needed — \`populate_enrollment_forms\` handles all lookups internally.
+- Each \`narrate\` message must be under 120 characters and conversational. No engineering jargon, no field names, no IDs in the prose.
+- If a narration would mention a schema field, restate it in everyday language ("the provider's license number" not "license.number").`;
 }
 
 // ==========================================
@@ -66,6 +85,26 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
   const goalParams = (workflow.goalParams ?? {}) as Record<string, string>;
 
   if (jobType === 'plan_workflow') {
+    const enrollmentId = (goalParams['enrollmentId'] as string | undefined) ?? workflow.enrollmentId ?? null;
+
+    // Scripted populate_forms flow — used for the live demo path. Tightens the
+    // user message so Claude follows the narrate→populate→narrate sequence
+    // defined in the system prompt and doesn't wander into general planning.
+    if (workflow.goal === 'populate_forms') {
+      if (!enrollmentId) {
+        return [
+          'Workflow goal is populate_forms but no enrollmentId is set.',
+          'Call narrate with a short user-facing error message ("I can\'t find which enrollment to fill") and end.',
+        ].join('\n');
+      }
+      return [
+        'Goal: populate_forms.',
+        `Enrollment ID: ${enrollmentId}`,
+        '',
+        'Follow the scripted populate_forms flow from the system prompt: narrate (step 1) → narrate (step 2) → populate_enrollment_forms({ enrollmentId }) → narrate (step 3) with the first form\'s downloadUrl. End with a short final response.',
+      ].join('\n');
+    }
+
     const parts = [
       `New workflow created.`,
       `Goal: ${workflow.goal}`,
@@ -76,8 +115,8 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
       parts.push(`Payer ID: ${goalParams['payerId'] ?? workflow.payerId}`);
     }
 
-    if (goalParams['enrollmentId'] ?? workflow.enrollmentId) {
-      parts.push(`Enrollment ID: ${goalParams['enrollmentId'] ?? workflow.enrollmentId}`);
+    if (enrollmentId) {
+      parts.push(`Enrollment ID: ${enrollmentId}`);
     }
 
     parts.push('');

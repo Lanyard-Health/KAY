@@ -125,7 +125,10 @@ export function PopulateFormsPanel({ enrollmentId }: { enrollmentId: string }) {
       <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SparklesIcon className="h-5 w-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Populate Forms</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Populate Forms</h2>
+            <p className="text-xs text-gray-400">Manual fill — backup if the AI agent above is unavailable</p>
+          </div>
         </div>
         <button
           type="button"

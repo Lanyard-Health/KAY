@@ -13,7 +13,7 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('escalate');
   });
 
-  it('lists all 7 tools', () => {
+  it('lists all 9 tools', () => {
     const prompt = buildSystemPrompt();
 
     expect(prompt).toContain('get_provider_profile');
@@ -23,6 +23,15 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('request_human_approval');
     expect(prompt).toContain('get_workflow_state');
     expect(prompt).toContain('escalate_to_exception');
+    expect(prompt).toContain('narrate');
+    expect(prompt).toContain('populate_enrollment_forms');
+  });
+
+  it('includes a scripted populate_forms section', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('populate_forms');
+    expect(prompt).toContain('narrate');
+    expect(prompt).toContain('downloadUrl');
   });
 });
 
@@ -79,6 +88,36 @@ describe('buildUserMessage', () => {
 
       expect(msg).toContain('Analyze');
       expect(msg).toContain('dispatch the first tasks');
+    });
+
+    it('emits the scripted populate_forms message when goal is populate_forms', () => {
+      const wf = {
+        ...baseWorkflow,
+        goal: 'populate_forms',
+        enrollmentId: 'enr-42',
+        goalParams: { providerId: 'p-1', payerId: 'pay-1', enrollmentId: 'enr-42' },
+      } as unknown as BuildUserMessageParams['workflow'];
+
+      const msg = buildUserMessage({ jobType: 'plan_workflow', workflow: wf });
+
+      expect(msg).toContain('Goal: populate_forms');
+      expect(msg).toContain('Enrollment ID: enr-42');
+      expect(msg).toContain('populate_enrollment_forms');
+      expect(msg).not.toContain('Analyze the provider');
+    });
+
+    it('returns an error-narration prompt for populate_forms with no enrollmentId', () => {
+      const wf = {
+        ...baseWorkflow,
+        goal: 'populate_forms',
+        enrollmentId: null,
+        goalParams: { providerId: 'p-1' },
+      } as unknown as BuildUserMessageParams['workflow'];
+
+      const msg = buildUserMessage({ jobType: 'plan_workflow', workflow: wf });
+
+      expect(msg).toContain('no enrollmentId');
+      expect(msg).toContain('narrate');
     });
   });
 

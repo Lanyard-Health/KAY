@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 /**
- * 7 Claude tool_use JSON schemas for the orchestrator agent.
+ * Claude tool_use JSON schemas for the orchestrator agent.
  * Passed to claude.messages.create({ tools }).
  */
 
@@ -100,6 +100,44 @@ export const ORCHESTRATOR_TOOLS: Anthropic.Tool[] = [
         taskId: { type: 'string', description: 'Optional ID of the task that caused the issue' },
       },
       required: ['issue'],
+    },
+  },
+  {
+    name: 'narrate',
+    description:
+      'Send a short, plain-English status message to the user describing what you are about to do or have just done. Used for live progress narration in the UI. Keep messages under 120 characters and conversational. Optional step number for ordering and optional downloadUrl when a result artifact is ready.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        message: {
+          type: 'string',
+          description: 'The narration text shown to the user. Plain English, conversational, no jargon.',
+        },
+        step: {
+          type: 'integer',
+          description: 'Optional 1-based step number for ordering (e.g., 1, 2, 3).',
+        },
+        downloadUrl: {
+          type: 'string',
+          description: 'Optional URL when a downloadable artifact is ready (e.g., a filled PDF).',
+        },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'populate_enrollment_forms',
+    description:
+      'Fill all PDF forms configured for an enrollment\'s payer using the provider\'s credential data. Returns the enrollmentRunId, per-form fill counts, missing required fields, and signed download URLs (30-min TTL) for each filled PDF. Reuses the same form-fill pipeline as the manual Populate Forms button.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        enrollmentId: {
+          type: 'string',
+          description: 'UUID of the enrollment whose forms should be filled',
+        },
+      },
+      required: ['enrollmentId'],
     },
   },
 ];

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { ORCHESTRATOR_TOOLS } from './tool-schemas.js';
 
 describe('ORCHESTRATOR_TOOLS', () => {
-  it('exports exactly 7 tools', () => {
-    expect(ORCHESTRATOR_TOOLS).toHaveLength(7);
+  it('exports exactly 9 tools', () => {
+    expect(ORCHESTRATOR_TOOLS).toHaveLength(9);
   });
 
   it('each tool has name, description, and input_schema', () => {
@@ -27,6 +27,8 @@ describe('ORCHESTRATOR_TOOLS', () => {
       'request_human_approval',
       'get_workflow_state',
       'escalate_to_exception',
+      'narrate',
+      'populate_enrollment_forms',
     ]);
   });
 
@@ -66,5 +68,11 @@ describe('ORCHESTRATOR_TOOLS', () => {
 
     const escalate = ORCHESTRATOR_TOOLS.find((t) => t.name === 'escalate_to_exception')!;
     expect((escalate.input_schema as any).required).toEqual(['issue']);
+
+    const narrateTool = ORCHESTRATOR_TOOLS.find((t) => t.name === 'narrate')!;
+    expect((narrateTool.input_schema as any).required).toEqual(['message']);
+
+    const populate = ORCHESTRATOR_TOOLS.find((t) => t.name === 'populate_enrollment_forms')!;
+    expect((populate.input_schema as any).required).toEqual(['enrollmentId']);
   });
 });
