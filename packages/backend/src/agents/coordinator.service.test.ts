@@ -120,6 +120,7 @@ describe('coordinator.service', () => {
       expect(getQueue).toHaveBeenCalledWith('agent-orchestrator');
       expect(mockAdd).toHaveBeenCalledWith('plan_workflow', {
         workflowId: 'wf-1',
+        jobType: 'plan_workflow',
       });
 
       // Verifies event was logged

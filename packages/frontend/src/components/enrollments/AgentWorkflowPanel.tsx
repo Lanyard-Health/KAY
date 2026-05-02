@@ -204,7 +204,7 @@ export default function AgentWorkflowPanel({
 
   const { data: workflows } = useWorkflowsForEnrollment(providerId, enrollmentId);
   const { data: detail } = useWorkflowDetail(selectedWorkflowId);
-  const { data: events } = useWorkflowEvents(selectedWorkflowId);
+  const { data: events } = useWorkflowEvents(selectedWorkflowId, detail?.status);
   const launchWorkflow = useLaunchWorkflow();
   const cancelWorkflow = useCancelWorkflow();
   const decideApproval = useDecideApproval();
@@ -305,6 +305,16 @@ export default function AgentWorkflowPanel({
           AI Agent Workflow
         </h2>
         <div className="flex items-center gap-2">
+          {detail && TERMINAL_STATUSES.includes(detail.status) && (
+            <button
+              onClick={handleLaunch}
+              disabled={launchWorkflow.isPending}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50"
+            >
+              <SparklesIcon className="h-4 w-4 mr-1.5" />
+              {launchWorkflow.isPending ? 'Launching...' : 'Run Again'}
+            </button>
+          )}
           {detail && !TERMINAL_STATUSES.includes(detail.status) && (
             <>
               {showCancelConfirm ? (

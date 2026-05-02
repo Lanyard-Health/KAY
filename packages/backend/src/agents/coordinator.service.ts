@@ -85,7 +85,7 @@ export async function createWorkflow(input: CreateWorkflowInput) {
   // Enqueue planning job
   const queue = getQueue(QUEUE_NAMES.ORCHESTRATOR);
   try {
-    await queue.add('plan_workflow', { workflowId: workflow.id });
+    await queue.add('plan_workflow', { workflowId: workflow.id, jobType: 'plan_workflow' });
   } catch (queueErr) {
     logger.error('Failed to enqueue planning job — marking workflow as failed', {
       workflowId: workflow.id,
