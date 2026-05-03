@@ -270,10 +270,22 @@ export default function ProviderDetail() {
       queryClient.invalidateQueries({ queryKey: ['provider', id] });
       const s = data.summary;
       const parts: string[] = [];
-      if (s.licenses.created + s.licenses.updated > 0) parts.push(`${s.licenses.created + s.licenses.updated} license${s.licenses.created + s.licenses.updated !== 1 ? 's' : ''}`);
-      if (s.certifications.created + s.certifications.updated > 0) parts.push(`${s.certifications.created + s.certifications.updated} certification${s.certifications.created + s.certifications.updated !== 1 ? 's' : ''}`);
-      if (s.education.created + s.education.updated > 0) parts.push(`${s.education.created + s.education.updated} education record${s.education.created + s.education.updated !== 1 ? 's' : ''}`);
-      if (s.malpractice.created + s.malpractice.updated > 0) parts.push(`${s.malpractice.created + s.malpractice.updated} malpractice record${s.malpractice.created + s.malpractice.updated !== 1 ? 's' : ''}`);
+      const pushIf = (count: number, singular: string, plural?: string) => {
+        if (count <= 0) return;
+        const word = count === 1 ? singular : (plural ?? `${singular}s`);
+        parts.push(`${count} ${word}`);
+      };
+      pushIf(s.licenses.created + s.licenses.updated, 'license');
+      pushIf(s.certifications.created + s.certifications.updated, 'certification');
+      pushIf(s.education.created + s.education.updated, 'education record');
+      pushIf(s.malpractice.created + s.malpractice.updated, 'malpractice policy', 'malpractice policies');
+      // Phase 2 — v9 full coverage
+      pushIf((s.disclosures?.created ?? 0) + (s.disclosures?.updated ?? 0), 'disclosure');
+      pushIf((s.malpracticeClaims?.created ?? 0) + (s.malpracticeClaims?.updated ?? 0), 'malpractice claim');
+      pushIf((s.hospitalAffiliations?.created ?? 0) + (s.hospitalAffiliations?.updated ?? 0), 'hospital affiliation');
+      pushIf((s.workHistory?.created ?? 0) + (s.workHistory?.updated ?? 0), 'work history record');
+      pushIf((s.workHistoryGaps?.created ?? 0) + (s.workHistoryGaps?.updated ?? 0), 'work history gap');
+      pushIf((s.practiceSupervisors?.created ?? 0) + (s.practiceSupervisors?.updated ?? 0), 'supervisor');
       toast.success(parts.length > 0 ? `Imported ${parts.join(', ')}` : 'CAQH sync complete — no new data to import');
     },
     onError: (err: any) => {
