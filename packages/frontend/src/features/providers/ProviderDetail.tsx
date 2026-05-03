@@ -1233,6 +1233,7 @@ export default function ProviderDetail() {
                                     {wh.workHistoryType}
                                   </span>
                                 )}
+                                {wh.source && <SourceBadge source={wh.source} />}
                               </div>
                               <p className="text-xs text-gray-600">{wh.position}</p>
                               {orgLine && <p className="text-xs text-gray-500">{orgLine}</p>}
@@ -1406,13 +1407,41 @@ export default function ProviderDetail() {
                                   {String(ha.privilegeType).replace(/_/g, ' ')}
                                 </span>
                               )}
+                              {ha.hasTemporaryPrivileges === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">Temporary</span>
+                              )}
+                              {ha.hasUnrestrictedPrivileges === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">Unrestricted</span>
+                              )}
+                              {ha.source && <SourceBadge source={ha.source} />}
                             </div>
-                            {(ha.appointmentDate || ha.reappointmentDate) && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {ha.appointmentDate && `Appointed ${format(new Date(ha.appointmentDate), 'MMM yyyy')}`}
-                                {ha.appointmentDate && ha.reappointmentDate && ' · '}
-                                {ha.reappointmentDate && `Reappointed ${format(new Date(ha.reappointmentDate), 'MMM yyyy')}`}
+                            {(ha.privilegeDescription || ha.department) && (
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {[ha.privilegeDescription, ha.department].filter(Boolean).join(' · ')}
                               </p>
+                            )}
+                            {(ha.appointmentDate || ha.startDate || ha.reappointmentDate || ha.endDate) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {(ha.appointmentDate || ha.startDate) && `${format(new Date(ha.appointmentDate || ha.startDate), 'MMM yyyy')}`}
+                                {' – '}
+                                {ha.endDate ? format(new Date(ha.endDate), 'MMM yyyy') : 'Present'}
+                                {ha.admissionPercent !== null && ha.admissionPercent !== undefined && ` · ${ha.admissionPercent}% admissions`}
+                              </p>
+                            )}
+                            {(ha.city || ha.state) && (
+                              <p className="text-xs text-gray-400">
+                                {[ha.city, ha.state].filter(Boolean).join(', ')}
+                                {ha.caqhAhaId && ` · AHA #${ha.caqhAhaId}`}
+                              </p>
+                            )}
+                            {(ha.whoAdmitsForYou || ha.admittingProviderFirstName) && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Admitter: {[ha.admittingProviderFirstName, ha.admittingProviderLastName].filter(Boolean).join(' ') || ha.whoAdmitsForYou}
+                                {ha.admittingContactPhone && ` · ${ha.admittingContactPhone}`}
+                              </p>
+                            )}
+                            {ha.reasonForDiscontinuance && (
+                              <p className="text-xs text-gray-400">End reason: {ha.reasonForDiscontinuance}</p>
                             )}
                           </div>
                         </div>
@@ -1996,7 +2025,7 @@ export default function ProviderDetail() {
                       {malpracticeClaimsList.map((mc: any) => (
                         <div key={mc.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-gray-900">
                                 Incident: {mc.dateOfIncident ? format(new Date(mc.dateOfIncident), 'MMM d, yyyy') : 'N/A'}
                               </p>
@@ -2006,13 +2035,51 @@ export default function ProviderDetail() {
                                   ? 'bg-green-100 text-green-800'
                                   : mc.claimStatus === 'OPEN' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
                               )}>{mc.claimStatus?.replace(/_/g, ' ')}</span>
+                              {mc.isLeadDefendant === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
+                                  Lead defendant
+                                </span>
+                              )}
+                              {mc.npdbReported === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700" title="Reported to National Practitioner Data Bank">
+                                  NPDB
+                                </span>
+                              )}
+                              {mc.patientDied === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                                  Patient died
+                                </span>
+                              )}
+                              {mc.source && <SourceBadge source={mc.source} />}
                             </div>
                             <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{mc.description}</p>
-                            {(mc.settlementAmount || mc.judgmentAmount) && (
+                            {mc.allegationDescription && mc.allegationDescription !== mc.description && (
+                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">Allegation: {mc.allegationDescription}</p>
+                            )}
+                            {mc.patientInjuryDescription && (
+                              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">Injury: {mc.patientInjuryDescription}</p>
+                            )}
+                            {(mc.settlementAmount || mc.judgmentAmount || mc.settlementAmountPaid) && (
                               <p className="text-xs text-gray-400 mt-0.5">
-                                {mc.settlementAmount ? `Settlement: $${mc.settlementAmount.toLocaleString()}` : ''}
-                                {mc.judgmentAmount ? ` Judgment: $${mc.judgmentAmount.toLocaleString()}` : ''}
+                                {mc.settlementAmount ? `Settlement: $${Number(mc.settlementAmount).toLocaleString()}` : ''}
+                                {mc.settlementAmountPaid ? ` (paid $${Number(mc.settlementAmountPaid).toLocaleString()})` : ''}
+                                {mc.judgmentAmount ? ` · Judgment: $${Number(mc.judgmentAmount).toLocaleString()}` : ''}
                               </p>
+                            )}
+                            {(mc.resolutionMethod || mc.dateResolved) && (
+                              <p className="text-xs text-gray-400">
+                                {mc.resolutionMethod && `Resolution: ${mc.resolutionMethod}`}
+                                {mc.resolutionMethod && mc.dateResolved && ' · '}
+                                {mc.dateResolved && `Resolved ${format(new Date(mc.dateResolved), 'MMM d, yyyy')}`}
+                              </p>
+                            )}
+                            {(mc.insuranceCarrier || mc.policyNumber) && (
+                              <p className="text-xs text-gray-400">
+                                {[mc.insuranceCarrier, mc.policyNumber].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                            {(mc.numberOtherCodefendants ?? 0) > 0 && (
+                              <p className="text-xs text-gray-400">{mc.numberOtherCodefendants} other co-defendant{mc.numberOtherCodefendants === 1 ? '' : 's'}</p>
                             )}
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2056,11 +2123,18 @@ export default function ProviderDetail() {
                             <div className="flex items-center gap-2">
                               <p className="font-medium text-sm text-gray-900">{sp.supervisorFirstName} {sp.supervisorLastName}</p>
                               {sp.isPrimary && <span className="badge-primary text-[10px]">Primary</span>}
+                              {sp.source && <SourceBadge source={sp.source} />}
                             </div>
                             <p className="text-xs text-gray-500">
                               {sp.supervisionType.replace('_', ' ')} supervision
                               {sp.supervisorNpi && ` \u00B7 NPI: ${sp.supervisorNpi}`}
+                              {sp.caqhSupervisorId && ` \u00B7 CAQH #${sp.caqhSupervisorId}`}
                             </p>
+                            {(sp.practiceLocation?.locationName || sp.department) && (
+                              <p className="text-xs text-gray-500">
+                                {[sp.practiceLocation?.locationName, sp.department].filter(Boolean).join(' \u00B7 ')}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-400">
                               From {sp.agreementStartDate ? format(new Date(sp.agreementStartDate), 'MMM d, yyyy') : 'N/A'}
                               {sp.agreementEndDate && ` to ${format(new Date(sp.agreementEndDate), 'MMM d, yyyy')}`}
@@ -2111,16 +2185,29 @@ export default function ProviderDetail() {
                       {disclosuresList.map((d: any) => (
                         <div key={d.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-gray-900">{d.category?.replace(/_/g, ' ')}</p>
                               <span className={clsx(
                                 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
                                 d.answer ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                               )}>{d.answer ? 'Yes' : 'No'}</span>
+                              {d.caqhQuestionId && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500" title="CAQH disclosure question ID">
+                                  Q{d.caqhQuestionId}
+                                </span>
+                              )}
+                              {d.source && <SourceBadge source={d.source} />}
                             </div>
                             <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{d.questionText}</p>
                             {d.answer && d.explanation && (
                               <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">Explanation: {d.explanation}</p>
+                            )}
+                            {d.dateOfOccurrence && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Occurred: {format(new Date(d.dateOfOccurrence), 'MMM d, yyyy')}
+                                {d.state && ' · '}
+                                {d.state}
+                              </p>
                             )}
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
