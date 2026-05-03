@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma.js';
-import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType, EducationType, ProviderCertificationType } from '@prisma/client';
+import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType, EducationType, ProviderCertificationType, DisclosureCategory, ClaimStatus, PrivilegeType, AffiliationStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { encryptSafe } from '../utils/crypto.js';
 import { z } from 'zod';
@@ -100,8 +100,186 @@ export interface CaqhV8Provider {
   Education?: CaqhV8Education | CaqhV8Education[];
   Insurance?: CaqhV8Insurance | CaqhV8Insurance[];
   ProviderCDS?: CaqhV8CDS | CaqhV8CDS[];
+  // v9 sections wired in Phase 2 (full coverage)
+  Hospital?: CaqhV8Hospital | CaqhV8Hospital[];
+  WorkHistory?: CaqhV8WorkHistoryEntry | CaqhV8WorkHistoryEntry[];
+  TimeGap?: CaqhV8TimeGap | CaqhV8TimeGap[];
+  Disclosure?: CaqhV8Disclosure | CaqhV8Disclosure[];
+  Practice?: CaqhV8Practice | CaqhV8Practice[];
 
   // Catch-all for as-yet-unmapped sections; we preserve raw JSON in the mirror
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 Hospital element (top-level, repeated). Represents one
+ * hospital affiliation record. AHAHospitalID is the AHA-assigned dedup
+ * key; HospitalRecordType distinguishes "Admitting Privilege Record"
+ * vs "Admitting Arrangement Record" vs "Non-Admitting Affiliation
+ * Record". When the provider relies on someone else to admit
+ * patients, WhoAdmitsForyou (note casing — CAQH spelling) plus
+ * top-level FirstName/LastName describe the admitter.
+ */
+export interface CaqhV8Hospital {
+  ID?: string | number;
+  AHAHospitalID?: string | number;
+  HospitalName?: string;
+  Address?: string;
+  City?: string;
+  State?: string;
+  ZipCode?: string;
+  PhoneNumber?: string;
+  FaxNumber?: string;
+  UnrestrictedPrivilegesFlag?: string | number | boolean;
+  TemporaryPrivilegesFlag?: string | number | boolean;
+  PrivilegeDescription?: string;
+  AdmissionPercent?: string | number;
+  StartDate?: string;
+  EndDate?: string;
+  StaffCategory?: string;
+  HospitalRecordType?: string;
+  HospitalAffiliationType?:
+    | string
+    | { HospitalAffiliationTypeDescription?: string }
+    | unknown;
+  ReasonForDiscontinuance?: string;
+  ExitExplanation?: string;
+  Description?: string;
+  Country?: string | { CountryName?: string } | unknown;
+  Department?: string;
+  // Admitting-relationship sub-fields (when not self-admitting)
+  WhoAdmitsForyou?: string;
+  WhoAdmitsForYou?: string; // tolerate alternate casing
+  FirstName?: string;
+  LastName?: string;
+  AdmittingContactPhoneNumber?: string;
+  AdmittingContactEmailAddress?: string;
+  IsProviderSpecialtySameAsYourSpecialty?: string | number | boolean;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 WorkHistory element. Each repeated entry is one employment
+ * record. Sample payloads include EmployerName + dates + address +
+ * CurrentEmployerFlag at minimum; Position / Department / Phone /
+ * SupervisorName are optional and not always present.
+ */
+export interface CaqhV8WorkHistoryEntry {
+  ID?: string | number;
+  EmployerName?: string;
+  StartDate?: string;
+  EndDate?: string;
+  Address?: string;
+  City?: string;
+  State?: string;
+  PostalCode?: string | number;
+  ZipCode?: string;
+  PhoneNumber?: string;
+  FaxNumber?: string;
+  EmailAddress?: string;
+  CurrentEmployerFlag?: string | number | boolean;
+  StatusDescription?: string;
+  WorkHistoryType?: string | { WorkHistoryTypeDescription?: string } | unknown;
+  Country?: string | { CountryName?: string } | unknown;
+  Position?: string;
+  Department?: string;
+  ReasonForLeaving?: string;
+  SupervisorName?: string;
+  SupervisorPhone?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 TimeGap element — gap in employment timeline. Distinct
+ * top-level repeated section (not nested inside WorkHistory).
+ */
+export interface CaqhV8TimeGap {
+  ID?: string | number;
+  StartDate?: string;
+  EndDate?: string;
+  GapExplanation?: string;
+  GapDescription?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 Disclosure element. Each repeated entry is one yes/no
+ * attestation question keyed by `ID` (21000–21220). For ID 21150
+ * ("Had any Malpractice Actions"), the body contains a nested
+ * Malpractice element with full claim details — the disclosure mapper
+ * routes that nested record into the malpractice-claim writer rather
+ * than persisting a duplicate ProviderDisclosure row.
+ */
+export interface CaqhV8Disclosure {
+  ID?: string | number;
+  DisclosureAnswerFlag?: string | number | boolean;
+  DisclosureExplanation?: string;
+  DisclosureQuestion?: { DisclosureSummary?: string } | unknown;
+  Malpractice?: CaqhV8MalpracticeClaim | CaqhV8MalpracticeClaim[];
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 Malpractice element. Lives nested inside Disclosure ID 21150.
+ * NOT to be confused with `Insurance` (PLI coverage) — this is a
+ * litigation/claim record. ClaimStatus is itself a nested element that
+ * carries the settlement date + amounts.
+ */
+export interface CaqhV8MalpracticeClaim {
+  ID?: string | number;
+  InsuranceCarrierName?: string;
+  OccurrenceDate?: string;
+  ClaimDate?: string;
+  Address?: string;
+  Address2?: string;
+  City?: string;
+  State?: string;
+  Zip?: string;
+  Province?: string;
+  PhoneNumber?: string;
+  PolicyNumber?: string;
+  AllegationDescription?: string;
+  PrimaryDefendantFlag?: string | number | boolean;
+  NumberOtherCodefendant?: string | number;
+  CaseInvolvement?: string;
+  PatientInjuryDescription?: string;
+  NPDBCaseFlag?: string | number | boolean;
+  PatientDiedFlag?: string | number | boolean;
+  MalpracticeResolution?:
+    | { MalpracticeResolutionMethod?: string }
+    | unknown;
+  Country?: string | { CountryName?: string } | unknown;
+  ClaimStatus?:
+    | {
+        ClaimStatus?: string;
+        ClaimSettlementDate?: string;
+        SettlementAmount?: string | number;
+        SettlementAmountPaid?: string | number;
+      }
+    | unknown;
+  [key: string]: unknown;
+}
+
+/**
+ * CAQH v9 Practice element (top-level, repeated). Carries practice
+ * location identity plus per-practice supervisor fields. The
+ * supervisor block was added in v9.0 — `SupervisorName` is one full
+ * string, parsed into first/last at mapping time.
+ */
+export interface CaqhV8Practice {
+  ID?: string | number;
+  PracticeName?: string;
+  // Top-level supervisor fields (v9.0)
+  SupervisorName?: string;
+  SupervisorNPI?: string | number;
+  SupervisorCAQHId?: string | number;
+  // Address (used to auto-link to existing PracticeLocation rows)
+  Address?: string;
+  AddressLine1?: string;
+  City?: string;
+  State?: string;
+  ZipCode?: string;
+  PostalCode?: string | number;
   [key: string]: unknown;
 }
 
@@ -435,6 +613,134 @@ export interface MappedCaqhData {
     state: string;
     expirationDate?: Date;
     issueDate?: Date;
+  }>;
+  /**
+   * Yes/no attestation disclosures from CAQH `Disclosure` elements
+   * (questions 21000–21220). Question 21150 ("Had any Malpractice
+   * Actions") is excluded here — the mapper routes its nested
+   * Malpractice element into `malpracticeClaims` instead of
+   * persisting a duplicate disclosure row.
+   */
+  disclosures?: Array<{
+    caqhQuestionId: string;
+    questionText: string;
+    answer: boolean;
+    explanation?: string;
+    category: DisclosureCategory;
+  }>;
+  /**
+   * Malpractice claim history (CAQH `Disclosure[ID=21150].Malpractice`)
+   * — distinct from current PLI insurance coverage in `malpractice`.
+   */
+  malpracticeClaims?: Array<{
+    caqhClaimId?: string;
+    insuranceCarrier?: string;
+    dateOfIncident?: Date;
+    dateOfClaim?: Date;
+    dateResolved?: Date;
+    claimStatus: ClaimStatus;
+    description: string;
+    settlementAmount?: number;
+    settlementAmountPaid?: number;
+    policyNumber?: string;
+    allegationDescription?: string;
+    patientInjuryDescription?: string;
+    isLeadDefendant?: boolean;
+    numberOtherCodefendants?: number;
+    caseInvolvement?: string;
+    npdbReported?: boolean;
+    patientDied?: boolean;
+    resolutionMethod?: string;
+    courtAddressLine1?: string;
+    courtCity?: string;
+    courtState?: string;
+    courtZipCode?: string;
+    courtPhone?: string;
+    courtCountry?: string;
+  }>;
+  /** Hospital affiliations from CAQH `Hospital` elements. */
+  hospitalAffiliations?: Array<{
+    caqhAhaId?: string;
+    facilityName: string;
+    privilegeType: PrivilegeType;
+    status: AffiliationStatus;
+    addressLine1?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+    phoneNumber?: string;
+    faxNumber?: string;
+    department?: string;
+    startDate?: Date;
+    endDate?: Date;
+    hasUnrestrictedPrivileges?: boolean;
+    hasTemporaryPrivileges?: boolean;
+    privilegeDescription?: string;
+    admissionPercent?: number;
+    staffCategory?: string;
+    hospitalRecordType?: string;
+    hospitalAffiliationType?: string;
+    reasonForDiscontinuance?: string;
+    exitExplanation?: string;
+    description?: string;
+    whoAdmitsForYou?: string;
+    admittingProviderFirstName?: string;
+    admittingProviderLastName?: string;
+    admittingContactPhone?: string;
+    admittingContactEmail?: string;
+    isAdmitterSameSpecialty?: boolean;
+  }>;
+  /** Employment history detail rows from CAQH `WorkHistory` elements. */
+  workHistory?: Array<{
+    caqhWorkHistoryId?: string;
+    organizationName: string;
+    addressLine1?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+    phone?: string;
+    fax?: string;
+    email?: string;
+    startDate?: Date;
+    endDate?: Date;
+    isCurrent: boolean;
+    currentEmployerFlag?: boolean;
+    statusDescription?: string;
+    workHistoryType?: string;
+    position?: string;
+    department?: string;
+    reasonForLeaving?: string;
+    supervisorName?: string;
+    supervisorPhone?: string;
+  }>;
+  /** Employment-timeline gap rows from CAQH `TimeGap` elements. */
+  workHistoryGaps?: Array<{
+    caqhGapId?: string;
+    startDate: Date;
+    endDate: Date;
+    gapExplanation?: string;
+    gapDescription?: string;
+  }>;
+  /**
+   * Per-practice supervisor identity from CAQH `Practice.Supervisor*`
+   * fields (v9.0). At persistence time the writer auto-links
+   * `practiceLocationId` to an existing `PracticeLocation` row by name
+   * or address; if no match is found the row stays with
+   * practiceLocationId=null and the writer logs the unmatched key.
+   */
+  practiceSupervisors?: Array<{
+    supervisorFirstName: string;
+    supervisorLastName: string;
+    supervisorNpi?: string;
+    caqhSupervisorId?: string;
+    caqhPracticeId?: string;
+    practiceName?: string;
+    practiceAddressLine1?: string;
+    practiceCity?: string;
+    practiceState?: string;
+    practiceZipCode?: string;
   }>;
 }
 
@@ -1682,6 +1988,35 @@ export class CaqhService {
       .map(c => this.mapV8CDS(c, providerId))
       .filter((c): c is NonNullable<MappedCaqhData['cdsRegistrations']>[number] => c !== null);
 
+    // ── v9 sections (Phase 2) ────────────────────────────────────────────
+    const disclosureEntries = this.asArray(p.Disclosure);
+    const disclosures = disclosureEntries
+      .map(d => this.mapV8Disclosure(d, providerId))
+      .filter((d): d is NonNullable<MappedCaqhData['disclosures']>[number] => d !== null);
+    // CAQH question 21150 carries malpractice claims nested inside the disclosure.
+    // Pull every nested Malpractice element across all 21150 disclosures.
+    const malpracticeClaims = disclosureEntries
+      .filter(d => toOptString(d.ID) === '21150' && toOptBool(d.DisclosureAnswerFlag) === true)
+      .flatMap(d => this.asArray(d.Malpractice))
+      .map(m => this.mapV8MalpracticeClaim(m, providerId))
+      .filter((m): m is NonNullable<MappedCaqhData['malpracticeClaims']>[number] => m !== null);
+
+    const hospitalAffiliations = this.asArray(p.Hospital)
+      .map(h => this.mapV8Hospital(h, providerId))
+      .filter((h): h is NonNullable<MappedCaqhData['hospitalAffiliations']>[number] => h !== null);
+
+    const workHistory = this.asArray(p.WorkHistory)
+      .map(w => this.mapV8WorkHistoryEntry(w, providerId))
+      .filter((w): w is NonNullable<MappedCaqhData['workHistory']>[number] => w !== null);
+
+    const workHistoryGaps = this.asArray(p.TimeGap)
+      .map(g => this.mapV8TimeGap(g, providerId))
+      .filter((g): g is NonNullable<MappedCaqhData['workHistoryGaps']>[number] => g !== null);
+
+    const practiceSupervisors = this.asArray(p.Practice)
+      .map(pr => this.mapV8PracticeSupervisor(pr, providerId))
+      .filter((s): s is NonNullable<MappedCaqhData['practiceSupervisors']>[number] => s !== null);
+
     const npiStr = toOptString(p.NPI);
     const ssnStr = toOptString(p.SSN);
     return {
@@ -1730,6 +2065,12 @@ export class CaqhService {
       malpractice,
       providerCertifications,
       cdsRegistrations,
+      disclosures,
+      malpracticeClaims,
+      hospitalAffiliations,
+      workHistory,
+      workHistoryGaps,
+      practiceSupervisors,
     };
   }
 
@@ -2069,6 +2410,383 @@ export class CaqhService {
       state,
       expirationDate: parseCaqhDate(c.ExpirationDate),
       issueDate: parseCaqhDate(c.IssueDate ?? c.EffectiveDate),
+    };
+  }
+
+  // ======================================================================
+  // Phase 2 — v9 full-coverage mappers
+  // (Disclosures, Malpractice Claims, Hospital Affiliations,
+  //  Work History detail, Time Gaps, Practice Supervisors)
+  // ======================================================================
+
+  /**
+   * Map a CAQH `Disclosure` element to a ProviderDisclosure shape.
+   * Question 21150 ("Had any Malpractice Actions") is intentionally
+   * dropped here — the dispatcher routes its nested Malpractice payload
+   * into `malpracticeClaims` so we don't double-store the same fact.
+   */
+  private mapV8Disclosure(
+    d: CaqhV8Disclosure,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['disclosures']>[number] | null {
+    const id = toOptString(d.ID);
+    if (!id) return null;
+    if (id === '21150') return null; // routed to MalpracticeClaim instead
+    const summary = toOptString(
+      (d.DisclosureQuestion as { DisclosureSummary?: unknown } | undefined)?.DisclosureSummary,
+    );
+    if (!summary) {
+      logger.warn({ event: 'caqh_skip_disclosure_no_summary', providerId, id });
+      return null;
+    }
+    const answer = toOptBool(d.DisclosureAnswerFlag) ?? false;
+    return {
+      caqhQuestionId: id,
+      questionText: summary,
+      answer,
+      explanation: toOptString(d.DisclosureExplanation),
+      category: this.mapDisclosureCategory(id, summary),
+    };
+  }
+
+  /**
+   * Derive a ProviderDisclosure category from the CAQH question ID
+   * (preferred) and falling back to the question summary text. The
+   * mapping is closed over the 23 question IDs in the v9 spec
+   * (21000–21220). Unknown IDs fall through to OTHER.
+   */
+  private mapDisclosureCategory(id: string, summary: string): DisclosureCategory {
+    switch (id) {
+      case '21000': // Suspended License or License Problems
+      case '21130': // Sanctions from Regulatory Agency
+        return 'LICENSE_ACTION';
+      case '21010': // State Licensing Board Reprimand or Fine
+      case '21080': // Adverse Board Action (variant)
+        return 'BOARD_ACTION';
+      case '21020': // Suspended Clinical Privileges
+      case '21030': // Voluntarily limited privileges
+      case '21040': // Privilege denial / non-renewal
+      case '21050':
+      case '21060':
+        return 'HOSPITAL_PRIVILEGES';
+      case '21100': // Medicare/Medicaid discipline
+      case '21110': // Medicare exclusion
+        return 'MEDICARE_MEDICAID';
+      case '21120': // NPDB report
+        return 'OTHER';
+      case '21160': // Convicted of Felony
+      case '21170': // Convicted of Sexual Offense
+        return 'FELONY_CONVICTION';
+      case '21180': // Court-martialed (military criminal action)
+        return 'MISDEMEANOR_CONVICTION';
+      case '21190': // Use Illegal Drugs
+      case '21200': // Use Chemical Substances
+        return 'SUBSTANCE_ABUSE';
+      case '21210': // A Risk to Safety of Patients
+      case '21220': // Unable to perform without Accommodations
+        return 'ABILITY_TO_PERFORM';
+      default: {
+        // Fall back to summary-text matching for any IDs the v9 spec
+        // adds beyond the 23 we know about today.
+        const s = summary.toLowerCase();
+        if (s.includes('felony')) return 'FELONY_CONVICTION';
+        if (s.includes('misdemeanor') || s.includes('court-martial')) return 'MISDEMEANOR_CONVICTION';
+        if (s.includes('drug') || s.includes('substance') || s.includes('chemical')) return 'SUBSTANCE_ABUSE';
+        if (s.includes('privilege')) return 'HOSPITAL_PRIVILEGES';
+        if (s.includes('medicare') || s.includes('medicaid')) return 'MEDICARE_MEDICAID';
+        if (s.includes('insurance denial')) return 'INSURANCE_DENIAL';
+        if (s.includes('safety') || s.includes('perform') || s.includes('accommodation')) return 'ABILITY_TO_PERFORM';
+        if (s.includes('license') || s.includes('sanction')) return 'LICENSE_ACTION';
+        if (s.includes('board')) return 'BOARD_ACTION';
+        if (s.includes('malpractice')) return 'MALPRACTICE';
+        return 'OTHER';
+      }
+    }
+  }
+
+  /**
+   * Map a CAQH `Malpractice` element (nested under Disclosure 21150) to
+   * a MalpracticeClaim shape. Settlement amounts and the resolution
+   * date live inside a nested `ClaimStatus` envelope; the claim status
+   * string ("Closed", "Open") and resolution-method string both feed
+   * the `ClaimStatus` enum derivation.
+   */
+  private mapV8MalpracticeClaim(
+    m: CaqhV8MalpracticeClaim,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['malpracticeClaims']>[number] | null {
+    const carrier = toOptString(m.InsuranceCarrierName);
+    const allegation = toOptString(m.AllegationDescription);
+    const injury = toOptString(m.PatientInjuryDescription);
+    // We need *something* to anchor the claim — at minimum an allegation, injury, or carrier.
+    const description = allegation ?? injury ?? carrier;
+    if (!description) {
+      logger.warn({ event: 'caqh_skip_malpractice_claim_empty', providerId });
+      return null;
+    }
+    const claimStatusRaw =
+      typeof m.ClaimStatus === 'object' && m.ClaimStatus !== null
+        ? (m.ClaimStatus as Record<string, unknown>)
+        : undefined;
+    const resolution =
+      typeof m.MalpracticeResolution === 'object' && m.MalpracticeResolution !== null
+        ? (m.MalpracticeResolution as { MalpracticeResolutionMethod?: unknown })
+        : undefined;
+    const resolutionMethod = toOptString(resolution?.MalpracticeResolutionMethod);
+    return {
+      caqhClaimId: toOptString(m.ID),
+      insuranceCarrier: carrier,
+      dateOfIncident: parseCaqhDate(m.OccurrenceDate),
+      dateOfClaim: parseCaqhDate(m.ClaimDate),
+      dateResolved: parseCaqhDate(claimStatusRaw?.['ClaimSettlementDate']),
+      claimStatus: this.mapClaimStatus(toOptString(claimStatusRaw?.['ClaimStatus']), resolutionMethod),
+      description,
+      settlementAmount: toOptNumber(claimStatusRaw?.['SettlementAmount']),
+      settlementAmountPaid: toOptNumber(claimStatusRaw?.['SettlementAmountPaid']),
+      policyNumber: toOptString(m.PolicyNumber),
+      allegationDescription: allegation,
+      patientInjuryDescription: injury,
+      isLeadDefendant: toOptBool(m.PrimaryDefendantFlag),
+      numberOtherCodefendants: toOptNumber(m.NumberOtherCodefendant),
+      caseInvolvement: toOptString(m.CaseInvolvement),
+      npdbReported: toOptBool(m.NPDBCaseFlag),
+      patientDied: toOptBool(m.PatientDiedFlag),
+      resolutionMethod,
+      courtAddressLine1: toOptString(m.Address),
+      courtCity: toOptString(m.City),
+      courtState: toOptString(m.State),
+      courtZipCode: toOptString(m.Zip),
+      courtPhone: toOptString(m.PhoneNumber),
+      courtCountry: toOptString(
+        typeof m.Country === 'object' && m.Country !== null
+          ? (m.Country as { CountryName?: unknown }).CountryName
+          : m.Country,
+      ),
+    };
+  }
+
+  /**
+   * Translate CAQH ClaimStatus + MalpracticeResolutionMethod strings
+   * into the internal `ClaimStatus` enum. Resolution wins over status
+   * because it's more specific (e.g. "Judgment for Defendant" trumps
+   * the generic "Closed").
+   */
+  private mapClaimStatus(rawStatus: string | undefined, rawResolution: string | undefined): ClaimStatus {
+    const r = (rawResolution ?? '').toLowerCase();
+    if (r.includes('judgment for defendant')) return 'JUDGMENT_FOR_PROVIDER';
+    if (r.includes('judgment for plaintiff') || r.includes('judgment against')) return 'JUDGMENT_AGAINST_PROVIDER';
+    if (r.includes('settle')) return 'SETTLED';
+    if (r.includes('dismiss')) return 'DISMISSED';
+    if (r.includes('withdraw')) return 'WITHDRAWN';
+    const s = (rawStatus ?? '').toLowerCase();
+    if (s.includes('open')) return 'OPEN';
+    if (s.includes('closed')) return 'SETTLED'; // best generic guess for closed-without-resolution-detail
+    return 'OPEN';
+  }
+
+  /**
+   * Map a CAQH `Hospital` element to a HospitalAffiliation shape.
+   * Privilege type and status enums are derived from the
+   * HospitalAffiliationType description and StaffCategory respectively.
+   * `facilityType` defaults to "hospital" — it's a NOT NULL column on
+   * the table that CAQH doesn't directly populate.
+   */
+  private mapV8Hospital(
+    h: CaqhV8Hospital,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['hospitalAffiliations']>[number] | null {
+    const facilityName = toOptString(h.HospitalName);
+    if (!facilityName) {
+      logger.warn({ event: 'caqh_skip_hospital_no_name', providerId, id: toOptString(h.ID) });
+      return null;
+    }
+    const affTypeDesc = toOptString(h.HospitalAffiliationType);
+    const staffCategory = toOptString(h.StaffCategory);
+    return {
+      caqhAhaId: toOptString(h.AHAHospitalID),
+      facilityName,
+      privilegeType: this.mapPrivilegeType(affTypeDesc, toOptString(h.HospitalRecordType)),
+      status: this.mapAffiliationStatus(staffCategory),
+      addressLine1: toOptString(h.Address),
+      city: toOptString(h.City),
+      state: toOptString(h.State),
+      zipCode: toOptString(h.ZipCode),
+      country: toOptString(
+        typeof h.Country === 'object' && h.Country !== null
+          ? (h.Country as { CountryName?: unknown }).CountryName
+          : h.Country,
+      ),
+      phoneNumber: toOptString(h.PhoneNumber),
+      faxNumber: toOptString(h.FaxNumber),
+      department: toOptString(h.Department),
+      startDate: parseCaqhDate(h.StartDate),
+      endDate: parseCaqhDate(h.EndDate),
+      hasUnrestrictedPrivileges: toOptBool(h.UnrestrictedPrivilegesFlag),
+      hasTemporaryPrivileges: toOptBool(h.TemporaryPrivilegesFlag),
+      privilegeDescription: toOptString(h.PrivilegeDescription),
+      admissionPercent: toOptNumber(h.AdmissionPercent),
+      staffCategory,
+      hospitalRecordType: toOptString(h.HospitalRecordType),
+      hospitalAffiliationType: affTypeDesc,
+      reasonForDiscontinuance: toOptString(h.ReasonForDiscontinuance),
+      exitExplanation: toOptString(h.ExitExplanation),
+      description: toOptString(h.Description),
+      whoAdmitsForYou: toOptString(h.WhoAdmitsForyou ?? h.WhoAdmitsForYou),
+      admittingProviderFirstName: toOptString(h.FirstName),
+      admittingProviderLastName: toOptString(h.LastName),
+      admittingContactPhone: toOptString(h.AdmittingContactPhoneNumber),
+      admittingContactEmail: toOptString(h.AdmittingContactEmailAddress),
+      isAdmitterSameSpecialty: toOptBool(h.IsProviderSpecialtySameAsYourSpecialty),
+    };
+  }
+
+  /**
+   * Map CAQH HospitalAffiliationType ("Primary" / "Courtesy" /
+   * "Consulting" / "Other") + HospitalRecordType to PrivilegeType
+   * enum. Defaults to `active` when the spec value doesn't match.
+   */
+  private mapPrivilegeType(affType: string | undefined, recordType: string | undefined): PrivilegeType {
+    const s = (affType ?? '').toLowerCase();
+    if (s.includes('primary')) return 'admitting';
+    if (s.includes('courtesy')) return 'courtesy';
+    if (s.includes('consulting')) return 'consulting';
+    if (s.includes('teaching')) return 'teaching';
+    if (s.includes('locum')) return 'locum_tenens';
+    if (s.includes('temporary')) return 'temporary';
+    if (s.includes('provisional')) return 'provisional';
+    if (s.includes('affiliate')) return 'affiliate';
+    const r = (recordType ?? '').toLowerCase();
+    if (r.includes('admitting privilege')) return 'admitting';
+    if (r.includes('non-admitting')) return 'affiliate';
+    return 'active';
+  }
+
+  /**
+   * Map CAQH StaffCategory ("Active" / "Inactive") to AffiliationStatus enum.
+   */
+  private mapAffiliationStatus(staffCategory: string | undefined): AffiliationStatus {
+    const s = (staffCategory ?? '').toLowerCase();
+    if (s.includes('inactive') || s.includes('resigned') || s.includes('terminat')) return 'inactive';
+    if (s.includes('pending')) return 'pending';
+    if (s.includes('denied')) return 'denied';
+    return 'active';
+  }
+
+  /**
+   * Map a CAQH `WorkHistory` element to a WorkHistory entry shape.
+   * `isCurrent` is derived from CurrentEmployerFlag (preferred) or
+   * StatusDescription. Address fields tolerate either ZipCode or
+   * PostalCode naming.
+   */
+  private mapV8WorkHistoryEntry(
+    w: CaqhV8WorkHistoryEntry,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['workHistory']>[number] | null {
+    const organizationName = toOptString(w.EmployerName);
+    if (!organizationName) {
+      logger.warn({ event: 'caqh_skip_workhistory_no_employer', providerId, id: toOptString(w.ID) });
+      return null;
+    }
+    const currentEmployerFlag = toOptBool(w.CurrentEmployerFlag);
+    const status = toOptString(w.StatusDescription);
+    const isCurrent =
+      currentEmployerFlag ?? (status ? status.toLowerCase() === 'present' : false);
+    const workHistoryType = toOptString(w.WorkHistoryType);
+    return {
+      caqhWorkHistoryId: toOptString(w.ID),
+      organizationName,
+      addressLine1: toOptString(w.Address),
+      city: toOptString(w.City),
+      state: toOptString(w.State),
+      zipCode: toOptString(w.PostalCode ?? w.ZipCode),
+      country: toOptString(
+        typeof w.Country === 'object' && w.Country !== null
+          ? (w.Country as { CountryName?: unknown }).CountryName
+          : w.Country,
+      ),
+      phone: toOptString(w.PhoneNumber),
+      fax: toOptString(w.FaxNumber),
+      email: toOptString(w.EmailAddress),
+      startDate: parseCaqhDate(w.StartDate),
+      endDate: parseCaqhDate(w.EndDate),
+      isCurrent,
+      currentEmployerFlag,
+      statusDescription: status,
+      workHistoryType,
+      position: toOptString(w.Position),
+      department: toOptString(w.Department),
+      reasonForLeaving: toOptString(w.ReasonForLeaving),
+      supervisorName: toOptString(w.SupervisorName),
+      supervisorPhone: toOptString(w.SupervisorPhone),
+    };
+  }
+
+  /**
+   * Map a CAQH `TimeGap` element. Both startDate and endDate are
+   * required by the WorkHistoryGap table; rows missing either are
+   * skipped.
+   */
+  private mapV8TimeGap(
+    g: CaqhV8TimeGap,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['workHistoryGaps']>[number] | null {
+    const startDate = parseCaqhDate(g.StartDate);
+    const endDate = parseCaqhDate(g.EndDate);
+    if (!startDate || !endDate) {
+      logger.warn({
+        event: 'caqh_skip_timegap_incomplete',
+        providerId,
+        id: toOptString(g.ID),
+        have: { startDate: !!startDate, endDate: !!endDate },
+      });
+      return null;
+    }
+    return {
+      caqhGapId: toOptString(g.ID),
+      startDate,
+      endDate,
+      gapExplanation: toOptString(g.GapExplanation),
+      gapDescription: toOptString(g.GapDescription),
+    };
+  }
+
+  /**
+   * Map a CAQH `Practice` element to a per-practice supervisor entry.
+   * CAQH carries the supervisor as a single `SupervisorName` string; we
+   * split on the first space into firstName + lastName so the row
+   * matches the SupervisingPhysician schema. Practice metadata is
+   * captured for the writer to auto-link the row to an existing
+   * `PracticeLocation` by name or address.
+   */
+  private mapV8PracticeSupervisor(
+    p: CaqhV8Practice,
+    providerId?: string,
+  ): NonNullable<MappedCaqhData['practiceSupervisors']>[number] | null {
+    const fullName = toOptString(p.SupervisorName);
+    if (!fullName) return null; // not every practice has a supervisor
+    const parts = fullName.split(/\s+/);
+    if (parts.length < 2) {
+      logger.warn({
+        event: 'caqh_skip_supervisor_unparseable_name',
+        providerId,
+        practiceId: toOptString(p.ID),
+        fullName,
+      });
+      return null;
+    }
+    const supervisorFirstName = parts[0]!;
+    const supervisorLastName = parts.slice(1).join(' ');
+    return {
+      supervisorFirstName,
+      supervisorLastName,
+      supervisorNpi: toOptString(p.SupervisorNPI),
+      caqhSupervisorId: toOptString(p.SupervisorCAQHId),
+      caqhPracticeId: toOptString(p.ID),
+      practiceName: toOptString(p.PracticeName),
+      practiceAddressLine1: toOptString(p.AddressLine1 ?? p.Address),
+      practiceCity: toOptString(p.City),
+      practiceState: toOptString(p.State),
+      practiceZipCode: toOptString(p.PostalCode ?? p.ZipCode),
     };
   }
 
@@ -2547,6 +3265,12 @@ export class CaqhService {
       malpractice: { created: 0, updated: 0, skipped: 0, failed: 0 },
       providerCertifications: { created: 0, updated: 0, skipped: 0, failed: 0 },
       cdsRegistrations: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      disclosures: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      malpracticeClaims: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      hospitalAffiliations: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      workHistory: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      workHistoryGaps: { created: 0, updated: 0, skipped: 0, failed: 0 },
+      practiceSupervisors: { created: 0, updated: 0, skipped: 0, failed: 0 },
       failedRecords: [],
     };
 
@@ -2992,6 +3716,495 @@ export class CaqhService {
       }
     }
 
+    // --- Disclosures (Phase 2) ---
+    if (caqhData.disclosures && caqhData.disclosures.length > 0) {
+      for (const disc of caqhData.disclosures) {
+        try {
+          // Dedup by (providerId, caqhQuestionId) — every CAQH question has a stable ID.
+          const existing = await prisma.providerDisclosure.findFirst({
+            where: { providerId, caqhQuestionId: disc.caqhQuestionId },
+          });
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.disclosures.skipped++;
+              continue;
+            }
+            await prisma.providerDisclosure.update({
+              where: { id: existing.id },
+              data: {
+                category: disc.category,
+                questionText: disc.questionText,
+                answer: disc.answer,
+                explanation: disc.explanation ?? existing.explanation,
+                source: 'caqh_sync',
+              },
+            });
+            summary.disclosures.updated++;
+          } else {
+            await prisma.providerDisclosure.create({
+              data: {
+                providerId,
+                category: disc.category,
+                questionText: disc.questionText,
+                answer: disc.answer,
+                explanation: disc.explanation,
+                caqhQuestionId: disc.caqhQuestionId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.disclosures.created++;
+          }
+        } catch (error) {
+          summary.disclosures.failed++;
+          summary.failedRecords.push({
+            category: 'disclosure',
+            identifier: disc.caqhQuestionId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- Malpractice Claims (Phase 2) ---
+    if (caqhData.malpracticeClaims && caqhData.malpracticeClaims.length > 0) {
+      for (const claim of caqhData.malpracticeClaims) {
+        try {
+          // Prefer caqhClaimId for dedup; fall back to (insuranceCarrier, dateOfClaim, policyNumber).
+          const existing = claim.caqhClaimId
+            ? await prisma.malpracticeClaim.findFirst({
+                where: { providerId, caqhClaimId: claim.caqhClaimId },
+              })
+            : await prisma.malpracticeClaim.findFirst({
+                where: {
+                  providerId,
+                  insuranceCarrier: claim.insuranceCarrier,
+                  dateOfClaim: claim.dateOfClaim,
+                  policyNumber: claim.policyNumber,
+                },
+              });
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.malpracticeClaims.skipped++;
+              continue;
+            }
+            await prisma.malpracticeClaim.update({
+              where: { id: existing.id },
+              data: {
+                claimStatus: claim.claimStatus,
+                description: claim.description,
+                dateOfIncident: claim.dateOfIncident ?? existing.dateOfIncident,
+                dateOfClaim: claim.dateOfClaim ?? existing.dateOfClaim,
+                dateResolved: claim.dateResolved ?? existing.dateResolved,
+                insuranceCarrier: claim.insuranceCarrier ?? existing.insuranceCarrier,
+                policyNumber: claim.policyNumber ?? existing.policyNumber,
+                settlementAmount: claim.settlementAmount ?? existing.settlementAmount,
+                settlementAmountPaid: claim.settlementAmountPaid ?? existing.settlementAmountPaid,
+                allegationDescription: claim.allegationDescription ?? existing.allegationDescription,
+                patientInjuryDescription: claim.patientInjuryDescription ?? existing.patientInjuryDescription,
+                isLeadDefendant: claim.isLeadDefendant ?? existing.isLeadDefendant,
+                numberOtherCodefendants: claim.numberOtherCodefendants ?? existing.numberOtherCodefendants,
+                caseInvolvement: claim.caseInvolvement ?? existing.caseInvolvement,
+                npdbReported: claim.npdbReported ?? existing.npdbReported,
+                patientDied: claim.patientDied ?? existing.patientDied,
+                resolutionMethod: claim.resolutionMethod ?? existing.resolutionMethod,
+                courtAddressLine1: claim.courtAddressLine1 ?? existing.courtAddressLine1,
+                courtCity: claim.courtCity ?? existing.courtCity,
+                courtState: claim.courtState ?? existing.courtState,
+                courtZipCode: claim.courtZipCode ?? existing.courtZipCode,
+                courtPhone: claim.courtPhone ?? existing.courtPhone,
+                courtCountry: claim.courtCountry ?? existing.courtCountry,
+                caqhClaimId: claim.caqhClaimId ?? existing.caqhClaimId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.malpracticeClaims.updated++;
+          } else {
+            await prisma.malpracticeClaim.create({
+              data: {
+                providerId,
+                claimStatus: claim.claimStatus,
+                description: claim.description,
+                dateOfIncident: claim.dateOfIncident,
+                dateOfClaim: claim.dateOfClaim,
+                dateResolved: claim.dateResolved,
+                insuranceCarrier: claim.insuranceCarrier,
+                policyNumber: claim.policyNumber,
+                settlementAmount: claim.settlementAmount,
+                settlementAmountPaid: claim.settlementAmountPaid,
+                allegationDescription: claim.allegationDescription,
+                patientInjuryDescription: claim.patientInjuryDescription,
+                isLeadDefendant: claim.isLeadDefendant,
+                numberOtherCodefendants: claim.numberOtherCodefendants,
+                caseInvolvement: claim.caseInvolvement,
+                npdbReported: claim.npdbReported,
+                patientDied: claim.patientDied,
+                resolutionMethod: claim.resolutionMethod,
+                courtAddressLine1: claim.courtAddressLine1,
+                courtCity: claim.courtCity,
+                courtState: claim.courtState,
+                courtZipCode: claim.courtZipCode,
+                courtPhone: claim.courtPhone,
+                courtCountry: claim.courtCountry,
+                caqhClaimId: claim.caqhClaimId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.malpracticeClaims.created++;
+          }
+        } catch (error) {
+          summary.malpracticeClaims.failed++;
+          summary.failedRecords.push({
+            category: 'malpracticeClaim',
+            identifier: claim.caqhClaimId ?? claim.policyNumber ?? claim.description.slice(0, 40),
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- Hospital Affiliations (Phase 2) ---
+    if (caqhData.hospitalAffiliations && caqhData.hospitalAffiliations.length > 0) {
+      for (const hosp of caqhData.hospitalAffiliations) {
+        try {
+          // Prefer caqhAhaId for dedup; fall back to (facilityName, state).
+          const existing = hosp.caqhAhaId
+            ? await prisma.hospitalAffiliation.findFirst({
+                where: { providerId, caqhAhaId: hosp.caqhAhaId },
+              })
+            : await prisma.hospitalAffiliation.findFirst({
+                where: { providerId, facilityName: hosp.facilityName, state: hosp.state },
+              });
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.hospitalAffiliations.skipped++;
+              continue;
+            }
+            await prisma.hospitalAffiliation.update({
+              where: { id: existing.id },
+              data: {
+                facilityName: hosp.facilityName,
+                privilegeType: hosp.privilegeType,
+                status: hosp.status,
+                addressLine1: hosp.addressLine1 ?? existing.addressLine1,
+                city: hosp.city ?? existing.city,
+                state: hosp.state ?? existing.state,
+                zipCode: hosp.zipCode ?? existing.zipCode,
+                country: hosp.country ?? existing.country,
+                phoneNumber: hosp.phoneNumber ?? existing.phoneNumber,
+                faxNumber: hosp.faxNumber ?? existing.faxNumber,
+                department: hosp.department ?? existing.department,
+                startDate: hosp.startDate ?? existing.startDate,
+                endDate: hosp.endDate ?? existing.endDate,
+                hasUnrestrictedPrivileges: hosp.hasUnrestrictedPrivileges ?? existing.hasUnrestrictedPrivileges,
+                hasTemporaryPrivileges: hosp.hasTemporaryPrivileges ?? existing.hasTemporaryPrivileges,
+                privilegeDescription: hosp.privilegeDescription ?? existing.privilegeDescription,
+                admissionPercent: hosp.admissionPercent ?? existing.admissionPercent,
+                staffCategory: hosp.staffCategory ?? existing.staffCategory,
+                hospitalRecordType: hosp.hospitalRecordType ?? existing.hospitalRecordType,
+                hospitalAffiliationType: hosp.hospitalAffiliationType ?? existing.hospitalAffiliationType,
+                reasonForDiscontinuance: hosp.reasonForDiscontinuance ?? existing.reasonForDiscontinuance,
+                exitExplanation: hosp.exitExplanation ?? existing.exitExplanation,
+                description: hosp.description ?? existing.description,
+                whoAdmitsForYou: hosp.whoAdmitsForYou ?? existing.whoAdmitsForYou,
+                admittingProviderFirstName:
+                  hosp.admittingProviderFirstName ?? existing.admittingProviderFirstName,
+                admittingProviderLastName:
+                  hosp.admittingProviderLastName ?? existing.admittingProviderLastName,
+                admittingContactPhone: hosp.admittingContactPhone ?? existing.admittingContactPhone,
+                admittingContactEmail: hosp.admittingContactEmail ?? existing.admittingContactEmail,
+                isAdmitterSameSpecialty:
+                  hosp.isAdmitterSameSpecialty ?? existing.isAdmitterSameSpecialty,
+                caqhAhaId: hosp.caqhAhaId ?? existing.caqhAhaId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.hospitalAffiliations.updated++;
+          } else {
+            await prisma.hospitalAffiliation.create({
+              data: {
+                providerId,
+                facilityName: hosp.facilityName,
+                facilityType: 'hospital',
+                privilegeType: hosp.privilegeType,
+                status: hosp.status,
+                addressLine1: hosp.addressLine1,
+                city: hosp.city,
+                state: hosp.state,
+                zipCode: hosp.zipCode,
+                country: hosp.country,
+                phoneNumber: hosp.phoneNumber,
+                faxNumber: hosp.faxNumber,
+                department: hosp.department,
+                startDate: hosp.startDate,
+                endDate: hosp.endDate,
+                hasUnrestrictedPrivileges: hosp.hasUnrestrictedPrivileges,
+                hasTemporaryPrivileges: hosp.hasTemporaryPrivileges,
+                privilegeDescription: hosp.privilegeDescription,
+                admissionPercent: hosp.admissionPercent,
+                staffCategory: hosp.staffCategory,
+                hospitalRecordType: hosp.hospitalRecordType,
+                hospitalAffiliationType: hosp.hospitalAffiliationType,
+                reasonForDiscontinuance: hosp.reasonForDiscontinuance,
+                exitExplanation: hosp.exitExplanation,
+                description: hosp.description,
+                whoAdmitsForYou: hosp.whoAdmitsForYou,
+                admittingProviderFirstName: hosp.admittingProviderFirstName,
+                admittingProviderLastName: hosp.admittingProviderLastName,
+                admittingContactPhone: hosp.admittingContactPhone,
+                admittingContactEmail: hosp.admittingContactEmail,
+                isAdmitterSameSpecialty: hosp.isAdmitterSameSpecialty,
+                caqhAhaId: hosp.caqhAhaId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.hospitalAffiliations.created++;
+          }
+        } catch (error) {
+          summary.hospitalAffiliations.failed++;
+          summary.failedRecords.push({
+            category: 'hospitalAffiliation',
+            identifier: hosp.caqhAhaId ?? hosp.facilityName,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- Work History (Phase 2) ---
+    if (caqhData.workHistory && caqhData.workHistory.length > 0) {
+      for (const wh of caqhData.workHistory) {
+        try {
+          // Prefer caqhWorkHistoryId for dedup; fall back to (organizationName, startDate).
+          const existing = wh.caqhWorkHistoryId
+            ? await prisma.workHistory.findFirst({
+                where: { providerId, caqhWorkHistoryId: wh.caqhWorkHistoryId },
+              })
+            : await prisma.workHistory.findFirst({
+                where: {
+                  providerId,
+                  organizationName: wh.organizationName,
+                  startDate: wh.startDate,
+                },
+              });
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.workHistory.skipped++;
+              continue;
+            }
+            await prisma.workHistory.update({
+              where: { id: existing.id },
+              data: {
+                organizationName: wh.organizationName,
+                addressLine1: wh.addressLine1 ?? existing.addressLine1,
+                city: wh.city ?? existing.city,
+                state: wh.state ?? existing.state,
+                zipCode: wh.zipCode ?? existing.zipCode,
+                country: wh.country ?? existing.country,
+                phone: wh.phone ?? existing.phone,
+                fax: wh.fax ?? existing.fax,
+                email: wh.email ?? existing.email,
+                startDate: wh.startDate ?? existing.startDate,
+                endDate: wh.endDate ?? existing.endDate,
+                isCurrent: wh.isCurrent,
+                currentEmployerFlag: wh.currentEmployerFlag ?? existing.currentEmployerFlag,
+                statusDescription: wh.statusDescription ?? existing.statusDescription,
+                workHistoryType: wh.workHistoryType ?? existing.workHistoryType,
+                position: wh.position ?? existing.position,
+                department: wh.department ?? existing.department,
+                reasonForLeaving: wh.reasonForLeaving ?? existing.reasonForLeaving,
+                supervisorName: wh.supervisorName ?? existing.supervisorName,
+                supervisorPhone: wh.supervisorPhone ?? existing.supervisorPhone,
+                caqhWorkHistoryId: wh.caqhWorkHistoryId ?? existing.caqhWorkHistoryId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.workHistory.updated++;
+          } else {
+            await prisma.workHistory.create({
+              data: {
+                providerId,
+                organizationName: wh.organizationName,
+                addressLine1: wh.addressLine1,
+                city: wh.city,
+                state: wh.state,
+                zipCode: wh.zipCode,
+                country: wh.country,
+                phone: wh.phone,
+                fax: wh.fax,
+                email: wh.email,
+                startDate: wh.startDate,
+                endDate: wh.endDate,
+                isCurrent: wh.isCurrent,
+                currentEmployerFlag: wh.currentEmployerFlag,
+                statusDescription: wh.statusDescription,
+                workHistoryType: wh.workHistoryType,
+                position: wh.position ?? '',
+                department: wh.department,
+                reasonForLeaving: wh.reasonForLeaving,
+                supervisorName: wh.supervisorName,
+                supervisorPhone: wh.supervisorPhone,
+                caqhWorkHistoryId: wh.caqhWorkHistoryId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.workHistory.created++;
+          }
+        } catch (error) {
+          summary.workHistory.failed++;
+          summary.failedRecords.push({
+            category: 'workHistory',
+            identifier: wh.caqhWorkHistoryId ?? wh.organizationName,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- Work History Gaps (Phase 2) ---
+    if (caqhData.workHistoryGaps && caqhData.workHistoryGaps.length > 0) {
+      for (const gap of caqhData.workHistoryGaps) {
+        try {
+          // Prefer caqhGapId for dedup; fall back to (startDate, endDate).
+          const existing = gap.caqhGapId
+            ? await prisma.workHistoryGap.findFirst({
+                where: { providerId, caqhGapId: gap.caqhGapId },
+              })
+            : await prisma.workHistoryGap.findFirst({
+                where: { providerId, startDate: gap.startDate, endDate: gap.endDate },
+              });
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.workHistoryGaps.skipped++;
+              continue;
+            }
+            await prisma.workHistoryGap.update({
+              where: { id: existing.id },
+              data: {
+                startDate: gap.startDate,
+                endDate: gap.endDate,
+                gapExplanation: gap.gapExplanation ?? existing.gapExplanation,
+                gapDescription: gap.gapDescription ?? existing.gapDescription,
+                caqhGapId: gap.caqhGapId ?? existing.caqhGapId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.workHistoryGaps.updated++;
+          } else {
+            await prisma.workHistoryGap.create({
+              data: {
+                providerId,
+                startDate: gap.startDate,
+                endDate: gap.endDate,
+                gapExplanation: gap.gapExplanation,
+                gapDescription: gap.gapDescription,
+                caqhGapId: gap.caqhGapId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.workHistoryGaps.created++;
+          }
+        } catch (error) {
+          summary.workHistoryGaps.failed++;
+          summary.failedRecords.push({
+            category: 'workHistoryGap',
+            identifier: gap.caqhGapId ?? `${gap.startDate.toISOString()}..${gap.endDate.toISOString()}`,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    // --- Practice Supervisors (Phase 2) ---
+    if (caqhData.practiceSupervisors && caqhData.practiceSupervisors.length > 0) {
+      // Pre-load practice locations once so we can name/address-match without an N+1 query.
+      const practiceLocations = await prisma.practiceLocation.findMany({ where: { providerId } });
+      const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+      for (const sup of caqhData.practiceSupervisors) {
+        try {
+          // Auto-link to PracticeLocation by name first, then by addressLine1 + state.
+          let practiceLocationId: string | null = null;
+          if (sup.practiceName) {
+            const byName = practiceLocations.find(l => norm(l.locationName) === norm(sup.practiceName));
+            if (byName) practiceLocationId = byName.id;
+          }
+          if (!practiceLocationId && sup.practiceAddressLine1) {
+            const byAddr = practiceLocations.find(
+              l =>
+                norm(l.addressLine1) === norm(sup.practiceAddressLine1) &&
+                (!sup.practiceState || norm(l.state) === norm(sup.practiceState)),
+            );
+            if (byAddr) practiceLocationId = byAddr.id;
+          }
+          if (!practiceLocationId) {
+            logger.info({
+              event: 'caqh_supervisor_unmatched_practice',
+              providerId,
+              caqhPracticeId: sup.caqhPracticeId,
+              practiceName: sup.practiceName,
+            });
+          }
+
+          // Dedup by (providerId, caqhSupervisorId) when present;
+          // fall back to (providerId, supervisorNpi, practiceLocationId).
+          const existing = sup.caqhSupervisorId
+            ? await prisma.supervisingPhysician.findFirst({
+                where: { providerId, caqhSupervisorId: sup.caqhSupervisorId },
+              })
+            : sup.supervisorNpi
+              ? await prisma.supervisingPhysician.findFirst({
+                  where: {
+                    providerId,
+                    supervisorNpi: sup.supervisorNpi,
+                    practiceLocationId,
+                  },
+                })
+              : null;
+
+          if (existing) {
+            if (existing.source === 'manual_entry') {
+              summary.practiceSupervisors.skipped++;
+              continue;
+            }
+            await prisma.supervisingPhysician.update({
+              where: { id: existing.id },
+              data: {
+                supervisorFirstName: sup.supervisorFirstName,
+                supervisorLastName: sup.supervisorLastName,
+                supervisorNpi: sup.supervisorNpi ?? existing.supervisorNpi,
+                caqhSupervisorId: sup.caqhSupervisorId ?? existing.caqhSupervisorId,
+                practiceLocationId: practiceLocationId ?? existing.practiceLocationId,
+                source: 'caqh_sync',
+              },
+            });
+            summary.practiceSupervisors.updated++;
+          } else {
+            await prisma.supervisingPhysician.create({
+              data: {
+                providerId,
+                supervisorFirstName: sup.supervisorFirstName,
+                supervisorLastName: sup.supervisorLastName,
+                supervisorNpi: sup.supervisorNpi,
+                caqhSupervisorId: sup.caqhSupervisorId,
+                practiceLocationId,
+                supervisionType: 'COLLABORATIVE', // CAQH doesn't carry the legal type — closest default
+                agreementStartDate: new Date(),
+                source: 'caqh_sync',
+              },
+            });
+            summary.practiceSupervisors.created++;
+          }
+        } catch (error) {
+          summary.practiceSupervisors.failed++;
+          summary.failedRecords.push({
+            category: 'practiceSupervisor',
+            identifier:
+              sup.caqhSupervisorId ?? `${sup.supervisorFirstName} ${sup.supervisorLastName}`,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
     return summary;
   }
 
@@ -3157,5 +4370,12 @@ export interface CaqhSyncSummary {
   malpractice: { created: number; updated: number; skipped: number; failed: number };
   providerCertifications: { created: number; updated: number; skipped: number; failed: number };
   cdsRegistrations: { created: number; updated: number; skipped: number; failed: number };
+  // Phase 2: full v9 coverage
+  disclosures: { created: number; updated: number; skipped: number; failed: number };
+  malpracticeClaims: { created: number; updated: number; skipped: number; failed: number };
+  hospitalAffiliations: { created: number; updated: number; skipped: number; failed: number };
+  workHistory: { created: number; updated: number; skipped: number; failed: number };
+  workHistoryGaps: { created: number; updated: number; skipped: number; failed: number };
+  practiceSupervisors: { created: number; updated: number; skipped: number; failed: number };
   failedRecords: Array<{ category: string; identifier: string; error: string }>;
 }
