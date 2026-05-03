@@ -238,6 +238,29 @@ export const createMalpracticeClaimSchema = z.object({
   courtName: z.string().max(200).optional(),
   caseNumber: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
+
+  // CAQH v9 extended fields. Manual entry is allowed so credentialing
+  // staff can complete records that CAQH didn't fully populate.
+  caqhClaimId: z.string().max(100).optional(),
+  allegationDescription: z.string().max(5000).optional(),
+  patientInjuryDescription: z.string().max(5000).optional(),
+  defendantRole: z.string().max(200).optional(),
+  isLeadDefendant: z.boolean().optional(),
+  numberOtherCodefendants: z.number().int().nonnegative().optional(),
+  caseInvolvement: z.string().max(2000).optional(),
+  npdbReported: z.boolean().optional(),
+  patientDied: z.boolean().optional(),
+  resolutionMethod: z.string().max(200).optional(),
+  settlementAmountPaid: z.number().nonnegative().optional(),
+  patientGenderAge: z.string().max(100).optional(),
+  narrative: z.string().max(5000).optional(),
+  // Court / litigation address (separate from `courtName`)
+  courtAddressLine1: z.string().max(200).optional(),
+  courtCity: z.string().max(100).optional(),
+  courtState: z.string().length(2).optional(),
+  courtZipCode: z.string().max(10).optional(),
+  courtPhone: z.string().max(20).optional(),
+  courtCountry: z.string().max(100).optional(),
 });
 
 // Disclosure validation
