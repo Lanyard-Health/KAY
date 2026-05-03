@@ -1837,6 +1837,439 @@ describe('CaqhService', () => {
       expect(result.cdsRegistrations).toHaveLength(1);
       expect(result.cdsRegistrations![0]!.cdsNumber).toBe('OK');
     });
+
+    // ------- Phase 2 (v9 full coverage): Disclosures -------
+
+    it('maps a Disclosure entry to the disclosures array with category derived from question ID', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: {
+            ID: '21000',
+            DisclosureAnswerFlag: 1,
+            DisclosureExplanation: 'license suspended in 2010',
+            DisclosureQuestion: { DisclosureSummary: 'Suspended License or License Problems' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.disclosures).toHaveLength(1);
+      const d = result.disclosures![0]!;
+      expect(d.caqhQuestionId).toBe('21000');
+      expect(d.questionText).toBe('Suspended License or License Problems');
+      expect(d.answer).toBe(true);
+      expect(d.explanation).toBe('license suspended in 2010');
+      expect(d.category).toBe('LICENSE_ACTION');
+    });
+
+    it('maps multiple disclosures including Yes/No answers and explanation-less rows', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: [
+            { ID: '21010', DisclosureAnswerFlag: 1, DisclosureExplanation: 'reprimand 2018',
+              DisclosureQuestion: { DisclosureSummary: 'State Licensing Board Reprimand or Fine' } },
+            { ID: '21160', DisclosureAnswerFlag: 0,
+              DisclosureQuestion: { DisclosureSummary: 'Convicted of Felony' } },
+            { ID: '21190', DisclosureAnswerFlag: 1,
+              DisclosureQuestion: { DisclosureSummary: 'Use Illegal Drugs' } },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.disclosures).toHaveLength(3);
+      expect(result.disclosures!.map(d => d.category)).toEqual([
+        'BOARD_ACTION',
+        'FELONY_CONVICTION',
+        'SUBSTANCE_ABUSE',
+      ]);
+      expect(result.disclosures![1]!.answer).toBe(false);
+      expect(result.disclosures![2]!.explanation).toBeUndefined();
+    });
+
+    it('skips question 21150 in disclosures (it routes to malpracticeClaims instead)', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: [
+            { ID: '21000', DisclosureAnswerFlag: 1,
+              DisclosureQuestion: { DisclosureSummary: 'Suspended License' } },
+            { ID: '21150', DisclosureAnswerFlag: 1,
+              DisclosureQuestion: { DisclosureSummary: 'Had any Malpractice Actions' } },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.disclosures).toHaveLength(1);
+      expect(result.disclosures![0]!.caqhQuestionId).toBe('21000');
+    });
+
+    it('falls back to summary text matching when the question ID is unfamiliar', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: { ID: '99999', DisclosureAnswerFlag: 1,
+            DisclosureQuestion: { DisclosureSummary: 'Insurance denial — unrelated to license' } },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.disclosures![0]!.category).toBe('INSURANCE_DENIAL');
+    });
+
+    // ------- Phase 2 (v9): Malpractice Claims (nested under Disclosure 21150) -------
+
+    it('maps the nested Malpractice element under Disclosure 21150 into malpracticeClaims', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: {
+            ID: '21150', DisclosureAnswerFlag: 1,
+            DisclosureQuestion: { DisclosureSummary: 'Had any Malpractice Actions' },
+            Malpractice: {
+              ID: '1000',
+              InsuranceCarrierName: 'Aaoms National Ins Co',
+              OccurrenceDate: '1999-10-05T00:00:00',
+              ClaimDate: '2000-10-03T00:00:00',
+              Address: '55 Fruit Street',
+              City: 'Boston',
+              State: 'MA',
+              Zip: '02114',
+              PhoneNumber: '8958345835',
+              PolicyNumber: 'POL-1389',
+              AllegationDescription: 'description of allegations',
+              PrimaryDefendantFlag: 1,
+              NumberOtherCodefendant: 2,
+              CaseInvolvement: 'involvement in case',
+              PatientInjuryDescription: 'description of injury',
+              NPDBCaseFlag: 1,
+              PatientDiedFlag: 0,
+              MalpracticeResolution: { MalpracticeResolutionMethod: 'Judgment for Defendant' },
+              Country: { CountryName: 'United States' },
+              ClaimStatus: {
+                ClaimStatus: 'Closed',
+                ClaimSettlementDate: '2001-10-25T00:00:00',
+                SettlementAmount: 1000000,
+                SettlementAmountPaid: 700000,
+              },
+            },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpracticeClaims).toHaveLength(1);
+      const c = result.malpracticeClaims![0]!;
+      expect(c.caqhClaimId).toBe('1000');
+      expect(c.insuranceCarrier).toBe('Aaoms National Ins Co');
+      expect(c.dateOfIncident?.toISOString().startsWith('1999-10-05')).toBe(true);
+      expect(c.dateOfClaim?.toISOString().startsWith('2000-10-03')).toBe(true);
+      expect(c.dateResolved?.toISOString().startsWith('2001-10-25')).toBe(true);
+      expect(c.claimStatus).toBe('JUDGMENT_FOR_PROVIDER'); // resolution wins over status
+      expect(c.settlementAmount).toBe(1000000);
+      expect(c.settlementAmountPaid).toBe(700000);
+      expect(c.allegationDescription).toBe('description of allegations');
+      expect(c.patientInjuryDescription).toBe('description of injury');
+      expect(c.isLeadDefendant).toBe(true);
+      expect(c.numberOtherCodefendants).toBe(2);
+      expect(c.caseInvolvement).toBe('involvement in case');
+      expect(c.npdbReported).toBe(true);
+      expect(c.patientDied).toBe(false);
+      expect(c.resolutionMethod).toBe('Judgment for Defendant');
+      expect(c.courtAddressLine1).toBe('55 Fruit Street');
+      expect(c.courtCity).toBe('Boston');
+      expect(c.courtState).toBe('MA');
+      expect(c.courtZipCode).toBe('02114');
+      expect(c.courtPhone).toBe('8958345835');
+      expect(c.courtCountry).toBe('United States');
+      // description falls back to allegation
+      expect(c.description).toBe('description of allegations');
+    });
+
+    it('does not produce malpracticeClaims when Disclosure 21150 answer flag is false', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: {
+            ID: '21150', DisclosureAnswerFlag: 0,
+            DisclosureQuestion: { DisclosureSummary: 'Had any Malpractice Actions' },
+            // Even if a stray Malpractice element is present, answer=false means no claim.
+            Malpractice: { ID: '1', InsuranceCarrierName: 'X' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpracticeClaims).toHaveLength(0);
+    });
+
+    it('maps generic ClaimStatus="Closed" with no resolution method to SETTLED', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Disclosure: {
+            ID: '21150', DisclosureAnswerFlag: 1,
+            DisclosureQuestion: { DisclosureSummary: 'Had any Malpractice Actions' },
+            Malpractice: {
+              ID: '2',
+              InsuranceCarrierName: 'Carrier',
+              AllegationDescription: 'allegation',
+              ClaimStatus: { ClaimStatus: 'Closed' },
+            },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.malpracticeClaims![0]!.claimStatus).toBe('SETTLED');
+    });
+
+    // ------- Phase 2 (v9): Hospital Affiliations -------
+
+    it('maps a Hospital element with full self-admitting fields to a hospital affiliation row', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Hospital: {
+            ID: '1000',
+            AHAHospitalID: '6740549',
+            HospitalName: 'Ascension Seton Hays',
+            Address: '6001 Kyle Parkway', City: 'Kyle', State: 'TX', ZipCode: '786406112',
+            PhoneNumber: '5125045000', FaxNumber: '5124595629',
+            UnrestrictedPrivilegesFlag: 1,
+            TemporaryPrivilegesFlag: 0,
+            PrivilegeDescription: 'Full and unrestricted',
+            AdmissionPercent: 80,
+            StartDate: '2019-01-05T00:00:00',
+            StaffCategory: 'Active',
+            HospitalRecordType: 'Admitting Privilege Record',
+            HospitalAffiliationType: { HospitalAffiliationTypeDescription: 'Primary' },
+            Country: { CountryName: 'United States' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.hospitalAffiliations).toHaveLength(1);
+      const h = result.hospitalAffiliations![0]!;
+      expect(h.caqhAhaId).toBe('6740549');
+      expect(h.facilityName).toBe('Ascension Seton Hays');
+      expect(h.privilegeType).toBe('admitting'); // from "Primary"
+      expect(h.status).toBe('active');           // from "Active"
+      expect(h.hasUnrestrictedPrivileges).toBe(true);
+      expect(h.hasTemporaryPrivileges).toBe(false);
+      expect(h.admissionPercent).toBe(80);
+      expect(h.privilegeDescription).toBe('Full and unrestricted');
+      expect(h.startDate?.toISOString().startsWith('2019-01-05')).toBe(true);
+      expect(h.country).toBe('United States');
+    });
+
+    it('captures admitting-relationship sub-fields when WhoAdmitsForyou is present', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Hospital: {
+            ID: '1001',
+            AHAHospitalID: '6740658',
+            HospitalName: 'Select Rehab',
+            State: 'TX',
+            UnrestrictedPrivilegesFlag: 0,
+            TemporaryPrivilegesFlag: 0,
+            StaffCategory: 'Active',
+            HospitalRecordType: 'Admitting Arrangement Record',
+            HospitalAffiliationType: { HospitalAffiliationTypeDescription: 'Other' },
+            WhoAdmitsForyou: 'Aprovider In My Practice',
+            FirstName: 'In-Practice',
+            LastName: 'Provider',
+            AdmittingContactPhoneNumber: '3583503808',
+            AdmittingContactEmailAddress: 'admitting@workofheart.com',
+            IsProviderSpecialtySameAsYourSpecialty: 0,
+            Description: 'in house provider admits',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      const h = result.hospitalAffiliations![0]!;
+      expect(h.whoAdmitsForYou).toBe('Aprovider In My Practice');
+      expect(h.admittingProviderFirstName).toBe('In-Practice');
+      expect(h.admittingProviderLastName).toBe('Provider');
+      expect(h.admittingContactPhone).toBe('3583503808');
+      expect(h.admittingContactEmail).toBe('admitting@workofheart.com');
+      expect(h.isAdmitterSameSpecialty).toBe(false);
+      expect(h.description).toBe('in house provider admits');
+    });
+
+    it('skips Hospital entries missing HospitalName', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Hospital: { ID: '1', AHAHospitalID: '999' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.hospitalAffiliations).toHaveLength(0);
+    });
+
+    it('maps Inactive StaffCategory to AffiliationStatus=inactive and Non-Admitting record to affiliate', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Hospital: {
+            HospitalName: 'AD Hospital East',
+            State: 'TX',
+            StaffCategory: 'Inactive',
+            HospitalRecordType: 'Non-Admitting Affiliation Record',
+            HospitalAffiliationType: { HospitalAffiliationTypeDescription: 'Other' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      const h = result.hospitalAffiliations![0]!;
+      expect(h.status).toBe('inactive');
+      expect(h.privilegeType).toBe('affiliate'); // record type fallback
+    });
+
+    // ------- Phase 2 (v9): Work History -------
+
+    it('maps a WorkHistory element including derived isCurrent from CurrentEmployerFlag', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          WorkHistory: {
+            ID: '1000',
+            EmployerName: 'Graeme',
+            StartDate: '2009-06-05T00:00:00',
+            Address: '104 Mcbride Drive', City: 'Houston', State: 'PR',
+            PostalCode: '403139253',
+            CurrentEmployerFlag: 1,
+            StatusDescription: 'Present',
+            Country: { CountryName: 'United States' },
+            WorkHistoryType: { WorkHistoryTypeDescription: 'Current' },
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.workHistory).toHaveLength(1);
+      const w = result.workHistory![0]!;
+      expect(w.caqhWorkHistoryId).toBe('1000');
+      expect(w.organizationName).toBe('Graeme');
+      expect(w.isCurrent).toBe(true);
+      expect(w.currentEmployerFlag).toBe(true);
+      expect(w.statusDescription).toBe('Present');
+      expect(w.workHistoryType).toBe('Current');
+      expect(w.zipCode).toBe('403139253');
+      expect(w.country).toBe('United States');
+      expect(w.startDate?.toISOString().startsWith('2009-06-05')).toBe(true);
+    });
+
+    it('falls back to StatusDescription="Present" for isCurrent when CurrentEmployerFlag absent', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          WorkHistory: { EmployerName: 'X', StatusDescription: 'Present' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.workHistory![0]!.isCurrent).toBe(true);
+    });
+
+    it('skips WorkHistory entries missing EmployerName', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          WorkHistory: { ID: '1', StartDate: '2010-01-01' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.workHistory).toHaveLength(0);
+    });
+
+    // ------- Phase 2 (v9): TimeGap -------
+
+    it('maps a TimeGap element with both dates to a workHistoryGap entry', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          TimeGap: {
+            ID: '1000',
+            StartDate: '2000-06-01T00:00:00',
+            EndDate: '2050-06-01T00:00:00',
+            GapExplanation: 'Charitable work',
+            GapDescription: 'Work History',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.workHistoryGaps).toHaveLength(1);
+      const g = result.workHistoryGaps![0]!;
+      expect(g.caqhGapId).toBe('1000');
+      expect(g.gapExplanation).toBe('Charitable work');
+      expect(g.gapDescription).toBe('Work History');
+      expect(g.startDate.toISOString().startsWith('2000-06-01')).toBe(true);
+      expect(g.endDate.toISOString().startsWith('2050-06-01')).toBe(true);
+    });
+
+    it('skips TimeGap entries missing either date', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          TimeGap: [
+            { ID: '1', StartDate: '2010-01-01' }, // no end date
+            { ID: '2', EndDate: '2010-12-31' },   // no start date
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.workHistoryGaps).toHaveLength(0);
+    });
+
+    // ------- Phase 2 (v9): Practice Supervisors -------
+
+    it('maps a Practice element with supervisor fields to a practiceSupervisors entry', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Practice: {
+            ID: '1000',
+            PracticeName: 'Lanyard Behavioral Health',
+            SupervisorName: 'Paul Anthony',
+            SupervisorNPI: '1738328902',
+            SupervisorCAQHId: '16172371',
+            Address: '123 Main St', City: 'Austin', State: 'TX', ZipCode: '78701',
+          },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.practiceSupervisors).toHaveLength(1);
+      const s = result.practiceSupervisors![0]!;
+      expect(s.supervisorFirstName).toBe('Paul');
+      expect(s.supervisorLastName).toBe('Anthony');
+      expect(s.supervisorNpi).toBe('1738328902');
+      expect(s.caqhSupervisorId).toBe('16172371');
+      expect(s.caqhPracticeId).toBe('1000');
+      expect(s.practiceName).toBe('Lanyard Behavioral Health');
+      expect(s.practiceAddressLine1).toBe('123 Main St');
+      expect(s.practiceCity).toBe('Austin');
+    });
+
+    it('handles multi-word supervisor last names ("Connie Truggian Smith")', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Practice: { ID: '1', SupervisorName: 'Connie Truggian Smith' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      const s = result.practiceSupervisors![0]!;
+      expect(s.supervisorFirstName).toBe('Connie');
+      expect(s.supervisorLastName).toBe('Truggian Smith');
+    });
+
+    it('returns no practiceSupervisor when Practice has no SupervisorName', () => {
+      const payload = {
+        Provider: {
+          NPI: 1, FirstName: 'A', LastName: 'B',
+          Practice: { ID: '1', PracticeName: 'No Supervisor Practice' },
+        },
+      };
+      const result = service.mapCaqhToInternal(payload);
+      expect(result.practiceSupervisors).toHaveLength(0);
+    });
   });
 
   // ==========================================
@@ -2378,6 +2811,347 @@ describe('CaqhService', () => {
       });
       expect(summary.cdsRegistrations.skipped).toBe(1);
       expect(prismaMock.cdsRegistration.update).not.toHaveBeenCalled();
+    });
+
+    // ------- Phase 2 (v9): Disclosures persistence -------
+
+    it('creates a ProviderDisclosure with caqhQuestionId + caqh_sync source', async () => {
+      prismaMock.providerDisclosure.findFirst.mockResolvedValue(null);
+      prismaMock.providerDisclosure.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        disclosures: [{
+          caqhQuestionId: '21000',
+          questionText: 'Suspended License',
+          answer: true,
+          explanation: 'license suspended',
+          category: 'LICENSE_ACTION',
+        }],
+      });
+
+      expect(summary.disclosures.created).toBe(1);
+      expect(prismaMock.providerDisclosure.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            caqhQuestionId: '21000',
+            answer: true,
+            category: 'LICENSE_ACTION',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    it('updates an existing caqh_sync disclosure matched by caqhQuestionId', async () => {
+      prismaMock.providerDisclosure.findFirst.mockResolvedValue({
+        id: 'd1', source: 'caqh_sync', explanation: 'old',
+      } as any);
+      prismaMock.providerDisclosure.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        disclosures: [{
+          caqhQuestionId: '21000', questionText: 'Suspended License', answer: true,
+          explanation: 'updated explanation', category: 'LICENSE_ACTION',
+        }],
+      });
+      expect(summary.disclosures.updated).toBe(1);
+    });
+
+    it('skips a manual_entry disclosure (does not overwrite human-entered data)', async () => {
+      prismaMock.providerDisclosure.findFirst.mockResolvedValue({
+        id: 'd1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        disclosures: [{
+          caqhQuestionId: '21000', questionText: 'X', answer: true, category: 'LICENSE_ACTION',
+        }],
+      });
+      expect(summary.disclosures.skipped).toBe(1);
+      expect(prismaMock.providerDisclosure.update).not.toHaveBeenCalled();
+    });
+
+    // ------- Phase 2 (v9): Malpractice Claims persistence -------
+
+    it('creates a MalpracticeClaim with extended CAQH fields', async () => {
+      prismaMock.malpracticeClaim.findFirst.mockResolvedValue(null);
+      prismaMock.malpracticeClaim.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        malpracticeClaims: [{
+          caqhClaimId: 'mc-1',
+          insuranceCarrier: 'Aaoms',
+          dateOfClaim: new Date('2000-10-03'),
+          claimStatus: 'SETTLED',
+          description: 'allegation',
+          settlementAmount: 1000000,
+          settlementAmountPaid: 700000,
+          isLeadDefendant: true,
+          npdbReported: true,
+          patientDied: false,
+          numberOtherCodefendants: 2,
+          allegationDescription: 'allegation',
+          patientInjuryDescription: 'injury',
+          resolutionMethod: 'Settlement',
+          courtAddressLine1: '55 Fruit Street',
+          courtCity: 'Boston',
+          courtState: 'MA',
+          courtZipCode: '02114',
+        }],
+      });
+
+      expect(summary.malpracticeClaims.created).toBe(1);
+      expect(prismaMock.malpracticeClaim.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            caqhClaimId: 'mc-1',
+            settlementAmount: 1000000,
+            settlementAmountPaid: 700000,
+            npdbReported: true,
+            isLeadDefendant: true,
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    it('updates an existing caqh_sync malpractice claim matched by caqhClaimId', async () => {
+      prismaMock.malpracticeClaim.findFirst.mockResolvedValue({
+        id: 'mc1', source: 'caqh_sync', claimStatus: 'OPEN',
+      } as any);
+      prismaMock.malpracticeClaim.update.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        malpracticeClaims: [{
+          caqhClaimId: 'mc-1', claimStatus: 'SETTLED', description: 'updated',
+        }],
+      });
+      expect(summary.malpracticeClaims.updated).toBe(1);
+    });
+
+    // ------- Phase 2 (v9): Hospital Affiliations persistence -------
+
+    it('creates a HospitalAffiliation with caqhAhaId + facilityType=hospital', async () => {
+      prismaMock.hospitalAffiliation.findFirst.mockResolvedValue(null);
+      prismaMock.hospitalAffiliation.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        hospitalAffiliations: [{
+          caqhAhaId: '6740549',
+          facilityName: 'Ascension Seton Hays',
+          privilegeType: 'admitting',
+          status: 'active',
+          state: 'TX',
+          hasUnrestrictedPrivileges: true,
+          startDate: new Date('2019-01-05'),
+        }],
+      });
+
+      expect(summary.hospitalAffiliations.created).toBe(1);
+      expect(prismaMock.hospitalAffiliation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            facilityName: 'Ascension Seton Hays',
+            facilityType: 'hospital',
+            privilegeType: 'admitting',
+            status: 'active',
+            caqhAhaId: '6740549',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    it('skips a manual_entry hospital affiliation matched by caqhAhaId', async () => {
+      prismaMock.hospitalAffiliation.findFirst.mockResolvedValue({
+        id: 'h1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        hospitalAffiliations: [{
+          caqhAhaId: '6740549', facilityName: 'X', privilegeType: 'admitting', status: 'active',
+        }],
+      });
+      expect(summary.hospitalAffiliations.skipped).toBe(1);
+      expect(prismaMock.hospitalAffiliation.update).not.toHaveBeenCalled();
+    });
+
+    // ------- Phase 2 (v9): Work History + TimeGap persistence -------
+
+    it('creates a WorkHistory row with caqhWorkHistoryId + position default', async () => {
+      prismaMock.workHistory.findFirst.mockResolvedValue(null);
+      prismaMock.workHistory.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        workHistory: [{
+          caqhWorkHistoryId: 'wh-1',
+          organizationName: 'Graeme',
+          startDate: new Date('2009-06-05'),
+          isCurrent: true,
+          currentEmployerFlag: true,
+        }],
+      });
+
+      expect(summary.workHistory.created).toBe(1);
+      expect(prismaMock.workHistory.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            organizationName: 'Graeme',
+            position: '', // CAQH didn't return; column default-empty
+            isCurrent: true,
+            caqhWorkHistoryId: 'wh-1',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    it('creates a WorkHistoryGap with both dates required', async () => {
+      prismaMock.workHistoryGap.findFirst.mockResolvedValue(null);
+      prismaMock.workHistoryGap.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        workHistoryGaps: [{
+          caqhGapId: 'g-1',
+          startDate: new Date('2000-06-01'),
+          endDate: new Date('2050-06-01'),
+          gapExplanation: 'Charitable work',
+          gapDescription: 'Work History',
+        }],
+      });
+
+      expect(summary.workHistoryGaps.created).toBe(1);
+      expect(prismaMock.workHistoryGap.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            caqhGapId: 'g-1',
+            gapExplanation: 'Charitable work',
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    // ------- Phase 2 (v9): Practice Supervisors persistence -------
+
+    it('auto-links SupervisingPhysician to a PracticeLocation by name match', async () => {
+      prismaMock.practiceLocation.findMany.mockResolvedValue([
+        { id: 'loc-1', locationName: 'Lanyard Behavioral Health', addressLine1: '123 Main', state: 'TX' },
+        { id: 'loc-2', locationName: 'Other Practice', addressLine1: '456 Side', state: 'TX' },
+      ] as any);
+      prismaMock.supervisingPhysician.findFirst.mockResolvedValue(null);
+      prismaMock.supervisingPhysician.create.mockResolvedValue({} as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        practiceSupervisors: [{
+          supervisorFirstName: 'Paul',
+          supervisorLastName: 'Anthony',
+          supervisorNpi: '1738328902',
+          caqhSupervisorId: '16172371',
+          practiceName: 'Lanyard Behavioral Health',
+        }],
+      });
+
+      expect(summary.practiceSupervisors.created).toBe(1);
+      expect(prismaMock.supervisingPhysician.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'p1',
+            supervisorFirstName: 'Paul',
+            supervisorLastName: 'Anthony',
+            caqhSupervisorId: '16172371',
+            practiceLocationId: 'loc-1', // matched by name
+            source: 'caqh_sync',
+          }),
+        }),
+      );
+    });
+
+    it('falls back to address match when practice name does not match', async () => {
+      prismaMock.practiceLocation.findMany.mockResolvedValue([
+        { id: 'loc-1', locationName: 'Some Other Name', addressLine1: '123 Main St', state: 'TX' },
+      ] as any);
+      prismaMock.supervisingPhysician.findFirst.mockResolvedValue(null);
+      prismaMock.supervisingPhysician.create.mockResolvedValue({} as any);
+
+      await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        practiceSupervisors: [{
+          supervisorFirstName: 'Paul',
+          supervisorLastName: 'Anthony',
+          practiceName: 'Lanyard Behavioral Health',
+          practiceAddressLine1: '123 Main St',
+          practiceState: 'TX',
+        }],
+      });
+
+      const args = (prismaMock.supervisingPhysician.create as any).mock.calls[0][0];
+      expect(args.data.practiceLocationId).toBe('loc-1');
+    });
+
+    it('persists supervisor with practiceLocationId=null when no PracticeLocation match', async () => {
+      prismaMock.practiceLocation.findMany.mockResolvedValue([
+        { id: 'loc-1', locationName: 'Different', addressLine1: '999 Side', state: 'CA' },
+      ] as any);
+      prismaMock.supervisingPhysician.findFirst.mockResolvedValue(null);
+      prismaMock.supervisingPhysician.create.mockResolvedValue({} as any);
+
+      await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        practiceSupervisors: [{
+          supervisorFirstName: 'Paul', supervisorLastName: 'Anthony',
+          practiceName: 'Mismatched Name', practiceAddressLine1: '111 Different Street',
+        }],
+      });
+
+      const args = (prismaMock.supervisingPhysician.create as any).mock.calls[0][0];
+      expect(args.data.practiceLocationId).toBe(null);
+    });
+
+    it('skips a manual_entry supervisor matched by caqhSupervisorId', async () => {
+      prismaMock.practiceLocation.findMany.mockResolvedValue([] as any);
+      prismaMock.supervisingPhysician.findFirst.mockResolvedValue({
+        id: 'sp-1', source: 'manual_entry',
+      } as any);
+
+      const summary = await service.applyCaqhDataToProvider('p1', {
+        provider: { firstName: 'J', lastName: 'D', npi: '123' },
+        licenses: [], certifications: [], education: [], malpractice: [], addresses: [], identifiers: [],
+        practiceSupervisors: [{
+          supervisorFirstName: 'Paul', supervisorLastName: 'Anthony',
+          caqhSupervisorId: '16172371',
+        }],
+      });
+
+      expect(summary.practiceSupervisors.skipped).toBe(1);
+      expect(prismaMock.supervisingPhysician.update).not.toHaveBeenCalled();
     });
   });
 
