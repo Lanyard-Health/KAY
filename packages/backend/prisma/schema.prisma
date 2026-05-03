@@ -103,6 +103,8 @@ model User {
   educationsUpdated           Education[]             @relation("EducationUpdatedBy")
   workHistoriesCreated        WorkHistory[]           @relation("WorkHistoryCreatedBy")
   workHistoriesUpdated        WorkHistory[]           @relation("WorkHistoryUpdatedBy")
+  workHistoryGapsCreated      WorkHistoryGap[]        @relation("WorkHistoryGapCreatedBy")
+  workHistoryGapsUpdated      WorkHistoryGap[]        @relation("WorkHistoryGapUpdatedBy")
   hospitalAffiliationsCreated HospitalAffiliation[]   @relation("HospitalAffiliationCreatedBy")
   hospitalAffiliationsUpdated HospitalAffiliation[]   @relation("HospitalAffiliationUpdatedBy")
   profRefsCreated             ProfessionalReference[] @relation("ProfRefCreatedBy")
@@ -442,6 +444,7 @@ model ProviderProfile {
   malpracticeInsurances  MalpracticeInsurance[]
   educations             Education[]
   workHistories          WorkHistory[]
+  workHistoryGaps        WorkHistoryGap[]
   hospitalAffiliations   HospitalAffiliation[]
   professionalReferences ProfessionalReference[]
   disciplinaryActions    DisciplinaryAction[]
@@ -593,9 +596,10 @@ model PracticeLocation {
   practiceId String? @map("practice_id")
 
   // Relations
-  provider            ProviderProfile             @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  practice            Practice?                   @relation(fields: [practiceId], references: [id])
-  malpracticePolicies MalpracticePolicyLocation[]
+  provider              ProviderProfile             @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice              Practice?                   @relation(fields: [practiceId], references: [id])
+  malpracticePolicies   MalpracticePolicyLocation[]
+  supervisingPhysicians SupervisingPhysician[]
 
   @@map("practice_locations")
 }
@@ -849,15 +853,20 @@ model WorkHistory {
   zipCode          String?   @map("zip_code")
   country          String?   @default("US")
   phone            String?
+  fax              String?
+  email            String?
   startDate        DateTime? @map("start_date") // Optional — CAQH WorkHistoryType may not include
   endDate          DateTime? @map("end_date")
   isCurrent        Boolean   @default(false) @map("is_current")
+  // CAQH-side flag, kept alongside the derived `isCurrent` so we can spot drift.
+  currentEmployerFlag Boolean? @map("current_employer_flag")
   reasonForLeaving String?   @map("reason_for_leaving")
   supervisorName   String?   @map("supervisor_name")
   supervisorPhone  String?   @map("supervisor_phone")
   statusDescription String?  @map("status_description")
   workHistoryType  String?   @map("work_history_type")
   source           CredentialSource @default(manual_entry)
+  caqhWorkHistoryId String?  @map("caqh_work_history_id") // CAQH record ID for dedup
   notes            String?
 
   // Audit
@@ -872,7 +881,36 @@ model WorkHistory {
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([providerId])
+  @@index([providerId, caqhWorkHistoryId])
   @@map("work_histories")
+}
+
+model WorkHistoryGap {
+  id         String @id @default(uuid())
+  providerId String @map("provider_id")
+
+  startDate       DateTime @map("start_date")
+  endDate         DateTime @map("end_date")
+  gapExplanation  String?  @map("gap_explanation") @db.Text
+  gapDescription  String?  @map("gap_description") // CAQH-side label, e.g. "Work History"
+  caqhGapId       String?  @map("caqh_gap_id") // CAQH record ID for dedup
+
+  source CredentialSource @default(manual_entry)
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("WorkHistoryGapCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("WorkHistoryGapUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  // Relations
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@index([providerId, caqhGapId])
+  @@map("work_history_gaps")
 }
 
 enum PrivilegeType {
@@ -930,6 +968,25 @@ model HospitalAffiliation {
   startDate                 DateTime? @map("start_date")
   source                    CredentialSource @default(manual_entry)
 
+  // CAQH v9 extended fields
+  caqhAhaId               String?   @map("caqh_aha_id") // AHAHospitalID for dedup
+  department              String?
+  endDate                 DateTime? @map("end_date")
+  admissionPercent        Int?      @map("admission_percent") // estimated % of admissions at this facility
+  reasonForDiscontinuance String?   @map("reason_for_discontinuance")
+  exitExplanation         String?   @map("exit_explanation") @db.Text
+  staffCategory           String?   @map("staff_category") // Active / Inactive (raw CAQH value)
+  phoneNumber             String?   @map("phone_number") // separate from facilityPhone (Aetna-era field)
+  faxNumber               String?   @map("fax_number")
+  description             String?   @db.Text // free-form arrangement description
+  // Admitting-relationship sub-fields (populated when WhoAdmitsForYou is set)
+  whoAdmitsForYou             String?  @map("who_admits_for_you")
+  admittingProviderFirstName  String?  @map("admitting_provider_first_name")
+  admittingProviderLastName   String?  @map("admitting_provider_last_name")
+  admittingContactPhone       String?  @map("admitting_contact_phone")
+  admittingContactEmail       String?  @map("admitting_contact_email")
+  isAdmitterSameSpecialty     Boolean? @map("is_admitter_same_specialty")
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -942,6 +999,7 @@ model HospitalAffiliation {
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([providerId])
+  @@index([providerId, caqhAhaId])
   @@map("hospital_affiliations")
 }
 
@@ -1184,6 +1242,12 @@ model SupervisingPhysician {
   isPrimary               Boolean         @default(false) @map("is_primary")
   notes                   String?
 
+  // CAQH v9: per-practice supervisor identity
+  practiceLocationId String?          @map("practice_location_id")
+  caqhSupervisorId   String?          @map("caqh_supervisor_id") // CAQH provider ID of the supervisor
+  department         String?
+  source             CredentialSource @default(manual_entry)
+
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -1193,9 +1257,12 @@ model SupervisingPhysician {
   updatedBy   User?    @relation("SupervisingPhysUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
-  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider         ProviderProfile   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practiceLocation PracticeLocation? @relation(fields: [practiceLocationId], references: [id], onDelete: SetNull)
 
   @@index([providerId])
+  @@index([providerId, practiceLocationId])
+  @@index([providerId, caqhSupervisorId])
   @@map("supervising_physicians")
 }
 
@@ -1217,12 +1284,27 @@ model MalpracticeClaim {
   notes            String?
 
   // CAQH extended fields
-  allegationDescription String?          @map("allegation_description") @db.Text
-  defendantRole         String?          @map("defendant_role")
-  patientGenderAge      String?          @map("patient_gender_age")
-  narrative             String?          @db.Text
-  isLeadDefendant       Boolean?         @map("is_lead_defendant")
-  source                CredentialSource @default(manual_entry)
+  allegationDescription    String?          @map("allegation_description") @db.Text
+  defendantRole            String?          @map("defendant_role")
+  patientGenderAge         String?          @map("patient_gender_age")
+  narrative                String?          @db.Text
+  isLeadDefendant          Boolean?         @map("is_lead_defendant")
+  source                   CredentialSource @default(manual_entry)
+  caqhClaimId              String?          @map("caqh_claim_id") // CAQH record ID for dedup
+  caseInvolvement          String?          @map("case_involvement") @db.Text
+  numberOtherCodefendants  Int?             @map("number_other_codefendants")
+  resolutionMethod         String?          @map("resolution_method") // e.g. "Judgment for Defendant", "Settlement"
+  npdbReported             Boolean?         @map("npdb_reported") // NPDBCaseFlag
+  patientDied              Boolean?         @map("patient_died") // PatientDiedFlag
+  patientInjuryDescription String?          @map("patient_injury_description") @db.Text
+  settlementAmountPaid     Decimal?         @map("settlement_amount_paid") @db.Decimal(15, 2)
+  // Court/litigation address (separate from courtName)
+  courtAddressLine1 String? @map("court_address_line_1")
+  courtCity         String? @map("court_city")
+  courtState        String? @map("court_state")
+  courtZipCode      String? @map("court_zip_code")
+  courtPhone        String? @map("court_phone")
+  courtCountry      String? @map("court_country")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1236,6 +1318,7 @@ model MalpracticeClaim {
   provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([providerId])
+  @@index([providerId, caqhClaimId])
   @@map("malpractice_claims")
 }
 
