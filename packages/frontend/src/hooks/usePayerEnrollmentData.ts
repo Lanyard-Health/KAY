@@ -156,6 +156,83 @@ export function useDeleteWorkHistory() {
 }
 
 // ==========================================
+// Work History Gaps (CAQH `TimeGap` records)
+// ==========================================
+
+export function useListWorkHistoryGaps(providerId: string) {
+  return useQuery({
+    queryKey: ['work-history-gaps', providerId],
+    queryFn: async () => {
+      const response = await api.get(`/credentials/work-history-gaps/${providerId}`);
+      return response.data.data;
+    },
+    enabled: !!providerId,
+  });
+}
+
+export function useCreateWorkHistoryGap() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      providerId,
+      ...data
+    }: {
+      providerId: string;
+    } & Record<string, any>) => {
+      const response = await api.post(`/credentials/work-history-gaps/${providerId}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['work-history-gaps', variables.providerId] });
+    },
+  });
+}
+
+export function useUpdateWorkHistoryGap() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      providerId: _providerId,
+      ...data
+    }: {
+      id: string;
+      providerId: string;
+    } & Record<string, any>) => {
+      const response = await api.put(`/credentials/work-history-gaps/${id}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['work-history-gaps', variables.providerId] });
+    },
+  });
+}
+
+export function useDeleteWorkHistoryGap() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      providerId: _providerId,
+    }: {
+      id: string;
+      providerId: string;
+    }) => {
+      await api.delete(`/credentials/work-history-gaps/${id}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['work-history-gaps', variables.providerId] });
+    },
+  });
+}
+
+// ==========================================
 // Malpractice Insurance
 // ==========================================
 

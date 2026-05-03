@@ -122,6 +122,14 @@ export const createWorkHistorySchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+// Work history gap validation (CAQH `TimeGap` element)
+export const createWorkHistoryGapSchema = z.object({
+  startDate: dateStringSchema,
+  endDate: dateStringSchema,
+  gapExplanation: z.string().max(2000).optional(),
+  gapDescription: z.string().max(200).optional(),
+});
+
 // Hospital affiliation validation
 export const createHospitalAffiliationSchema = z.object({
   facilityName: z.string().min(1).max(200),

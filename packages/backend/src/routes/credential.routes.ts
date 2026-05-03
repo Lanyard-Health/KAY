@@ -10,6 +10,7 @@ import {
   createMalpracticeInsuranceSchema,
   createEducationSchema,
   createWorkHistorySchema,
+  createWorkHistoryGapSchema,
   nullablePartial,
 } from '@credential-management/shared';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -574,6 +575,110 @@ credentialRoutes.delete(
       });
 
       res.json({ success: true, message: 'Work history deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
+// WORK HISTORY GAPS
+// ==========================================
+
+// GET /api/v1/credentials/work-history-gaps/:providerId
+credentialRoutes.get(
+  '/work-history-gaps/:providerId',
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const gaps = await prisma.workHistoryGap.findMany({
+        where: { providerId: req.params['providerId'] },
+        orderBy: { startDate: 'desc' },
+      });
+
+      res.json({ success: true, data: gaps });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/credentials/work-history-gaps/:providerId
+credentialRoutes.post(
+  '/work-history-gaps/:providerId',
+  requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = createWorkHistoryGapSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'work_history_gap', action: 'create' });
+
+      const gap = await prisma.workHistoryGap.create({
+        data: {
+          providerId: req.params['providerId']!,
+          startDate: new Date(data.startDate),
+          endDate: new Date(data.endDate),
+          gapExplanation: data.gapExplanation,
+          gapDescription: data.gapDescription,
+          createdById: req.user?.id,
+        },
+      });
+
+      res.status(201).json({ success: true, data: gap });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/v1/credentials/work-history-gaps/:id
+credentialRoutes.put(
+  '/work-history-gaps/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = nullablePartial(createWorkHistoryGapSchema).parse(req.body);
+
+      setAuditContext(req, { resourceType: 'work_history_gap', resourceId: req.params['id'], action: 'update' });
+
+      const existing = await prisma.workHistoryGap.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Work history gap');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Work history gap');
+
+      const gap = await prisma.workHistoryGap.update({
+        where: { id: req.params['id'] },
+        data: {
+          ...data,
+          ...(data.startDate && { startDate: new Date(data.startDate) }),
+          ...(data.endDate && { endDate: new Date(data.endDate) }),
+          updatedById: req.user?.id,
+        },
+      });
+
+      res.json({ success: true, data: gap });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/credentials/work-history-gaps/:id
+credentialRoutes.delete(
+  '/work-history-gaps/:id',
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      setAuditContext(req, { resourceType: 'work_history_gap', resourceId: req.params['id'], action: 'delete' });
+
+      const existing = await prisma.workHistoryGap.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      if (!existing) throw new NotFoundError('Work history gap');
+      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Work history gap');
+
+      await prisma.workHistoryGap.delete({
+        where: { id: req.params['id'] },
+      });
+
+      res.json({ success: true, message: 'Work history gap deleted' });
     } catch (error) {
       next(error);
     }
