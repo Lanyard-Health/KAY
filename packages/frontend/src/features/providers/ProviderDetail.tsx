@@ -25,6 +25,8 @@ const MalpracticeInsuranceModal = lazy(() => import('./MalpracticeInsuranceModal
 const SupervisingPhysicianModal = lazy(() => import('./SupervisingPhysicianModal'));
 const MalpracticeClaimModal = lazy(() => import('./MalpracticeClaimModal'));
 const DisclosureModal = lazy(() => import('./DisclosureModal'));
+const HospitalAffiliationModal = lazy(() => import('./HospitalAffiliationModal'));
+const WorkHistoryGapModal = lazy(() => import('./WorkHistoryGapModal'));
 const DeaRegistrationModal = lazy(() => import('./DeaRegistrationModal'));
 const ProviderIdentifierModal = lazy(() => import('./ProviderIdentifierModal'));
 const BankingModal = lazy(() => import('./BankingModal'));
@@ -41,7 +43,7 @@ import {
   useListDeaRegistrations, useDeleteDeaRegistration,
   useListProviderIdentifiers, useDeleteProviderIdentifier,
   useListBanking, useDeleteBanking,
-  useListHospitalAffiliations,
+  useListHospitalAffiliations, useDeleteHospitalAffiliation,
   useListProfessionalReferences,
   useListCoveringColleagues,
   useListCdsRegistrations, useDeleteCdsRegistration,
@@ -154,6 +156,10 @@ export default function ProviderDetail() {
   const [editingMalpracticeClaim, setEditingMalpracticeClaim] = useState<any>(null);
   const [disclosureModalOpen, setDisclosureModalOpen] = useState(false);
   const [editingDisclosure, setEditingDisclosure] = useState<any>(null);
+  const [hospitalAffiliationModalOpen, setHospitalAffiliationModalOpen] = useState(false);
+  const [editingHospitalAffiliation, setEditingHospitalAffiliation] = useState<any>(null);
+  const [workHistoryGapModalOpen, setWorkHistoryGapModalOpen] = useState(false);
+  const [editingWorkHistoryGap, setEditingWorkHistoryGap] = useState<any>(null);
   const [deaRegistrationModalOpen, setDeaRegistrationModalOpen] = useState(false);
   const [editingDeaRegistration, setEditingDeaRegistration] = useState<any>(null);
   const [cdsRegistrationModalOpen, setCdsRegistrationModalOpen] = useState(false);
@@ -253,6 +259,7 @@ export default function ProviderDetail() {
   const deleteEducationMutation = useDeleteEducation();
   const deleteWorkHistoryMutation = useDeleteWorkHistory();
   const deleteWorkHistoryGapMutation = useDeleteWorkHistoryGap();
+  const deleteHospitalAffiliationMutation = useDeleteHospitalAffiliation();
   const deleteMalpracticeInsuranceMutation = useDeleteMalpracticeInsurance();
   const deleteSupervisingPhysicianMutation = useDeleteSupervisingPhysician();
   const deleteMalpracticeClaimMutation = useDeleteMalpracticeClaim();
@@ -395,6 +402,16 @@ export default function ProviderDetail() {
   const handleDeleteWorkHistoryGap = (gapId: string) => {
     showConfirm('Delete Employment Gap', 'Are you sure you want to delete this employment gap record?', () => {
       deleteWorkHistoryGapMutation.mutate({ id: gapId, providerId: id! });
+      closeConfirm();
+    });
+  };
+  const handleAddWorkHistoryGap = () => { setEditingWorkHistoryGap(null); setWorkHistoryGapModalOpen(true); };
+  const handleEditWorkHistoryGap = (g: any) => { setEditingWorkHistoryGap(g); setWorkHistoryGapModalOpen(true); };
+  const handleAddHospitalAffiliation = () => { setEditingHospitalAffiliation(null); setHospitalAffiliationModalOpen(true); };
+  const handleEditHospitalAffiliation = (ha: any) => { setEditingHospitalAffiliation(ha); setHospitalAffiliationModalOpen(true); };
+  const handleDeleteHospitalAffiliation = (haId: string) => {
+    showConfirm('Delete Hospital Affiliation', 'Are you sure you want to delete this hospital affiliation record?', () => {
+      deleteHospitalAffiliationMutation.mutate({ id: haId, providerId: id! });
       closeConfirm();
     });
   };
@@ -1287,6 +1304,8 @@ export default function ProviderDetail() {
                 <CollapsibleSection
                   title="Employment Gaps"
                   count={workHistoryGapsList?.length || 0}
+                  onAdd={handleAddWorkHistoryGap}
+                  addLabel="Add"
                 >
                   {(!workHistoryGapsList || workHistoryGapsList.length === 0) ? (
                     <div className="text-center py-8">
@@ -1294,7 +1313,10 @@ export default function ProviderDetail() {
                         <BriefcaseIcon className="h-5 w-5 text-gray-400" />
                       </div>
                       <p className="text-sm font-medium text-gray-500">No employment gaps recorded</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add manually or pull from CAQH</p>
+                      <button onClick={handleAddWorkHistoryGap} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add gap
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1317,6 +1339,9 @@ export default function ProviderDetail() {
                             )}
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditWorkHistoryGap(g)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit employment gap">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
                             <button onClick={() => handleDeleteWorkHistoryGap(g.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete employment gap">
                               <TrashIcon className="h-3.5 w-3.5" />
                             </button>
@@ -1420,10 +1445,12 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* Hospital Affiliations (read-only) */}
+                {/* Hospital Affiliations */}
                 <CollapsibleSection
                   title="Hospital Affiliations"
                   count={hospitalAffiliationsList?.length || 0}
+                  onAdd={handleAddHospitalAffiliation}
+                  addLabel="Add"
                 >
                   {(!hospitalAffiliationsList || hospitalAffiliationsList.length === 0) ? (
                     <div className="text-center py-8">
@@ -1431,7 +1458,10 @@ export default function ProviderDetail() {
                         <BuildingOfficeIcon className="h-5 w-5 text-gray-400" />
                       </div>
                       <p className="text-sm font-medium text-gray-500">No hospital affiliations on record</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Add manually or pull from CAQH</p>
+                      <button onClick={handleAddHospitalAffiliation} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add affiliation
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1443,7 +1473,7 @@ export default function ProviderDetail() {
                         const bDate = b.appointmentDate ? new Date(b.appointmentDate).getTime() : 0;
                         return bDate - aDate;
                       }).map((ha: any) => (
-                        <div key={ha.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div key={ha.id} className="group flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                           <div className="mt-0.5 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                             <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
                           </div>
@@ -1496,6 +1526,14 @@ export default function ProviderDetail() {
                             {ha.reasonForDiscontinuance && (
                               <p className="text-xs text-gray-400">End reason: {ha.reasonForDiscontinuance}</p>
                             )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditHospitalAffiliation(ha)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit hospital affiliation">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteHospitalAffiliation(ha.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete hospital affiliation">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -2415,6 +2453,28 @@ export default function ProviderDetail() {
         }}
         providerId={id!}
         disclosure={editingDisclosure}
+      />
+
+      {/* Hospital Affiliation Modal */}
+      <HospitalAffiliationModal
+        isOpen={hospitalAffiliationModalOpen}
+        onClose={() => {
+          setHospitalAffiliationModalOpen(false);
+          setEditingHospitalAffiliation(null);
+        }}
+        providerId={id!}
+        affiliation={editingHospitalAffiliation}
+      />
+
+      {/* Work History Gap Modal */}
+      <WorkHistoryGapModal
+        isOpen={workHistoryGapModalOpen}
+        onClose={() => {
+          setWorkHistoryGapModalOpen(false);
+          setEditingWorkHistoryGap(null);
+        }}
+        providerId={id!}
+        gap={editingWorkHistoryGap}
       />
 
       {/* DEA Registration Modal */}

@@ -179,7 +179,7 @@ registerCrud(credentialExtendedRoutes, {
   resourceType: 'hospital_affiliation',
   createSchema: createHospitalAffiliationSchema,
   delegate: prisma.hospitalAffiliation,
-  dateFields: ['appointmentDate', 'reappointmentDate'],
+  dateFields: ['appointmentDate', 'reappointmentDate', 'startDate', 'endDate'],
   orderBy: { facilityName: 'asc' },
 });
 
