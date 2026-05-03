@@ -33,6 +33,7 @@ const LifeSupportCertModal = lazy(() => import('./LifeSupportCertModal'));
 import {
   useListEducation, useDeleteEducation,
   useListWorkHistory, useDeleteWorkHistory,
+  useListWorkHistoryGaps, useDeleteWorkHistoryGap,
   useListMalpracticeInsurance, useDeleteMalpracticeInsurance,
   useListSupervisingPhysicians, useDeleteSupervisingPhysician,
   useListMalpracticeClaims, useDeleteMalpracticeClaim,
@@ -216,6 +217,7 @@ export default function ProviderDetail() {
   // Payer enrollment data queries
   const { data: educationList } = useListEducation(id || '');
   const { data: workHistoryList } = useListWorkHistory(id || '');
+  const { data: workHistoryGapsList } = useListWorkHistoryGaps(id || '');
   const { data: malpracticeInsuranceList } = useListMalpracticeInsurance(id || '');
   const { data: supervisingPhysiciansList } = useListSupervisingPhysicians(id || '');
   const { data: malpracticeClaimsList } = useListMalpracticeClaims(id || '');
@@ -250,6 +252,7 @@ export default function ProviderDetail() {
   // New delete mutations
   const deleteEducationMutation = useDeleteEducation();
   const deleteWorkHistoryMutation = useDeleteWorkHistory();
+  const deleteWorkHistoryGapMutation = useDeleteWorkHistoryGap();
   const deleteMalpracticeInsuranceMutation = useDeleteMalpracticeInsurance();
   const deleteSupervisingPhysicianMutation = useDeleteSupervisingPhysician();
   const deleteMalpracticeClaimMutation = useDeleteMalpracticeClaim();
@@ -386,6 +389,12 @@ export default function ProviderDetail() {
   const handleDeleteWorkHistory = (whId: string) => {
     showConfirm('Delete Work History', 'Are you sure you want to delete this work history record?', () => {
       deleteWorkHistoryMutation.mutate({ id: whId, providerId: id! });
+      closeConfirm();
+    });
+  };
+  const handleDeleteWorkHistoryGap = (gapId: string) => {
+    showConfirm('Delete Employment Gap', 'Are you sure you want to delete this employment gap record?', () => {
+      deleteWorkHistoryGapMutation.mutate({ id: gapId, providerId: id! });
       closeConfirm();
     });
   };
@@ -1270,6 +1279,50 @@ export default function ProviderDetail() {
                         </div>
                         );
                       })}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Employment Gaps (CAQH TimeGap) */}
+                <CollapsibleSection
+                  title="Employment Gaps"
+                  count={workHistoryGapsList?.length || 0}
+                >
+                  {(!workHistoryGapsList || workHistoryGapsList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <BriefcaseIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No employment gaps recorded</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Pull from CAQH to populate this section</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {workHistoryGapsList.map((g: any) => (
+                        <div key={g.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-gray-900">
+                                {format(new Date(g.startDate), 'MMM yyyy')} – {format(new Date(g.endDate), 'MMM yyyy')}
+                              </p>
+                              {g.gapDescription && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                  {g.gapDescription}
+                                </span>
+                              )}
+                              {g.source && <SourceBadge source={g.source} />}
+                            </div>
+                            {g.gapExplanation && (
+                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{g.gapExplanation}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleDeleteWorkHistoryGap(g.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete employment gap">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </CollapsibleSection>
