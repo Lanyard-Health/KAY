@@ -134,7 +134,18 @@ export const createWorkHistoryGapSchema = z.object({
 export const createHospitalAffiliationSchema = z.object({
   facilityName: z.string().min(1).max(200),
   facilityType: z.string().min(1).max(100),
-  privilegeType: z.enum(['admitting', 'courtesy', 'consulting', 'temporary', 'locum_tenens']),
+  // Expanded to match the full PrivilegeType enum on the Prisma model.
+  privilegeType: z.enum([
+    'admitting',
+    'courtesy',
+    'consulting',
+    'temporary',
+    'locum_tenens',
+    'active',
+    'provisional',
+    'affiliate',
+    'teaching',
+  ]),
   status: z.enum(['active', 'pending', 'inactive', 'denied', 'resigned']),
   appointmentDate: dateStringSchema.optional(),
   reappointmentDate: dateStringSchema.optional(),
@@ -148,6 +159,38 @@ export const createHospitalAffiliationSchema = z.object({
   facilityCity: z.string().max(100).optional(),
   facilityState: z.string().length(2).optional(),
   facilityZipCode: z.string().max(10).optional(),
+
+  // CAQH v9 extended fields (Phase 1+2 schema additions). Manual entry
+  // is allowed so credentialing staff can complete records that CAQH
+  // didn't fully populate.
+  caqhAhaId: z.string().max(20).optional(),
+  department: z.string().max(200).optional(),
+  startDate: dateStringSchema.optional(),
+  endDate: dateStringSchema.optional(),
+  admissionPercent: z.number().int().min(0).max(100).optional(),
+  reasonForDiscontinuance: z.string().max(500).optional(),
+  exitExplanation: z.string().max(2000).optional(),
+  staffCategory: z.string().max(100).optional(),
+  phoneNumber: z.string().max(20).optional(),
+  faxNumber: z.string().max(20).optional(),
+  privilegeDescription: z.string().max(500).optional(),
+  hasUnrestrictedPrivileges: z.boolean().optional(),
+  hasTemporaryPrivileges: z.boolean().optional(),
+  description: z.string().max(2000).optional(),
+  hospitalAffiliationType: z.string().max(100).optional(),
+  hospitalRecordType: z.string().max(100).optional(),
+  nonAhaHospitalName: z.string().max(200).optional(),
+  addressLine1: z.string().max(200).optional(),
+  zipCode: z.string().max(10).optional(),
+  country: z.string().max(100).optional(),
+
+  // Admitter sub-fields (populated when WhoAdmitsForYou is set in CAQH)
+  whoAdmitsForYou: z.string().max(200).optional(),
+  admittingProviderFirstName: z.string().max(100).optional(),
+  admittingProviderLastName: z.string().max(100).optional(),
+  admittingContactPhone: z.string().max(20).optional(),
+  admittingContactEmail: z.string().email().optional().or(z.literal('')),
+  isAdmitterSameSpecialty: z.boolean().optional(),
 });
 
 // Professional reference validation
@@ -238,6 +281,29 @@ export const createMalpracticeClaimSchema = z.object({
   courtName: z.string().max(200).optional(),
   caseNumber: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
+
+  // CAQH v9 extended fields. Manual entry is allowed so credentialing
+  // staff can complete records that CAQH didn't fully populate.
+  caqhClaimId: z.string().max(100).optional(),
+  allegationDescription: z.string().max(5000).optional(),
+  patientInjuryDescription: z.string().max(5000).optional(),
+  defendantRole: z.string().max(200).optional(),
+  isLeadDefendant: z.boolean().optional(),
+  numberOtherCodefendants: z.number().int().nonnegative().optional(),
+  caseInvolvement: z.string().max(2000).optional(),
+  npdbReported: z.boolean().optional(),
+  patientDied: z.boolean().optional(),
+  resolutionMethod: z.string().max(200).optional(),
+  settlementAmountPaid: z.number().nonnegative().optional(),
+  patientGenderAge: z.string().max(100).optional(),
+  narrative: z.string().max(5000).optional(),
+  // Court / litigation address (separate from `courtName`)
+  courtAddressLine1: z.string().max(200).optional(),
+  courtCity: z.string().max(100).optional(),
+  courtState: z.string().length(2).optional(),
+  courtZipCode: z.string().max(10).optional(),
+  courtPhone: z.string().max(20).optional(),
+  courtCountry: z.string().max(100).optional(),
 });
 
 // Disclosure validation

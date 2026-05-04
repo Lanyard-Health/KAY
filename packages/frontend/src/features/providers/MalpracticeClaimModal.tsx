@@ -6,18 +6,47 @@ import toast from 'react-hot-toast';
 import { useCreateMalpracticeClaim, useUpdateMalpracticeClaim } from '../../hooks/usePayerEnrollmentData';
 
 interface MalpracticeClaimFormData {
+  // Core
   dateOfIncident: string;
   dateOfClaim: string;
   claimStatus: string;
   description: string;
+  notes: string;
+
+  // Outcome
   settlementAmount: string;
+  settlementAmountPaid: string;
   judgmentAmount: string;
   dateResolved: string;
+  resolutionMethod: string;
+
+  // Defendant context
+  isLeadDefendant: boolean;
+  defendantRole: string;
+  numberOtherCodefendants: string;
+  caseInvolvement: string;
+
+  // Allegation / injury
+  allegationDescription: string;
+  patientInjuryDescription: string;
+  patientGenderAge: string;
+  npdbReported: boolean;
+  patientDied: boolean;
+  narrative: string;
+
+  // Insurance
   insuranceCarrier: string;
   policyNumber: string;
+
+  // Court / litigation
   courtName: string;
   caseNumber: string;
-  notes: string;
+  courtAddressLine1: string;
+  courtCity: string;
+  courtState: string;
+  courtZipCode: string;
+  courtPhone: string;
+  courtCountry: string;
 }
 
 interface MalpracticeClaimModalProps {
@@ -38,6 +67,39 @@ const CLAIM_STATUSES = [
 
 const formatDate = (d: string | undefined) => d ? d.substring(0, 10) : '';
 
+const EMPTY_FORM: MalpracticeClaimFormData = {
+  dateOfIncident: '',
+  dateOfClaim: '',
+  claimStatus: 'OPEN',
+  description: '',
+  notes: '',
+  settlementAmount: '',
+  settlementAmountPaid: '',
+  judgmentAmount: '',
+  dateResolved: '',
+  resolutionMethod: '',
+  isLeadDefendant: false,
+  defendantRole: '',
+  numberOtherCodefendants: '',
+  caseInvolvement: '',
+  allegationDescription: '',
+  patientInjuryDescription: '',
+  patientGenderAge: '',
+  npdbReported: false,
+  patientDied: false,
+  narrative: '',
+  insuranceCarrier: '',
+  policyNumber: '',
+  courtName: '',
+  caseNumber: '',
+  courtAddressLine1: '',
+  courtCity: '',
+  courtState: '',
+  courtZipCode: '',
+  courtPhone: '',
+  courtCountry: '',
+};
+
 export default function MalpracticeClaimModal({
   isOpen,
   onClose,
@@ -52,20 +114,7 @@ export default function MalpracticeClaimModal({
     reset,
     formState: { errors },
   } = useForm<MalpracticeClaimFormData>({
-    defaultValues: {
-      dateOfIncident: '',
-      dateOfClaim: '',
-      claimStatus: 'OPEN',
-      description: '',
-      settlementAmount: '',
-      judgmentAmount: '',
-      dateResolved: '',
-      insuranceCarrier: '',
-      policyNumber: '',
-      courtName: '',
-      caseNumber: '',
-      notes: '',
-    },
+    defaultValues: EMPTY_FORM,
   });
 
   useEffect(() => {
@@ -75,30 +124,35 @@ export default function MalpracticeClaimModal({
         dateOfClaim: formatDate(claim.dateOfClaim),
         claimStatus: claim.claimStatus || 'OPEN',
         description: claim.description || '',
+        notes: claim.notes || '',
         settlementAmount: claim.settlementAmount?.toString() || '',
+        settlementAmountPaid: claim.settlementAmountPaid?.toString() || '',
         judgmentAmount: claim.judgmentAmount?.toString() || '',
         dateResolved: formatDate(claim.dateResolved),
+        resolutionMethod: claim.resolutionMethod || '',
+        isLeadDefendant: claim.isLeadDefendant ?? false,
+        defendantRole: claim.defendantRole || '',
+        numberOtherCodefendants: claim.numberOtherCodefendants?.toString() || '',
+        caseInvolvement: claim.caseInvolvement || '',
+        allegationDescription: claim.allegationDescription || '',
+        patientInjuryDescription: claim.patientInjuryDescription || '',
+        patientGenderAge: claim.patientGenderAge || '',
+        npdbReported: claim.npdbReported ?? false,
+        patientDied: claim.patientDied ?? false,
+        narrative: claim.narrative || '',
         insuranceCarrier: claim.insuranceCarrier || '',
         policyNumber: claim.policyNumber || '',
         courtName: claim.courtName || '',
         caseNumber: claim.caseNumber || '',
-        notes: claim.notes || '',
+        courtAddressLine1: claim.courtAddressLine1 || '',
+        courtCity: claim.courtCity || '',
+        courtState: claim.courtState || '',
+        courtZipCode: claim.courtZipCode || '',
+        courtPhone: claim.courtPhone || '',
+        courtCountry: claim.courtCountry || '',
       });
     } else {
-      reset({
-        dateOfIncident: '',
-        dateOfClaim: '',
-        claimStatus: 'OPEN',
-        description: '',
-        settlementAmount: '',
-        judgmentAmount: '',
-        dateResolved: '',
-        insuranceCarrier: '',
-        policyNumber: '',
-        courtName: '',
-        caseNumber: '',
-        notes: '',
-      });
+      reset(EMPTY_FORM);
     }
   }, [claim, reset]);
 
@@ -107,16 +161,43 @@ export default function MalpracticeClaimModal({
   const mutation = isEditing ? updateMutation : createMutation;
 
   const onSubmit = (data: MalpracticeClaimFormData) => {
+    // Strip empty strings so the server-side schema's `.optional()` paths don't
+    // get tripped up by `state: ""` etc., and coerce numerics.
+    const blank = (v: string) => v === '' ? undefined : v;
+    const num = (v: string) => v === '' ? undefined : Number(v);
+    const intNum = (v: string) => v === '' ? undefined : parseInt(v, 10);
+
     const payload = {
-      ...data,
-      settlementAmount: data.settlementAmount ? Number(data.settlementAmount) : undefined,
-      judgmentAmount: data.judgmentAmount ? Number(data.judgmentAmount) : undefined,
-      dateResolved: data.dateResolved || undefined,
-      insuranceCarrier: data.insuranceCarrier || undefined,
-      policyNumber: data.policyNumber || undefined,
-      courtName: data.courtName || undefined,
-      caseNumber: data.caseNumber || undefined,
-      notes: data.notes || undefined,
+      dateOfIncident: data.dateOfIncident,
+      dateOfClaim: data.dateOfClaim,
+      claimStatus: data.claimStatus,
+      description: data.description,
+      notes: blank(data.notes),
+      settlementAmount: num(data.settlementAmount),
+      settlementAmountPaid: num(data.settlementAmountPaid),
+      judgmentAmount: num(data.judgmentAmount),
+      dateResolved: blank(data.dateResolved),
+      resolutionMethod: blank(data.resolutionMethod),
+      isLeadDefendant: data.isLeadDefendant,
+      defendantRole: blank(data.defendantRole),
+      numberOtherCodefendants: intNum(data.numberOtherCodefendants),
+      caseInvolvement: blank(data.caseInvolvement),
+      allegationDescription: blank(data.allegationDescription),
+      patientInjuryDescription: blank(data.patientInjuryDescription),
+      patientGenderAge: blank(data.patientGenderAge),
+      npdbReported: data.npdbReported,
+      patientDied: data.patientDied,
+      narrative: blank(data.narrative),
+      insuranceCarrier: blank(data.insuranceCarrier),
+      policyNumber: blank(data.policyNumber),
+      courtName: blank(data.courtName),
+      caseNumber: blank(data.caseNumber),
+      courtAddressLine1: blank(data.courtAddressLine1),
+      courtCity: blank(data.courtCity),
+      courtState: blank(data.courtState),
+      courtZipCode: blank(data.courtZipCode),
+      courtPhone: blank(data.courtPhone),
+      courtCountry: blank(data.courtCountry),
     };
 
     if (isEditing) {
@@ -174,9 +255,9 @@ export default function MalpracticeClaimModal({
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
-                <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                  <div className="flex items-center justify-between mb-4">
+              <Dialog.Panel className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl">
+                <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4 max-h-[85vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4 sticky top-0 bg-white pb-2 -mx-6 px-6 border-b">
                     <Dialog.Title as="h3" className="text-lg font-semibold text-gray-900">
                       {isEditing ? 'Edit Malpractice Claim' : 'Add Malpractice Claim'}
                     </Dialog.Title>
@@ -185,149 +266,305 @@ export default function MalpracticeClaimModal({
                     </button>
                   </div>
 
-                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {/* Incident + Claim Dates */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    {/* ──────────── Core ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Core</legend>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Date of Incident *</label>
+                          <input
+                            type="date"
+                            {...register('dateOfIncident', { required: 'Required' })}
+                            className="input"
+                          />
+                          {errors.dateOfIncident && (
+                            <p className="mt-1 text-sm text-red-600">{errors.dateOfIncident.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="label">Date of Claim *</label>
+                          <input
+                            type="date"
+                            {...register('dateOfClaim', { required: 'Required' })}
+                            className="input"
+                          />
+                          {errors.dateOfClaim && (
+                            <p className="mt-1 text-sm text-red-600">{errors.dateOfClaim.message}</p>
+                          )}
+                        </div>
+                      </div>
                       <div>
-                        <label className="label">Date of Incident *</label>
-                        <input
-                          type="date"
-                          {...register('dateOfIncident', { required: 'Required' })}
+                        <label className="label">Claim Status</label>
+                        <select {...register('claimStatus')} className="input">
+                          {CLAIM_STATUSES.map((status) => (
+                            <option key={status.value} value={status.value}>
+                              {status.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Description *</label>
+                        <textarea
+                          {...register('description', { required: 'Required', maxLength: { value: 5000, message: 'Max 5000 characters' } })}
                           className="input"
+                          rows={3}
+                          placeholder="Short summary used in lists and credentialing reports"
                         />
-                        {errors.dateOfIncident && (
-                          <p className="mt-1 text-sm text-red-600">{errors.dateOfIncident.message}</p>
+                        {errors.description && (
+                          <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
                         )}
                       </div>
+                    </fieldset>
+
+                    {/* ──────────── Outcome ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Outcome</legend>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Resolution Method</label>
+                          <input
+                            {...register('resolutionMethod')}
+                            className="input"
+                            placeholder="e.g. Settlement, Judgment for Defendant"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Date Resolved</label>
+                          <input type="date" {...register('dateResolved')} className="input" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="label">Settlement Amount</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            {...register('settlementAmount')}
+                            className="input"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Settlement Paid To Date</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            {...register('settlementAmountPaid')}
+                            className="input"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Judgment Amount</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            {...register('judgmentAmount')}
+                            className="input"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                    </fieldset>
+
+                    {/* ──────────── Defendant context ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Defendant Context</legend>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="flex items-center gap-3 pt-6">
+                          <input
+                            type="checkbox"
+                            {...register('isLeadDefendant')}
+                            id="claim-lead-defendant"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <label htmlFor="claim-lead-defendant" className="label mb-0">
+                            Lead / primary defendant
+                          </label>
+                        </div>
+                        <div>
+                          <label className="label"># Other Co-defendants</label>
+                          <input
+                            type="number"
+                            min="0"
+                            {...register('numberOtherCodefendants')}
+                            className="input"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <label className="label">Date of Claim *</label>
+                        <label className="label">Defendant Role</label>
                         <input
-                          type="date"
-                          {...register('dateOfClaim', { required: 'Required' })}
+                          {...register('defendantRole')}
                           className="input"
+                          placeholder="e.g. Treating physician, Attending"
                         />
-                        {errors.dateOfClaim && (
-                          <p className="mt-1 text-sm text-red-600">{errors.dateOfClaim.message}</p>
+                      </div>
+                      <div>
+                        <label className="label">Case Involvement</label>
+                        <textarea
+                          {...register('caseInvolvement')}
+                          className="input"
+                          rows={2}
+                          placeholder="Provider's role and involvement in the underlying care"
+                        />
+                      </div>
+                    </fieldset>
+
+                    {/* ──────────── Allegation / injury ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Allegation &amp; Injury</legend>
+                      <div>
+                        <label className="label">Allegation Description</label>
+                        <textarea
+                          {...register('allegationDescription')}
+                          className="input"
+                          rows={3}
+                          placeholder="What the plaintiff alleged"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Patient Injury Description</label>
+                        <textarea
+                          {...register('patientInjuryDescription')}
+                          className="input"
+                          rows={3}
+                          placeholder="Nature and extent of patient harm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="label">Patient Gender / Age</label>
+                          <input
+                            {...register('patientGenderAge')}
+                            className="input"
+                            placeholder="e.g. F / 42"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3 pt-6">
+                          <input
+                            type="checkbox"
+                            {...register('npdbReported')}
+                            id="claim-npdb"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <label htmlFor="claim-npdb" className="label mb-0" title="Reported to the National Practitioner Data Bank">
+                            NPDB reported
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-3 pt-6">
+                          <input
+                            type="checkbox"
+                            {...register('patientDied')}
+                            id="claim-patient-died"
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <label htmlFor="claim-patient-died" className="label mb-0">
+                            Patient died
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">Narrative</label>
+                        <textarea
+                          {...register('narrative')}
+                          className="input"
+                          rows={3}
+                          placeholder="Free-form narrative for credentialing-committee review"
+                        />
+                      </div>
+                    </fieldset>
+
+                    {/* ──────────── Insurance ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Insurance</legend>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Insurance Carrier</label>
+                          <input {...register('insuranceCarrier')} className="input" placeholder="Carrier name" />
+                        </div>
+                        <div>
+                          <label className="label">Policy Number</label>
+                          <input {...register('policyNumber')} className="input" placeholder="Policy number" />
+                        </div>
+                      </div>
+                    </fieldset>
+
+                    {/* ──────────── Court / litigation ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Court &amp; Litigation</legend>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Court Name</label>
+                          <input {...register('courtName')} className="input" placeholder="Court name" />
+                        </div>
+                        <div>
+                          <label className="label">Case Number</label>
+                          <input {...register('caseNumber')} className="input" placeholder="Case number" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">Court Address Line 1</label>
+                        <input {...register('courtAddressLine1')} className="input" placeholder="Street address" />
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="label">City</label>
+                          <input {...register('courtCity')} className="input" />
+                        </div>
+                        <div>
+                          <label className="label">State</label>
+                          <input
+                            {...register('courtState', {
+                              maxLength: { value: 2, message: '2-letter abbreviation' },
+                            })}
+                            className="input"
+                            maxLength={2}
+                            placeholder="CA"
+                          />
+                          {errors.courtState && (
+                            <p className="mt-1 text-sm text-red-600">{errors.courtState.message}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="label">ZIP</label>
+                          <input {...register('courtZipCode')} className="input" placeholder="00000" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="label">Court Phone</label>
+                          <input {...register('courtPhone')} className="input" placeholder="(000) 000-0000" />
+                        </div>
+                        <div>
+                          <label className="label">Country</label>
+                          <input {...register('courtCountry')} className="input" placeholder="United States" />
+                        </div>
+                      </div>
+                    </fieldset>
+
+                    {/* ──────────── Notes ──────────── */}
+                    <fieldset className="space-y-4">
+                      <legend className="text-sm font-semibold text-gray-700">Internal Notes</legend>
+                      <div>
+                        <label className="label">Notes</label>
+                        <textarea
+                          {...register('notes', { maxLength: { value: 1000, message: 'Max 1000 characters' } })}
+                          className="input"
+                          rows={2}
+                          placeholder="Internal notes, not part of the credentialing record"
+                        />
+                        {errors.notes && (
+                          <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
                         )}
                       </div>
-                    </div>
-
-                    {/* Claim Status */}
-                    <div>
-                      <label className="label">Claim Status</label>
-                      <select
-                        {...register('claimStatus')}
-                        className="input"
-                      >
-                        {CLAIM_STATUSES.map((status) => (
-                          <option key={status.value} value={status.value}>
-                            {status.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className="label">Description *</label>
-                      <textarea
-                        {...register('description', { required: 'Required', maxLength: { value: 2000, message: 'Max 2000 characters' } })}
-                        className="input"
-                        rows={3}
-                        placeholder="Describe the claim"
-                      />
-                      {errors.description && (
-                        <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
-                      )}
-                    </div>
-
-                    {/* Amounts */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="label">Settlement Amount</label>
-                        <input
-                          type="number"
-                          {...register('settlementAmount')}
-                          className="input"
-                          placeholder="$0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Judgment Amount</label>
-                        <input
-                          type="number"
-                          {...register('judgmentAmount')}
-                          className="input"
-                          placeholder="$0.00"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Date Resolved */}
-                    <div>
-                      <label className="label">Date Resolved</label>
-                      <input
-                        type="date"
-                        {...register('dateResolved')}
-                        className="input"
-                      />
-                    </div>
-
-                    {/* Insurance Carrier + Policy */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="label">Insurance Carrier</label>
-                        <input
-                          {...register('insuranceCarrier')}
-                          className="input"
-                          placeholder="Carrier name"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Policy Number</label>
-                        <input
-                          {...register('policyNumber')}
-                          className="input"
-                          placeholder="Policy number"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Court + Case */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="label">Court Name</label>
-                        <input
-                          {...register('courtName')}
-                          className="input"
-                          placeholder="Court name"
-                        />
-                      </div>
-                      <div>
-                        <label className="label">Case Number</label>
-                        <input
-                          {...register('caseNumber')}
-                          className="input"
-                          placeholder="Case number"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div>
-                      <label className="label">Notes</label>
-                      <textarea
-                        {...register('notes', { maxLength: { value: 1000, message: 'Max 1000 characters' } })}
-                        className="input"
-                        rows={2}
-                      />
-                      {errors.notes && (
-                        <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
-                      )}
-                    </div>
+                    </fieldset>
 
                     {/* Actions */}
-                    <div className="flex justify-end gap-3 pt-4 border-t">
+                    <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white -mx-6 px-6 pb-1">
                       <button type="button" onClick={onClose} className="btn-secondary">
                         Cancel
                       </button>

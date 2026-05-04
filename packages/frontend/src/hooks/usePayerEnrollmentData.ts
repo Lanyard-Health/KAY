@@ -821,6 +821,65 @@ export function useListHospitalAffiliations(providerId: string) {
   });
 }
 
+export function useCreateHospitalAffiliation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      providerId,
+      ...data
+    }: {
+      providerId: string;
+    } & Record<string, any>) => {
+      const response = await api.post(`/credentials/hospital-affiliations/provider/${providerId}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['hospital-affiliations', variables.providerId] });
+    },
+  });
+}
+
+export function useUpdateHospitalAffiliation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      providerId: _providerId,
+      ...data
+    }: {
+      id: string;
+      providerId: string;
+    } & Record<string, any>) => {
+      const response = await api.put(`/credentials/hospital-affiliations/${id}`, data);
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['hospital-affiliations', variables.providerId] });
+    },
+  });
+}
+
+export function useDeleteHospitalAffiliation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      providerId: _providerId,
+    }: {
+      id: string;
+      providerId: string;
+    }) => {
+      await api.delete(`/credentials/hospital-affiliations/${id}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['provider', variables.providerId] });
+      queryClient.invalidateQueries({ queryKey: ['hospital-affiliations', variables.providerId] });
+    },
+  });
+}
+
 // ==========================================
 // Professional References (read-only list)
 // ==========================================
