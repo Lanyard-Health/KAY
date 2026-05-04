@@ -139,6 +139,38 @@ export function useLaunchWorkflow() {
   });
 }
 
+export interface AdminWorkflowListItem extends WorkflowListItem {
+  _count?: { tasks: number; events: number };
+}
+
+export interface AdminWorkflowsFilters {
+  status?: WorkflowStatus | '';
+  limit?: number;
+  offset?: number;
+}
+
+/** List ALL workflows (admin/staff scope, no enrollment filter). Used by the
+ * /admin/workflows list page. Polls every 10s so live workflows show up
+ * without a manual refresh. The list page does its own client-side
+ * status grouping (in_flight/completed/failed/cancelled), so we don't
+ * pass a status filter through to the backend — keeps the chip switching
+ * instant and avoids re-fetching when the user toggles. */
+export function useAdminWorkflows(filters: AdminWorkflowsFilters = {}) {
+  const { status, limit = 100, offset = 0 } = filters;
+  return useQuery<AdminWorkflowListItem[]>({
+    queryKey: ['agent-workflows-admin', { status, limit, offset }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      params.set('limit', String(limit));
+      params.set('offset', String(offset));
+      const { data } = await api.get<AdminWorkflowListItem[]>(`/agent/workflows?${params.toString()}`);
+      return data;
+    },
+    refetchInterval: 10_000,
+  });
+}
+
 export function useWorkflowsForEnrollment(providerId: string, enrollmentId: string) {
   return useQuery<WorkflowListItem[]>({
     queryKey: ['agent-workflows', providerId, enrollmentId],
