@@ -218,28 +218,36 @@ export class AvailityAdapter implements PayerAdapter {
         try { await dialog.dismiss(); } catch { /* swallow */ }
       });
 
-      // Step 1 — login
+      // Step 1 — login. We use `domcontentloaded` instead of `networkidle2`
+      // because the mock site is fully static — DCL fires as soon as the HTML
+      // parses, while networkidle2 can hang if Chrome makes background
+      // requests (translate, safe-browsing, favicon) for >500ms after load.
+      logger.info('[availity-demo] navigating to login page');
       await page.goto(`${MOCK_AVAILITY_BASE_URL}/login.html`, {
-        waitUntil: 'networkidle2',
-        timeout: 15_000,
+        waitUntil: 'domcontentloaded',
+        timeout: 20_000,
       });
-      await page.waitForSelector('#username', { timeout: 5_000 });
+      await page.waitForSelector('#username', { timeout: 10_000 });
+      logger.info('[availity-demo] typing credentials');
       await page.type('#username', username, { delay: 40 });
       await page.type('#password', password, { delay: 40 });
+      logger.info('[availity-demo] clicking login');
       await Promise.all([
         page.click('#login-button'),
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10_000 }),
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20_000 }),
       ]);
 
       // Step 2 — dashboard → click "Submit New Enrollment"
-      await page.waitForSelector('#submit-enrollment-button', { timeout: 5_000 });
+      logger.info('[availity-demo] on dashboard, clicking submit-enrollment');
+      await page.waitForSelector('#submit-enrollment-button', { timeout: 10_000 });
       await Promise.all([
         page.click('#submit-enrollment-button'),
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10_000 }),
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20_000 }),
       ]);
 
       // Step 3 — fill the enrollment form
-      await page.waitForSelector('#firstName', { timeout: 5_000 });
+      logger.info('[availity-demo] on enrollment form, filling fields');
+      await page.waitForSelector('#firstName', { timeout: 10_000 });
       await typeIfPresent(page, '#firstName', providerData.firstName);
       await typeIfPresent(page, '#lastName', providerData.lastName);
       await typeIfPresent(page, '#npi', providerData.npi);
@@ -255,11 +263,12 @@ export class AvailityAdapter implements PayerAdapter {
       await typeIfPresent(page, '#specialty', providerData.specialty);
 
       // Step 4 — submit and wait for the confirmation page
+      logger.info('[availity-demo] submitting enrollment');
       await Promise.all([
         page.click('#submit-button'),
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10_000 }),
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20_000 }),
       ]);
-      await page.waitForSelector('#confirmation-number', { timeout: 5_000 });
+      await page.waitForSelector('#confirmation-number', { timeout: 10_000 });
       const confirmationNumber = await page.$eval(
         '#confirmation-number',
         (el) => el.textContent?.trim() ?? '',
