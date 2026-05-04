@@ -55,6 +55,12 @@ export function useNotifications(options?: { unreadOnly?: boolean; limit?: numbe
       const response = await api.get<NotificationsResponse>(`/notifications?${params.toString()}`);
       return response.data.data;
     },
+    // Poll alongside the unread-count badge so newly-created notifications
+    // appear in the dropdown without requiring the user to navigate away
+    // and back. Without this, the badge updates every 30s but the dropdown
+    // body stays cached at its first-fetch state.
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
