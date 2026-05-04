@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/node';
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { logAgentEvent } from '../event-logger.js';
+import { notificationService } from '../../services/notification.service.js';
 import { ORCHESTRATOR_TOOLS } from './tool-schemas.js';
 import { executeToolCall } from './tool-executor.js';
 import { buildSystemPrompt, buildUserMessage } from './system-prompt.js';
@@ -329,6 +330,65 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       },
       extra: { tokensUsed: workflow.totalTokensUsed + tokensUsed, toolCallCount },
     });
+  }
+
+  // Persistent in-app notification for terminal states so users who navigate
+  // away still see the result via the notification bell. Failures gracefully
+  // log + swallow to avoid breaking the workflow update on notification errors.
+  if (newStatus === 'completed' || newStatus === 'failed') {
+    try {
+      const summary = await prisma.agentWorkflow.findUnique({
+        where: { id: workflowId },
+        select: {
+          requestedBy: true,
+          goal: true,
+          provider: { select: { firstName: true, lastName: true } },
+          payer: { select: { name: true } },
+          tasks: { select: { output: true, error: true, status: true }, orderBy: { stepNumber: 'desc' }, take: 1 },
+        },
+      });
+      if (summary?.requestedBy) {
+        const providerName = summary.provider
+          ? `${summary.provider.firstName} ${summary.provider.lastName}`.trim()
+          : 'a provider';
+        const payerName = summary.payer?.name ?? 'a payer';
+        const lastTask = summary.tasks[0];
+        const confirmationNumber = (lastTask?.output as Record<string, unknown> | null)?.['confirmationNumber'];
+        const goalLabel = summary.goal === 'submit_to_availity_demo'
+          ? 'Availity submission'
+          : summary.goal === 'populate_forms'
+          ? 'Form population'
+          : 'Workflow';
+
+        const title = newStatus === 'completed'
+          ? `${goalLabel} completed for ${providerName}`
+          : `${goalLabel} failed for ${providerName}`;
+        const message = newStatus === 'completed'
+          ? confirmationNumber
+            ? `${payerName} returned confirmation ${String(confirmationNumber)}.`
+            : `${payerName} workflow finished. Click to review.`
+          : `${payerName} workflow did not complete. Click to review.`;
+
+        await notificationService.createNotification({
+          userId: summary.requestedBy,
+          type: 'enrollment_status_change',
+          title,
+          message,
+          actionUrl: `/enrollments/${workflow.enrollmentId ?? ''}`,
+          metadata: {
+            workflowId,
+            goal: summary.goal,
+            outcome: newStatus,
+            ...(confirmationNumber ? { confirmationNumber: String(confirmationNumber) } : {}),
+          } as any,
+        });
+      }
+    } catch (err) {
+      logger.warn('Failed to create workflow-completion notification', {
+        workflowId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   if (failureReason === 'cap_hit_on_first_turn') {
