@@ -36,6 +36,7 @@ payerEnrollmentDataRoutes.get(
       const records = await prisma.supervisingPhysician.findMany({
         where: { providerId: req.params['providerId'] },
         orderBy: { agreementStartDate: 'desc' },
+        include: { practiceLocation: { select: { id: true, locationName: true } } },
       });
       res.json({ success: true, data: records });
     } catch (error) {
