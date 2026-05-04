@@ -90,6 +90,40 @@ packages/
 
 ---
 
+## Knowledge Base + Embeddings
+
+End-to-end semantic search over payer credentialing knowledge (payer tracks, timelines, state rules, forms, requirements). Used by chat + denial triage to ground AI responses in real payer data.
+
+### Pipeline (wired end to end)
+
+| Stage | File | What happens |
+|-------|------|--------------|
+| **Schema** | `prisma/schema.prisma` (KnowledgeBaseEmbedding) | `vector(1536)` column via pgvector; FKs to PayerTrack / PayerTimeline / PayerStateRule / PayerForm / PayerRequirement / RequirementUniversal |
+| **Write trigger** | `routes/knowledgeBase.routes.ts` (`triggerEmbedding()`) | Fires async on every KB POST/PATCH; fire-and-forget, doesn't block API response |
+| **Embedding gen** | `services/knowledgeBase.embedding.service.ts` (`generateEmbedding`) | Calls OpenAI `text-embedding-3-small` via raw fetch; no SDK dependency |
+| **Storage** | Same service (`upsertEmbedding`) | Raw `Prisma.$executeRaw` insert because Prisma ORM doesn't natively support pgvector type |
+| **Search** | Same service (`searchSimilarWithSources`) | pgvector `<=>` cosine similarity; hydrates results with full source object |
+| **Search route** | `routes/knowledgeBase.routes.ts` `GET /search?q=...&limit=N` | Admin/staff only; returns ranked source records |
+| **Consumers** | `chat.service.ts`, `denial-triage.service.ts` | Chat queries on `'knowledge_base'` intent; denial triage always augments prompt |
+
+### Cost
+
+`text-embedding-3-small` = $0.02 / 1M tokens. A typical KB record is ~500 tokens. At 235 records, total embedding cost is ~$0.002. Even daily re-embedding for a year is under $1. **Cost is not a constraint.** Don't optimize a non-problem.
+
+### `OPENAI_API_KEY`
+
+Required for embeddings to actually generate. If unset, `isConfigured()` returns false, the trigger logs a warning and silently no-ops. The search route still works but returns empty. **Verify with:**
+`docker exec credentials-db psql -U credentials credentials -c "SELECT COUNT(*) FROM knowledge_base_embeddings;"`
+A non-zero count = pipeline is working.
+
+### Operational notes
+
+- **Embeddings are async.** A KB record created at T=0 may not have an embedding until ~1s later. Tests that check the embeddings table immediately after a POST will be flaky; if you need synchronous behavior, await the trigger.
+- **Backfill is manual.** `triggerEmbedding()` only fires on create/update. If `OPENAI_API_KEY` was unset when records were created, they have no embedding even after the key is set. A backfill script that walks all KB source tables and calls `upsertEmbedding` is the standard fix.
+- **No Anthropic/Voyage/local fallback.** Switching providers means changing `generateEmbedding()` and re-embedding everything (vector dimensions differ).
+
+---
+
 ## Key Source Files
 
 ### Backend (`packages/backend/src/`)

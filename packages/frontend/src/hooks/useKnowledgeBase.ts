@@ -191,6 +191,41 @@ export interface PayerTrackFilters {
 }
 
 // ==========================================
+// Semantic search
+// ==========================================
+
+export type KbSourceType =
+  | 'payerTrack' | 'payerRequirement' | 'payerStateRule'
+  | 'payerTimeline' | 'payerForm' | 'requirementUniversal';
+
+export interface KbSearchResult {
+  id: string;
+  contentText: string;
+  similarity: number;
+  payerTrackId: string | null;
+  payerRequirementId: string | null;
+  payerStateRuleId: string | null;
+  payerTimelineId: string | null;
+  payerFormId: string | null;
+  requirementUniversalId: string | null;
+  source: Record<string, unknown> | null;
+}
+
+export function useKnowledgeBaseSearch(query: string, limit = 10) {
+  const trimmed = query.trim();
+  return useQuery({
+    queryKey: ['knowledgeBaseSearch', trimmed, limit],
+    queryFn: async () => {
+      const params = new URLSearchParams({ q: trimmed, limit: String(limit) });
+      const response = await api.get(`/knowledge-base/search?${params.toString()}`);
+      return response.data.data as KbSearchResult[];
+    },
+    enabled: trimmed.length >= 3,
+    staleTime: 30_000,
+  });
+}
+
+// ==========================================
 // Queries
 // ==========================================
 
