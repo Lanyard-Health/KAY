@@ -315,12 +315,19 @@ export class AvailityAdapter implements PayerAdapter {
 }
 
 async function typeIfPresent(page: Page, selector: string, value: string): Promise<void> {
-  if (!value) return;
+  if (!value) {
+    logger.info(`[availity-demo] skip ${selector} (empty value)`);
+    return;
+  }
   const el = await page.$(selector);
-  if (!el) return;
+  if (!el) {
+    logger.info(`[availity-demo] skip ${selector} (not on page)`);
+    return;
+  }
   // Date inputs reject character-by-character typing. Set the value directly
   // via the DOM and dispatch the input/change events the form would expect.
   const inputType = await page.$eval(selector, (node) => (node as HTMLInputElement).type ?? 'text');
+  logger.info(`[availity-demo] fill ${selector} (type=${inputType}) <- ${value.slice(0, 30)}`);
   if (inputType === 'date') {
     await page.$eval(selector, (node, v) => {
       const input = node as HTMLInputElement;
