@@ -77,12 +77,12 @@ export default function KnowledgeBaseList() {
 
   const filters = useMemo<PayerTrackFilters>(() => {
     const f: PayerTrackFilters = {};
-    if (debouncedSearch) f.search = debouncedSearch;
+    if (mode === 'filter' && debouncedSearch) f.search = debouncedSearch;
     if (payerType) f.payerType = payerType;
     if (stateRegion) f.stateRegion = stateRegion;
     if (activeOnly) f.isActive = true;
     return f;
-  }, [debouncedSearch, payerType, stateRegion, activeOnly]);
+  }, [mode, debouncedSearch, payerType, stateRegion, activeOnly]);
 
   const { data: tracks, isLoading } = usePayerTracks(filters);
   const { data: filterOptions } = useFilterOptions();
