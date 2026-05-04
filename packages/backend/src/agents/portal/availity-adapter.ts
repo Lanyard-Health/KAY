@@ -166,8 +166,10 @@ export class AvailityAdapter implements PayerAdapter {
     try {
       const providerData = await loadProviderData(input.providerId);
       const credentials = (input.credentials ?? {}) as { username?: string; password?: string };
-      const username = credentials.username ?? 'demo';
-      const password = credentials.password ?? 'demo123';
+      const username = credentials.username ?? 'lanyard.demo';
+      // Default password is intentionally NOT in any known breach corpus so
+      // Chrome's PasswordLeakDetection doesn't pop a change-password bubble.
+      const password = credentials.password ?? 'Lan9ardDemo!Sentinel#2026';
 
       logger.info('Launching Availity demo browser submission', {
         workflowId: input.workflowId,
@@ -184,9 +186,11 @@ export class AvailityAdapter implements PayerAdapter {
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu',
-          // Suppress Chrome's "Save password?" / autofill / translate bubbles
-          // that block the demo flow when running headed.
-          '--disable-features=PasswordManagerOnboarding,PasswordCheck,Translate,AutofillServerCommunication,SafeBrowsingEnhancedProtection',
+          // Suppress Chrome's "Save password?" / autofill / translate / leak-
+          // detection bubbles that block the demo flow when running headed.
+          // PasswordLeakDetection is the breach-check that pops "change your
+          // password — found in a data breach" — different from PasswordCheck.
+          '--disable-features=PasswordManagerOnboarding,PasswordCheck,PasswordLeakDetection,Translate,AutofillServerCommunication,SafeBrowsingEnhancedProtection',
           '--disable-save-password-bubble',
           '--disable-translate',
           '--password-store=basic',

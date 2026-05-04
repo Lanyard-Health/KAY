@@ -21,8 +21,11 @@ const CLEANUP = process.argv.includes('--cleanup');
 
 const DEMO_PAYER_ID = 'AVAILITY-DEMO-001';
 const DEMO_PAYER_NAME = 'Availity (DEMO)';
-const DEMO_USERNAME = 'demo';
-const DEMO_PASSWORD = 'demo123';
+const DEMO_USERNAME = 'lanyard.demo';
+// Intentionally NOT in any known breach corpus (HaveIBeenPwned etc.) so
+// Chrome's PasswordLeakDetection feature doesn't pop a "change password"
+// bubble during the demo. Don't change to anything common.
+const DEMO_PASSWORD = 'Lan9ardDemo!Sentinel#2026';
 
 async function cleanup() {
   const payer = await prisma.payer.findUnique({
