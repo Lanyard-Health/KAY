@@ -51,11 +51,23 @@ const STATUS_VALUES = [
   'additional_info_needed',
 ] as const;
 
+// Accept any string Date.parse() can interpret. Real-world payer emails
+// carry dates in mixed formats (YYYY-MM-DD, full ISO 8601 with offset,
+// sometimes human-readable). Strict `.datetime({ offset })` rejected
+// date-only strings, which is too restrictive for an external integration
+// contract.
+const dateString = z
+  .string()
+  .min(1)
+  .refine((s) => !Number.isNaN(Date.parse(s)), {
+    message: 'Must be a parseable date or datetime string',
+  });
+
 const baseStatusFields = {
   status: z.enum(STATUS_VALUES),
   denialReason: z.string().min(1).max(2000).optional(),
-  denialDate: z.string().datetime({ offset: true }).optional(),
-  effectiveDate: z.string().datetime({ offset: true }).optional(),
+  denialDate: dateString.optional(),
+  effectiveDate: dateString.optional(),
   confirmationId: z.string().min(1).max(100).optional(),
   source: z.string().min(1).max(200).default('unknown'),
 };
