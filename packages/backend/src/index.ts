@@ -8,6 +8,8 @@ import { validateEnv } from './utils/env.js';
 const env = validateEnv();
 
 import { createServer } from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -88,6 +90,14 @@ let serverReady = false;
 
 // Trust first proxy (Render) so rate limiter sees real client IPs, not proxy IP
 app.set('trust proxy', 1);
+
+// Mock Availity portal — local fake-portal for browser-automation demos.
+// Mounted BEFORE helmet so the inline styles in the static HTML aren't blocked
+// by the global CSP. Gated on NODE_ENV !== 'production' so it's never exposed in prod.
+if (process.env['NODE_ENV'] !== 'production') {
+  const mockAvailityDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'static', 'mock-availity');
+  app.use('/mock-availity', express.static(mockAvailityDir, { extensions: ['html'] }));
+}
 
 // Security middleware
 app.use(helmet({

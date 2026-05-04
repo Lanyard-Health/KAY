@@ -15,6 +15,27 @@ import AiSidebar from '../../components/AiSidebar';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 
+// Dev-only demo payer lookup. The endpoint returns 404 in production, so the
+// query gracefully resolves to undefined and the demo button stays hidden.
+function useDemoAvailityPayerId(): string | undefined {
+  const isDev = import.meta.env.DEV;
+  const { data } = useQuery({
+    queryKey: ['demo-availity-payer'],
+    queryFn: async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: { id: string } }>('/payers/demo-availity');
+        return res.data.data.id;
+      } catch {
+        return null;
+      }
+    },
+    enabled: isDev,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  return data ?? undefined;
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
   in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', icon: ArrowRightIcon },
@@ -32,6 +53,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
+  const demoAvailityPayerId = useDemoAvailityPayerId();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollment', id],
@@ -207,6 +229,7 @@ export default function EnrollmentDetail() {
         payerId={enrollment.payer?.id}
         providerName={`${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim()}
         payerName={enrollment.payer?.name ?? ''}
+        demoAvailityPayerId={demoAvailityPayerId}
       />
 
       {/* AI Sidebar */}

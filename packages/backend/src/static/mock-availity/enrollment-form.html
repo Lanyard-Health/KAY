@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Availity Essentials — Provider Enrollment</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #2c3e50; min-height: 100vh; }
+    header { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+    .brand-logo { width: 32px; height: 32px; background: #f57c00; color: white; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .brand-name { font-size: 18px; font-weight: 600; color: #1a3d6f; }
+    main { padding: 40px 32px; max-width: 800px; margin: 0 auto; }
+    .form-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 32px; }
+    h1 { font-size: 22px; color: #1a3d6f; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+    fieldset { border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
+    legend { font-size: 13px; font-weight: 600; color: #1a3d6f; padding: 0 8px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #475569; }
+    input, select { padding: 8px 12px; border: 1px solid #cbd5e0; border-radius: 5px; font-size: 14px; font-family: inherit; }
+    input:focus, select:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.15); }
+    .actions { display: flex; gap: 12px; margin-top: 16px; }
+    button { padding: 10px 20px; border: none; border-radius: 5px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #1a73e8; color: white; }
+    .btn-primary:hover { background: #155cc7; }
+    .btn-secondary { background: white; color: #475569; border: 1px solid #cbd5e0; }
+    .demo-banner { background: #fef3c7; color: #92400e; font-size: 11px; padding: 6px 12px; text-align: center; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">DEMO ENVIRONMENT — Lanyard Health Internal</div>
+  <header>
+    <div class="brand-logo">A</div>
+    <div class="brand-name">Availity Essentials</div>
+  </header>
+  <main>
+    <div class="form-card">
+      <h1>Provider Enrollment Application</h1>
+      <p class="subtitle">Complete all required fields and submit to begin credentialing review.</p>
+      <form action="/mock-availity/success.html" method="get" id="enrollment-form">
+        <fieldset>
+          <legend>Provider Identity</legend>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="firstName">First Name *</label>
+              <input type="text" id="firstName" name="firstName" required />
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last Name *</label>
+              <input type="text" id="lastName" name="lastName" required />
+            </div>
+            <div class="form-group">
+              <label for="npi">NPI *</label>
+              <input type="text" id="npi" name="npi" maxlength="10" required />
+            </div>
+            <div class="form-group">
+              <label for="taxonomyCode">Taxonomy Code</label>
+              <input type="text" id="taxonomyCode" name="taxonomyCode" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Primary License</legend>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="licenseNumber">License Number *</label>
+              <input type="text" id="licenseNumber" name="licenseNumber" required />
+            </div>
+            <div class="form-group">
+              <label for="licenseState">State *</label>
+              <input type="text" id="licenseState" name="licenseState" maxlength="2" required />
+            </div>
+            <div class="form-group">
+              <label for="licenseExpiration">Expires</label>
+              <input type="date" id="licenseExpiration" name="licenseExpiration" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Practice Location</legend>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label for="practiceAddress">Address *</label>
+              <input type="text" id="practiceAddress" name="practiceAddress" required />
+            </div>
+            <div class="form-group">
+              <label for="practiceCity">City *</label>
+              <input type="text" id="practiceCity" name="practiceCity" required />
+            </div>
+            <div class="form-group">
+              <label for="practiceState">State *</label>
+              <input type="text" id="practiceState" name="practiceState" maxlength="2" required />
+            </div>
+            <div class="form-group">
+              <label for="practiceZip">ZIP *</label>
+              <input type="text" id="practiceZip" name="practiceZip" required />
+            </div>
+            <div class="form-group">
+              <label for="practicePhone">Phone</label>
+              <input type="tel" id="practicePhone" name="practicePhone" />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Specialty</legend>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label for="specialty">Primary Specialty</label>
+              <input type="text" id="specialty" name="specialty" />
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="submit-button">Submit Enrollment</button>
+          <button type="button" class="btn-secondary">Save as Draft</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

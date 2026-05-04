@@ -36,6 +36,10 @@ interface AgentWorkflowPanelProps {
   payerId?: string;
   providerName: string;
   payerName: string;
+  /** When set, shows a second "Run Availity Demo" button that launches a
+   * `submit_to_availity_demo` workflow against the seeded mock-Availity portal.
+   * Only set this in dev/demo environments — gated by the parent. */
+  demoAvailityPayerId?: string;
 }
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
@@ -196,6 +200,7 @@ export default function AgentWorkflowPanel({
   payerId,
   providerName,
   payerName,
+  demoAvailityPayerId,
 }: AgentWorkflowPanelProps) {
   const validProvider = isUuid(providerId);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
@@ -231,6 +236,20 @@ export default function AgentWorkflowPanel({
       goal: 'populate_forms',
       providerId,
       payerId,
+      enrollmentId,
+    }).then((response) => {
+      setSelectedWorkflowId(response.data.id);
+    });
+  };
+
+  const handleLaunchAvailityDemo = () => {
+    if (!demoAvailityPayerId) return;
+    // Scripted submit_to_availity_demo flow — narrate → dispatch portal task → narrate result.
+    // The portal worker drives Puppeteer against the local mock-availity portal.
+    launchWorkflow.mutateAsync({
+      goal: 'submit_to_availity_demo',
+      providerId,
+      payerId: demoAvailityPayerId,
       enrollmentId,
     }).then((response) => {
       setSelectedWorkflowId(response.data.id);
@@ -281,14 +300,27 @@ export default function AgentWorkflowPanel({
             <span className="font-medium">{providerName}</span> with{' '}
             <span className="font-medium">{payerName}</span>. The agent narrates each step and produces a downloadable filled PDF.
           </p>
-          <button
-            onClick={handleLaunch}
-            disabled={launchWorkflow.isPending}
-            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-          >
-            <SparklesIcon className="h-5 w-5 mr-2" />
-            {launchWorkflow.isPending ? 'Launching...' : 'Launch Agent'}
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              onClick={handleLaunch}
+              disabled={launchWorkflow.isPending}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+            >
+              <SparklesIcon className="h-5 w-5 mr-2" />
+              {launchWorkflow.isPending ? 'Launching...' : 'Launch Agent'}
+            </button>
+            {demoAvailityPayerId && (
+              <button
+                onClick={handleLaunchAvailityDemo}
+                disabled={launchWorkflow.isPending}
+                className="inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50"
+                title="Drives a Puppeteer browser through a local mock-Availity portal."
+              >
+                <SparklesIcon className="h-5 w-5 mr-2" />
+                Run Availity Demo
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -306,14 +338,27 @@ export default function AgentWorkflowPanel({
         </h2>
         <div className="flex items-center gap-2">
           {detail && TERMINAL_STATUSES.includes(detail.status) && (
-            <button
-              onClick={handleLaunch}
-              disabled={launchWorkflow.isPending}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50"
-            >
-              <SparklesIcon className="h-4 w-4 mr-1.5" />
-              {launchWorkflow.isPending ? 'Launching...' : 'Run Again'}
-            </button>
+            <>
+              <button
+                onClick={handleLaunch}
+                disabled={launchWorkflow.isPending}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50"
+              >
+                <SparklesIcon className="h-4 w-4 mr-1.5" />
+                {launchWorkflow.isPending ? 'Launching...' : 'Run Again'}
+              </button>
+              {demoAvailityPayerId && (
+                <button
+                  onClick={handleLaunchAvailityDemo}
+                  disabled={launchWorkflow.isPending}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-50"
+                  title="Drives a Puppeteer browser through a local mock-Availity portal."
+                >
+                  <SparklesIcon className="h-4 w-4 mr-1.5" />
+                  Availity Demo
+                </button>
+              )}
+            </>
           )}
           {detail && !TERMINAL_STATUSES.includes(detail.status) && (
             <>
