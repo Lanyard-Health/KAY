@@ -1,0 +1,8 @@
+{
+  "messageId": "fixture-availity-denial-001",
+  "from": "credentialing-noreply@availity-demo.com",
+  "to": "credentialing@lanyardhealth.com",
+  "subject": "Action Required: Provider Enrollment Application Update",
+  "receivedAt": "2026-05-04T14:32:00Z",
+  "body": "Dear Credentialing Team,\n\nWe have completed the initial review of the provider enrollment application submitted on behalf of:\n\nProvider Name: Demo CAQH-Provider\nNPI: 9999999991\nApplication Reference: AVL-DEMO-2026-8442\n\nUnfortunately, the application could not be approved at this time. Our credentialing committee has identified the following deficiency:\n\nThe attached signature page (Form 3.2 — Practitioner Acknowledgement) was missing the practitioner's wet-ink or eSignature on the line indicated by the highlighted X. We require a signed copy before we can advance the application to network-effective status.\n\nPlease resubmit the corrected form within 30 days of this notice via the Availity portal. Once received, your application will return to the active review queue.\n\nIf you have any questions, please contact us at credentialing@availity-demo.com.\n\nRegards,\nAvaility (DEMO) Provider Credentialing Team"
+}
