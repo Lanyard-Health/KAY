@@ -24,7 +24,12 @@ export interface AgentTask {
   status: TaskStatus;
   input: Record<string, unknown>;
   output: Record<string, unknown> | null;
-  error: string | null;
+  /**
+   * Per-agent error payload. Each agent writes its own shape — usually
+   * `{ message: string }` (portal/document/exception), sometimes a string
+   * (older paths). Render via `formatTaskError()` to handle both.
+   */
+  error: string | { message?: string } | Record<string, unknown> | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;

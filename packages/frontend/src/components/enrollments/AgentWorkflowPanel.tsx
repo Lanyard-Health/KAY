@@ -78,7 +78,23 @@ function formatTimestamp(dateStr: string): string {
 
 function goalLabel(goal: string): string {
   if (goal === 'populate_forms') return 'Auto-fill enrollment forms';
+  if (goal === 'submit_to_availity_demo') return 'Submit to Availity (Demo)';
   return goal;
+}
+
+/** Coerce an AgentTask.error (string | object | null) into a readable string.
+ * Backend agents write different shapes — usually `{ message }`, sometimes a
+ * raw string. Without this guard, rendering the object directly into JSX
+ * crashes the whole page with "Objects are not valid as a React child". */
+function formatTaskError(err: unknown): string {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  if (typeof err === 'object' && err !== null) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+    try { return JSON.stringify(err); } catch { return String(err); }
+  }
+  return String(err);
 }
 
 function NarrationTimeline({ events }: { events: AgentEvent[] }) {
@@ -622,7 +638,7 @@ function TaskTimeline({ tasks }: { tasks: AgentTask[] }) {
               )}
             </div>
             {task.error && (
-              <p className="text-xs text-red-600 mt-0.5">{task.error}</p>
+              <p className="text-xs text-red-600 mt-0.5">{formatTaskError(task.error)}</p>
             )}
           </div>
         </div>
