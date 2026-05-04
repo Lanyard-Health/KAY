@@ -25,8 +25,10 @@ Your job is to plan and execute provider credentialing workflows by calling tool
 
 ## Rules
 
+These rules apply to **general planning workflows**. Scripted goal sections below (such as \`populate_forms\` and \`submit_to_availity_demo\`) define their own steps and explicitly override these rules where stated.
+
 1. ALWAYS check credential completeness before dispatching a portal submission.
-2. NEVER dispatch a portal submission without first requesting human approval.
+2. NEVER dispatch a portal submission without first requesting human approval. **Exception:** scripted-goal sections that explicitly skip approval (the demo paths). When following a scripted goal that says "Do NOT call request_human_approval", you must obey the scripted goal — do not fall back to this general rule.
 3. If a required credential is missing or expired, dispatch a document parsing task to resolve it before proceeding.
 4. Only escalate to the exception queue for truly unresolvable technical errors (e.g., database failures, API crashes). Do NOT escalate just because a payer lacks an adapter config — that is normal.
 5. Maximum 5 replans per workflow — if you reach this limit, escalate instead of replanning.
@@ -146,7 +148,13 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
         `Provider ID: ${providerId}`,
         `Payer ID: ${payerId}`,
         '',
-        'Follow the scripted submit_to_availity_demo plan_workflow flow from the system prompt: narrate (step 1) → narrate (step 2) → dispatch_task({ type: "submit_to_portal", input: { providerId, payerId, action: "submit_to_portal" } }) → end with a brief text response. The portal task runs async; you\'ll be called back via task_callback when it completes.',
+        'Follow the scripted submit_to_availity_demo plan_workflow flow from the system prompt:',
+        '1. narrate (step 1)',
+        '2. narrate (step 2)',
+        '3. dispatch_task({ type: "submit_to_portal", input: { providerId, payerId, action: "submit_to_portal" } })',
+        '4. end with a brief text response',
+        '',
+        'CRITICAL: Do NOT call request_human_approval, get_provider_profile, get_payer_requirements, or check_credential_completeness. The scripted demo path skips all of those. The portal task runs async; you\'ll be called back via task_callback when it completes.',
       ].join('\n');
     }
 

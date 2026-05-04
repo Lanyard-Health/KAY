@@ -184,11 +184,39 @@ export class AvailityAdapter implements PayerAdapter {
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu',
+          // Suppress Chrome's "Save password?" / autofill / translate bubbles
+          // that block the demo flow when running headed.
+          '--disable-features=PasswordManagerOnboarding,PasswordCheck,Translate,AutofillServerCommunication,SafeBrowsingEnhancedProtection',
+          '--disable-save-password-bubble',
+          '--disable-translate',
+          '--password-store=basic',
+          '--use-mock-keychain',
+          '--no-default-browser-check',
+          '--no-first-run',
         ],
+        defaultViewport: null,
       });
+
+      // Belt-and-suspenders: clear any permissions the Chrome profile may
+      // have inherited; cuts off password-manager / autofill prompts the
+      // launch flags don't always suppress on certain Chrome builds.
+      try {
+        const context = browser.defaultBrowserContext();
+        await context.clearPermissionOverrides?.();
+      } catch { /* swallow */ }
 
       const page: Page = await browser.newPage();
       await page.setViewport({ width: 1366, height: 820 });
+
+      // Defensive: auto-dismiss any browser-level dialogs (alert/confirm/prompt)
+      // so an unexpected popup never hangs the demo.
+      page.on('dialog', async (dialog) => {
+        logger.info('Auto-dismissing browser dialog during Availity demo', {
+          type: dialog.type(),
+          message: dialog.message(),
+        });
+        try { await dialog.dismiss(); } catch { /* swallow */ }
+      });
 
       // Step 1 — login
       await page.goto(`${MOCK_AVAILITY_BASE_URL}/login.html`, {

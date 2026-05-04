@@ -29,14 +29,14 @@
       <div class="brand-name">Availity</div>
     </div>
     <h1>Sign in to Availity Essentials</h1>
-    <form action="/mock-availity/dashboard.html" method="get">
+    <form action="/mock-availity/dashboard.html" method="get" autocomplete="off">
       <div class="form-group">
         <label for="username">User ID</label>
-        <input type="text" id="username" name="username" required autocomplete="username" />
+        <input type="text" id="username" name="username" required autocomplete="off" />
       </div>
       <div class="form-group">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password" required autocomplete="current-password" />
+        <input type="password" id="password" name="password" required autocomplete="new-password" />
       </div>
       <button type="submit" id="login-button">Sign in</button>
     </form>
