@@ -140,4 +140,23 @@ export const ORCHESTRATOR_TOOLS: Anthropic.Tool[] = [
       required: ['enrollmentId'],
     },
   },
+  {
+    name: 'search_knowledge_base',
+    description:
+      'Semantic search over the credentialing knowledge base — payer tracks, timelines, state rules, forms, requirements, and universal requirements. Use this to look up payer-specific timelines, state-level rules (e.g., "does Texas require fingerprinting?"), required forms, or general credentialing standards before deciding next steps. Returns ranked results with similarity scores. Prefer specific natural-language questions over keyword lists ("Aetna Texas Medicaid initial credentialing timeline" beats "Aetna timeline TX").',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'A specific natural-language question or topic. Be specific about payer, state, and what aspect (timeline, requirements, forms, etc.).',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Max number of results to return (default 5, max 20). Lower is better when the question is narrow.',
+        },
+      },
+      required: ['query'],
+    },
+  },
 ];
