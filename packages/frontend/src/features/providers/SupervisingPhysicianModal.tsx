@@ -2,8 +2,10 @@ import { Fragment, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useForm } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useCreateSupervisingPhysician, useUpdateSupervisingPhysician } from '../../hooks/usePayerEnrollmentData';
+import { api } from '../../services/api';
 
 interface SupervisingPhysicianFormData {
   supervisorFirstName: string;
@@ -21,6 +23,8 @@ interface SupervisingPhysicianFormData {
   stateRequirement: string;
   isPrimary: boolean;
   notes: string;
+  practiceLocationId: string;
+  department: string;
 }
 
 interface SupervisingPhysicianModalProps {
@@ -76,8 +80,22 @@ export default function SupervisingPhysicianModal({
       stateRequirement: '',
       isPrimary: false,
       notes: '',
+      practiceLocationId: '',
+      department: '',
     },
   });
+
+  const { data: locationsResponse } = useQuery({
+    queryKey: ['practice-locations', providerId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: Array<{ id: string; locationName: string }> }>(
+        `/practice-locations/provider/${providerId}`,
+      );
+      return res.data;
+    },
+    enabled: isOpen && !!providerId,
+  });
+  const practiceLocations = locationsResponse?.data ?? [];
 
   useEffect(() => {
     if (physician) {
@@ -97,6 +115,8 @@ export default function SupervisingPhysicianModal({
         stateRequirement: physician.stateRequirement || '',
         isPrimary: physician.isPrimary || false,
         notes: physician.notes || '',
+        practiceLocationId: physician.practiceLocationId || '',
+        department: physician.department || '',
       });
     } else {
       reset({
@@ -115,6 +135,8 @@ export default function SupervisingPhysicianModal({
         stateRequirement: '',
         isPrimary: false,
         notes: '',
+        practiceLocationId: '',
+        department: '',
       });
     }
   }, [physician, reset]);
@@ -136,6 +158,8 @@ export default function SupervisingPhysicianModal({
       agreementEndDate: data.agreementEndDate || undefined,
       stateRequirement: data.stateRequirement || undefined,
       notes: data.notes || undefined,
+      practiceLocationId: data.practiceLocationId || undefined,
+      department: data.department || undefined,
     };
 
     if (isEditing) {
@@ -315,6 +339,29 @@ export default function SupervisingPhysicianModal({
                           {...register('supervisorEmail')}
                           className="input"
                           placeholder="email@example.com"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Practice Location + Department */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="label">Practice Location</label>
+                        <select {...register('practiceLocationId')} className="input">
+                          <option value="">— Not linked to a specific location —</option>
+                          {practiceLocations.map((loc) => (
+                            <option key={loc.id} value={loc.id}>
+                              {loc.locationName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Department</label>
+                        <input
+                          {...register('department')}
+                          className="input"
+                          placeholder="e.g. Behavioral Health"
                         />
                       </div>
                     </div>
