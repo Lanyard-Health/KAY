@@ -318,5 +318,17 @@ async function typeIfPresent(page: Page, selector: string, value: string): Promi
   if (!value) return;
   const el = await page.$(selector);
   if (!el) return;
+  // Date inputs reject character-by-character typing. Set the value directly
+  // via the DOM and dispatch the input/change events the form would expect.
+  const inputType = await page.$eval(selector, (node) => (node as HTMLInputElement).type ?? 'text');
+  if (inputType === 'date') {
+    await page.$eval(selector, (node, v) => {
+      const input = node as HTMLInputElement;
+      input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+    return;
+  }
   await page.type(selector, value, { delay: 25 });
 }
