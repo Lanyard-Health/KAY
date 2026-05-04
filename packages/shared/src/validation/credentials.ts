@@ -265,6 +265,8 @@ export const createSupervisingPhysicianSchema = z.object({
   stateRequirement: z.string().max(500).optional(),
   isPrimary: z.boolean().default(false),
   notes: z.string().max(1000).optional(),
+  practiceLocationId: z.string().uuid().optional(),
+  department: z.string().max(200).optional(),
 });
 
 // Malpractice claim validation
