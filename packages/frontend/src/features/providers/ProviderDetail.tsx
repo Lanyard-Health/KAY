@@ -1625,6 +1625,162 @@ export default function ProviderDetail() {
                 <CollapsibleSection title="Additional Demographics">
                   <DemographicsForm providerId={id!} />
                 </CollapsibleSection>
+
+                {/* Malpractice Claims */}
+                <CollapsibleSection
+                  title="Malpractice Claims"
+                  count={malpracticeClaimsList?.length || 0}
+                  onAdd={handleAddMalpracticeClaim}
+                  addLabel="Add"
+                >
+                  {(!malpracticeClaimsList || malpracticeClaimsList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No malpractice claims</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Claims will appear here when recorded</p>
+                      <button onClick={handleAddMalpracticeClaim} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add claim
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {malpracticeClaimsList.map((mc: any) => (
+                        <div key={mc.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-gray-900">
+                                Incident: {mc.dateOfIncident ? format(new Date(mc.dateOfIncident), 'MMM d, yyyy') : 'N/A'}
+                              </p>
+                              <span className={clsx(
+                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                mc.claimStatus === 'DISMISSED' || mc.claimStatus === 'JUDGMENT_FOR_PROVIDER'
+                                  ? 'bg-green-100 text-green-800'
+                                  : mc.claimStatus === 'OPEN' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
+                              )}>{mc.claimStatus?.replace(/_/g, ' ')}</span>
+                              {mc.isLeadDefendant === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
+                                  Lead defendant
+                                </span>
+                              )}
+                              {mc.npdbReported === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700" title="Reported to National Practitioner Data Bank">
+                                  NPDB
+                                </span>
+                              )}
+                              {mc.patientDied === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                                  Patient died
+                                </span>
+                              )}
+                              {mc.source && <SourceBadge source={mc.source} />}
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{mc.description}</p>
+                            {mc.allegationDescription && mc.allegationDescription !== mc.description && (
+                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">Allegation: {mc.allegationDescription}</p>
+                            )}
+                            {mc.patientInjuryDescription && (
+                              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">Injury: {mc.patientInjuryDescription}</p>
+                            )}
+                            {(mc.settlementAmount || mc.judgmentAmount || mc.settlementAmountPaid) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {mc.settlementAmount ? `Settlement: $${Number(mc.settlementAmount).toLocaleString()}` : ''}
+                                {mc.settlementAmountPaid ? ` (paid $${Number(mc.settlementAmountPaid).toLocaleString()})` : ''}
+                                {mc.judgmentAmount ? ` · Judgment: $${Number(mc.judgmentAmount).toLocaleString()}` : ''}
+                              </p>
+                            )}
+                            {(mc.resolutionMethod || mc.dateResolved) && (
+                              <p className="text-xs text-gray-400">
+                                {mc.resolutionMethod && `Resolution: ${mc.resolutionMethod}`}
+                                {mc.resolutionMethod && mc.dateResolved && ' · '}
+                                {mc.dateResolved && `Resolved ${format(new Date(mc.dateResolved), 'MMM d, yyyy')}`}
+                              </p>
+                            )}
+                            {(mc.insuranceCarrier || mc.policyNumber) && (
+                              <p className="text-xs text-gray-400">
+                                {[mc.insuranceCarrier, mc.policyNumber].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                            {(mc.numberOtherCodefendants ?? 0) > 0 && (
+                              <p className="text-xs text-gray-400">{mc.numberOtherCodefendants} other co-defendant{mc.numberOtherCodefendants === 1 ? '' : 's'}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditMalpracticeClaim(mc)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit claim">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete claim">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
+
+                {/* Disclosure Questions */}
+                <CollapsibleSection
+                  title="Disclosure Questions"
+                  count={disclosuresList?.length || 0}
+                  onAdd={handleAddDisclosure}
+                  addLabel="Add"
+                >
+                  {(!disclosuresList || disclosuresList.length === 0) ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
+                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No disclosures recorded</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Disclosure questions will appear here when answered</p>
+                      <button onClick={handleAddDisclosure} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
+                        <PlusIcon className="h-3.5 w-3.5" /> Add disclosure
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {disclosuresList.map((d: any) => (
+                        <div key={d.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-gray-900">{d.category?.replace(/_/g, ' ')}</p>
+                              <span className={clsx(
+                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                d.answer ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                              )}>{d.answer ? 'Yes' : 'No'}</span>
+                              {d.caqhQuestionId && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500" title="CAQH disclosure question ID">
+                                  Q{d.caqhQuestionId}
+                                </span>
+                              )}
+                              {d.source && <SourceBadge source={d.source} />}
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{d.questionText}</p>
+                            {d.answer && d.explanation && (
+                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">Explanation: {d.explanation}</p>
+                            )}
+                            {d.dateOfOccurrence && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Occurred: {format(new Date(d.dateOfOccurrence), 'MMM d, yyyy')}
+                                {d.state && ' · '}
+                                {d.state}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEditDisclosure(d)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit disclosure">
+                              <PencilIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteDisclosure(d.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete disclosure">
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleSection>
               </div>
 
               {/* Sidebar */}
@@ -2093,100 +2249,6 @@ export default function ProviderDetail() {
                   )}
                 </CollapsibleSection>
 
-                {/* Malpractice Claims */}
-                <CollapsibleSection
-                  title="Malpractice Claims"
-                  count={malpracticeClaimsList?.length || 0}
-                  onAdd={handleAddMalpracticeClaim}
-                  addLabel="Add"
-                >
-                  {(!malpracticeClaimsList || malpracticeClaimsList.length === 0) ? (
-                    <div className="text-center py-8">
-                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
-                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-500">No malpractice claims</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Claims will appear here when recorded</p>
-                      <button onClick={handleAddMalpracticeClaim} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
-                        <PlusIcon className="h-3.5 w-3.5" /> Add claim
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {malpracticeClaimsList.map((mc: any) => (
-                        <div key={mc.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-gray-900">
-                                Incident: {mc.dateOfIncident ? format(new Date(mc.dateOfIncident), 'MMM d, yyyy') : 'N/A'}
-                              </p>
-                              <span className={clsx(
-                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
-                                mc.claimStatus === 'DISMISSED' || mc.claimStatus === 'JUDGMENT_FOR_PROVIDER'
-                                  ? 'bg-green-100 text-green-800'
-                                  : mc.claimStatus === 'OPEN' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
-                              )}>{mc.claimStatus?.replace(/_/g, ' ')}</span>
-                              {mc.isLeadDefendant === true && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
-                                  Lead defendant
-                                </span>
-                              )}
-                              {mc.npdbReported === true && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700" title="Reported to National Practitioner Data Bank">
-                                  NPDB
-                                </span>
-                              )}
-                              {mc.patientDied === true && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
-                                  Patient died
-                                </span>
-                              )}
-                              {mc.source && <SourceBadge source={mc.source} />}
-                            </div>
-                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{mc.description}</p>
-                            {mc.allegationDescription && mc.allegationDescription !== mc.description && (
-                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">Allegation: {mc.allegationDescription}</p>
-                            )}
-                            {mc.patientInjuryDescription && (
-                              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">Injury: {mc.patientInjuryDescription}</p>
-                            )}
-                            {(mc.settlementAmount || mc.judgmentAmount || mc.settlementAmountPaid) && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {mc.settlementAmount ? `Settlement: $${Number(mc.settlementAmount).toLocaleString()}` : ''}
-                                {mc.settlementAmountPaid ? ` (paid $${Number(mc.settlementAmountPaid).toLocaleString()})` : ''}
-                                {mc.judgmentAmount ? ` · Judgment: $${Number(mc.judgmentAmount).toLocaleString()}` : ''}
-                              </p>
-                            )}
-                            {(mc.resolutionMethod || mc.dateResolved) && (
-                              <p className="text-xs text-gray-400">
-                                {mc.resolutionMethod && `Resolution: ${mc.resolutionMethod}`}
-                                {mc.resolutionMethod && mc.dateResolved && ' · '}
-                                {mc.dateResolved && `Resolved ${format(new Date(mc.dateResolved), 'MMM d, yyyy')}`}
-                              </p>
-                            )}
-                            {(mc.insuranceCarrier || mc.policyNumber) && (
-                              <p className="text-xs text-gray-400">
-                                {[mc.insuranceCarrier, mc.policyNumber].filter(Boolean).join(' · ')}
-                              </p>
-                            )}
-                            {(mc.numberOtherCodefendants ?? 0) > 0 && (
-                              <p className="text-xs text-gray-400">{mc.numberOtherCodefendants} other co-defendant{mc.numberOtherCodefendants === 1 ? '' : 's'}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEditMalpracticeClaim(mc)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit claim">
-                              <PencilIcon className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => handleDeleteMalpracticeClaim(mc.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete claim">
-                              <TrashIcon className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
-
                 {/* Supervising Physicians */}
                 <CollapsibleSection
                   title="Supervising Physicians"
@@ -2253,67 +2315,6 @@ export default function ProviderDetail() {
                   onAdd={() => { setEditingSupervisingPhysician(null); setSupervisingPhysicianModalOpen(true); }}
                 />
 
-                {/* Disclosure Questions */}
-                <CollapsibleSection
-                  title="Disclosure Questions"
-                  count={disclosuresList?.length || 0}
-                  onAdd={handleAddDisclosure}
-                  addLabel="Add"
-                >
-                  {(!disclosuresList || disclosuresList.length === 0) ? (
-                    <div className="text-center py-8">
-                      <div className="mx-auto h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center mb-3">
-                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <p className="text-sm font-medium text-gray-500">No disclosures recorded</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Disclosure questions will appear here when answered</p>
-                      <button onClick={handleAddDisclosure} className="mt-3 text-sm font-medium text-primary-600 hover:text-primary-500 inline-flex items-center gap-1">
-                        <PlusIcon className="h-3.5 w-3.5" /> Add disclosure
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {disclosuresList.map((d: any) => (
-                        <div key={d.id} className="group flex items-start justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-gray-900">{d.category?.replace(/_/g, ' ')}</p>
-                              <span className={clsx(
-                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
-                                d.answer ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                              )}>{d.answer ? 'Yes' : 'No'}</span>
-                              {d.caqhQuestionId && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500" title="CAQH disclosure question ID">
-                                  Q{d.caqhQuestionId}
-                                </span>
-                              )}
-                              {d.source && <SourceBadge source={d.source} />}
-                            </div>
-                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{d.questionText}</p>
-                            {d.answer && d.explanation && (
-                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">Explanation: {d.explanation}</p>
-                            )}
-                            {d.dateOfOccurrence && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                Occurred: {format(new Date(d.dateOfOccurrence), 'MMM d, yyyy')}
-                                {d.state && ' · '}
-                                {d.state}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEditDisclosure(d)} className="p-1 rounded-md hover:bg-gray-200 text-gray-400 hover:text-primary-600" aria-label="Edit disclosure">
-                              <PencilIcon className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => handleDeleteDisclosure(d.id)} className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600" aria-label="Delete disclosure">
-                              <TrashIcon className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsibleSection>
               </div>
             )}
           </Tab.Panel>
