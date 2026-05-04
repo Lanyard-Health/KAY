@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClockIcon, SparklesIcon, CheckCircleIcon, XCircleIcon, PauseIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
@@ -7,15 +7,21 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useAdminWorkflows } from '../../hooks/useAgentWorkflows';
 import type { WorkflowStatus, AdminWorkflowListItem } from '../../hooks/useAgentWorkflows';
 
-const STATUS_OPTIONS: Array<{ value: WorkflowStatus | ''; label: string }> = [
-  { value: '', label: 'All' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'active', label: 'Active' },
-  { value: 'waiting_approval', label: 'Waiting Approval' },
-  { value: 'paused', label: 'Paused' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'cancelled', label: 'Cancelled' },
+type GroupKey = 'in_flight' | 'completed' | 'failed' | 'cancelled' | 'all';
+
+interface GroupOption {
+  key: GroupKey;
+  label: string;
+  /** Statuses included in this group. Empty array means "all". */
+  statuses: WorkflowStatus[];
+}
+
+const GROUP_OPTIONS: GroupOption[] = [
+  { key: 'in_flight', label: 'In flight', statuses: ['planning', 'active', 'waiting_approval', 'paused'] },
+  { key: 'completed', label: 'Completed', statuses: ['completed'] },
+  { key: 'failed', label: 'Failed', statuses: ['failed'] },
+  { key: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
+  { key: 'all', label: 'All', statuses: [] },
 ];
 
 const STATUS_STYLES: Record<WorkflowStatus, { bg: string; text: string; icon: typeof ClockIcon }> = {
@@ -87,8 +93,30 @@ function WorkflowRow({ wf }: { wf: AdminWorkflowListItem }) {
 }
 
 export default function WorkflowsList() {
-  const [statusFilter, setStatusFilter] = useState<WorkflowStatus | ''>('');
-  const { data: workflows, isLoading } = useAdminWorkflows({ status: statusFilter });
+  const [groupKey, setGroupKey] = useState<GroupKey>('in_flight');
+  const { data: allWorkflows, isLoading } = useAdminWorkflows();
+
+  const group = GROUP_OPTIONS.find((g) => g.key === groupKey)!;
+  const workflows = useMemo(() => {
+    if (!allWorkflows) return [];
+    if (group.statuses.length === 0) return allWorkflows;
+    const allowed = new Set<WorkflowStatus>(group.statuses);
+    return allWorkflows.filter((w) => allowed.has(w.status));
+  }, [allWorkflows, group]);
+
+  // Per-group counts so the chips can show "Failed (3)" etc.
+  const counts = useMemo(() => {
+    const acc: Record<GroupKey, number> = { in_flight: 0, completed: 0, failed: 0, cancelled: 0, all: 0 };
+    if (!allWorkflows) return acc;
+    acc.all = allWorkflows.length;
+    for (const w of allWorkflows) {
+      if (w.status === 'completed') acc.completed += 1;
+      else if (w.status === 'failed') acc.failed += 1;
+      else if (w.status === 'cancelled') acc.cancelled += 1;
+      else acc.in_flight += 1;
+    }
+    return acc;
+  }, [allWorkflows]);
 
   return (
     <PageTransition>
@@ -104,21 +132,27 @@ export default function WorkflowsList() {
           </div>
         </div>
 
-        {/* Status filter chips */}
+        {/* Status group chips — defaults to "In flight" so the page lands on actionable work */}
         <div className="mb-4 flex flex-wrap gap-2">
-          {STATUS_OPTIONS.map((opt) => (
+          {GROUP_OPTIONS.map((opt) => (
             <button
-              key={opt.value || 'all'}
+              key={opt.key}
               type="button"
-              onClick={() => setStatusFilter(opt.value)}
+              onClick={() => setGroupKey(opt.key)}
               className={clsx(
-                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-                statusFilter === opt.value
+                'px-3 py-1.5 rounded-full text-xs font-medium transition-colors inline-flex items-center gap-1.5',
+                groupKey === opt.key
                   ? 'bg-primary-600 text-white'
                   : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
               )}
             >
               {opt.label}
+              <span className={clsx(
+                'inline-flex items-center justify-center min-w-[1.25rem] px-1 rounded-full text-[10px] font-semibold',
+                groupKey === opt.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+              )}>
+                {counts[opt.key]}
+              </span>
             </button>
           ))}
         </div>
@@ -135,10 +169,10 @@ export default function WorkflowsList() {
         ) : !workflows || workflows.length === 0 ? (
           <EmptyState
             illustration="search"
-            title="No workflows yet"
-            description={statusFilter
-              ? `No workflows match the ${statusFilter} filter. Try a different status.`
-              : 'When an AI agent workflow is launched (from a provider or enrollment page), it will appear here.'}
+            title={groupKey === 'in_flight' ? 'No workflows in flight' : 'No workflows match'}
+            description={groupKey === 'in_flight'
+              ? 'No workflows are currently planning, active, waiting on approval, or paused. Switch to "All" or "Completed" to see history.'
+              : `No workflows in the ${group.label} group. Try a different filter.`}
           />
         ) : (
           <div className="card overflow-hidden">

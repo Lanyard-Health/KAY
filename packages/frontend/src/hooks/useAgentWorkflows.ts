@@ -151,9 +151,12 @@ export interface AdminWorkflowsFilters {
 
 /** List ALL workflows (admin/staff scope, no enrollment filter). Used by the
  * /admin/workflows list page. Polls every 10s so live workflows show up
- * without a manual refresh. */
+ * without a manual refresh. The list page does its own client-side
+ * status grouping (in_flight/completed/failed/cancelled), so we don't
+ * pass a status filter through to the backend — keeps the chip switching
+ * instant and avoids re-fetching when the user toggles. */
 export function useAdminWorkflows(filters: AdminWorkflowsFilters = {}) {
-  const { status, limit = 50, offset = 0 } = filters;
+  const { status, limit = 100, offset = 0 } = filters;
   return useQuery<AdminWorkflowListItem[]>({
     queryKey: ['agent-workflows-admin', { status, limit, offset }],
     queryFn: async () => {

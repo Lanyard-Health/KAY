@@ -255,9 +255,41 @@ function ExceptionPanel({ events }: { events: AgentEvent[] }) {
   );
 }
 
+/** Action names that count as "important" — surfaced by default in the event
+ * log so most users see the high-signal stream without 100+ HTTP-poll noise. */
+const IMPORTANT_EVENT_ACTIONS = new Set([
+  'workflow_created',
+  'task_dispatched',
+  'task_completed',
+  'task_failed',
+  'task_callback_enqueued',
+  'narration',
+  'kb_search',
+  'exception_analyzed',
+  'approval_requested',
+  'approval_decided',
+  'approval_auto_denied',
+  'orchestrator_turn_complete',
+  'replan_limit_reached',
+  'token_budget_exceeded',
+  'monitor_stalled',
+  'portal_submission_completed',
+  'portal_job_failed',
+]);
+
+function isImportantEvent(event: AgentEvent): boolean {
+  if (event.level === 'error' || event.level === 'warn') return true;
+  return IMPORTANT_EVENT_ACTIONS.has(event.action);
+}
+
 function EventLog({ events }: { events: AgentEvent[] }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [showAll, setShowAll] = useState(false);
   if (events.length === 0) return null;
+
+  const importantEvents = events.filter(isImportantEvent);
+  const displayed = showAll ? events : importantEvents;
+  const hiddenCount = events.length - importantEvents.length;
 
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -267,42 +299,62 @@ function EventLog({ events }: { events: AgentEvent[] }) {
         className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
       >
         <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-          Event Log ({events.length})
+          Event log ({displayed.length}{hiddenCount > 0 && !showAll ? ` of ${events.length}` : ''})
         </span>
         <ChevronDownIcon className={clsx('h-4 w-4 text-gray-500 transition-transform', expanded && 'rotate-180')} />
       </button>
       {expanded && (
-        <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
-          {events.map((event) => {
-            const ts = event.timestamp || event.createdAt;
-            const narrationMessage =
-              event.action === 'narration' && typeof (event.data as { message?: unknown })?.message === 'string'
-                ? ((event.data as { message: string }).message)
-                : null;
-            return (
-              <div key={event.id} className="px-3 py-2 text-xs flex items-start gap-2">
-                <span className="text-gray-400 shrink-0 font-mono w-20">{formatTimestamp(ts)}</span>
-                <span className={clsx(
-                  'shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
-                  event.level === 'error' ? 'bg-red-100 text-red-700'
-                  : event.level === 'warn' ? 'bg-amber-100 text-amber-700'
-                  : 'bg-gray-100 text-gray-600',
-                )}>
-                  {event.level}
-                </span>
-                {event.agent && <span className="text-gray-500 shrink-0">[{event.agent}]</span>}
-                <span className="text-gray-700">
-                  {event.action}
-                  {narrationMessage ? ` — ${narrationMessage}` : ''}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          {hiddenCount > 0 && (
+            <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+              <span className="text-[11px] text-gray-500">
+                {showAll
+                  ? `Showing all ${events.length} events`
+                  : `Hiding ${hiddenCount} routine event${hiddenCount === 1 ? '' : 's'} (HTTP polls, low-signal logs)`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAll(!showAll)}
+                className="text-[11px] font-medium text-primary-600 hover:text-primary-700"
+              >
+                {showAll ? 'Show only important' : 'Show all events'}
+              </button>
+            </div>
+          )}
+          <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
+            {displayed.map((event) => {
+              const ts = event.timestamp || event.createdAt;
+              const narrationMessage =
+                event.action === 'narration' && typeof (event.data as { message?: unknown })?.message === 'string'
+                  ? ((event.data as { message: string }).message)
+                  : null;
+              return (
+                <div key={event.id} className="px-3 py-2 text-xs flex items-start gap-2">
+                  <span className="text-gray-400 shrink-0 font-mono w-20">{formatTimestamp(ts)}</span>
+                  <span className={clsx(
+                    'shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                    event.level === 'error' ? 'bg-red-100 text-red-700'
+                    : event.level === 'warn' ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-600',
+                  )}>
+                    {event.level}
+                  </span>
+                  {event.agent && <span className="text-gray-500 shrink-0">[{event.agent}]</span>}
+                  <span className="text-gray-700">
+                    {event.action}
+                    {narrationMessage ? ` — ${narrationMessage}` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
 }
+
+type DetailTab = 'overview' | 'tasks' | 'events';
 
 export default function WorkflowDetail() {
   const { id } = useParams<{ id: string }>();
@@ -310,6 +362,7 @@ export default function WorkflowDetail() {
   const { data: events = [] } = useWorkflowEvents(id ?? null, detail?.status);
   const cancelWorkflow = useCancelWorkflow();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
   // Live updates while running
   useWorkflowSocket(id ?? null);
@@ -435,32 +488,76 @@ export default function WorkflowDetail() {
           )}
         </div>
 
-        {/* Exception analysis (Gap E) */}
-        <ExceptionPanel events={events} />
+        {/* Tab bar */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex gap-6" aria-label="Workflow sections">
+            {([
+              { key: 'overview' as const, label: 'Overview' },
+              { key: 'tasks' as const, label: `Tasks (${detail.tasks.length})` },
+              { key: 'events' as const, label: `Events (${events.length})` },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={clsx(
+                  'whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium transition-colors',
+                  activeTab === tab.key
+                    ? 'border-primary-500 text-primary-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-        {/* Live narration */}
-        {events.length > 0 && events.some(isNarrationEvent) && <NarrationTimeline events={events} />}
+        {/* Tab content */}
+        {activeTab === 'overview' && (
+          <div className="space-y-4">
+            {/* Pending approvals — surface at top of overview since it's the action item */}
+            {detail.approvals.some((a) => a.status === 'pending') && (
+              <div className="card card-body bg-amber-50 border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />
+                  <p className="text-sm font-medium text-amber-900">
+                    This workflow is waiting on human approval.
+                  </p>
+                </div>
+                <Link to="/workflow-queue" className="mt-2 inline-block text-xs font-medium text-amber-700 hover:text-amber-900">
+                  Decide in the Workflow Queue →
+                </Link>
+              </div>
+            )}
 
-        {/* Tasks */}
-        <TaskTimeline tasks={detail.tasks} />
+            {/* Exception analysis (Gap E) */}
+            <ExceptionPanel events={events} />
 
-        {/* Pending approvals — link out to workflow queue, since decision UI lives there */}
-        {detail.approvals.some((a) => a.status === 'pending') && (
-          <div className="card card-body bg-amber-50 border border-amber-200">
-            <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />
-              <p className="text-sm font-medium text-amber-900">
-                This workflow is waiting on human approval.
-              </p>
-            </div>
-            <Link to="/workflow-queue" className="mt-2 inline-block text-xs font-medium text-amber-700 hover:text-amber-900">
-              Decide in the Workflow Queue →
-            </Link>
+            {/* Live narration */}
+            {events.length > 0 && events.some(isNarrationEvent) ? (
+              <NarrationTimeline events={events} />
+            ) : (
+              <div className="card card-body text-center py-8 text-sm text-gray-500">
+                No agent narration yet. Narration appears here as the agent reports progress.
+              </div>
+            )}
           </div>
         )}
 
-        {/* Event log (collapsible) */}
-        <EventLog events={events} />
+        {activeTab === 'tasks' && (
+          <div>
+            {detail.tasks.length === 0 ? (
+              <div className="card card-body text-center py-8 text-sm text-gray-500">
+                No tasks dispatched yet.
+              </div>
+            ) : (
+              <TaskTimeline tasks={detail.tasks} />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'events' && <EventLog events={events} />}
       </div>
     </PageTransition>
   );
