@@ -1,0 +1,8 @@
+{
+  "messageId": "fixture-availity-info-needed-001",
+  "from": "credentialing-noreply@availity-demo.com",
+  "to": "credentialing@lanyardhealth.com",
+  "subject": "Additional Information Requested — Pending Application",
+  "receivedAt": "2026-05-04T16:05:00Z",
+  "body": "Hi,\n\nWe are reviewing the credentialing application for the provider listed below and require additional documentation before we can proceed.\n\nProvider: Demo CAQH-Provider\nNPI: 9999999991\nApplication Reference: AVL-DEMO-2026-8442\n\nMissing items:\n  1. Current malpractice insurance certificate of coverage (the previously submitted document expired during our review window).\n  2. Verification of the most recent state license renewal (we are unable to confirm via our automated NPDB lookup).\n\nPlease upload both items via the Availity portal. The application will remain on hold pending receipt; if we have not received the requested items within 45 days, the application will be administratively closed and the provider will need to reapply.\n\nThanks,\nAvaility (DEMO) Credentialing Operations"
+}

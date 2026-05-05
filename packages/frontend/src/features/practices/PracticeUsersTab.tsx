@@ -162,8 +162,14 @@ export default function PracticeUsersTab({ practiceId }: PracticeUsersTabProps) 
         onClose={() => setCreateUserModalOpen(false)}
         onCreated={(created) => {
           if (created?.id) {
+            // Derive practice-scope role from the system role chosen in the
+            // user form. A system-level `admin` or `practice_admin` should
+            // get PRACTICE_ADMIN permissions on this practice; everyone else
+            // (credentialing_staff, provider) gets PRACTICE_STAFF.
+            const isPracticeAdmin = created.role === 'admin' || created.role === 'practice_admin';
+            const practiceRole = isPracticeAdmin ? 'PRACTICE_ADMIN' : 'PRACTICE_STAFF';
             assignUserMutation.mutate(
-              { practiceId, userId: created.id, role: 'PRACTICE_STAFF' },
+              { practiceId, userId: created.id, role: practiceRole },
               {
                 onSuccess: () => toast.success('User created and assigned to practice'),
                 onError: () => toast.success('User created (assign to practice manually)'),

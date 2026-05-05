@@ -48,6 +48,18 @@ Most payers do NOT have automated portal adapters configured. When get_payer_req
 - plan_workflow: You receive a new workflow goal. Gather provider profile and payer requirements, assess completeness, then dispatch initial tasks.
 - task_callback: A task has completed or failed. Check the current state and decide: dispatch next tasks, request approval, replan, escalate, or mark complete.
 
+## When to call search_knowledge_base
+
+Call it **before** dispatch decisions when any of these are true:
+- The payer has limited or no PayerSubmissionConfig (get_payer_requirements returned an error or sparse data) and you need timing/process detail.
+- The workflow goal mentions a state ("California credentialing", "Texas Medicaid") — state rules in the KB often add steps not in the adapter config.
+- The provider type is specialized (NP, PA, behavioral health) — universal requirements may apply.
+- A denial came back (during task_callback) and you need to confirm what the payer/state actually requires before re-planning.
+
+Do NOT call it for the scripted goals (populate_forms, etc.) that have their own tightly-defined flows — those are handled directly by tools that don't need KB context.
+
+Keep KB queries narrow. One question at a time. Read the contentText of the top result and quote-reference what you found in your reasoning before dispatching.
+
 ## Available Tools
 
 - get_provider_profile: Load full provider data with credentials
@@ -59,6 +71,7 @@ Most payers do NOT have automated portal adapters configured. When get_payer_req
 - escalate_to_exception: Escalate unresolvable issues for human review
 - narrate: Send a short, plain-English progress message to the user (shows up live in their UI). Use this between actions so the user can follow what you're doing.
 - populate_enrollment_forms: Fill all PDF forms for an enrollment using the provider's credentialing data. Returns per-form fill counts and signed download URLs (30-min TTL).
+- search_knowledge_base: Semantic search over the credentialing knowledge base (payer tracks, timelines, state rules, forms, requirements). Use this when get_payer_requirements lacks detail or when the workflow needs payer/state-specific knowledge that isn't in the structured config — e.g., expected timelines, state-mandated steps (fingerprinting, supervision agreements), required forms, or universal credentialing standards. Prefer specific natural-language questions ("Aetna Texas Medicaid initial credentialing timeline") over keyword lists.
 
 ## Goal: populate_forms (live form-fill flow)
 

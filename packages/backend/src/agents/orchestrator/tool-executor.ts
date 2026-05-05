@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { getQueue, QUEUE_NAMES } from '../queues.js';
 import { logAgentEvent } from '../event-logger.js';
 import { runPdfFill } from '../../services/form-fill/pdf-fill-runner.js';
+import { searchSimilarWithSources, isConfigured as isEmbeddingConfigured } from '../../services/knowledgeBase.embedding.service.js';
 
 // Signed-URL TTL for filled-PDF download links surfaced via narrate(). 30 min
 // is plenty for a demo turn and short enough that links don't leak in logs.
@@ -479,6 +480,69 @@ async function populateEnrollmentForms(
 }
 
 // ==========================================
+// search_knowledge_base — semantic lookup over PayerTrack / Timeline / StateRule / Form / Requirement / RequirementUniversal
+// ==========================================
+
+interface KbSearchResult {
+  contentText: string;
+  similarity: number;
+  sourceType: string;
+  source: Record<string, unknown> | null;
+}
+
+async function searchKnowledgeBase(
+  input: { query: string; limit?: number },
+  ctx: ToolContext,
+): Promise<{ results: KbSearchResult[] } | { error: string }> {
+  const query = (input.query ?? '').trim();
+  if (!query) {
+    return { error: 'search_knowledge_base requires a non-empty query' };
+  }
+  if (!isEmbeddingConfigured()) {
+    return { error: 'Knowledge base search is unavailable (OPENAI_API_KEY not configured).' };
+  }
+
+  const limit = Math.max(1, Math.min(20, input.limit ?? 5));
+
+  try {
+    const raw = await searchSimilarWithSources(query, limit);
+    const results: KbSearchResult[] = raw.map((r) => {
+      let sourceType = 'unknown';
+      if (r.payerTrackId && !r.payerRequirementId && !r.payerStateRuleId && !r.payerTimelineId && !r.payerFormId) {
+        sourceType = 'PayerTrack';
+      } else if (r.payerRequirementId) sourceType = 'PayerRequirement';
+      else if (r.payerStateRuleId) sourceType = 'PayerStateRule';
+      else if (r.payerTimelineId) sourceType = 'PayerTimeline';
+      else if (r.payerFormId) sourceType = 'PayerForm';
+      else if (r.requirementUniversalId) sourceType = 'RequirementUniversal';
+
+      return {
+        contentText: r.contentText,
+        similarity: Math.round(r.similarity * 1000) / 1000,
+        sourceType,
+        source: r.source,
+      };
+    });
+
+    await logAgentEvent({
+      workflowId: ctx.workflowId,
+      agent: 'orchestrator',
+      action: 'kb_search',
+      data: { query, limit, resultCount: results.length },
+    });
+
+    return { results };
+  } catch (err) {
+    logger.warn('Knowledge base search failed', {
+      workflowId: ctx.workflowId,
+      query,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { error: `Knowledge base search failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+// ==========================================
 // Dispatcher
 // ==========================================
 
@@ -507,6 +571,8 @@ export async function executeToolCall(
         return await narrate(input as { message: string; step?: number; downloadUrl?: string }, context);
       case 'populate_enrollment_forms':
         return await populateEnrollmentForms(input as { enrollmentId: string }, context);
+      case 'search_knowledge_base':
+        return await searchKnowledgeBase(input as { query: string; limit?: number }, context);
       default:
         return { error: `Unknown tool: ${name}` };
     }

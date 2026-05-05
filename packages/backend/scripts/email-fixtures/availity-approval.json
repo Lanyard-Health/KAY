@@ -1,0 +1,8 @@
+{
+  "messageId": "fixture-availity-approval-001",
+  "from": "credentialing-noreply@availity-demo.com",
+  "to": "credentialing@lanyardhealth.com",
+  "subject": "Welcome — Your Provider is Now In-Network",
+  "receivedAt": "2026-05-04T15:18:00Z",
+  "body": "Hello,\n\nGreat news. We are pleased to confirm that the following provider has been credentialed and is now in-network with Availity (DEMO):\n\nProvider: Demo CAQH-Provider\nNPI: 9999999991\nProvider Number: AVL-PRV-3318274\nNetwork Effective Date: June 1, 2026\n\nThe provider may begin seeing covered members on the effective date listed above. Please ensure billing systems and patient-facing scheduling tools reflect the new in-network status.\n\nAttached is the welcome packet (PDF) with rate schedules, claim filing instructions, and contact info for ongoing provider relations support.\n\nThank you for partnering with us.\n\nAvaility (DEMO) Provider Network Operations"
+}
