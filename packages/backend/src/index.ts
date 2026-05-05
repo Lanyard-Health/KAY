@@ -73,6 +73,7 @@ import clinicalProfileRoutes from './routes/clinicalProfile.routes.js';
 import practiceSettingsRoutes from './routes/practiceSettings.routes.js';
 import emailTemplateRoutes, { emailLogRouter } from './routes/emailTemplate.routes.js';
 import emailTemplateReadRoutes from './routes/emailTemplateRead.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
@@ -146,6 +147,11 @@ const limiter = rateLimit({
 if (process.env['NODE_ENV'] === 'production') {
   app.use('/api', limiter);
 }
+
+// Webhook routes — MUST be mounted BEFORE express.json() so the raw body
+// is available for HMAC signature verification. Each webhook route uses
+// express.raw() locally to capture its own body bytes.
+app.use('/api/v1/webhooks', webhookRoutes);
 
 // Body parsing and compression
 app.use(express.json({ limit: '1mb' }));
