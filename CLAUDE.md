@@ -180,6 +180,18 @@ A non-zero count = pipeline is working.
 
 ## Conventions and Rules
 
+### Architectural Rules
+
+The following rules are platform-wide architectural laws. Every PR must comply. Violations fail review.
+
+1. **API-FIRST FEATURE PARITY**: Every UI feature ships in the API before (or with) the UI. No UI route may exist without a corresponding API endpoint exposing equivalent capability. PRs adding UI-only features are rejected. Internal agents and any future external API consumers depend on this — UI-only features create silent capability gaps.
+
+2. **OPENAPI SPEC IS THE CONTRACT**: The OpenAPI 3.1 spec at `packages/backend/openapi.json` is the source of truth for the API surface. Spec is regenerated from route handlers in CI. Drift between handlers and spec fails the build. Treat the OpenAPI spec like a Prisma migration — schema changes require spec updates.
+
+3. **API QUALITY TARGETS**: Read endpoints p95 latency < 500ms. Write endpoints p95 latency < 2s. Uptime target 99.9% (publicly attested post-SOC 2). Coverage rule: every supported payer × provider type × state combination must respond — no silent "not supported" 404s. Latency budgets monitored in Sentry; budget violations open a P2 issue automatically.
+
+These rules apply to all existing agents (orchestrator, document, portal, monitor, exception, approval) and all future agents (maintenance, inbox, etc.). They are no-regret investments that compound toward both partial inversion (current focus) and full inversion (future state per `full-inversion-roadmap.md`) paths.
+
 ### Mandatory Security Rules
 
 1. **SECRETS SCAN**: Check for hardcoded API keys — move to env vars
