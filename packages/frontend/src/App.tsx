@@ -53,6 +53,8 @@ const EmailTemplates = lazy(() => import('./features/admin/EmailTemplates'));
 const EmailTemplateDetail = lazy(() => import('./features/admin/EmailTemplateDetail'));
 const CustomerCommunications = lazy(() => import('./features/admin/CustomerCommunications'));
 const WorkflowQueue = lazy(() => import('./features/workflow-queue/WorkflowQueue'));
+const WorkflowsList = lazy(() => import('./features/admin/WorkflowsList'));
+const WorkflowDetail = lazy(() => import('./features/admin/WorkflowDetail'));
 const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'));
 const Settings = lazy(() => import('./features/settings/Settings'));
@@ -177,6 +179,8 @@ export default function App() {
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />
           <Route path="workflow-queue" element={<AdminOnlyRoute><WorkflowQueue /></AdminOnlyRoute>} />
+          <Route path="admin/workflows" element={<AdminOnlyRoute><WorkflowsList /></AdminOnlyRoute>} />
+          <Route path="admin/workflows/:id" element={<AdminOnlyRoute><WorkflowDetail /></AdminOnlyRoute>} />
           <Route path="denials" element={<AdminOnlyRoute><DenialsList /></AdminOnlyRoute>} />
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<AdminOnlyRoute><RosterPage /></AdminOnlyRoute>} />

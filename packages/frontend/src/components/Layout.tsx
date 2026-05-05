@@ -69,6 +69,7 @@ const adminNavGroups: NavGroup[] = [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
       { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
       { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
+      { name: 'Agent Workflows', href: '/admin/workflows', icon: SparklesIcon },
       { name: 'Follow-Up', href: '/follow-up', icon: EnvelopeIcon },
       { name: 'Denials', href: '/denials', icon: ShieldExclamationIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
