@@ -119,8 +119,15 @@ const MAPPERS: Record<string, FieldMapper> = {
     const mapped: Record<string, unknown> = {};
     const knownFields = ['deaNumber', 'schedules', 'state', 'issueDate', 'expirationDate', 'holderName'];
 
-    if (fields['deaNumber']) mapped['licenseNumber'] = fields['deaNumber'].value;
+    if (fields['deaNumber']) mapped['deaNumber'] = fields['deaNumber'].value;
     if (fields['state']) mapped['state'] = normalizeState(fields['state'].value);
+    if (fields['schedules']) {
+      // Schedules can come back as "II, III, IV" or "II/III/IV" — split on common separators
+      mapped['schedules'] = fields['schedules'].value
+        .split(/[,/|;]\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     if (fields['issueDate']) {
       const d = parseDate(fields['issueDate'].value);
       if (d) mapped['issueDate'] = d;

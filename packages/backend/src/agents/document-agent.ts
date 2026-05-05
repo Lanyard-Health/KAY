@@ -1,5 +1,5 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import type { LicenseType, Prisma } from '@prisma/client';
+import type { DegreeType, LicenseType, Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
@@ -9,6 +9,7 @@ import { extractWithVision } from './extractors/vision-extractor.js';
 import { classifyDocumentType } from './document-classifier.js';
 import { mapToCredential } from './credential-mapper.js';
 import { notifyTaskCompletion } from './coordinator.service.js';
+import { encryptSafe } from '../utils/crypto.js';
 
 const CONFIDENCE_THRESHOLD = 0.90;
 
@@ -76,6 +77,28 @@ function redactPhiFromFields(fields: Record<string, unknown>): Record<string, un
   return redacted;
 }
 
+/** Normalize a free-form degree string (e.g. "M.D.", "Doctor of Medicine",
+ * "MD") to one of the DegreeType enum values. Defaults to 'other' for any
+ * value we can't confidently match — better to land in the right table with
+ * a fuzzy degree than reject the whole document. */
+function normalizeDegree(input: string | undefined): DegreeType {
+  if (!input) return 'other';
+  const cleaned = input.toLowerCase().replace(/[^a-z]/g, '');
+  if (cleaned.includes('doctorofmedicine') || cleaned === 'md') return 'md';
+  if (cleaned.includes('doctorofosteopath') || cleaned === 'do') return 'do';
+  if (cleaned === 'phd' || cleaned.includes('doctorofphilosophy')) return 'phd';
+  if (cleaned === 'psyd' || cleaned.includes('doctorofpsychology')) return 'psyd';
+  if (cleaned === 'msw' || cleaned.includes('masterofsocialwork')) return 'msw';
+  if (cleaned === 'dnp' || cleaned.includes('doctorofnursing')) return 'dnp';
+  if (cleaned === 'msn' || cleaned.includes('masterofscienceinnursing')) return 'msn';
+  if (cleaned === 'med' || cleaned.includes('masterofeducation')) return 'med';
+  if (cleaned === 'ma' || cleaned.includes('masterofarts')) return 'ma';
+  if (cleaned === 'ms' || cleaned.includes('masterofscience')) return 'ms';
+  if (cleaned === 'bs' || cleaned.includes('bachelorofscience')) return 'bs';
+  if (cleaned === 'ba' || cleaned.includes('bachelorofarts')) return 'ba';
+  return 'other';
+}
+
 // Map document type to Prisma model for credential creation
 const CREDENTIAL_CREATORS: Record<
   string,
@@ -121,7 +144,52 @@ const CREDENTIAL_CREATORS: Record<
         aggregateAmount: mapped['aggregateAmount'] as number,
         effectiveDate: mapped['effectiveDate'] as Date,
         expirationDate: mapped['expirationDate'] as Date,
+        source: 'agent_parsed',
         status: 'active',
+      },
+    });
+  },
+  dea_certificate: async (providerId, mapped) => {
+    // DEA numbers are PII — must be encrypted at rest. encryptSafe throws
+    // (for production) or warns + returns plaintext (dev) when ENCRYPTION_KEY
+    // is unset, mirroring how the rest of the credential pipeline handles it.
+    const deaNumber = mapped['deaNumber'] as string;
+    const schedules = (mapped['schedules'] as string[] | undefined) ?? [];
+    return prisma.deaRegistration.create({
+      data: {
+        providerId,
+        deaNumberEncrypted: encryptSafe(deaNumber),
+        deaState: (mapped['state'] as string) ?? null,
+        deaSchedules: schedules,
+        issueDate: (mapped['issueDate'] as Date) ?? null,
+        expirationDate: mapped['expirationDate'] as Date,
+        source: 'agent_parsed',
+        status: 'active',
+      },
+    });
+  },
+  diploma: async (providerId, mapped) => {
+    return prisma.education.create({
+      data: {
+        providerId,
+        institutionName: mapped['institutionName'] as string,
+        degree: normalizeDegree(mapped['degree'] as string | undefined),
+        fieldOfStudy: (mapped['fieldOfStudy'] as string) ?? null,
+        graduationDate: (mapped['graduationDate'] as Date) ?? null,
+        isCompleted: true,
+        source: 'agent_parsed',
+      },
+    });
+  },
+  cme_certificate: async (providerId, mapped) => {
+    return prisma.continuingEducation.create({
+      data: {
+        providerId,
+        courseName: mapped['courseName'] as string,
+        courseProvider: mapped['courseProvider'] as string,
+        credits: mapped['credits'] as number,
+        creditType: (mapped['creditType'] as string) ?? 'CME',
+        completionDate: mapped['completionDate'] as Date,
       },
     });
   },
