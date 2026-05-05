@@ -77,6 +77,28 @@ const envSchema = z.object({
   RETELL_API_KEY: z.string().optional(),
   RETELL_WEBHOOK_SECRET: z.string().optional(),
 
+  // Agent event signing (Ed25519) — Phase 0.A platform foundations.
+  // Optional in dev (events recorded as 'unsigned' with a warning).
+  // In production, missing keys do not crash agents — events are written with
+  // signatureKeyId='unsigned' and a Sentry P1 alert is raised (fail-soft contract,
+  // preserves logAgentEvent's "never throw" guarantee). PR 2 consumes these vars.
+  AGENT_SIGNING_PRIVATE_KEY: z.string().optional(),
+  AGENT_SIGNING_PUBLIC_KEY: z.string().optional(),
+  AGENT_SIGNING_KEY_ID: z.string().optional(),
+  // JSON array of retired keys: [{ keyId, publicKey (PEM), retiredAt (ISO8601) }, ...]
+  // Exposed at /.well-known/lanyard-signing-keys.json so verifiers can verify
+  // historical signatures after a key rotation.
+  AGENT_SIGNING_RETIRED_KEYS: z.string().optional(),
+  // Rollout mode for PR 2's chain-and-sign middleware.
+  // shadow (default): signing failure → null signature columns; agent never blocked.
+  // enforce: signing failure → signatureKeyId='unsigned' + Sentry alert.
+  // Deploy as 'shadow', observe Sentry for 48h, flip to 'enforce' via env var change only.
+  AGENT_SIGNING_MODE: z.enum(['shadow', 'enforce']).default('shadow'),
+
+  // Webhook delivery HMAC secret — Phase 0.A (consumed by PR 4 webhook delivery worker).
+  // ≥32 random bytes; used to sign outbound webhook bodies with X-Lanyard-Signature.
+  WEBHOOK_HMAC_SECRET: z.string().optional(),
+
   // Sentry (optional)
   SENTRY_DSN: z.string().optional(),
 });
@@ -108,6 +130,11 @@ export function validateEnv(): Env {
     }
     if (!result.data.S3_BUCKET_NAME) {
       logger.warn('WARNING: S3_BUCKET_NAME not set — document uploads will fail');
+    }
+    if (!result.data.AGENT_SIGNING_PRIVATE_KEY || !result.data.AGENT_SIGNING_KEY_ID) {
+      logger.warn(
+        "WARNING: AGENT_SIGNING_PRIVATE_KEY / AGENT_SIGNING_KEY_ID not set — AgentEvent rows will be marked 'unsigned' (Phase 0.A fail-soft). Generate a keypair with: npx tsx packages/backend/scripts/generate-signing-key.ts"
+      );
     }
   }
 

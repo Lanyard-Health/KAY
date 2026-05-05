@@ -76,6 +76,7 @@ import practiceSettingsRoutes from './routes/practiceSettings.routes.js';
 import emailTemplateRoutes, { emailLogRouter } from './routes/emailTemplate.routes.js';
 import emailTemplateReadRoutes from './routes/emailTemplateRead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import { wellKnownRoutes } from './routes/well-known.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
@@ -233,6 +234,11 @@ async function healthCheck(_req: express.Request, res: express.Response) {
 
 app.get('/health', healthCheck);
 app.get('/api/health', healthCheck);
+
+// Public verification keys for AgentEvent signatures (Phase 0.A).
+// Mounted BEFORE the /api readiness gate so external verifiers can fetch keys
+// at any time, including during server startup. No auth — keys are public.
+app.use('/.well-known', wellKnownRoutes);
 
 // Readiness gate — block /api requests until server is fully initialized
 app.use('/api', (_req, res, next) => {
