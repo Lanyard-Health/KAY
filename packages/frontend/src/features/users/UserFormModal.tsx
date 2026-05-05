@@ -22,13 +22,21 @@ interface UserFormModalProps {
   onCreated?: (user: any) => void;
 }
 
+// `practice_admin` was missing from both lists, which made it impossible to
+// invite an admin-of-this-practice user from the UI. The system-level role
+// `practice_admin` controls which sidebar group the user sees and gives them
+// the ability to manage their own practice's users; the practice-scope role
+// (UserPractice.role = PRACTICE_ADMIN/PRACTICE_STAFF) is auto-derived in
+// PracticeUsersTab when the form returns.
 const ALL_ROLES = [
-  { value: 'admin', label: 'Admin' },
+  { value: 'admin', label: 'System Admin (all practices)' },
+  { value: 'practice_admin', label: 'Practice Admin' },
   { value: 'credentialing_staff', label: 'Credentialing Staff' },
   { value: 'provider', label: 'Provider' },
 ];
 
 const NON_ADMIN_ROLES = [
+  { value: 'practice_admin', label: 'Practice Admin' },
   { value: 'credentialing_staff', label: 'Credentialing Staff' },
   { value: 'provider', label: 'Provider' },
 ];
