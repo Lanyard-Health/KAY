@@ -111,6 +111,22 @@ async function seed() {
   const locB = await upsertLocation('North Austin Telehealth', '456 Burnet Road', false);
   console.log(`✓ Practice locations: ${locA.locationName}, ${locB.locationName}`);
 
+  // ── Active TX medical license (used by Availity demo + form-fill flows) ──
+  await prisma.license.deleteMany({ where: { providerId: provider.id } });
+  await prisma.license.create({
+    data: {
+      providerId: provider.id,
+      licenseType: 'state_medical',
+      licenseNumber: 'TX-MD-9921487',
+      state: 'TX',
+      status: 'active',
+      issueDate: new Date('2018-04-15'),
+      expirationDate: new Date('2027-04-15'),
+      source: 'caqh_sync',
+    },
+  });
+  console.log(`✓ License: TX-MD-9921487 (TX, active)`);
+
   // ── Disclosures (4 rows: 3 caqh_sync + 1 manual_entry) ──
   const disclosures = [
     {

@@ -66,6 +66,36 @@ payerRoutes.get(
   }
 );
 
+// GET /api/v1/payers/demo-availity - Look up the seeded "Availity (DEMO)" payer
+// Used by the frontend Availity demo button. Returns 404 if the demo payer
+// hasn't been seeded yet — frontend can show "run the seed script" guidance.
+payerRoutes.get(
+  '/demo-availity',
+  authorize(...STAFF_ROLES),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (process.env['NODE_ENV'] === 'production') {
+        res.status(404).json({ success: false, error: { message: 'Demo not available in production' } });
+        return;
+      }
+      const payer = await prisma.payer.findUnique({
+        where: { payerId: 'AVAILITY-DEMO-001' },
+        select: { id: true, name: true, payerId: true },
+      });
+      if (!payer) {
+        res.status(404).json({
+          success: false,
+          error: { message: 'Demo Availity payer not seeded. Run: npx tsx scripts/seed-demo-availity-payer.ts' },
+        });
+        return;
+      }
+      res.json({ success: true, data: payer });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/payers/:id - Get payer details
 payerRoutes.get(
   '/:id',

@@ -5,8 +5,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "dev": "tsc && concurrently --raw --kill-others -n tsc,node -c blue,green \"tsc -w --preserveWatchOutput\" \"nodemon --quiet --watch dist --delay 0.8 --signal SIGTERM dist/index.js\"",
-    "build": "tsc",
+    "dev": "tsc && cp -R src/static dist/ 2>/dev/null || true; concurrently --raw --kill-others -n tsc,node -c blue,green \"tsc -w --preserveWatchOutput\" \"nodemon --quiet --watch dist --delay 0.8 --signal SIGTERM dist/index.js\"",
+    "build": "tsc && cp -R src/static dist/ 2>/dev/null || true",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "lint": "eslint src/",
