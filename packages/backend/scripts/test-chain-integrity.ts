@@ -1,4 +1,12 @@
 /**
+ * TODO(phase-0a-pr5): Wire this script into a CI integration job.
+ *   Right now it runs locally only — the existing GitHub Actions backend-tests
+ *   workflow has no Postgres service container, so this can't be added to the
+ *   vitest sweep. Phase 0.A PR 5 (OpenAPI spec + drift CI) is the natural place
+ *   to introduce a `chain-integrity` job that boots `pgvector/pgvector:pg16`,
+ *   applies migrations, then invokes this script. File a follow-up GitHub
+ *   issue when PR 5 lands and link it back here.
+ *
  * Phase 0.A PR 2 — chain & signature integrity smoke test against the local dev DB.
  *
  * Verifies the parts of `logAgentEvent` that mocked unit tests cannot:

@@ -74,11 +74,63 @@ export function getKeyset(): { current: KeysetEntry | null; retired: KeysetEntry
 }
 
 /**
- * Deterministic JSON canonicalization. FROZEN FORMAT — changing the output
- * shape forks the chain and breaks verification of all prior events.
+ * ============================================================================
+ *                            VERIFIER CONTRACT
+ * ============================================================================
  *
- * Rules: object keys sorted lexicographically; array order preserved; uses
- * JSON.stringify for primitives (strings/numbers/booleans/null).
+ * This is the single source of truth for verifying AgentEvent signatures.
+ * External auditors and any future verifier code (ours or third-party) MUST
+ * reproduce the exact byte sequence described here before passing it to
+ * `verify(null, canonicalBytes, publicKey, signatureBytes)` (Ed25519).
+ *
+ *  1. Fetch the public key (and any retired keys) from
+ *       GET /.well-known/lanyard-signing-keys.json
+ *     keyed by `signature_key_id` on the row.
+ *
+ *  2. Reconstruct the canonical payload as a JSON object containing exactly
+ *     these nine fields, in this order conceptually (key order in the wire
+ *     format is enforced lexicographically by `canonicalize`, see below):
+ *
+ *       id          — string (uuid; matches the row's `id`)
+ *       workflowId  — string  (row's `workflow_id`)
+ *       taskId      — string | null  (row's `task_id`, null if absent)
+ *       agent       — string  (row's `agent`)
+ *       action      — string  (row's `action`)
+ *       data        — JSON value (row's `data` jsonb, as-is)
+ *       level       — string  (row's `level`)
+ *       timestamp   — string — ISO 8601 in UTC with millisecond precision,
+ *                     matching JavaScript `new Date(...).toISOString()`,
+ *                     e.g. "2026-05-06T15:02:38.123Z".
+ *                     IMPORTANT: external readers receive `timestamp(3)
+ *                     without time zone` from Postgres (e.g. "2026-05-06
+ *                     15:02:38.123") and MUST reformat it to the
+ *                     ISO-8601-UTC-with-Z form before canonicalization,
+ *                     because the byte sequence — not the wall-clock value —
+ *                     is what was signed.
+ *       prevHash    — string | null — SHA-256 hex of the previous event in
+ *                     the same `workflow_id` (chain head and the first
+ *                     event written to a pre-existing workflow are null).
+ *
+ *  3. Pass that object through `canonicalize()` (below). The canonical form is:
+ *       - object keys sorted lexicographically (recursively at every depth),
+ *       - array order preserved,
+ *       - primitives serialized via JSON.stringify (no whitespace, standard
+ *         JSON escaping, no trailing commas),
+ *       - UTF-8 encoded for hashing/signing.
+ *
+ *  4. Verify two things against the row:
+ *       eventHash  === sha256_hex(canonicalBytes)            — chain integrity
+ *       Ed25519.verify(publicKey, canonicalBytes, signature) — authenticity
+ *
+ *  5. Walk the chain by re-verifying each row in `(workflow_id, timestamp asc)`
+ *     and asserting `row.prevHash === previousRow.eventHash` (with `null` at
+ *     the head). A break anywhere indicates tampering or insertion.
+ *
+ * **THIS FORMAT IS FROZEN.** Adding, removing, renaming, or reordering fields,
+ * changing the timestamp format, or altering canonicalization rules forks the
+ * chain and invalidates every signature ever produced under the old format.
+ * Any change here is a breaking-change rotation, not a refactor.
+ * ============================================================================
  */
 export function canonicalize(value: unknown): string {
   if (value === null || typeof value !== 'object') {
