@@ -76,6 +76,7 @@ import practiceSettingsRoutes from './routes/practiceSettings.routes.js';
 import emailTemplateRoutes, { emailLogRouter } from './routes/emailTemplate.routes.js';
 import emailTemplateReadRoutes from './routes/emailTemplateRead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import webhookSubscriptionRoutes from './routes/webhook-subscription.routes.js';
 import { wellKnownRoutes } from './routes/well-known.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
@@ -303,6 +304,7 @@ app.use('/api/v1/email-templates', emailTemplateReadRoutes);
 app.use('/api/v1/admin/practices', practiceSettingsRoutes);
 app.use('/api/v1/admin/email-templates', emailTemplateRoutes);
 app.use('/api/v1/admin/email-logs', emailLogRouter);
+app.use('/api/v1/webhook-subscriptions', webhookSubscriptionRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
