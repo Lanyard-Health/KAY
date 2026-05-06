@@ -43,7 +43,10 @@ const SECRET_BYTES = 32; // 256 bits, hex-encoded → 64-char string
 
 const router = Router();
 
-const createSchema = z.object({
+// Exported so scripts/generate-openapi.ts can derive the OpenAPI request-body
+// schema directly from the route's runtime validator. Drift between the Zod
+// schema and the committed openapi.json is caught by the openapi-drift CI gate.
+export const createWebhookSubscriptionSchema = z.object({
   practiceId: z.string().uuid(),
   url: z.string().url().max(2048),
   eventTypes: z
@@ -52,6 +55,7 @@ const createSchema = z.object({
     .max(REGISTERED_EVENT_TYPES.length),
   description: z.string().max(500).optional(),
 });
+const createSchema = createWebhookSubscriptionSchema;
 
 function isPracticeAccessible(req: Request, practiceId: string): boolean {
   if (req.practiceScope?.isSuperAdmin) return true;
