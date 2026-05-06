@@ -204,6 +204,7 @@ model Practice {
   settings                   PracticeSettings?
   enterpriseQueue            EnterpriseQueue[]
   emailLogs                  EmailLog[]
+  agentActions               AgentAction[]
 
   @@map("practices")
 }
@@ -468,6 +469,7 @@ model ProviderProfile {
   demographics           ProviderDemographics?
   caqhMirror             ProviderCaqhMirror?
   agentWorkflows         AgentWorkflow[]
+  agentActions           AgentAction[]
   practice               Practice?               @relation(fields: [practiceId], references: [id])
 
   // Clinical profile
@@ -2402,6 +2404,7 @@ model AgentWorkflow {
   // Child relations
   tasks     AgentTask[]
   events    AgentEvent[]
+  actions   AgentAction[]
   approvals PendingApproval[]
 
   // Timestamps
@@ -2494,6 +2497,49 @@ model AgentEvent {
   @@index([workflowId, timestamp])
   @@index([agent, action])
   @@map("agent_events")
+}
+
+// Per-action telemetry for every BullMQ agent processor run (Phase 0.A PR 3).
+// One row per processor invocation, written by the withAgentTelemetry wrapper
+// in agents/workers.ts. Survives workflow / practice / provider deletion
+// (onDelete: SetNull) so cost-and-SLO reporting stays intact for billing
+// rollups and capacity planning.
+model AgentAction {
+  id String @id @default(uuid())
+
+  // Relations — all nullable so a deleted workflow / practice / provider
+  // does not erase its historical telemetry. Direct FK index added on
+  // workflowId for workflow drill-downs; (practiceId, createdAt) and
+  // (providerId, createdAt) cover the billing / per-provider reports.
+  workflowId String?          @map("workflow_id")
+  workflow   AgentWorkflow?   @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  taskId     String?          @map("task_id") // free-form, no FK (matches AgentEvent.taskId convention)
+  practiceId String?          @map("practice_id")
+  practice   Practice?        @relation(fields: [practiceId], references: [id], onDelete: SetNull)
+  providerId String?          @map("provider_id")
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+
+  // Dimensions
+  agentName  String @map("agent_name")  // e.g. "orchestrator", "document_parser"
+  actionType String @map("action_type") // e.g. "process_job"
+
+  // Outcome
+  success       Boolean
+  errorCategory String? @map("error_category") // e.g. "timeout", "auth_error", "validation", "downstream_5xx"
+  durationMs    Int     @map("duration_ms")
+
+  // Cost — token counts default 0 for non-AI agents; costCents derived via utils/ai-pricing.ts.
+  inputTokens  Int     @default(0) @map("input_tokens")
+  outputTokens Int     @default(0) @map("output_tokens")
+  costCents    Decimal @default(0) @map("cost_cents") @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([agentName, createdAt])
+  @@index([practiceId, createdAt])
+  @@index([providerId, createdAt])
+  @@index([workflowId])
+  @@map("agent_actions")
 }
 
 model PendingApproval {
