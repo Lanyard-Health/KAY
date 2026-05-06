@@ -20,6 +20,7 @@ import type { ExceptionJobData } from './exception/types.js';
 import { startMonitorCron, stopMonitorCron } from './monitor/monitor-cron.js';
 import { processApprovalJob } from './approval/approval-agent.js';
 import type { ApprovalJobData } from './approval/types.js';
+import { withAgentTelemetry } from './action-telemetry.js';
 
 // ==========================================
 // Worker configuration
@@ -144,9 +145,18 @@ export function initializeWorkers(): void {
 
   for (const config of WORKER_CONFIGS) {
     const lockDuration = QUEUE_LOCK_DURATIONS[config.queueName as QueueName] ?? 30_000;
+    // withAgentTelemetry wraps the processor so every invocation produces
+    // exactly one AgentAction row. The worker.on('completed'|'failed')
+    // handlers below intentionally do not write AgentAction — telemetry is
+    // captured inside the processor closure to guarantee one-row-per-call
+    // and to keep providerId/practiceId/cost derivation co-located with
+    // the work that produced the metrics.
     const worker = new Worker(
       config.queueName,
-      getProcessor(config.agentName),
+      withAgentTelemetry(
+        config.agentName,
+        getProcessor(config.agentName) as (job: Job) => Promise<unknown>
+      ),
       {
         connection,
         concurrency: config.concurrency,
