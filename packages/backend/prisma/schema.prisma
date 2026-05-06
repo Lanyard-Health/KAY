@@ -2479,6 +2479,18 @@ model AgentEvent {
   level     String   @default("info")
   timestamp DateTime @default(now())
 
+  // Phase 0.A — chain-and-sign columns. All nullable so:
+  //   (a) existing rows backfill as NULL (no signatures pre-migration),
+  //   (b) shadow-mode failures leave NULL columns + Sentry warning,
+  //   (c) the first new event of a pre-existing workflow has prevHash=NULL.
+  // signatureKeyId='unsigned' marks events that were attempted but failed
+  // to sign in enforce mode (paged via Sentry P1).
+  signature      String? // base64 Ed25519 signature over canonical payload incl. prevHash
+  signatureKeyId String? @map("signature_key_id") // matches a key in /.well-known/lanyard-signing-keys.json or 'unsigned'
+  prevHash       String? @map("prev_hash") // SHA-256 hex of previous event in workflow; NULL for chain head
+  eventHash      String? @map("event_hash") // SHA-256 hex over canonical payload incl. prevHash
+
+  @@unique([workflowId, eventHash], map: "agent_events_workflow_id_event_hash_key")
   @@index([workflowId, timestamp])
   @@index([agent, action])
   @@map("agent_events")
