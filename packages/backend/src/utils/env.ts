@@ -95,10 +95,6 @@ const envSchema = z.object({
   // Deploy as 'shadow', observe Sentry for 48h, flip to 'enforce' via env var change only.
   AGENT_SIGNING_MODE: z.enum(['shadow', 'enforce']).default('shadow'),
 
-  // Webhook delivery HMAC secret — Phase 0.A (consumed by PR 4 webhook delivery worker).
-  // ≥32 random bytes; used to sign outbound webhook bodies with X-Lanyard-Signature.
-  WEBHOOK_HMAC_SECRET: z.string().optional(),
-
   // Sentry (optional)
   SENTRY_DSN: z.string().optional(),
 });

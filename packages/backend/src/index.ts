@@ -76,11 +76,13 @@ import practiceSettingsRoutes from './routes/practiceSettings.routes.js';
 import emailTemplateRoutes, { emailLogRouter } from './routes/emailTemplate.routes.js';
 import emailTemplateReadRoutes from './routes/emailTemplateRead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import webhookSubscriptionRoutes from './routes/webhook-subscription.routes.js';
 import { wellKnownRoutes } from './routes/well-known.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
+import { initializeWebhookDeliveryWorker, closeWebhookDeliveryWorker } from './agents/webhook-delivery-worker.js';
 import { closeAllQueues } from './agents/queues.js';
 import { closeRedisConnection, isRedisConfigured, getRedisConnection } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
@@ -303,6 +305,7 @@ app.use('/api/v1/email-templates', emailTemplateReadRoutes);
 app.use('/api/v1/admin/practices', practiceSettingsRoutes);
 app.use('/api/v1/admin/email-templates', emailTemplateRoutes);
 app.use('/api/v1/admin/email-logs', emailLogRouter);
+app.use('/api/v1/webhook-subscriptions', webhookSubscriptionRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
@@ -340,6 +343,13 @@ server.listen(PORT, async () => {
       logger.info('Agent workers initialized');
     } catch (err) {
       logger.warn('Agent workers failed to initialize — agent features disabled', {
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+    try {
+      initializeWebhookDeliveryWorker();
+    } catch (err) {
+      logger.warn('Webhook delivery worker failed to initialize — outbound webhooks disabled', {
         error: err instanceof Error ? err.message : 'unknown',
       });
     }
@@ -528,6 +538,7 @@ function shutdown(signal: string) {
     logger.info('HTTP server closed');
     try {
       await closeAllWorkers();
+      await closeWebhookDeliveryWorker();
       await closeAllQueues();
       await closeRedisConnection();
       await prisma.$disconnect();

@@ -134,6 +134,7 @@ model User {
   providerCertsUpdated        ProviderCertification[] @relation("ProviderCertUpdatedBy")
   cdsRegsCreated              CdsRegistration[]       @relation("CdsRegCreatedBy")
   cdsRegsUpdated              CdsRegistration[]       @relation("CdsRegUpdatedBy")
+  webhookSubscriptionsCreated WebhookSubscription[]   @relation("WebhookSubscriptionCreatedBy")
 
   @@map("users")
 }
@@ -205,6 +206,7 @@ model Practice {
   enterpriseQueue            EnterpriseQueue[]
   emailLogs                  EmailLog[]
   agentActions               AgentAction[]
+  webhookSubscriptions       WebhookSubscription[]
 
   @@map("practices")
 }
@@ -2540,6 +2542,97 @@ model AgentAction {
   @@index([providerId, createdAt])
   @@index([workflowId])
   @@map("agent_actions")
+}
+
+// Outbound webhook subscriptions (Phase 0.A PR 4).
+// Each row registers an external endpoint that wants to receive events
+// (agent_event.created, enrollment.status_changed, credential.expired).
+// Per-subscription HMAC secret stored encrypted via encryptSafe; the
+// plaintext secret is returned exactly once at creation time.
+//
+// onDelete behavior:
+//   practice → Cascade: subscriptions are practice-owned; if the practice
+//     is deleted, take the subscriptions with it (no value preserving an
+//     orphaned endpoint that would never be re-authorized).
+//   createdBy → SetNull: preserve the audit trail when a user is deleted.
+//
+// Soft-delete via deletedAt (not status) so DELETE keeps history rows
+// joinable for forensic / billing review of past deliveries.
+model WebhookSubscription {
+  id String @id @default(uuid())
+
+  practiceId String   @map("practice_id")
+  practice   Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  url             String
+  eventTypes      String[] @default([]) @map("event_types")
+  secretEncrypted String   @map("secret_encrypted") // AES-256-GCM via encryptSafe
+  description     String?
+  active          Boolean  @default(true)
+
+  // Audit
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("WebhookSubscriptionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Observability — surfaced on the subscription dashboard so practice
+  // admins can see whether their endpoint is healthy without needing to
+  // page through delivery history.
+  lastDeliveryAt      DateTime? @map("last_delivery_at")
+  lastFailureAt       DateTime? @map("last_failure_at")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+
+  // Timestamps
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Children
+  deliveries WebhookDelivery[]
+
+  @@index([practiceId, deletedAt])
+  @@index([active])
+  @@map("webhook_subscriptions")
+}
+
+// One row per outbound delivery attempt sequence (Phase 0.A PR 4).
+// Mutated as BullMQ retries: attemptCount + lastAttemptAt + responseStatus
+// + responseSnippet update on each attempt; status settles to
+// 'delivered' (2xx success), 'failed' (transient — will retry), or
+// 'dead' (BullMQ exhausted retry budget — DLQ marker).
+//
+// responseSnippet capped at 2 KB at write time per Phase 0.A Addition 1.
+//
+// onDelete: Cascade on subscription so a hard-deleted subscription drops
+// its delivery history. Soft-delete (preferred) preserves rows because
+// the FK still resolves.
+model WebhookDelivery {
+  id String @id @default(uuid())
+
+  subscriptionId String              @map("subscription_id")
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  eventType String  @map("event_type") // e.g. "agent_event.created"
+  eventId   String? @map("event_id")   // optional reference to source row id (free-form, no FK)
+  payload   Json
+
+  status       String   @default("pending") // pending | delivered | failed | dead
+  attemptCount Int      @default(0) @map("attempt_count")
+
+  // Latest-attempt fields — overwritten on each retry. Forensics on the
+  // full attempt sequence live in BullMQ job logs; this column captures
+  // the terminal-state response that operators need for triage.
+  lastAttemptAt   DateTime? @map("last_attempt_at")
+  responseStatus  Int?      @map("response_status")
+  responseSnippet String?   @map("response_snippet") // capped at 2 KB at write time
+  errorMessage    String?   @map("error_message")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deliveredAt DateTime? @map("delivered_at")
+
+  @@index([subscriptionId, createdAt])
+  @@index([status])
+  @@index([eventType])
+  @@map("webhook_deliveries")
 }
 
 model PendingApproval {

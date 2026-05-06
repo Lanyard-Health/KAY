@@ -6,6 +6,7 @@ import { triggerTerminationWorkflow } from './terminationWorkflow.service.js';
 import { instantiateFollowUp } from './followup-instantiation.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
+import { emitWebhookEvent } from '../agents/webhook-emitter.js';
 
 /**
  * Forward-only progression for the main enrollment track.
@@ -133,5 +134,41 @@ export async function updateEnrollmentStatus(
   invalidateCache('dashboard');
   invalidateCache('payer-analytics');
 
+  // Webhook fanout — enrollment.status_changed. Fire-and-forget via
+  // emitWebhookEvent (never throws). Practice scope is resolved from the
+  // provider via the standard provider → practice link; if the provider
+  // has no practice (rare for this code path but possible mid-onboarding),
+  // emit becomes a no-op.
+  if (oldStatus !== newStatus) {
+    void fanoutEnrollmentStatusChanged(enrollmentId, existing.providerId, oldStatus, newStatus)
+      .catch((err) => {
+        logger.warn('Webhook fanout for enrollment.status_changed failed', {
+          error: err instanceof Error ? err.message : String(err),
+          enrollmentId,
+        });
+      });
+  }
+
   return enrollment;
+}
+
+async function fanoutEnrollmentStatusChanged(
+  enrollmentId: string,
+  providerId: string,
+  oldStatus: EnrollmentStatus,
+  newStatus: EnrollmentStatus,
+): Promise<void> {
+  const provider = await prisma.providerProfile.findUnique({
+    where: { id: providerId },
+    select: { practiceId: true },
+  });
+  const practiceId = provider?.practiceId ?? null;
+  if (!practiceId) return;
+
+  await emitWebhookEvent({
+    eventType: 'enrollment.status_changed',
+    practiceId,
+    eventId: enrollmentId,
+    payload: { enrollmentId, providerId, oldStatus, newStatus },
+  });
 }

@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { canonicalize, signAgentEvent } from '../utils/agent-signing.js';
+import { emitWebhookEvent } from './webhook-emitter.js';
 
 import type { Prisma } from '@prisma/client';
 
@@ -88,7 +89,7 @@ export async function logAgentEvent(input: LogAgentEventInput) {
 
   for (let attempt = 0; attempt < MAX_SERIALIZABLE_RETRIES; attempt++) {
     try {
-      return await prisma.$transaction(
+      const created = await prisma.$transaction(
         async (tx) => {
           const tail = await tx.agentEvent.findFirst({
             where: { workflowId: input.workflowId },
@@ -179,6 +180,21 @@ export async function logAgentEvent(input: LogAgentEventInput) {
         },
         { isolationLevel: 'Serializable' }
       );
+
+      // Fire-and-forget webhook fanout — `agent_event.created`. Runs after the
+      // signing transaction commits so subscribers never see a row that gets
+      // rolled back. Fail-soft via emitWebhookEvent (never throws); we
+      // additionally `.catch` here so any synchronous throw before the
+      // emitter awaits doesn't leak as an unhandled rejection.
+      void fanoutAgentEventCreated(created.id, input.workflowId).catch((err) => {
+        logger.warn('Webhook fanout for agent_event.created failed', {
+          error: err instanceof Error ? err.message : String(err),
+          eventId: created.id,
+          workflowId: input.workflowId,
+        });
+      });
+
+      return created;
     } catch (err) {
       if (isSerializationFailure(err) && attempt < MAX_SERIALIZABLE_RETRIES - 1) {
         await new Promise((r) => setTimeout(r, 5 + Math.random() * 15));
@@ -194,4 +210,27 @@ export async function logAgentEvent(input: LogAgentEventInput) {
     }
   }
   return null;
+}
+
+/**
+ * Resolve the practice scope for a workflow and emit `agent_event.created`
+ * fanout. Separate function so the hot-path code reads cleanly and so we
+ * can short-circuit when no subscriptions are configured. Practice is
+ * resolved through workflow → provider → practice; if any link is missing
+ * or the provider has no practice, we drop the event (no fanout).
+ */
+async function fanoutAgentEventCreated(eventId: string, workflowId: string): Promise<void> {
+  const workflow = await prisma.agentWorkflow.findUnique({
+    where: { id: workflowId },
+    select: { provider: { select: { practiceId: true } } },
+  });
+  const practiceId = workflow?.provider.practiceId ?? null;
+  if (!practiceId) return;
+
+  await emitWebhookEvent({
+    eventType: 'agent_event.created',
+    practiceId,
+    eventId,
+    payload: { eventId, workflowId },
+  });
 }
