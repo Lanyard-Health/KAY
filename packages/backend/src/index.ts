@@ -82,6 +82,7 @@ import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
 import { initializeWebSocket } from './agents/websocket.js';
 import { initializeWorkers, closeAllWorkers } from './agents/workers.js';
+import { initializeWebhookDeliveryWorker, closeWebhookDeliveryWorker } from './agents/webhook-delivery-worker.js';
 import { closeAllQueues } from './agents/queues.js';
 import { closeRedisConnection, isRedisConfigured, getRedisConnection } from './utils/redis.js';
 import { schedulerService } from './services/scheduler.service.js';
@@ -345,6 +346,13 @@ server.listen(PORT, async () => {
         error: err instanceof Error ? err.message : 'unknown',
       });
     }
+    try {
+      initializeWebhookDeliveryWorker();
+    } catch (err) {
+      logger.warn('Webhook delivery worker failed to initialize — outbound webhooks disabled', {
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
   } else {
     logger.info('Redis not configured (REDIS_URL/REDIS_HOST) — agent workers disabled');
   }
@@ -530,6 +538,7 @@ function shutdown(signal: string) {
     logger.info('HTTP server closed');
     try {
       await closeAllWorkers();
+      await closeWebhookDeliveryWorker();
       await closeAllQueues();
       await closeRedisConnection();
       await prisma.$disconnect();
