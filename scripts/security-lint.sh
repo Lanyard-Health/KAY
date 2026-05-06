@@ -20,6 +20,7 @@
 #   4. Prisma Provider queries without select clause (WARN)
 #   5. Sensitive field names in route files (WARN)
 #   6. .env files tracked by git (FAIL)
+#   7. AgentEvent created outside event-logger.ts (FAIL)
 #
 # HOW TO ADD NEW CHECKS:
 #   1. Add a new section following the pattern below
@@ -365,6 +366,58 @@ fi
 
 if [ "$check6_failed" = false ]; then
   pass_check "No .env files tracked by git"
+fi
+
+echo ""
+
+# =============================================================================
+# CHECK 7: AgentEvent rows must be created via the chain+sign middleware
+# =============================================================================
+# Phase 0.A platform foundation: every AgentEvent insert must go through
+# logAgentEvent() in agents/event-logger.ts so the SHA-256 hash chain and
+# Ed25519 signature stay intact. Direct prisma.agentEvent.create() calls
+# elsewhere would silently bypass tamper-evidence.
+echo "CHECK 7: AgentEvent created outside event-logger.ts"
+
+# Files allowed to call prisma.agentEvent.create directly.
+AGENT_EVENT_CREATE_WHITELIST=(
+  "packages/backend/src/agents/event-logger.ts"
+)
+
+check7_failed=false
+
+agent_event_matches=$(grep -rn --include='*.ts' --include='*.tsx' \
+  -E '(prisma|tx)\.agentEvent\.create\(' \
+  packages/backend/src/ 2>/dev/null || true)
+
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  file_path=$(echo "$line" | cut -d: -f1)
+
+  # Skip test/spec files
+  if echo "$file_path" | grep -qE '\.(test|spec)\.(ts|tsx)$'; then
+    continue
+  fi
+  if echo "$file_path" | grep -qE '/__mocks__/|/tests?/'; then
+    continue
+  fi
+
+  whitelisted=false
+  for wl in "${AGENT_EVENT_CREATE_WHITELIST[@]}"; do
+    if echo "$file_path" | grep -qF "$wl"; then
+      whitelisted=true
+      break
+    fi
+  done
+  [ "$whitelisted" = true ] && continue
+
+  line_num=$(echo "$line" | cut -d: -f2)
+  fail_check "AgentEvent created outside event-logger.ts: $file_path:$line_num — use logAgentEvent() so chain + signature are written"
+  check7_failed=true
+done <<< "$agent_event_matches"
+
+if [ "$check7_failed" = false ]; then
+  pass_check "All AgentEvent inserts go through logAgentEvent() (chain + signature preserved)"
 fi
 
 echo ""
