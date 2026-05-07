@@ -44,7 +44,7 @@ async function getDocumentService() {
 async function assertDocumentAccess(req: Request, document: { providerId: string }): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'practice_admin') {
     if (!(await validateProviderPracticeAccess(req, document.providerId))) throw new ForbiddenError('Access denied to this document');
     return;
   }
@@ -96,7 +96,9 @@ documentRoutes.post(
         where: { id: documentId },
       });
       if (!existing) throw new NotFoundError('Document');
-      await assertDocumentAccess(req, existing);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!existing.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: existing.providerId });
 
       setAuditContext(req, { resourceType: 'document', resourceId: documentId, action: 'update' });
 
@@ -242,7 +244,9 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      await assertDocumentAccess(req, document);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -264,7 +268,9 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      await assertDocumentAccess(req, document);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
 
       const downloadUrl = await (await getDocumentService()).getDownloadUrl(document.s3Key);
 
@@ -296,7 +302,9 @@ documentRoutes.get(
         throw new NotFoundError('Document');
       }
 
-      await assertDocumentAccess(req, document);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
 
       res.json({ success: true, data: document });
     } catch (error) {
@@ -316,7 +324,9 @@ documentRoutes.put(
         where: { id: req.params['id'] },
       });
       if (!existing) throw new NotFoundError('Document');
-      await assertDocumentAccess(req, existing);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!existing.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: existing.providerId });
 
       setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'update' });
 
@@ -374,7 +384,9 @@ documentRoutes.put(
         throw new NotFoundError('Document');
       }
 
-      await assertDocumentAccess(req, document);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
 
       setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'update' });
 
@@ -408,7 +420,9 @@ documentRoutes.delete(
         throw new NotFoundError('Document');
       }
 
-      await assertDocumentAccess(req, document);
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
 
       setAuditContext(req, { resourceType: 'document', resourceId: req.params['id'], action: 'delete' });
 

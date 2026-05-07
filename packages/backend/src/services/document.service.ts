@@ -14,9 +14,14 @@ import {
   GetDocumentAnalysisCommand,
 } from '@aws-sdk/client-textract';
 import { v4 as uuid } from 'uuid';
+import type { DocumentType } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import type { UploadUrlRequestInput } from '@credential-management/shared';
+import { classifyDocumentType } from '../agents/document-classifier.js';
+import type {
+  UploadUrlRequestInput,
+  PracticeUploadUrlRequestInput,
+} from '@credential-management/shared';
 
 export class DocumentService {
   private s3: S3Client;
@@ -143,6 +148,73 @@ export class DocumentService {
     };
   }
 
+  /**
+   * Mirror of getUploadUrl for practice-scoped documents.
+   *
+   * S3 key prefix: documents/practices/{practiceId}/{documentId}.{ext}
+   * Document row is created with practiceId set and providerId NULL — the XOR
+   * check constraint on the documents table guarantees this invariant.
+   *
+   * documentType defaults to 'other' when not provided; the OCR pipeline will
+   * classify and update it.
+   */
+  async getPracticeUploadUrl(
+    practiceId: string,
+    data: PracticeUploadUrlRequestInput,
+    userId: string
+  ): Promise<{
+    uploadUrl: string;
+    documentId: string;
+    s3Key: string;
+    expiresAt: Date;
+  }> {
+    // Validate practice exists before creating any S3 / DB resources
+    const practice = await prisma.practice.findUnique({
+      where: { id: practiceId },
+      select: { id: true },
+    });
+    if (!practice) {
+      throw new Error('Practice not found');
+    }
+
+    const documentId = uuid();
+    const fileExtension = (data.fileName.split('.').pop() || '').replace(/[^a-zA-Z0-9]/g, '');
+    const s3Key = `${this.documentsPrefix}practices/${practiceId}/${documentId}.${fileExtension}`;
+    const documentType = data.documentType ?? 'other';
+
+    await prisma.document.create({
+      data: {
+        id: documentId,
+        practiceId,
+        providerId: null,
+        fileName: `${documentId}.${fileExtension}`,
+        originalFileName: data.fileName,
+        fileSize: 0,
+        mimeType: data.contentType,
+        s3Key,
+        documentType,
+        ocrStatus: 'pending',
+        createdById: userId,
+      },
+    });
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: s3Key,
+      ContentType: data.contentType,
+      Metadata: {
+        'document-id': documentId,
+        'practice-id': practiceId,
+        'document-type': documentType,
+      },
+    });
+
+    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 3600 });
+    const expiresAt = new Date(Date.now() + 3600 * 1000);
+
+    return { uploadUrl, documentId, s3Key, expiresAt };
+  }
+
   async confirmUpload(documentId: string): Promise<any> {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
@@ -168,8 +240,11 @@ export class DocumentService {
         data: { fileSize },
       });
 
-      // Link checklist documents (W9, COI, CP575) to the provider's checklist
-      await this.linkChecklistDocument(document.providerId, document.documentType, documentId);
+      // Link checklist documents (W9, COI, CP575) to the provider's checklist.
+      // Practice-scoped documents (providerId NULL) have no ProviderChecklist row to link into.
+      if (document.providerId) {
+        await this.linkChecklistDocument(document.providerId, document.documentType, documentId);
+      }
 
       // Trigger OCR if applicable (skip in LocalStack/development mode)
       const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';
@@ -391,12 +466,40 @@ export class DocumentService {
 
     const avgConfidence = fieldCount > 0 ? totalConfidence / fieldCount : 0;
 
+    // Auto-classify practice-scoped documents whose type is still 'other'.
+    // Provider-doc behavior is unchanged: provider docs already pass an
+    // explicit documentType at upload time. We only run the classifier when
+    // (a) the doc is practice-scoped and (b) it's still tagged 'other' and
+    // (c) Textract gave us at least one field to work with. The classifier
+    // never throws — it returns 'other' on any failure (network, timeout,
+    // missing API key) — so OCR completion is unaffected on classifier error.
+    let classifiedType: DocumentType | undefined;
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { providerId: true, documentType: true },
+    });
+    if (
+      document &&
+      !document.providerId &&
+      document.documentType === 'other' &&
+      fieldCount > 0
+    ) {
+      const textContent = Object.entries(extractedFields)
+        .map(([k, v]) => `${k}: ${v.value}`)
+        .join('\n');
+      classifiedType = await classifyDocumentType({
+        textContent,
+        mimeType: 'text/plain',
+      });
+    }
+
     await prisma.document.update({
       where: { id: documentId },
       data: {
         ocrStatus: 'completed',
         ocrData: extractedFields,
         ocrConfidence: avgConfidence,
+        ...(classifiedType && classifiedType !== 'other' && { documentType: classifiedType }),
       },
     });
   }

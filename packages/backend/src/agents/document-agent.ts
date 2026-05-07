@@ -23,7 +23,11 @@ export interface DocumentJobData {
   workflowId: string;
   taskId?: string;
   documentId: string;
-  providerId: string;
+  // Exactly one of providerId / practiceId is set, matching the document being processed.
+  // Provider-scoped jobs are dispatched by the orchestrator; practice-scoped jobs come
+  // from the practice-document upload flow (Phase 3).
+  providerId?: string;
+  practiceId?: string;
   extractionHints?: string[];
 }
 
@@ -203,7 +207,7 @@ const CREDENTIAL_CREATORS: Record<
  * Never throws — catches all errors and returns { status: 'failed', error }.
  */
 export async function processDocumentJob(data: DocumentJobData): Promise<DocumentJobResult> {
-  const { workflowId, taskId, documentId, providerId } = data;
+  const { workflowId, taskId, documentId, providerId, practiceId } = data;
 
   try {
     // 1. Fetch document metadata
@@ -212,9 +216,20 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
       throw new Error(`Document not found: ${documentId}`);
     }
 
-    // Cross-provider safety check: document must belong to the workflow's provider
-    if (document.providerId !== providerId) {
-      throw new Error(`Document ${documentId} does not belong to provider ${providerId}`);
+    // Cross-owner safety check: the job payload must match the document's owner.
+    // Documents are XOR-owned (provider OR practice, never both) per the DB check
+    // constraint, so we branch on whichever side the document declares.
+    if (document.providerId) {
+      if (document.providerId !== providerId) {
+        throw new Error(`Document ${documentId} does not belong to provider ${providerId}`);
+      }
+    } else if (document.practiceId) {
+      if (document.practiceId !== practiceId) {
+        throw new Error(`Document ${documentId} does not belong to practice ${practiceId}`);
+      }
+    } else {
+      // Should be unreachable thanks to the XOR constraint, but defensive check.
+      throw new Error(`Document ${documentId} has no owner (provider or practice)`);
     }
 
     await logAgentEvent({
@@ -300,7 +315,14 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
     // 6. Save or flag for review based on confidence
     let credentialId: string | undefined;
 
-    if (averageConfidence >= CONFIDENCE_THRESHOLD && Object.keys(mapping.mapped).length > 0) {
+    // Practice-scoped documents (W-9, COI, etc.) are not auto-converted into
+    // provider credentials — the credential creators all key on providerId.
+    // Practice docs go straight to the OCR-data save block below.
+    if (
+      providerId &&
+      averageConfidence >= CONFIDENCE_THRESHOLD &&
+      Object.keys(mapping.mapped).length > 0
+    ) {
       const creator = CREDENTIAL_CREATORS[documentType];
       if (creator) {
         try {

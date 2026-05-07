@@ -44,6 +44,18 @@ export const uploadUrlRequestSchema = z.object({
   documentType: documentTypeSchema,
 });
 
+// Practice-scoped uploads. documentType is optional — when omitted, the OCR
+// pipeline classifies the document and writes the resulting type back.
+export const practiceUploadUrlRequestSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  contentType: z.enum(ALLOWED_MIME_TYPES),
+  documentType: documentTypeSchema.optional(),
+});
+
+export const updatePracticeDocumentSchema = z.object({
+  documentType: documentTypeSchema,
+});
+
 export const createDocumentSchema = z.object({
   providerId: z.string().uuid(),
   fileName: z.string().min(1).max(255),
@@ -65,6 +77,8 @@ export const updateOcrResultSchema = z.object({
 });
 
 export type UploadUrlRequestInput = z.infer<typeof uploadUrlRequestSchema>;
+export type PracticeUploadUrlRequestInput = z.infer<typeof practiceUploadUrlRequestSchema>;
+export type UpdatePracticeDocumentInput = z.infer<typeof updatePracticeDocumentSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 export type UpdateOcrResultInput = z.infer<typeof updateOcrResultSchema>;
 
