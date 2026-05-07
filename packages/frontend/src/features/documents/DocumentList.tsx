@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Tab } from '@headlessui/react';
+import clsx from 'clsx';
 import PageTransition from '../../components/ui/PageTransition';
-import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, DocumentIcon, ArrowDownTrayIcon, EyeIcon, PencilIcon, TrashIcon, DocumentMagnifyingGlassIcon, UserCircleIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { api } from '../../services/api';
 import toast from 'react-hot-toast';
@@ -11,6 +13,15 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import StatusBadge from '../../components/ui/StatusBadge';
 import OcrReviewModal from './OcrReviewModal';
+import { useAuthStore } from '../../stores/auth.store';
+import PracticeDocumentsTab from './PracticeDocumentsTab';
+
+// Tabs at the top of the /documents page. Practice Documents is hidden for the
+// 'provider' role (Phase 4 — practice-level docs are staff-managed only).
+const ALL_TABS = [
+  { key: 'provider', label: 'Provider Documents', icon: UserCircleIcon, restrictedTo: null },
+  { key: 'practice', label: 'Practice Documents', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'credentialing_staff', 'practice_admin'] },
+] as const;
 
 const DOCUMENT_TYPES = [
   { value: 'license', label: 'License' },
@@ -33,6 +44,12 @@ const DOCUMENT_TYPES = [
 ];
 
 export default function DocumentList() {
+  const user = useAuthStore((s) => s.user);
+  const role = user?.role;
+  const visibleTabs = ALL_TABS.filter(
+    (tab) => !tab.restrictedTo || (role && (tab.restrictedTo as readonly string[]).includes(role))
+  );
+
   const queryClient = useQueryClient();
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -180,10 +197,51 @@ export default function DocumentList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Manage provider documents, licenses, and certificates
+            Manage provider and practice-level documents
           </p>
         </div>
       </div>
+
+      <Tab.Group>
+        <Tab.List className="flex space-x-1 border-b border-gray-200 mb-6">
+          {visibleTabs.map((tab) => (
+            <Tab
+              key={tab.key}
+              className={({ selected }) =>
+                clsx(
+                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors outline-none',
+                  selected
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                )
+              }
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </Tab>
+          ))}
+        </Tab.List>
+
+        <Tab.Panels>
+          {visibleTabs.map((tab) => (
+            <Tab.Panel key={tab.key}>
+              {tab.key === 'provider' && <ProviderDocumentsPanel />}
+              {tab.key === 'practice' && <PracticeDocumentsTab />}
+            </Tab.Panel>
+          ))}
+        </Tab.Panels>
+      </Tab.Group>
+
+      {/* Confirm + edit + preview modals shared with the Provider Documents panel. */}
+    </div>
+    </PageTransition>
+  );
+
+  // Inline-defined Provider Documents panel — wraps the existing /documents page
+  // content unchanged. Nothing about provider behavior is modified for Phase 4.
+  function ProviderDocumentsPanel() {
+    return (
+      <div>
 
       {/* Provider Filter */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 mb-6">
@@ -574,7 +632,7 @@ export default function DocumentList() {
         confirmLabel="Delete"
         variant="danger"
       />
-    </div>
-    </PageTransition>
-  );
+      </div>
+    );
+  }
 }
