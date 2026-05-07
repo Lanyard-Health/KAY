@@ -207,6 +207,7 @@ model Practice {
   emailLogs                  EmailLog[]
   agentActions               AgentAction[]
   webhookSubscriptions       WebhookSubscription[]
+  documents                  Document[]
 
   @@map("practices")
 }
@@ -1577,8 +1578,9 @@ enum OcrStatus {
 }
 
 model Document {
-  id         String @id @default(uuid())
-  providerId String @map("provider_id")
+  id         String  @id @default(uuid())
+  providerId String? @map("provider_id")
+  practiceId String? @map("practice_id")
 
   // File info
   fileName         String @map("file_name")
@@ -1627,7 +1629,8 @@ model Document {
   createdById String?  @map("created_by_id")
 
   // Relations
-  provider             ProviderProfile       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider             ProviderProfile?      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice             Practice?             @relation(fields: [practiceId], references: [id], onDelete: Cascade)
   license              License?              @relation(fields: [linkedLicenseId], references: [id])
   boardCertification   BoardCertification?   @relation(fields: [linkedBoardCertificationId], references: [id])
   malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
@@ -1639,6 +1642,7 @@ model Document {
   documentReviewer     User?                 @relation("DocumentReviewer", fields: [reviewedById], references: [id])
 
   @@index([providerId])
+  @@index([practiceId])
   @@index([ocrStatus])
   @@map("documents")
 }
