@@ -168,8 +168,11 @@ export class DocumentService {
         data: { fileSize },
       });
 
-      // Link checklist documents (W9, COI, CP575) to the provider's checklist
-      await this.linkChecklistDocument(document.providerId, document.documentType, documentId);
+      // Link checklist documents (W9, COI, CP575) to the provider's checklist.
+      // Practice-scoped documents (providerId NULL) have no ProviderChecklist row to link into.
+      if (document.providerId) {
+        await this.linkChecklistDocument(document.providerId, document.documentType, documentId);
+      }
 
       // Trigger OCR if applicable (skip in LocalStack/development mode)
       const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';

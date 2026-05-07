@@ -143,11 +143,17 @@ export class ExpirationService {
       );
     }
 
-    // Get expiring documents
+    // Get expiring documents.
+    //
+    // Practice-scoped documents are intentionally excluded from expiration alerts for v1.
+    // If practice docs ever need expiration tracking (e.g., business license renewals),
+    // this filter needs to be widened and the alert payload restructured to handle both
+    // owner types (provider vs practice).
     if (!type || type === 'document') {
       const documents = await prisma.document.findMany({
         where: {
           expirationDate: dateFilter,
+          providerId: { not: null },
         },
         include: {
           provider: {
@@ -162,16 +168,18 @@ export class ExpirationService {
       });
 
       expirations.push(
-        ...documents.map(doc => ({
-          id: doc.id,
-          type: 'document' as const,
-          name: `${doc.documentType} - ${doc.originalFileName}`,
-          expirationDate: doc.expirationDate!,
-          daysUntilExpiration: this.getDaysUntil(doc.expirationDate!),
-          providerId: doc.provider.id,
-          providerName: `${doc.provider.firstName} ${doc.provider.lastName}`,
-          providerEmail: doc.provider.email,
-        }))
+        ...documents
+          .filter((doc): doc is typeof doc & { provider: NonNullable<typeof doc.provider> } => doc.provider !== null)
+          .map(doc => ({
+            id: doc.id,
+            type: 'document' as const,
+            name: `${doc.documentType} - ${doc.originalFileName}`,
+            expirationDate: doc.expirationDate!,
+            daysUntilExpiration: this.getDaysUntil(doc.expirationDate!),
+            providerId: doc.provider.id,
+            providerName: `${doc.provider.firstName} ${doc.provider.lastName}`,
+            providerEmail: doc.provider.email,
+          }))
       );
     }
 
