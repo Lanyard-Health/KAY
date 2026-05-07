@@ -44,7 +44,7 @@ async function getDocumentService() {
 async function assertDocumentAccess(req: Request, document: { providerId: string }): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'practice_admin') {
     if (!(await validateProviderPracticeAccess(req, document.providerId))) throw new ForbiddenError('Access denied to this document');
     return;
   }

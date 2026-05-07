@@ -128,6 +128,71 @@ describe('Document Routes', () => {
       expect(res.body.success).toBe(false);
       expect(res.body.error).toBeDefined();
     });
+
+    // Regression: practice_admin was previously omitted from assertDocumentAccess
+    // and fell through to the deny branch even for providers in their own practice.
+    it('allows practice_admin to upload for a provider in their practice', async () => {
+      const PRACTICE_A = '00000000-0000-4000-a000-0000000000aa';
+      // Custom express app: inject practiceAdminUser AND a practice scope that
+      // includes the provider's practice. The shared test-app helper sets
+      // practiceIds=[] for non-admins, which would always deny.
+      const express = (await import('express')).default;
+      const supertest = (await import('supertest')).default;
+      const { errorHandler } = await import('../middleware/error.middleware.js');
+      const customApp = express();
+      customApp.use(express.json());
+      customApp.use((req, _res, next) => {
+        (req as any).user = practiceAdminUser;
+        (req as any).practiceScope = { isSuperAdmin: false, practiceIds: [PRACTICE_A] };
+        next();
+      });
+      customApp.use(documentRoutes);
+      customApp.use(errorHandler);
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        id: PROVIDER_UUID,
+        practiceId: PRACTICE_A,
+      } as any);
+      mockGetUploadUrl.mockResolvedValue({
+        uploadUrl: 'https://s3.example.com/u',
+        documentId: 'new-doc-id',
+        s3Key: `documents/${PROVIDER_UUID}/new-doc-id.pdf`,
+        expiresAt: new Date(),
+      });
+
+      const res = await supertest(customApp).post('/upload-url').send(validUploadUrlRequest);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('denies practice_admin upload for a provider outside their practice', async () => {
+      const PRACTICE_A = '00000000-0000-4000-a000-0000000000aa';
+      const PRACTICE_B = '00000000-0000-4000-a000-0000000000bb';
+      const express = (await import('express')).default;
+      const supertest = (await import('supertest')).default;
+      const { errorHandler } = await import('../middleware/error.middleware.js');
+      const customApp = express();
+      customApp.use(express.json());
+      customApp.use((req, _res, next) => {
+        (req as any).user = practiceAdminUser;
+        (req as any).practiceScope = { isSuperAdmin: false, practiceIds: [PRACTICE_A] };
+        next();
+      });
+      customApp.use(documentRoutes);
+      customApp.use(errorHandler);
+
+      // Provider lives in PRACTICE_B; practice_admin is only scoped to PRACTICE_A.
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        id: PROVIDER_UUID,
+        practiceId: PRACTICE_B,
+      } as any);
+
+      const res = await supertest(customApp).post('/upload-url').send(validUploadUrlRequest);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
   });
 
   describe('POST /confirm-upload', () => {
