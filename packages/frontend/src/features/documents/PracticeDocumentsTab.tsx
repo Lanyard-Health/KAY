@@ -474,7 +474,10 @@ function DocumentRow({ doc, practiceId }: { doc: PracticeDocument; practiceId: s
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-gray-500">
-        {format(new Date(doc.createdAt), 'MMM d, yyyy')}
+        {(() => {
+          const d = doc.createdAt ? new Date(doc.createdAt) : null;
+          return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : '—';
+        })()}
       </td>
     </tr>
   );
