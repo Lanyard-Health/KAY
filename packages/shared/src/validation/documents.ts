@@ -52,6 +52,17 @@ export const practiceUploadUrlRequestSchema = z.object({
   documentType: documentTypeSchema.optional(),
 });
 
+// Response shape for the practice-scoped upload-URL endpoint. The hook only
+// destructures uploadUrl + documentId today, but s3Key and expiresAt are part
+// of the contract and validated here so contract drift is caught early.
+// expiresAt is a string because the API serializes Date as ISO over the wire.
+export const practiceUploadUrlResponseSchema = z.object({
+  uploadUrl: z.string(),
+  documentId: z.string(),
+  s3Key: z.string(),
+  expiresAt: z.string(),
+});
+
 export const updatePracticeDocumentSchema = z.object({
   documentType: documentTypeSchema,
 });
@@ -115,6 +126,7 @@ export const practiceDocumentResponseSchema = z.object({
 
 export type UploadUrlRequestInput = z.infer<typeof uploadUrlRequestSchema>;
 export type PracticeUploadUrlRequestInput = z.infer<typeof practiceUploadUrlRequestSchema>;
+export type PracticeUploadUrlResponse = z.infer<typeof practiceUploadUrlResponseSchema>;
 export type UpdatePracticeDocumentInput = z.infer<typeof updatePracticeDocumentSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 export type UpdateOcrResultInput = z.infer<typeof updateOcrResultSchema>;

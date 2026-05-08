@@ -12,7 +12,10 @@
  * (services/api with `/documents/provider/{providerId}`) and are not affected.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { practiceDocumentResponseSchema } from '@credential-management/shared';
+import {
+  practiceDocumentResponseSchema,
+  practiceUploadUrlResponseSchema,
+} from '@credential-management/shared';
 import { api } from '../services/api';
 
 export type PracticeDocumentOcrStatus =
@@ -45,13 +48,6 @@ export interface PracticeDocument {
   createdAt: string;
   updatedAt: string;
   createdById: string | null;
-}
-
-interface UploadUrlResponse {
-  uploadUrl: string;
-  documentId: string;
-  s3Key: string;
-  expiresAt: string;
 }
 
 const POLL_INTERVAL_MS = 5000;
@@ -120,7 +116,12 @@ export function useUploadPracticeDocument(practiceId: string) {
         `/practices/${practiceId}/documents/upload-url`,
         uploadUrlBody
       );
-      const { uploadUrl, documentId } = uploadUrlResp.data.data as UploadUrlResponse;
+      const parsed = practiceUploadUrlResponseSchema.safeParse(uploadUrlResp.data?.data);
+      if (!parsed.success) {
+        console.error('Invalid upload URL response shape:', parsed.error);
+        throw new Error('Upload service returned an unexpected response. Please try again.');
+      }
+      const { uploadUrl, documentId } = parsed.data;
 
       onProgress?.('uploading', 30);
       const s3Resp = await fetch(uploadUrl, {
