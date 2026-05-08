@@ -116,7 +116,7 @@ export default function PracticeDocumentsTab() {
     if (isAdmin) {
       return (allPractices ?? []).map((p) => ({ id: p.id, name: p.name }));
     }
-    return userPractices.map((up) => ({ id: up.practiceId, name: up.practice.name }));
+    return userPractices.map((up) => ({ id: up.practiceId, name: up.practice?.name ?? '(unknown practice)' }));
   }, [isAdmin, allPractices, userPractices]);
 
   if (!isAdmin && userPractices.length === 0) {
