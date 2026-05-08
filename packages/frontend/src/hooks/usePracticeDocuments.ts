@@ -139,7 +139,12 @@ export function useUploadPracticeDocument(practiceId: string) {
       );
 
       onProgress?.('confirming', 100);
-      return confirmResp.data.data as PracticeDocument;
+      const parsed = practiceDocumentResponseSchema.safeParse(confirmResp.data?.data);
+      if (!parsed.success) {
+        console.error('Invalid confirm response shape:', parsed.error);
+        throw new Error('Document confirmation returned an unexpected response. Please refresh and try again.');
+      }
+      return parsed.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-documents', practiceId] });
@@ -161,7 +166,12 @@ export function useUpdatePracticeDocumentType(practiceId: string) {
         `/practices/${practiceId}/documents/${documentId}`,
         { documentType }
       );
-      return response.data.data as PracticeDocument;
+      const parsed = practiceDocumentResponseSchema.safeParse(response.data?.data);
+      if (!parsed.success) {
+        console.error('Invalid patch response shape:', parsed.error);
+        throw new Error('Document update returned an unexpected response. Please refresh and try again.');
+      }
+      return parsed.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-documents', practiceId] });
