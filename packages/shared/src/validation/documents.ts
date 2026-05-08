@@ -76,10 +76,48 @@ export const updateOcrResultSchema = z.object({
   })),
 });
 
+export const practiceDocumentOcrStatusSchema = z.enum([
+  'pending',
+  'processing',
+  'needs_review',
+  'completed',
+  'failed',
+  'not_applicable',
+]);
+
+// Response shape for practice-scoped document records returned by the
+// practice documents API. Permissive on documentType (z.string() rather than
+// the documentTypeSchema enum) because the backend may return values not yet
+// mirrored in the frontend enum; the UI handles unknown types via a fallback
+// label. Used by usePracticeDocuments to validate API responses at runtime.
+export const practiceDocumentResponseSchema = z.object({
+  id: z.string(),
+  practiceId: z.string(),
+  providerId: z.null(),
+  fileName: z.string(),
+  originalFileName: z.string(),
+  fileSize: z.number(),
+  mimeType: z.string(),
+  documentType: z.string(),
+  description: z.string().nullable(),
+  expirationDate: z.string().nullable(),
+  ocrStatus: practiceDocumentOcrStatusSchema.nullable(),
+  ocrConfidence: z.number().nullable(),
+  ocrData: z.record(z.object({
+    value: z.string(),
+    confidence: z.number(),
+  })).nullable(),
+  isVerified: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  createdById: z.string().nullable(),
+});
+
 export type UploadUrlRequestInput = z.infer<typeof uploadUrlRequestSchema>;
 export type PracticeUploadUrlRequestInput = z.infer<typeof practiceUploadUrlRequestSchema>;
 export type UpdatePracticeDocumentInput = z.infer<typeof updatePracticeDocumentSchema>;
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 export type UpdateOcrResultInput = z.infer<typeof updateOcrResultSchema>;
+export type PracticeDocumentResponse = z.infer<typeof practiceDocumentResponseSchema>;
 
 export { MAX_FILE_SIZE, ALLOWED_MIME_TYPES };

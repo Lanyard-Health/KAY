@@ -12,6 +12,7 @@
  * (services/api with `/documents/provider/{providerId}`) and are not affected.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { practiceDocumentResponseSchema } from '@credential-management/shared';
 import { api } from '../services/api';
 
 export type PracticeDocumentOcrStatus =
@@ -69,7 +70,12 @@ export function usePracticeDocuments(practiceId: string) {
     enabled: !!practiceId,
     queryFn: async () => {
       const response = await api.get(`/practices/${practiceId}/documents`);
-      return response.data.data as PracticeDocument[];
+      const parsed = practiceDocumentResponseSchema.array().safeParse(response.data?.data);
+      if (!parsed.success) {
+        console.error('Invalid /practices/:id/documents response shape:', parsed.error);
+        return [];
+      }
+      return parsed.data;
     },
     refetchInterval: (query) => {
       const docs = query.state.data as PracticeDocument[] | undefined;
