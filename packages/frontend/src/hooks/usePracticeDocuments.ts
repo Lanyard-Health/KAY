@@ -116,12 +116,12 @@ export function useUploadPracticeDocument(practiceId: string) {
         `/practices/${practiceId}/documents/upload-url`,
         uploadUrlBody
       );
-      const parsed = practiceUploadUrlResponseSchema.safeParse(uploadUrlResp.data?.data);
-      if (!parsed.success) {
-        console.error('Invalid upload URL response shape:', parsed.error);
+      const parsedUploadUrl = practiceUploadUrlResponseSchema.safeParse(uploadUrlResp.data?.data);
+      if (!parsedUploadUrl.success) {
+        console.error('Invalid upload URL response shape:', parsedUploadUrl.error);
         throw new Error('Upload service returned an unexpected response. Please try again.');
       }
-      const { uploadUrl, documentId } = parsed.data;
+      const { uploadUrl, documentId } = parsedUploadUrl.data;
 
       onProgress?.('uploading', 30);
       const s3Resp = await fetch(uploadUrl, {
@@ -139,12 +139,12 @@ export function useUploadPracticeDocument(practiceId: string) {
       );
 
       onProgress?.('confirming', 100);
-      const parsed = practiceDocumentResponseSchema.safeParse(confirmResp.data?.data);
-      if (!parsed.success) {
-        console.error('Invalid confirm response shape:', parsed.error);
+      const parsedConfirm = practiceDocumentResponseSchema.safeParse(confirmResp.data?.data);
+      if (!parsedConfirm.success) {
+        console.error('Invalid confirm response shape:', parsedConfirm.error);
         throw new Error('Document confirmation returned an unexpected response. Please refresh and try again.');
       }
-      return parsed.data;
+      return parsedConfirm.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-documents', practiceId] });
