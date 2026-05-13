@@ -278,6 +278,7 @@ describe('executeToolCall', () => {
     });
 
     it('routes submit_to_portal to portal queue', async () => {
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue({ isActive: true } as any);
       prismaMock.agentTask.count.mockResolvedValue(0);
       prismaMock.agentTask.create.mockResolvedValue({ id: 'task-2' } as any);
       prismaMock.agentTask.update.mockResolvedValue({} as any);
@@ -289,6 +290,36 @@ describe('executeToolCall', () => {
       );
 
       expect(getQueue).toHaveBeenCalledWith('agent-portal');
+    });
+
+    it('rejects submit_to_portal when payer has no adapter config', async () => {
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
+
+      const result = await executeToolCall(
+        'dispatch_task',
+        { type: 'submit_to_portal', input: { providerId: 'p-1', payerId: 'pay-no-adapter' } },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: expect.stringContaining('no active portal adapter'),
+      });
+      expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects submit_to_portal when adapter exists but is inactive', async () => {
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue({ isActive: false } as any);
+
+      const result = await executeToolCall(
+        'dispatch_task',
+        { type: 'submit_to_portal', input: { providerId: 'p-1', payerId: 'pay-inactive' } },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: expect.stringContaining('no active portal adapter'),
+      });
+      expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
     });
   });
 

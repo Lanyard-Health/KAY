@@ -42,6 +42,7 @@ Most payers do NOT have automated portal adapters configured. When get_payer_req
 2. Summarize what credentials are present, missing, or expired.
 3. Request human approval with a summary of readiness and recommended next steps for manual submission.
 4. Do NOT escalate to exception — the lack of an adapter is not an error.
+5. **Do NOT call \`dispatch_task\` with type \`submit_to_portal\` or \`check_readiness\` when no adapter is configured.** Those dispatches will be rejected by the dispatcher and waste a turn. Go straight to \`request_human_approval\`.
 
 ## Workflow Lifecycle
 
