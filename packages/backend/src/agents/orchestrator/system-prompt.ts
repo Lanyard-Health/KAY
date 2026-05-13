@@ -25,7 +25,7 @@ Your job is to plan and execute provider credentialing workflows by calling tool
 
 ## Rules
 
-These rules apply to **general planning workflows**. Scripted goal sections below (such as \`populate_forms\` and \`submit_to_availity_demo\`) define their own steps and explicitly override these rules where stated.
+These rules apply to **general planning workflows**. Scripted goal sections below (such as \`populate_forms\`, \`submit_to_availity_demo\`, and \`submit_to_aetna_demo\`) define their own steps and explicitly override these rules where stated.
 
 1. ALWAYS check credential completeness before dispatching a portal submission.
 2. NEVER dispatch a portal submission without first requesting human approval. **Exception:** scripted-goal sections that explicitly skip approval (the demo paths). When following a scripted goal that says "Do NOT call request_human_approval", you must obey the scripted goal — do not fall back to this general rule.
@@ -113,6 +113,30 @@ Constraints for submit_to_availity_demo:
 - Do NOT call \`request_human_approval\` for the demo flow — the demo path is fire-and-watch.
 - Do NOT call \`escalate_to_exception\` on portal failure — just narrate the failure plainly.
 - Do NOT call \`get_provider_profile\`, \`get_payer_requirements\`, \`check_credential_completeness\`, or \`get_workflow_state\` — they are not needed; the adapter handles all lookups.
+- Each \`narrate\` message must be under 120 characters, conversational, no jargon, no IDs in the prose except the confirmation number.
+
+## Goal: submit_to_aetna_demo (live browser-automation demo flow)
+
+When the workflow goal is exactly \`submit_to_aetna_demo\`, follow this scripted sequence:
+
+### plan_workflow turn (initial)
+
+1. Call \`narrate\` with step 1: a short opening line about submitting the enrollment to Aetna (e.g., "I'll submit this enrollment to Aetna now.").
+2. Call \`narrate\` with step 2 explaining the browser will open and drive the portal (e.g., "Opening the Aetna provider portal in a browser to submit on your behalf.").
+3. Call \`dispatch_task\` with type \`submit_to_portal\` and input \`{ providerId, payerId, action: "submit_to_portal" }\` using the IDs from the user message.
+4. End with a brief one-line text response. The portal task runs async in a worker; you'll be called back when it completes.
+
+### task_callback turn (when the portal task finishes)
+
+5. Read the callback result. The task's output contains \`{ confirmationNumber, details }\` on success or an \`error\` string on failure.
+6. On success: call \`narrate\` with step 3 announcing the confirmation number in plain English (e.g., "Submitted to Aetna. Confirmation: AET-DEMO-2026-1234"). Keep under 120 characters.
+7. On failure: call \`narrate\` with step 3 explaining the failure briefly and conversationally (e.g., "The submission to Aetna didn't complete — the portal returned an error.").
+8. End with a one-line text response. No more tool calls.
+
+Constraints for submit_to_aetna_demo:
+- Do NOT call \`request_human_approval\` for the demo flow — the demo path is fire-and-watch.
+- Do NOT call \`escalate_to_exception\` on portal failure — just narrate the failure plainly.
+- Do NOT call \`get_provider_profile\`, \`get_payer_requirements\`, \`check_credential_completeness\`, or \`get_workflow_state\` — they are not needed; the adapter handles all lookups.
 - Each \`narrate\` message must be under 120 characters, conversational, no jargon, no IDs in the prose except the confirmation number.`;
 }
 
@@ -148,23 +172,24 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
     // Scripted submit_to_availity_demo flow — drives a Puppeteer browser
     // submission against the local mock-availity portal. Tight constraints
     // so Claude doesn't wander.
-    if (workflow.goal === 'submit_to_availity_demo') {
+    if (workflow.goal === 'submit_to_availity_demo' || workflow.goal === 'submit_to_aetna_demo') {
       const payerId = (goalParams['payerId'] as string | undefined) ?? workflow.payerId ?? null;
       const providerId = (goalParams['providerId'] as string | undefined) ?? workflow.providerId;
+      const payerLabel = workflow.goal === 'submit_to_aetna_demo' ? 'Aetna' : 'Availity';
       if (!payerId) {
         return [
-          'Workflow goal is submit_to_availity_demo but no payerId is set.',
+          `Workflow goal is ${workflow.goal} but no payerId is set.`,
           'Call narrate with a short user-facing error message ("I can\'t find which payer to submit to") and end.',
         ].join('\n');
       }
       return [
-        'Goal: submit_to_availity_demo.',
+        `Goal: ${workflow.goal}.`,
         `Provider ID: ${providerId}`,
         `Payer ID: ${payerId}`,
         '',
-        'Follow the scripted submit_to_availity_demo plan_workflow flow from the system prompt:',
-        '1. narrate (step 1)',
-        '2. narrate (step 2)',
+        `Follow the scripted ${workflow.goal} plan_workflow flow from the system prompt:`,
+        `1. narrate (step 1) — opening line referencing ${payerLabel}`,
+        `2. narrate (step 2) — explain the browser will open the ${payerLabel} portal`,
         '3. dispatch_task({ type: "submit_to_portal", input: { providerId, payerId, action: "submit_to_portal" } })',
         '4. end with a brief text response',
         '',
@@ -194,8 +219,8 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
     return parts.join('\n');
   }
 
-  // task_callback for submit_to_availity_demo — narrate the result and end.
-  if (workflow.goal === 'submit_to_availity_demo') {
+  // task_callback for submit_to_availity_demo / submit_to_aetna_demo — narrate the result and end.
+  if (workflow.goal === 'submit_to_availity_demo' || workflow.goal === 'submit_to_aetna_demo') {
     const callbackTask = workflow.tasks.find((t) => t.id === callbackEvent?.taskId);
     const output = (callbackTask?.output ?? {}) as Record<string, unknown>;
     const error = (callbackTask?.error ?? null) as Record<string, unknown> | null;
@@ -205,12 +230,12 @@ export function buildUserMessage(params: BuildUserMessageParams): string {
       : null;
 
     return [
-      'Goal: submit_to_availity_demo — task callback.',
+      `Goal: ${workflow.goal} — task callback.`,
       `Task ${callbackEvent?.taskId} ${callbackEvent?.event === 'task_completed' ? 'completed' : 'failed'}.`,
       confirmationNumber ? `Confirmation number: ${confirmationNumber}` : '',
       failureMessage ? `Error: ${failureMessage}` : '',
       '',
-      'Follow the scripted submit_to_availity_demo task_callback flow from the system prompt: call narrate (step 3) once with the success or failure message, then end with a brief text response. Do NOT dispatch more tasks. Do NOT escalate.',
+      `Follow the scripted ${workflow.goal} task_callback flow from the system prompt: call narrate (step 3) once with the success or failure message, then end with a brief text response. Do NOT dispatch more tasks. Do NOT escalate.`,
     ].filter(Boolean).join('\n');
   }
 

@@ -36,6 +36,25 @@ function useDemoAvailityPayerId(): string | undefined {
   return data ?? undefined;
 }
 
+function useDemoAetnaPayerId(): string | undefined {
+  const isDev = import.meta.env.DEV;
+  const { data } = useQuery({
+    queryKey: ['demo-aetna-payer'],
+    queryFn: async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: { id: string } }>('/payers/demo-aetna');
+        return res.data.data.id;
+      } catch {
+        return null;
+      }
+    },
+    enabled: isDev,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  return data ?? undefined;
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof ClockIcon }> = {
   not_started: { label: 'Not Started', color: 'bg-gray-100 text-gray-800', icon: ClockIcon },
   in_progress: { label: 'In Progress', color: 'bg-yellow-100 text-yellow-800', icon: ArrowRightIcon },
@@ -54,6 +73,7 @@ function formatDate(dateStr: string | null): string {
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
   const demoAvailityPayerId = useDemoAvailityPayerId();
+  const demoAetnaPayerId = useDemoAetnaPayerId();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['enrollment', id],
@@ -230,6 +250,7 @@ export default function EnrollmentDetail() {
         providerName={`${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim()}
         payerName={enrollment.payer?.name ?? ''}
         demoAvailityPayerId={demoAvailityPayerId}
+        demoAetnaPayerId={demoAetnaPayerId}
       />
 
       {/* AI Sidebar */}

@@ -356,6 +356,8 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
         const confirmationNumber = (lastTask?.output as Record<string, unknown> | null)?.['confirmationNumber'];
         const goalLabel = summary.goal === 'submit_to_availity_demo'
           ? 'Availity submission'
+          : summary.goal === 'submit_to_aetna_demo'
+          ? 'Aetna submission'
           : summary.goal === 'populate_forms'
           ? 'Form population'
           : 'Workflow';
