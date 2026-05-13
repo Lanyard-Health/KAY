@@ -238,7 +238,18 @@ async function dispatchTask(
   // that case. This guard catches the case where Claude ignores the rule and
   // dispatches anyway, surfacing the same self-correctable error envelope it
   // already understands.
+  //
+  // Environment-level override: DISABLE_PORTAL_AUTOMATION=true forces all
+  // portal-bound dispatches to error out, regardless of adapter config. Used
+  // when the deploy target can't run the underlying browser automation (e.g.
+  // Render free tier — Puppeteer cannot find Chrome). Orchestrator self-
+  // corrects to request_human_approval, which is the correct manual flow.
   if (input.type === 'submit_to_portal' || input.type === 'check_readiness') {
+    if (process.env['DISABLE_PORTAL_AUTOMATION'] === 'true') {
+      return {
+        error: `Cannot dispatch ${input.type}: portal automation is disabled in this environment. Summarise readiness and call request_human_approval with a manual-submission recommendation — do NOT escalate to exception.`,
+      };
+    }
     const payerId = taskInput['payerId'] as string;
     const config = await prisma.payerSubmissionConfig.findUnique({
       where: { payerId },

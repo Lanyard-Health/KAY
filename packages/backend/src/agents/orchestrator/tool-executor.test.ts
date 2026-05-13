@@ -321,6 +321,27 @@ describe('executeToolCall', () => {
       });
       expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
     });
+
+    it('rejects submit_to_portal when DISABLE_PORTAL_AUTOMATION is true (even with active adapter)', async () => {
+      const prev = process.env['DISABLE_PORTAL_AUTOMATION'];
+      process.env['DISABLE_PORTAL_AUTOMATION'] = 'true';
+      try {
+        const result = await executeToolCall(
+          'dispatch_task',
+          { type: 'submit_to_portal', input: { providerId: 'p-1', payerId: 'pay-aetna' } },
+          ctx
+        );
+
+        expect(result).toEqual({
+          error: expect.stringContaining('portal automation is disabled'),
+        });
+        expect(prismaMock.payerSubmissionConfig.findUnique).not.toHaveBeenCalled();
+        expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env['DISABLE_PORTAL_AUTOMATION'];
+        else process.env['DISABLE_PORTAL_AUTOMATION'] = prev;
+      }
+    });
   });
 
   // ========================================
