@@ -23,6 +23,7 @@ interface CaqhConfig {
   configured: boolean;
   syncSchedule: string;
   lastSyncAt: string | null;
+  proviewUrl: string;
 }
 
 /**

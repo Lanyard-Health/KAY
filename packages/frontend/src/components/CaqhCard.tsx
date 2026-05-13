@@ -122,7 +122,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-900">CAQH ProView</h3>
           <a
-            href={CAQH_PROVIEW_URL}
+            href={caqhConfig?.proviewUrl ?? CAQH_PROVIEW_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-primary-600 hover:text-primary-800"

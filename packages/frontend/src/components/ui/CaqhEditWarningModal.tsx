@@ -1,6 +1,8 @@
 import { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { CloudArrowDownIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { CAQH_PROVIEW_URL } from '../../hooks/useCaqhCredentials';
+import { useCaqhConfig } from '../../hooks/useCaqhSync';
 
 interface CaqhEditWarningModalProps {
   isOpen: boolean;
@@ -9,14 +11,15 @@ interface CaqhEditWarningModalProps {
   recordType?: string;
 }
 
-const CAQH_PROVIEW_URL = 'https://proview.caqh.org/Login';
-
 export default function CaqhEditWarningModal({
   isOpen,
   onClose,
   onEditAnyway,
   recordType = 'record',
 }: CaqhEditWarningModalProps) {
+  const { data: caqhConfig } = useCaqhConfig();
+  const proviewUrl = caqhConfig?.proviewUrl ?? CAQH_PROVIEW_URL;
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -75,7 +78,7 @@ export default function CaqhEditWarningModal({
                     Edit anyway
                   </button>
                   <a
-                    href={CAQH_PROVIEW_URL}
+                    href={proviewUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors"
