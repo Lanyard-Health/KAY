@@ -1388,13 +1388,15 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                 <button
                   onClick={() => {
                     const goal = `Complete payer enrollment with ${launchAgentFor.payer.name}`;
+                    const enrollmentId = launchAgentFor.id;
                     launchWorkflow.mutateAsync({
                       goal,
                       providerId,
                       payerId: launchAgentFor.payerId,
-                      enrollmentId: launchAgentFor.id,
+                      enrollmentId,
                     }).then(() => {
                       setLaunchAgentFor(null);
+                      setExpandedWorkflow(enrollmentId);
                     });
                   }}
                   disabled={launchWorkflow.isPending}
