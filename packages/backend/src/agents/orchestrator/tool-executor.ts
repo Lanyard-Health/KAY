@@ -232,6 +232,25 @@ async function dispatchTask(
     };
   }
 
+  // Adapter-existence guard for portal-bound dispatches. Most payers do not
+  // have a PayerSubmissionConfig — that is normal, not an error. The
+  // orchestrator system prompt instructs Claude to request_human_approval in
+  // that case. This guard catches the case where Claude ignores the rule and
+  // dispatches anyway, surfacing the same self-correctable error envelope it
+  // already understands.
+  if (input.type === 'submit_to_portal' || input.type === 'check_readiness') {
+    const payerId = taskInput['payerId'] as string;
+    const config = await prisma.payerSubmissionConfig.findUnique({
+      where: { payerId },
+      select: { isActive: true },
+    });
+    if (!config || !config.isActive) {
+      return {
+        error: `Cannot dispatch ${input.type}: payer ${payerId} has no active portal adapter configured. Per the system prompt, summarise readiness and call request_human_approval with the manual-submission recommendation — do NOT dispatch portal tasks for this payer.`,
+      };
+    }
+  }
+
   // Count existing tasks to determine step number
   const existingTaskCount = await prisma.agentTask.count({
     where: { workflowId: ctx.workflowId },
