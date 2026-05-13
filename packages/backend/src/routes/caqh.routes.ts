@@ -556,6 +556,8 @@ caqhRoutes.get(
     try {
       const configured = caqhService.isConfigured();
       const schedule = process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *';
+      const proviewUrl =
+        `${(process.env['CAQH_API_URL'] || 'https://proview.caqh.org').replace(/\/$/, '')}/Login`;
 
       const lastSync = await prisma.caqhSyncLog.findFirst({
         where: { status: 'completed' },
@@ -569,6 +571,7 @@ caqhRoutes.get(
           configured,
           syncSchedule: schedule,
           lastSyncAt: lastSync?.completedAt || null,
+          proviewUrl,
         },
       });
     } catch (error) {
