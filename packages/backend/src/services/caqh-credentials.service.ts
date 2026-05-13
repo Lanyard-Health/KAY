@@ -4,7 +4,8 @@ import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
 
-const CAQH_PROVIEW_LOGIN_URL = 'https://proview.caqh.org/Login';
+const CAQH_PROVIEW_LOGIN_URL =
+  `${(process.env['CAQH_API_URL'] || 'https://proview.caqh.org').replace(/\/$/, '')}/Login`;
 
 // Concurrency guard — only 1 browser instance at a time, queue up to 3
 let activeBrowser = false;
