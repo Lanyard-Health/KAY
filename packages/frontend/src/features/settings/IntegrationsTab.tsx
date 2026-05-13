@@ -82,10 +82,33 @@ export default function IntegrationsTab() {
     staleTime: 60 * 1000,
   });
 
+  // Fetch storage + Retell connection status
+  const { data: integrationsStatus } = useQuery({
+    queryKey: ['integrations-status'],
+    queryFn: async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            documentStorage: { configured: boolean; bucket: string | null; endpoint: string | null };
+            retell: { configured: boolean };
+          };
+        }>('/integrations/status');
+        return response.data.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60 * 1000,
+  });
+
   const emailConfigured = emailStatus?.email?.configured ?? false;
   const emailUser = emailStatus?.email?.config?.user;
   const caqhConfigured = caqhStatus?.configured ?? false;
   const caqhLastSync = caqhStatus?.lastSyncAt;
+  const documentStorageConfigured = integrationsStatus?.documentStorage?.configured ?? false;
+  const documentStorageBucket = integrationsStatus?.documentStorage?.bucket;
+  const retellConfigured = integrationsStatus?.retell?.configured ?? false;
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -107,8 +130,8 @@ export default function IntegrationsTab() {
           icon={<PhoneIcon className="h-5 w-5" />}
           name="Retell AI"
           description="AI-powered phone follow-ups with payers"
-          configured={false}
-          details="Configure via RETELL_API_KEY"
+          configured={retellConfigured}
+          details={retellConfigured ? undefined : 'Configure via RETELL_API_KEY'}
         />
 
         <IntegrationCard
@@ -123,8 +146,12 @@ export default function IntegrationsTab() {
           icon={<CloudIcon className="h-5 w-5" />}
           name="Document Storage (S3/R2)"
           description="Secure document upload and storage"
-          configured={false}
-          details="Configure via S3_ENDPOINT, S3_BUCKET_NAME"
+          configured={documentStorageConfigured}
+          details={
+            documentStorageConfigured && documentStorageBucket
+              ? `Bucket: ${documentStorageBucket}`
+              : 'Configure via S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (optionally S3_ENDPOINT for Cloudflare R2)'
+          }
         />
       </div>
     </div>
