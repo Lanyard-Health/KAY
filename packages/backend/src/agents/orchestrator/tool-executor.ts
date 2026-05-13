@@ -42,6 +42,14 @@ const TASK_TYPE_MAP: Record<string, { agentType: string; queue: string }> = {
   monitor_status: { agentType: 'status_monitor', queue: QUEUE_NAMES.MONITOR },
 };
 
+/** Required string-typed input fields per dispatch_task type. */
+const TASK_REQUIRED_INPUT: Record<string, readonly string[]> = {
+  parse_document: ['documentId', 'providerId'],
+  submit_to_portal: ['providerId', 'payerId'],
+  check_readiness: ['providerId', 'payerId'],
+  monitor_status: ['providerId', 'payerId'],
+};
+
 // ==========================================
 // Tool functions
 // ==========================================
@@ -213,6 +221,15 @@ async function dispatchTask(
   const mapping = TASK_TYPE_MAP[input.type];
   if (!mapping) {
     return { error: `Unknown task type: ${input.type}. Allowed: ${Object.keys(TASK_TYPE_MAP).join(', ')}` };
+  }
+
+  const required = TASK_REQUIRED_INPUT[input.type] ?? [];
+  const taskInput = (input.input ?? {}) as Record<string, unknown>;
+  const missing = required.filter((k) => typeof taskInput[k] !== 'string' || !taskInput[k]);
+  if (missing.length > 0) {
+    return {
+      error: `Cannot dispatch ${input.type}: missing required input field(s) ${missing.join(', ')}. For parse_document, only dispatch with a documentId that exists in the provider's profile — do not invent IDs.`,
+    };
   }
 
   // Count existing tasks to determine step number

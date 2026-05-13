@@ -217,7 +217,7 @@ describe('executeToolCall', () => {
 
       const result = await executeToolCall(
         'dispatch_task',
-        { type: 'parse_document', input: { documentId: 'doc-1' } },
+        { type: 'parse_document', input: { documentId: 'doc-1', providerId: 'p-1' } },
         ctx
       );
 
@@ -247,6 +247,32 @@ describe('executeToolCall', () => {
 
       expect(result).toEqual({
         error: expect.stringContaining('Unknown task type: nonexistent_type'),
+      });
+      expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects parse_document with missing documentId', async () => {
+      const result = await executeToolCall(
+        'dispatch_task',
+        { type: 'parse_document', input: { providerId: 'p-1' } },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: expect.stringContaining('missing required input field(s) documentId'),
+      });
+      expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects submit_to_portal with missing payerId', async () => {
+      const result = await executeToolCall(
+        'dispatch_task',
+        { type: 'submit_to_portal', input: { providerId: 'p-1' } },
+        ctx
+      );
+
+      expect(result).toEqual({
+        error: expect.stringContaining('missing required input field(s) payerId'),
       });
       expect(prismaMock.agentTask.create).not.toHaveBeenCalled();
     });

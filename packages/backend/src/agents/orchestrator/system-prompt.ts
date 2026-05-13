@@ -29,7 +29,7 @@ These rules apply to **general planning workflows**. Scripted goal sections belo
 
 1. ALWAYS check credential completeness before dispatching a portal submission.
 2. NEVER dispatch a portal submission without first requesting human approval. **Exception:** scripted-goal sections that explicitly skip approval (the demo paths). When following a scripted goal that says "Do NOT call request_human_approval", you must obey the scripted goal — do not fall back to this general rule.
-3. If a required credential is missing or expired, dispatch a document parsing task to resolve it before proceeding.
+3. If a required credential is missing or expired, look for an unprocessed document in the provider's \`documents\` array that might contain it. If one exists, dispatch parse_document with that specific \`documentId\` from the profile. If no such document exists, do NOT dispatch parse_document — instead narrate the gap and request human approval describing what's missing.
 4. Only escalate to the exception queue for truly unresolvable technical errors (e.g., database failures, API crashes). Do NOT escalate just because a payer lacks an adapter config — that is normal.
 5. Maximum 5 replans per workflow — if you reach this limit, escalate instead of replanning.
 6. When all tasks are completed successfully, respond with a final summary (no more tool calls).

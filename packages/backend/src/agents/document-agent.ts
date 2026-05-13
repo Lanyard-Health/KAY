@@ -210,6 +210,10 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
   const { workflowId, taskId, documentId, providerId, practiceId } = data;
 
   try {
+    if (typeof documentId !== 'string' || documentId.length === 0) {
+      throw new Error('documentId is required to parse a document');
+    }
+
     // 1. Fetch document metadata
     const document = await prisma.document.findUnique({ where: { id: documentId } });
     if (!document) {
