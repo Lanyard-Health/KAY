@@ -525,8 +525,8 @@ export default function WorkflowDetail() {
                     This workflow is waiting on human approval.
                   </p>
                 </div>
-                <Link to="/workflow-queue" className="mt-2 inline-block text-xs font-medium text-amber-700 hover:text-amber-900">
-                  Decide in the Workflow Queue →
+                <Link to="/ai-agent?tab=approvals" className="mt-2 inline-block text-xs font-medium text-amber-700 hover:text-amber-900">
+                  Decide in the Approvals tab →
                 </Link>
               </div>
             )}

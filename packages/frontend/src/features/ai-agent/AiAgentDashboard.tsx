@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageTransition from '../../components/ui/PageTransition';
 import { SparklesIcon, ChatBubbleLeftRightIcon, ShieldExclamationIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
@@ -56,7 +57,11 @@ export default function AiAgentDashboard() {
   const [portfolioResults, setPortfolioResults] = useState<PortfolioItem[] | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'approvals'>('dashboard');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'approvals'>(
+    initialTab === 'approvals' || initialTab === 'chat' ? initialTab : 'dashboard',
+  );
 
   // WebSocket for real-time approval updates
   useApprovalSocket();
