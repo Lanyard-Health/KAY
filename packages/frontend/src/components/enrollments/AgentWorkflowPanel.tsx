@@ -40,6 +40,10 @@ interface AgentWorkflowPanelProps {
    * `submit_to_availity_demo` workflow against the seeded mock-Availity portal.
    * Only set this in dev/demo environments — gated by the parent. */
   demoAvailityPayerId?: string;
+  /** When set, shows a "Run Aetna Demo" button that launches a
+   * `submit_to_aetna_demo` workflow against the seeded mock-Aetna portal.
+   * Only set this in dev/demo environments — gated by the parent. */
+  demoAetnaPayerId?: string;
 }
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
@@ -217,6 +221,7 @@ export default function AgentWorkflowPanel({
   providerName,
   payerName,
   demoAvailityPayerId,
+  demoAetnaPayerId,
 }: AgentWorkflowPanelProps) {
   const validProvider = isUuid(providerId);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
@@ -266,6 +271,20 @@ export default function AgentWorkflowPanel({
       goal: 'submit_to_availity_demo',
       providerId,
       payerId: demoAvailityPayerId,
+      enrollmentId,
+    }).then((response) => {
+      setSelectedWorkflowId(response.data.id);
+    });
+  };
+
+  const handleLaunchAetnaDemo = () => {
+    if (!demoAetnaPayerId) return;
+    // Scripted submit_to_aetna_demo flow — narrate → dispatch portal task → narrate result.
+    // The portal worker drives Puppeteer against the local mock-aetna portal.
+    launchWorkflow.mutateAsync({
+      goal: 'submit_to_aetna_demo',
+      providerId,
+      payerId: demoAetnaPayerId,
       enrollmentId,
     }).then((response) => {
       setSelectedWorkflowId(response.data.id);
@@ -336,6 +355,17 @@ export default function AgentWorkflowPanel({
                 Run Availity Demo
               </button>
             )}
+            {demoAetnaPayerId && (
+              <button
+                onClick={handleLaunchAetnaDemo}
+                disabled={launchWorkflow.isPending}
+                className="inline-flex items-center px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 disabled:opacity-50"
+                title="Drives a Puppeteer browser through a local mock-Aetna portal."
+              >
+                <SparklesIcon className="h-5 w-5 mr-2" />
+                Run Aetna Demo
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -372,6 +402,17 @@ export default function AgentWorkflowPanel({
                 >
                   <SparklesIcon className="h-4 w-4 mr-1.5" />
                   Availity Demo
+                </button>
+              )}
+              {demoAetnaPayerId && (
+                <button
+                  onClick={handleLaunchAetnaDemo}
+                  disabled={launchWorkflow.isPending}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-purple-700 rounded hover:bg-purple-800 disabled:opacity-50"
+                  title="Drives a Puppeteer browser through a local mock-Aetna portal."
+                >
+                  <SparklesIcon className="h-4 w-4 mr-1.5" />
+                  Aetna Demo
                 </button>
               )}
             </>

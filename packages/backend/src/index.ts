@@ -97,12 +97,14 @@ let serverReady = false;
 // Trust first proxy (Render) so rate limiter sees real client IPs, not proxy IP
 app.set('trust proxy', 1);
 
-// Mock Availity portal — local fake-portal for browser-automation demos.
+// Mock portals — local fake-portal static sites for browser-automation demos.
 // Mounted BEFORE helmet so the inline styles in the static HTML aren't blocked
-// by the global CSP. Gated on NODE_ENV !== 'production' so it's never exposed in prod.
+// by the global CSP. Gated on NODE_ENV !== 'production' so they're never
+// exposed in prod.
 if (process.env['NODE_ENV'] !== 'production') {
-  const mockAvailityDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'static', 'mock-availity');
-  app.use('/mock-availity', express.static(mockAvailityDir, { extensions: ['html'] }));
+  const staticDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'static');
+  app.use('/mock-availity', express.static(path.join(staticDir, 'mock-availity'), { extensions: ['html'] }));
+  app.use('/mock-aetna', express.static(path.join(staticDir, 'mock-aetna'), { extensions: ['html'] }));
 }
 
 // Security middleware

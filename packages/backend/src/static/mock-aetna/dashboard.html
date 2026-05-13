@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Aetna Provider Portal — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #2c3e50; min-height: 100vh; }
+    header { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-logo { width: 32px; height: 32px; background: #7C2D8C; color: white; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .brand-name { font-size: 18px; font-weight: 600; color: #7C2D8C; }
+    .user-info { font-size: 13px; color: #475569; }
+    main { padding: 40px 32px; max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 24px; color: #1a3d6f; margin-bottom: 24px; }
+    .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .action-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; cursor: pointer; transition: all 0.15s; text-decoration: none; color: inherit; }
+    .action-card:hover { border-color: #7C2D8C; box-shadow: 0 2px 8px rgba(124,45,140,0.1); }
+    .action-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: #7C2D8C; }
+    .action-card p { font-size: 13px; color: #64748b; }
+    .primary-action { background: #7C2D8C; color: white; padding: 16px 24px; border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+    .primary-action:hover { background: #5E2169; }
+    .demo-banner { background: #fef3c7; color: #92400e; font-size: 11px; padding: 6px 12px; text-align: center; font-weight: 500; }
+    .recent-section { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; }
+    .recent-section h2 { font-size: 16px; color: #7C2D8C; margin-bottom: 12px; }
+    .recent-empty { color: #94a3b8; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">DEMO ENVIRONMENT — Lanyard Health Internal</div>
+  <header>
+    <div class="brand">
+      <div class="brand-logo">A</div>
+      <div class="brand-name">Aetna Provider Portal</div>
+    </div>
+    <div class="user-info">Signed in as Provider Admin</div>
+  </header>
+  <main>
+    <h1>Welcome back</h1>
+    <div class="quick-actions">
+      <a class="action-card" href="/mock-aetna/enrollment-form.html" id="action-enrollment">
+        <h3>Provider Enrollment</h3>
+        <p>Submit a new provider for credentialing with Aetna.</p>
+      </a>
+      <div class="action-card">
+        <h3>Eligibility &amp; Benefits</h3>
+        <p>Look up patient coverage and benefits.</p>
+      </div>
+      <div class="action-card">
+        <h3>Claims</h3>
+        <p>Submit and track claims.</p>
+      </div>
+    </div>
+    <a href="/mock-aetna/enrollment-form.html" class="primary-action" id="submit-enrollment-button">Submit New Enrollment</a>
+    <div style="height:32px"></div>
+    <div class="recent-section">
+      <h2>Recent enrollments</h2>
+      <p class="recent-empty">No recent enrollments. Click "Submit New Enrollment" above to get started.</p>
+    </div>
+  </main>
+</body>
+</html>

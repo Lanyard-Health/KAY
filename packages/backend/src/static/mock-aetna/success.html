@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Aetna Provider Portal — Submission Complete</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #2c3e50; min-height: 100vh; }
+    header { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+    .brand-logo { width: 32px; height: 32px; background: #7C2D8C; color: white; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .brand-name { font-size: 18px; font-weight: 600; color: #7C2D8C; }
+    main { padding: 60px 32px; max-width: 720px; margin: 0 auto; }
+    .success-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 48px; text-align: center; }
+    .check-icon { width: 64px; height: 64px; background: #d1fae5; color: #059669; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 24px; }
+    h1 { font-size: 24px; color: #7C2D8C; margin-bottom: 12px; }
+    .subtitle { font-size: 15px; color: #475569; margin-bottom: 32px; line-height: 1.6; }
+    .confirmation-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; text-align: left; margin-bottom: 24px; }
+    .confirmation-label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+    .confirmation-value { font-size: 18px; font-family: 'Courier New', monospace; font-weight: 700; color: #7C2D8C; }
+    .meta-row { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 13px; }
+    .meta-label { color: #64748b; }
+    .meta-value { color: #1e293b; font-weight: 500; }
+    .demo-banner { background: #fef3c7; color: #92400e; font-size: 11px; padding: 6px 12px; text-align: center; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="demo-banner">DEMO ENVIRONMENT — Lanyard Health Internal</div>
+  <header>
+    <div class="brand-logo">A</div>
+    <div class="brand-name">Aetna Provider Portal</div>
+  </header>
+  <main>
+    <div class="success-card">
+      <div class="check-icon">&#10003;</div>
+      <h1>Enrollment submitted</h1>
+      <p class="subtitle">
+        The provider's credentialing application has been received and queued for review.
+        You will receive a status update via your portal inbox within 30 days.
+      </p>
+      <div class="confirmation-box">
+        <div class="confirmation-label">CONFIRMATION NUMBER</div>
+        <div class="confirmation-value" id="confirmation-number">AET-DEMO-2026-0001</div>
+        <div class="meta-row">
+          <div>
+            <div class="meta-label">Submitted at</div>
+            <div class="meta-value" id="submitted-at">just now</div>
+          </div>
+          <div>
+            <div class="meta-label">Status</div>
+            <div class="meta-value" style="color:#059669">Pending Review</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    var d = new Date();
+    var random = Math.floor(Math.random() * 9000) + 1000;
+    document.getElementById('confirmation-number').textContent =
+      'AET-DEMO-' + d.getFullYear() + '-' + random;
+    document.getElementById('submitted-at').textContent = d.toLocaleString();
+  </script>
+</body>
+</html>

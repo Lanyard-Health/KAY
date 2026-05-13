@@ -96,6 +96,35 @@ payerRoutes.get(
   }
 );
 
+// GET /api/v1/payers/demo-aetna - Look up the seeded "Aetna (DEMO)" payer
+// Mirror of demo-availity. Backs the frontend Aetna demo button.
+payerRoutes.get(
+  '/demo-aetna',
+  authorize(...STAFF_ROLES),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (process.env['NODE_ENV'] === 'production') {
+        res.status(404).json({ success: false, error: { message: 'Demo not available in production' } });
+        return;
+      }
+      const payer = await prisma.payer.findUnique({
+        where: { payerId: 'AETNA-DEMO-001' },
+        select: { id: true, name: true, payerId: true },
+      });
+      if (!payer) {
+        res.status(404).json({
+          success: false,
+          error: { message: 'Demo Aetna payer not seeded. Run: npx tsx scripts/seed-demo-aetna-payer.ts' },
+        });
+        return;
+      }
+      res.json({ success: true, data: payer });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/payers/:id - Get payer details
 payerRoutes.get(
   '/:id',
