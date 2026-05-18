@@ -12,7 +12,7 @@ This folder holds **one markdown file per payer** that audits the payer's form a
 |---|---|---|
 | [aetna-field-map.md](aetna-field-map.md) | Aetna (Behavioral Health Professional) | Initial mapping complete — schema-verification pass done; awaiting migration design |
 | [cigna-evernorth-field-map.md](cigna-evernorth-field-map.md) | Cigna / Evernorth (Behavioral Provider) | Migration design locked (2026-05-17) — 4 additions (2 columns + 2 tables) |
-| _no payer files yet_ | | |
+| [devoted-field-map.md](devoted-field-map.md) | Devoted Health (Provider Participation) | Initial mapping complete (2026-05-17) — 18 ✅ / 5 ⚠️ / 5 ❌; awaiting schema-verification pass |
 
 _Add a row each time a new payer's field map is created._
 
