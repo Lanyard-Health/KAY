@@ -46,7 +46,7 @@ describe('PayerIntelligence Service', () => {
   describe('getPayerAnalytics', () => {
     it('returns analytics for payers with enrollments', async () => {
       prismaMock.payer.findMany.mockResolvedValue(mockPayers as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(60), effectiveDate: daysAgo(30), updatedAt: daysAgo(30) },
         { id: 'e2', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(50), effectiveDate: daysAgo(20), updatedAt: daysAgo(20) },
         { id: 'e3', payerId: 'payer-1', status: 'denied', applicationDate: daysAgo(40), effectiveDate: null, updatedAt: daysAgo(10) },
@@ -67,7 +67,7 @@ describe('PayerIntelligence Service', () => {
 
     it('marks payers with < 3 enrollments as insufficient data', async () => {
       prismaMock.payer.findMany.mockResolvedValue([mockPayers[0]] as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(30), effectiveDate: daysAgo(10), updatedAt: daysAgo(10) },
         { id: 'e2', payerId: 'payer-1', status: 'denied', applicationDate: daysAgo(20), effectiveDate: null, updatedAt: daysAgo(5) },
       ] as any);
@@ -89,7 +89,7 @@ describe('PayerIntelligence Service', () => {
 
     it('handles null applicationDate/effectiveDate gracefully', async () => {
       prismaMock.payer.findMany.mockResolvedValue([mockPayers[0]] as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: null, effectiveDate: null, updatedAt: daysAgo(10) },
         { id: 'e2', payerId: 'payer-1', status: 'approved', applicationDate: null, effectiveDate: null, updatedAt: daysAgo(5) },
         { id: 'e3', payerId: 'payer-1', status: 'denied', applicationDate: null, effectiveDate: null, updatedAt: daysAgo(2) },
@@ -104,7 +104,7 @@ describe('PayerIntelligence Service', () => {
 
     it('filters by specific payerId when provided', async () => {
       prismaMock.payer.findMany.mockResolvedValue([mockPayers[0]] as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(30), effectiveDate: daysAgo(10), updatedAt: daysAgo(10) },
         { id: 'e2', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(20), effectiveDate: daysAgo(5), updatedAt: daysAgo(5) },
         { id: 'e3', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(40), effectiveDate: daysAgo(20), updatedAt: daysAgo(20) },
@@ -125,7 +125,7 @@ describe('PayerIntelligence Service', () => {
   describe('getPayerLeaderboard', () => {
     it('returns scored and ranked payers', async () => {
       prismaMock.payer.findMany.mockResolvedValue(mockPayers as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         // Payer 1: high denial, slow
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(90), effectiveDate: daysAgo(10), updatedAt: daysAgo(10) },
         { id: 'e2', payerId: 'payer-1', status: 'denied', applicationDate: daysAgo(60), effectiveDate: null, updatedAt: daysAgo(5) },
@@ -149,7 +149,7 @@ describe('PayerIntelligence Service', () => {
 
     it('returns empty array when no payers have sufficient data', async () => {
       prismaMock.payer.findMany.mockResolvedValue(mockPayers as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(10), effectiveDate: daysAgo(5), updatedAt: daysAgo(5) },
       ] as any);
 
@@ -182,7 +182,7 @@ describe('PayerIntelligence Service', () => {
     it('returns AI insight and stores recommendation', async () => {
       (checkTokenBudget as any).mockResolvedValue({ allowed: true, used: 1000, budget: 100000, remaining: 99000 });
       prismaMock.payer.findMany.mockResolvedValue([mockPayers[0]] as any);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'e1', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(30), effectiveDate: daysAgo(10), updatedAt: daysAgo(10) },
         { id: 'e2', payerId: 'payer-1', status: 'approved', applicationDate: daysAgo(20), effectiveDate: daysAgo(5), updatedAt: daysAgo(5) },
         { id: 'e3', payerId: 'payer-1', status: 'denied', applicationDate: daysAgo(40), effectiveDate: null, updatedAt: daysAgo(3) },
@@ -216,7 +216,7 @@ describe('PayerIntelligence Service', () => {
     it('throws when payer has no enrollments', async () => {
       (checkTokenBudget as any).mockResolvedValue({ allowed: true, used: 0, budget: 100000, remaining: 100000 });
       prismaMock.payer.findMany.mockResolvedValue([]);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+      prismaMock.enrollment.findMany.mockResolvedValue([]);
 
       await expect(analyzePayerWithAI('nonexistent')).rejects.toThrow('No enrollment data found');
     });

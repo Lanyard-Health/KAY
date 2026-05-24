@@ -69,8 +69,8 @@ describe('Dashboard Routes', () => {
       prismaMock.provider.groupBy.mockResolvedValue(mockStatusCounts as any);
       prismaMock.provider.findMany.mockResolvedValue(mockIncompleteProviders as any);
       prismaMock.provider.count.mockResolvedValue(2);
-      prismaMock.payerEnrollment.findMany.mockResolvedValue(mockNeedsFollowUp as any);
-      prismaMock.payerEnrollment.count.mockResolvedValue(1);
+      prismaMock.enrollment.findMany.mockResolvedValue(mockNeedsFollowUp as any);
+      prismaMock.enrollment.count.mockResolvedValue(1);
 
       const res = await request(app).get('/stats');
 
@@ -106,8 +106,8 @@ describe('Dashboard Routes', () => {
       expect(prismaMock.provider.groupBy).not.toHaveBeenCalled();
       expect(prismaMock.provider.findMany).not.toHaveBeenCalled();
       expect(prismaMock.provider.count).not.toHaveBeenCalled();
-      expect(prismaMock.payerEnrollment.findMany).not.toHaveBeenCalled();
-      expect(prismaMock.payerEnrollment.count).not.toHaveBeenCalled();
+      expect(prismaMock.enrollment.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.enrollment.count).not.toHaveBeenCalled();
     });
 
     it('returns 500 on error', async () => {

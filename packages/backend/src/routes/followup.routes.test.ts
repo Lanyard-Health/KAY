@@ -63,7 +63,7 @@ describe('Follow-up Routes', () => {
     // Re-set after clearAllMocks: practice scope middleware must allow access
     (validateProviderPracticeAccess as any).mockResolvedValue(true);
     // Default: enrollment exists for checkEnrollmentPracticeAccess middleware
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       id: 'enroll-1',
       providerId: 'provider-1-id',
     } as any);
@@ -234,7 +234,7 @@ describe('Follow-up Routes', () => {
 
   describe('GET /enrollment/:id/settings', () => {
     it('returns follow-up settings for enrollment', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+      prismaMock.enrollment.findUnique.mockResolvedValue({
         id: 'enroll-1',
         followUpEnabled: true,
         followUpEmail: 'payer@test.com',
@@ -253,7 +253,7 @@ describe('Follow-up Routes', () => {
 
   describe('GET /enrollments', () => {
     it('returns all enrollments with follow-up enabled', async () => {
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([
+      prismaMock.enrollment.findMany.mockResolvedValue([
         { id: 'enroll-1', followUpEnabled: true, provider: {}, payer: {} },
       ] as any);
 
@@ -288,7 +288,7 @@ describe('Follow-up Routes', () => {
 
   describe('GET /enrollment/:id/history', () => {
     it('returns follow-up history', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+      prismaMock.enrollment.findUnique.mockResolvedValue({
         id: 'enroll-1',
         followUpEmail: 'payer@test.com',
         provider: { firstName: 'Jane', lastName: 'Doe' },
@@ -305,7 +305,7 @@ describe('Follow-up Routes', () => {
     });
 
     it('returns 404 when enrollment not found for history', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
       const res = await request(app).get('/enrollment/nonexistent/history');
 

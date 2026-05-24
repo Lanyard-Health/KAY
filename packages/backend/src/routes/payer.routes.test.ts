@@ -158,14 +158,14 @@ describe('Payer Routes', () => {
   // ==========================================
   describe('GET /enrollments/:providerId', () => {
     it('returns enrollments for a provider with payer included', async () => {
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment] as any);
+      prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment] as any);
 
       const res = await request(app).get('/enrollments/provider-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
-      expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { providerId: 'provider-1-id' },
           include: { payer: true },
@@ -174,7 +174,7 @@ describe('Payer Routes', () => {
     });
 
     it('returns empty array when no enrollments', async () => {
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+      prismaMock.enrollment.findMany.mockResolvedValue([]);
 
       const res = await request(app).get('/enrollments/provider-1-id');
 
@@ -185,7 +185,7 @@ describe('Payer Routes', () => {
 
   describe('POST /enrollments/:providerId', () => {
     it('creates enrollment with 201 and sets createdById', async () => {
-      prismaMock.payerEnrollment.create.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.create.mockResolvedValue(mockEnrollment as any);
 
       const res = await request(app)
         .post('/enrollments/provider-1-id')
@@ -193,7 +193,7 @@ describe('Payer Routes', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.payerEnrollment.create).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             providerId: 'provider-1-id',
@@ -205,7 +205,7 @@ describe('Payer Routes', () => {
     });
 
     it('converts optional date fields when provided', async () => {
-      prismaMock.payerEnrollment.create.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.create.mockResolvedValue(mockEnrollment as any);
 
       await request(app)
         .post('/enrollments/provider-1-id')
@@ -215,7 +215,7 @@ describe('Payer Routes', () => {
           effectiveDate: '2024-04-01',
         });
 
-      expect(prismaMock.payerEnrollment.create).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             applicationDate: expect.any(Date),
@@ -237,8 +237,8 @@ describe('Payer Routes', () => {
 
   describe('PUT /enrollments/update/:id', () => {
     it('updates enrollment partially and sets updatedById', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
-      prismaMock.payerEnrollment.update.mockResolvedValue({
+      prismaMock.enrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
+      prismaMock.enrollment.update.mockResolvedValue({
         ...mockEnrollment,
         status: 'in_progress',
         updatedById: 'admin-user-id',
@@ -250,7 +250,7 @@ describe('Payer Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'enrollment-1-id' },
           data: expect.objectContaining({
@@ -263,15 +263,15 @@ describe('Payer Routes', () => {
 
   describe('DELETE /enrollments/delete/:id', () => {
     it('deletes an enrollment', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
-      prismaMock.payerEnrollment.delete.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.findUnique.mockResolvedValue({ providerId: 'provider-1-id' } as any);
+      prismaMock.enrollment.delete.mockResolvedValue(mockEnrollment as any);
 
       const res = await request(app).delete('/enrollments/delete/enrollment-1-id');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Enrollment deleted');
-      expect(prismaMock.payerEnrollment.delete).toHaveBeenCalledWith({
+      expect(prismaMock.enrollment.delete).toHaveBeenCalledWith({
         where: { id: 'enrollment-1-id' },
       });
     });

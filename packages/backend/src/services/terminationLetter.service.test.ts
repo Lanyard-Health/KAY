@@ -52,7 +52,7 @@ describe('generateTerminationLetter', () => {
   it('generates letter with correct provider name, NPI, and group NPI', async () => {
     prismaMock.provider.findUnique.mockResolvedValue(mockProviderForTermination as any);
     prismaMock.practiceLocation.findFirst.mockResolvedValue(mockPrimaryLocation as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
     prismaMock.terminationLetter.create.mockImplementation((args: any) => Promise.resolve({
       id: 'new-letter-id',
       ...args.data,
@@ -75,7 +75,7 @@ describe('generateTerminationLetter', () => {
   it('masks Tax ID in the saved letter (only last 4 visible)', async () => {
     prismaMock.provider.findUnique.mockResolvedValue(mockProviderForTermination as any);
     prismaMock.practiceLocation.findFirst.mockResolvedValue(mockPrimaryLocation as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
     prismaMock.terminationLetter.create.mockImplementation((args: any) => Promise.resolve({
       id: 'new-letter-id',
       ...args.data,
@@ -97,7 +97,7 @@ describe('generateTerminationLetter', () => {
   it('includes effective and termination dates in letter content', async () => {
     prismaMock.provider.findUnique.mockResolvedValue(mockProviderForTermination as any);
     prismaMock.practiceLocation.findFirst.mockResolvedValue(mockPrimaryLocation as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
     prismaMock.terminationLetter.create.mockImplementation((args: any) => Promise.resolve({
       id: 'new-letter-id',
       ...args.data,
@@ -120,7 +120,7 @@ describe('generateTerminationLetter', () => {
   it('creates letter with correct provider/task/payer references', async () => {
     prismaMock.provider.findUnique.mockResolvedValue(mockProviderForTermination as any);
     prismaMock.practiceLocation.findFirst.mockResolvedValue(mockPrimaryLocation as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
     prismaMock.terminationLetter.create.mockImplementation((args: any) => Promise.resolve({
       id: 'new-letter-id',
       ...args.data,
@@ -155,7 +155,7 @@ describe('generateTerminationLetter', () => {
     prismaMock.practiceLocation.findFirst
       .mockResolvedValueOnce(null) // primary location
       .mockResolvedValueOnce(null); // fallback location
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment1 as any);
     prismaMock.terminationLetter.create.mockImplementation((args: any) => Promise.resolve({
       id: 'new-letter-id',
       ...args.data,

@@ -30,7 +30,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('creates correct tasks for each enrollment with effectiveDate', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([
+    prismaMock.enrollment.findMany.mockResolvedValue([
       mockEnrollment1,
       mockEnrollment2,
     ] as any);
@@ -72,7 +72,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('does not create duplicate tasks (idempotency)', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
 
     // All tasks already exist
     prismaMock.task.findMany.mockResolvedValueOnce([
@@ -88,7 +88,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('skips enrollments without effectiveDate', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
 
     await triggerTerminationWorkflow(PROVIDER_ID, 'some-enrollment-id');
 
@@ -96,7 +96,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('auto-generates draft letters for new DRAFT_TERM_LETTER tasks', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
     prismaMock.task.findMany
       .mockResolvedValueOnce([]) // existing tasks query
       .mockResolvedValueOnce([ // newLetterTasks query
@@ -117,7 +117,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('does not throw on error (fire-and-forget)', async () => {
-    prismaMock.payerEnrollment.findMany.mockRejectedValue(new Error('DB connection failed'));
+    prismaMock.enrollment.findMany.mockRejectedValue(new Error('DB connection failed'));
 
     await expect(
       triggerTerminationWorkflow(PROVIDER_ID, 'some-enrollment-id')
@@ -125,7 +125,7 @@ describe('triggerTerminationWorkflow', () => {
   });
 
   it('only creates missing tasks when some already exist', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment1] as any);
 
     prismaMock.task.findMany
       .mockResolvedValueOnce([

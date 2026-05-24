@@ -80,12 +80,12 @@ function mockCounts({
   }
 
   // Enrollment counts: totalEnrollments, approvedEnrollments
-  prismaMock.payerEnrollment.count
+  prismaMock.enrollment.count
     .mockResolvedValueOnce(totalEnrollments)
     .mockResolvedValueOnce(approvedEnrollments);
   // Then 7 trend days for enrollments
   for (const val of enrollmentTrend) {
-    prismaMock.payerEnrollment.count.mockResolvedValueOnce(val);
+    prismaMock.enrollment.count.mockResolvedValueOnce(val);
   }
 
   // License counts: expiredLicenses, totalLicenses
