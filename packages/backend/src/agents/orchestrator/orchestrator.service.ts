@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import * as Sentry from '@sentry/node';
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
@@ -7,6 +7,7 @@ import { notificationService } from '../../services/notification.service.js';
 import { ORCHESTRATOR_TOOLS } from './tool-schemas.js';
 import { executeToolCall } from './tool-executor.js';
 import { buildSystemPrompt, buildUserMessage } from './system-prompt.js';
+import { callLLM, setLLMClientForTesting } from '../../utils/llm.js';
 
 // ==========================================
 // Constants
@@ -37,25 +38,14 @@ export interface OrchestratorResult {
 }
 
 // ==========================================
-// Anthropic client (lazy singleton)
+// Test seam
 // ==========================================
 
-let anthropicClient: Anthropic | null = null;
-
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-    anthropicClient = new Anthropic({ apiKey, timeout: 60_000 });
-  }
-  return anthropicClient;
-}
-
-/** Exposed for testing — allows injecting a mock client */
+/** Backwards-compat shim — orchestrator no longer owns its client; calls go
+ *  through the shared LLM wrapper. Existing tests call this to inject a mock
+ *  Anthropic-shaped object; we forward to the wrapper's test seam. */
 export function setAnthropicClient(client: Anthropic | null): void {
-  anthropicClient = client;
+  setLLMClientForTesting(client);
 }
 
 // ==========================================
@@ -166,7 +156,6 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   });
 
   // 4. Claude message loop (wrapped in try/catch to prevent stuck workflows)
-  const client = getAnthropicClient();
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userMessage }];
   let toolCallCount = 0;
   let totalInputTokens = 0;
@@ -181,25 +170,22 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
 
   try {
     while (true) {
-      const response = await client.messages.create({
+      // callLLM handles prompt-caching wire format (system + last-tool cache_control)
+      // and returns normalized usage including cache_creation/cache_read metrics.
+      const response = await callLLM({
         model: AI_MODEL,
-        max_tokens: 4096,
-        system: [
-          { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-        ],
+        maxTokens: 4096,
+        system: systemPrompt,
         messages,
-        tools: ORCHESTRATOR_TOOLS.map((tool, idx) =>
-          idx === ORCHESTRATOR_TOOLS.length - 1
-            ? { ...tool, cache_control: { type: 'ephemeral' as const } }
-            : tool
-        ),
+        tools: ORCHESTRATOR_TOOLS as Anthropic.Tool[],
+        cacheable: true,
       });
 
       // Track tokens (including cache metrics — see Phase 1 of cost optimization plan)
-      totalInputTokens += response.usage.input_tokens;
-      totalOutputTokens += response.usage.output_tokens;
-      totalCacheCreationTokens += response.usage.cache_creation_input_tokens ?? 0;
-      totalCacheReadTokens += response.usage.cache_read_input_tokens ?? 0;
+      totalInputTokens += response.inputTokens;
+      totalOutputTokens += response.outputTokens;
+      totalCacheCreationTokens += response.cacheCreationTokens;
+      totalCacheReadTokens += response.cacheReadTokens;
 
       // Extract tool_use blocks
       const toolUseBlocks = response.content.filter(
