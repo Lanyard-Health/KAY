@@ -105,7 +105,7 @@ export async function ensureDraftEnrollments(
             createdById: createdById ?? null,
           },
           include: {
-            payer: { select: { workflowKey: true, name: true } },
+            payer: { select: { name: true } },
             provider: { select: { providerType: true } },
           },
         });

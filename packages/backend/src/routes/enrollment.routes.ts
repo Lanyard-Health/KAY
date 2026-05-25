@@ -367,7 +367,7 @@ router.post(
             slaTargetDate,
           },
           include: {
-            payer: { select: { id: true, name: true, payerId: true, payerType: true, workflowKey: true } },
+            payer: { select: { id: true, name: true, payerId: true, payerType: true } },
             provider: { select: { providerType: true } },
           },
         });

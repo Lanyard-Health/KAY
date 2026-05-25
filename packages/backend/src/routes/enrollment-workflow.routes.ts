@@ -1,28 +1,29 @@
 /**
  * Enrollment Workflow Routes
  *
- * New endpoints:
- *   GET    /:id/workflow          - Get workflow steps + progress
- *   PUT    /:id/workflow/:stepId   - Update a step's status
- *   POST   /:id/workflow/hydrate   - Manually hydrate steps
- *   GET    /workflow/templates/:payerWorkflowKey - Preview available templates
+ * Endpoints:
+ *   GET    /:id/workflow              - Get workflow steps + progress
+ *   PUT    /:id/workflow/:stepId      - Update a step's status
+ *   POST   /:id/workflow/hydrate      - Manually instantiate steps from the active template
+ *
+ * Post Phase-6: workflow templates are DB-backed only. The legacy
+ * GET /workflow/templates/:payerWorkflowKey JSON preview endpoint was removed;
+ * to browse available workflows, query workflow_templates joined to payer_tracks.
  */
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { WorkflowStepStatus, WorkflowType } from '@prisma/client';
+import { WorkflowStepStatus } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
 import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
-  hydrateWorkflowSteps,
   updateStepStatus,
   getWorkflowProgress,
-  getAvailableWorkflows,
   getActionTypeConfig,
 } from '../services/workflow-hydration.service.js';
-import { resolveWorkflowType } from '../config/workflow-mapping.js';
+import { instantiateWorkflow } from '../services/workflow-instantiation.service.js';
 import { logger } from '../utils/logger.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 
@@ -33,38 +34,6 @@ const updateStepSchema = z.object({
   notes: z.union([z.string().max(2000), z.null()]).optional().transform((v) => v === null ? undefined : v),
   skippedReason: z.union([z.string().max(500), z.null()]).optional().transform((v) => v === null ? undefined : v),
 });
-
-const hydrateWorkflowSchema = z.object({
-  workflowType: z.enum(['medical', 'behavioral_health']).optional(),
-});
-
-// ============================================================
-// GET /workflow/templates/:payerWorkflowKey
-// Preview available workflow templates for a payer
-// (Must be above /:id routes to avoid "workflow" being caught as :id)
-// ============================================================
-router.get(
-  '/workflow/templates/:payerWorkflowKey',
-  authenticate,
-  authorize(...STAFF_ROLES),
-  async (req: Request, res: Response) => {
-    try {
-      const payerWorkflowKey = req.params['payerWorkflowKey']!;
-      const workflows = getAvailableWorkflows(payerWorkflowKey);
-
-      if (!workflows) {
-        return res.status(404).json({
-          error: `No workflow templates found for key "${payerWorkflowKey}"`,
-        });
-      }
-
-      return res.json({ payerWorkflowKey, workflows });
-    } catch (error) {
-      logger.error('Error fetching templates:', error);
-      return res.status(500).json({ error: 'Failed to fetch templates' });
-    }
-  }
-);
 
 // ============================================================
 // GET /:id/workflow
@@ -77,7 +46,7 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
     const enrollment = await prisma.enrollment.findUnique({
       where: { id },
       include: {
-        payer: { select: { id: true, name: true, workflowKey: true } },
+        payer: { select: { id: true, name: true } },
         provider: { select: { id: true, firstName: true, lastName: true, providerType: true } },
       },
     });
@@ -109,7 +78,6 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
         status: enrollment.status,
         workflowType: enrollment.workflowType,
         payerName: enrollment.payer.name,
-        payerWorkflowKey: enrollment.payer.workflowKey,
         providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
         providerType: enrollment.provider.providerType,
       },
@@ -209,7 +177,8 @@ router.put(
 
 // ============================================================
 // POST /:id/workflow/hydrate
-// Manually hydrate workflow steps for existing enrollments
+// Manually instantiate workflow steps from the active DB template
+// (for enrollments created before the hook ran, or after step deletion).
 // ============================================================
 router.post(
   '/:id/workflow/hydrate',
@@ -218,14 +187,13 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const id = req.params['id']!;
-      const { workflowType } = hydrateWorkflowSchema.parse(req.body);
       setAuditContext(req, { resourceType: 'workflow_step', resourceId: id, action: 'create' });
 
       const enrollment = await prisma.enrollment.findUnique({
         where: { id },
         include: {
-          payer: true,
-          provider: true,
+          payer: { select: { name: true } },
+          provider: { select: { id: true, providerType: true } },
           workflowSteps: { take: 1 },
         },
       });
@@ -245,36 +213,34 @@ router.post(
         });
       }
 
-      const payerWorkflowKey = enrollment.payer.workflowKey;
-      if (!payerWorkflowKey) {
+      if (!enrollment.payerTrackId) {
         return res.status(422).json({
-          error: `Payer "${enrollment.payer.name}" does not have a workflow template configured.`,
+          error: `Enrollment for payer "${enrollment.payer.name}" has no payerTrackId set; cannot resolve a workflow template.`,
         });
       }
 
-      const resolvedType = workflowType
-        ? (workflowType as WorkflowType)
-        : resolveWorkflowType(
-            enrollment.provider.providerType,
-            payerWorkflowKey
-          );
-
-      const result = await hydrateWorkflowSteps(
-        prisma,
-        id,
-        payerWorkflowKey,
-        resolvedType
-      );
-
-      await prisma.enrollment.update({
-        where: { id },
-        data: { workflowType: resolvedType },
+      const payerTrack = await prisma.payerTrack.findUnique({
+        where: { id: enrollment.payerTrackId },
+        select: { stateRegion: true },
       });
+
+      const result = await instantiateWorkflow(prisma, id, enrollment.payerTrackId, {
+        state: payerTrack?.stateRegion ?? undefined,
+        providerType: enrollment.provider.providerType ?? undefined,
+      });
+
+      if (!result.templateFound) {
+        return res.status(404).json({
+          error: `No active WorkflowTemplate found for the enrollment's PayerTrack.`,
+        });
+      }
 
       return res.json({
         message: `Created ${result.stepsCreated} workflow steps`,
-        workflowType: resolvedType,
-        ...result,
+        templateId: result.templateId,
+        templateName: result.templateName,
+        stepsCreated: result.stepsCreated,
+        conditionsApplied: result.conditionsApplied,
       });
     } catch (error) {
       logger.error('Error hydrating workflow:', error);

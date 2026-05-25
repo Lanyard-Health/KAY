@@ -1718,7 +1718,6 @@ model Payer {
   phone        String?
   website      String?
   notes        String?
-  workflowKey  String? @map("workflow_key")
 
   verticalTags          String[] @default([]) @map("vertical_tags")
   averageProcessingDays Int?     @map("average_processing_days")

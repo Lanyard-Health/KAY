@@ -21,6 +21,32 @@ const prisma = new PrismaClient();
 const DRY_RUN = process.argv.includes('--dry-run');
 const SYSTEM_USER = 'system-seed';
 
+// Payers whose WorkflowTemplate rows are now owned by a dedicated per-payer seed
+// (under prisma/seeds/payerWorkflows/) sourced from the legacy payer-workflows.json
+// migration. This seed leaves their WorkflowTemplate + WorkflowTemplateStep +
+// WorkflowTemplateCondition rows alone, but still generates their FollowUpTemplate
+// rows (which the dedicated seeds don't touch). Match is case-insensitive on
+// PayerTrack.payerName.
+//
+// Registry of payers that own their own per-payer seed files (under
+// prisma/seeds/payerWorkflows/*.seed.ts). For these payers the auto-generator
+// in this file skips workflow-template creation entirely so it doesn't fight
+// the dedicated seeds. ~63 of the 69 payers in the DB do NOT have dedicated
+// seeds (mostly BCBS variants) and still rely on this generator's
+// 10-step-from-knowledge-base output.
+//
+// Values are matched case-insensitively against PayerTrack.payerName, so they
+// must be the full DB payer_name (e.g. "Cigna Healthcare") not the JSON key.
+// Add a new entry here whenever a new per-payer seed ships.
+const MIGRATED_PAYER_NAMES = new Set([
+  'aetna',
+  'cigna healthcare',
+  'evernorth behavioral health',
+  'united healthcare',
+  'optum behavioral health',
+  'humana',
+]);
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function cuid(): string {
@@ -474,16 +500,29 @@ async function main() {
   console.log('');
 
   if (!DRY_RUN) {
-    // Clean existing templates (cascade deletes steps and conditions)
+    // Clean existing templates (cascade deletes steps and conditions).
+    // EXCLUDE migrated payers' WorkflowTemplate rows — those are owned by per-payer
+    // seed files under prisma/seeds/payerWorkflows/. FollowUpTemplate rows are still
+    // wiped for everyone since this seed is the source of truth for follow-ups.
     console.log('🧹 Cleaning existing templates...');
+    const migratedPayerTracks = await prisma.payerTrack.findMany({
+      where: { payerName: { in: Array.from(MIGRATED_PAYER_NAMES), mode: 'insensitive' } },
+      select: { id: true },
+    });
+    const migratedTrackIds = migratedPayerTracks.map((t) => t.id);
     // Must delete runs first (FK to FollowUpTemplate)
     await prisma.followUpRun.deleteMany({});
     await prisma.followUpTemplateStep.deleteMany({});
     await prisma.followUpTemplate.deleteMany({});
-    await prisma.workflowTemplateCondition.deleteMany({});
-    await prisma.workflowTemplateStep.deleteMany({});
-    await prisma.workflowTemplate.deleteMany({});
-    console.log('  ✓ Cleaned\n');
+    // Workflow rows: skip migrated payers' templates so the dedicated seed's rows survive.
+    if (migratedTrackIds.length > 0) {
+      await prisma.workflowTemplate.deleteMany({
+        where: { payerTrackId: { notIn: migratedTrackIds } },
+      });
+    } else {
+      await prisma.workflowTemplate.deleteMany({});
+    }
+    console.log(`  ✓ Cleaned (preserved ${migratedTrackIds.length} migrated-payer WorkflowTemplate(s))\n`);
   }
 
   let workflowCount = 0;
@@ -502,9 +541,17 @@ async function main() {
       t.processType.toLowerCase().includes('initial')
     ) || timelines[0] || null;
 
-    // ── Build Workflow Template ──
-    const workflowSteps = buildWorkflowSteps(track, forms, requirements, initialTimeline);
+    const isMigrated = MIGRATED_PAYER_NAMES.has(track.payerName.toLowerCase());
     const templateName = `${track.payerName} — ${track.track} (${track.stateRegion})`;
+
+    // ── Build Workflow Template ── (skipped for migrated payers — owned by per-payer seed)
+    if (isMigrated) {
+      if (DRY_RUN) {
+        console.log(`  [WORKFLOW] ${templateName}: SKIPPED (owned by per-payer seed)`);
+      }
+      // fall through to follow-up template creation
+    } else {
+    const workflowSteps = buildWorkflowSteps(track, forms, requirements, initialTimeline);
 
     if (DRY_RUN) {
       console.log(`  [WORKFLOW] ${templateName}: ${workflowSteps.length} steps`);
@@ -535,6 +582,7 @@ async function main() {
       workflowStepCount += workflowSteps.length;
     }
     workflowCount++;
+    } // end !isMigrated workflow generation
 
     // ── Build Follow-Up Template (only if contacts exist) ──
     if (contacts.length > 0) {
