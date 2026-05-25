@@ -35,9 +35,19 @@ const SONNET_4_RATE: ModelRate = {
   outputCentsPerToken: 0.0015,
 };
 
+// Haiku 4.5: $1/1M input, $5/1M output.
+//   $0.001 / 1k input  → 0.0001 ¢/token
+//   $0.005 / 1k output → 0.0005 ¢/token
+const HAIKU_4_5_RATE: ModelRate = {
+  inputCentsPerToken: 0.0001,
+  outputCentsPerToken: 0.0005,
+};
+
 const MODEL_RATES: Record<string, ModelRate> = {
   'claude-sonnet-4-20250514': SONNET_4_RATE,
   'claude-sonnet-4': SONNET_4_RATE,
+  'claude-haiku-4-5-20251001': HAIKU_4_5_RATE,
+  'claude-haiku-4-5': HAIKU_4_5_RATE,
 };
 
 const DEFAULT_MODEL_KEY = 'claude-sonnet-4-20250514';

@@ -69,7 +69,10 @@ export async function extractWithVision(input: VisionExtractionInput): Promise<V
     const mediaType = input.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
     const response = await anthropic.messages.create({
-      model: process.env['AI_MODEL'] || 'claude-sonnet-4-20250514',
+      // AI_MODEL_VISION lets vision/OCR be A/B-tested independently of the
+      // orchestrator's reasoning model. Falls back to AI_MODEL (Sonnet by
+      // default) so existing deploys with only AI_MODEL set keep working.
+      model: process.env['AI_MODEL_VISION'] || process.env['AI_MODEL'] || 'claude-sonnet-4-20250514',
       max_tokens: 2000,
       messages: [{
         role: 'user',
