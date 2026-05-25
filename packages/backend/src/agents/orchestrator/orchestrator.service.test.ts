@@ -182,6 +182,67 @@ describe('processOrchestratorJob', () => {
   });
 
   // ========================================
+  // Test: Prompt caching — system + tools marked cacheable
+  // ========================================
+  it('sends system prompt and tools with cache_control markers and records cache metrics', async () => {
+    prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
+    prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
+
+    const createMock = vi.fn().mockResolvedValue({
+      content: [textBlock('done')],
+      usage: {
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_creation_input_tokens: 800,
+        cache_read_input_tokens: 0,
+      },
+      model: 'claude-sonnet-4-20250514',
+      id: 'msg-cache',
+      type: 'message' as const,
+      role: 'assistant' as const,
+      stop_reason: 'end_turn' as const,
+      stop_sequence: null,
+    });
+    setAnthropicClient({ messages: { create: createMock } } as any);
+
+    await processOrchestratorJob({
+      workflowId: 'wf-1',
+      jobType: 'plan_workflow',
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(1);
+    const callArgs = createMock.mock.calls[0]?.[0];
+
+    // system must be an array containing a text block with cache_control
+    expect(Array.isArray(callArgs.system)).toBe(true);
+    expect(callArgs.system[0]).toMatchObject({
+      type: 'text',
+      cache_control: { type: 'ephemeral' },
+    });
+
+    // tools must have cache_control on the LAST tool (caches the whole tools array)
+    const tools = callArgs.tools;
+    expect(Array.isArray(tools)).toBe(true);
+    expect(tools.length).toBeGreaterThan(1);
+    expect(tools[tools.length - 1]).toMatchObject({
+      cache_control: { type: 'ephemeral' },
+    });
+    // First tool should NOT have cache_control (marker only on the last one)
+    expect(tools[0].cache_control).toBeUndefined();
+
+    // Cache metrics must be captured in the agent_event payload
+    expect(logAgentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'orchestrator_turn_complete',
+        data: expect.objectContaining({
+          cacheCreationTokens: 800,
+          cacheReadTokens: 0,
+        }),
+      })
+    );
+  });
+
+  // ========================================
   // Test 2: Task callback — dispatch next step
   // ========================================
   it('handles task callback and dispatches next task', async () => {

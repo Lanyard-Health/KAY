@@ -171,6 +171,8 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
   let toolCallCount = 0;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let totalCacheCreationTokens = 0;
+  let totalCacheReadTokens = 0;
   let finalReasoning = '';
   const dispatchedTaskIds: string[] = [];
   let requestedApproval = false;
@@ -182,14 +184,22 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       const response = await client.messages.create({
         model: AI_MODEL,
         max_tokens: 4096,
-        system: systemPrompt,
+        system: [
+          { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+        ],
         messages,
-        tools: ORCHESTRATOR_TOOLS,
+        tools: ORCHESTRATOR_TOOLS.map((tool, idx) =>
+          idx === ORCHESTRATOR_TOOLS.length - 1
+            ? { ...tool, cache_control: { type: 'ephemeral' as const } }
+            : tool
+        ),
       });
 
-      // Track tokens
+      // Track tokens (including cache metrics — see Phase 1 of cost optimization plan)
       totalInputTokens += response.usage.input_tokens;
       totalOutputTokens += response.usage.output_tokens;
+      totalCacheCreationTokens += response.usage.cache_creation_input_tokens ?? 0;
+      totalCacheReadTokens += response.usage.cache_read_input_tokens ?? 0;
 
       // Extract tool_use blocks
       const toolUseBlocks = response.content.filter(
@@ -413,6 +423,8 @@ export async function processOrchestratorJob(data: OrchestratorJobData): Promise
       jobType,
       toolCallCount,
       tokensUsed,
+      cacheCreationTokens: totalCacheCreationTokens,
+      cacheReadTokens: totalCacheReadTokens,
       dispatchedTasks: dispatchedTaskIds,
       escalatedToException,
       newStatus,
