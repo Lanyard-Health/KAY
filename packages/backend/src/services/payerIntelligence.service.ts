@@ -1,8 +1,9 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { getClient, checkTokenBudget, sanitizeUserInput } from './ai.service.js';
+import { checkTokenBudget, sanitizeUserInput } from './ai.service.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 import { getCached, setCache } from '../utils/cache.js';
+import { callLLM } from '../utils/llm.js';
 
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 
@@ -303,22 +304,20 @@ Respond with JSON only:
   "comparisonInsight": "how this payer compares to portfolio average"
 }`;
 
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: 2000,
+    maxTokens: 2000,
     system: PAYER_INTELLIGENCE_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const textContent = response.content.find(c => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
+  if (!response.text) {
     throw new Error('No text response from AI');
   }
 
   let parsed: PayerAIInsight;
   try {
-    const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonStr = response.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
@@ -348,8 +347,8 @@ Respond with JSON only:
         approvalRate: payer.approvalRate,
         avgDaysToApproval: payer.avgDaysToApproval,
       },
-      promptTokens: response.usage.input_tokens,
-      completionTokens: response.usage.output_tokens,
+      promptTokens: response.inputTokens,
+      completionTokens: response.outputTokens,
       modelUsed: AI_MODEL,
     },
   });

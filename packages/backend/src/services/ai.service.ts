@@ -1,15 +1,13 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getCached, setCache } from '../utils/cache.js';
 import { decryptSafe } from '../utils/crypto.js';
+import { callLLM } from '../utils/llm.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 const AI_DAILY_TOKEN_BUDGET = parseInt(process.env['AI_DAILY_TOKEN_BUDGET'] || '100000', 10);
-
-let client: Anthropic | null = null;
 
 export function sanitizeUserInput(input: string, maxLength = 500): string {
   // Bound input length BEFORE running regexes to prevent ReDoS on adversarial strings
@@ -22,14 +20,14 @@ export function sanitizeUserInput(input: string, maxLength = 500): string {
     .trim();
 }
 
-export function getClient(): Anthropic {
-  if (!client) {
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-    client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-  }
-  return client;
+/**
+ * @deprecated Use `callLLM` from `utils/llm.js` directly. This stub exists
+ * only so legacy test imports (`payerIntelligence.service.test.ts` mocks it
+ * via `vi.mock`) keep compiling. Remove once those tests migrate to
+ * mocking `utils/llm.js`.
+ */
+export function getClient(): never {
+  throw new Error('getClient() is deprecated — use callLLM() from utils/llm.js');
 }
 
 // ===========================
@@ -185,22 +183,20 @@ Respond with JSON only:
   "reasoning": "Brief explanation of your approach and tone choice"
 }`;
 
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: 2000,
+    maxTokens: 2000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const textContent = response.content.find((c) => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
+  if (!response.text) {
     throw new Error('No text response from AI');
   }
 
   let parsed: GeneratedEmail & { reasoning?: string };
   try {
-    const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonStr = response.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
@@ -230,8 +226,8 @@ Respond with JSON only:
         followUpCount,
         options: options ? { tone: options.tone ?? null, additionalContext: options.additionalContext ?? null } : {},
       },
-      promptTokens: response.usage.input_tokens,
-      completionTokens: response.usage.output_tokens,
+      promptTokens: response.inputTokens,
+      completionTokens: response.outputTokens,
       modelUsed: AI_MODEL,
     },
   });
@@ -309,22 +305,20 @@ Respond with JSON only:
   "reasoning": "Detailed explanation of your assessment"
 }`;
 
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: 1500,
+    maxTokens: 1500,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const textContent = response.content.find((c) => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
+  if (!response.text) {
     throw new Error('No text response from AI');
   }
 
   let parsed: EnrollmentAnalysis;
   try {
-    const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonStr = response.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
@@ -349,8 +343,8 @@ Respond with JSON only:
       content: JSON.stringify(parsed),
       reasoning: parsed.reasoning,
       metadata: { urgencyScore: parsed.urgencyScore, riskLevel: parsed.riskLevel },
-      promptTokens: response.usage.input_tokens,
-      completionTokens: response.usage.output_tokens,
+      promptTokens: response.inputTokens,
+      completionTokens: response.outputTokens,
       modelUsed: AI_MODEL,
     },
   });
@@ -431,22 +425,20 @@ Respond with JSON only:
   "summary": "Brief overall portfolio assessment (2-3 sentences)"
 }`;
 
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: 3000,
+    maxTokens: 3000,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const textContent = response.content.find((c) => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
+  if (!response.text) {
     throw new Error('No text response from AI');
   }
 
   let parsed: { enrollments: { enrollmentId: string; urgencyScore: number; riskLevel: string; recommendation: string }[]; summary: string };
   try {
-    const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const jsonStr = response.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     parsed = JSON.parse(jsonStr);
   } catch {
     throw new Error('Failed to parse AI response as JSON');
@@ -503,8 +495,8 @@ Respond with JSON only:
           enrollmentCount: enrollments.length,
           highUrgencyCount: enrichedEnrollments.filter((e) => e.urgencyScore >= 7).length,
         },
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
+        promptTokens: response.inputTokens,
+        completionTokens: response.outputTokens,
         modelUsed: AI_MODEL,
       },
     });
@@ -709,16 +701,14 @@ Respond with JSON only:
   ]
 }`;
 
-      const anthropic = getClient();
-      const response = await anthropic.messages.create({
+      const response = await callLLM({
         model: AI_MODEL,
-        max_tokens: 1500,
+        maxTokens: 1500,
         system: EXPIRATION_ALERT_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       });
 
-      const textContent = response.content.find((c) => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
+      if (!response.text) {
         errors.push(`No text response for provider ${providerId}`);
         continue;
       }
@@ -733,7 +723,7 @@ Respond with JSON only:
         }>;
       };
       try {
-        const jsonStr = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const jsonStr = response.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         parsed = JSON.parse(jsonStr);
       } catch {
         errors.push(`Failed to parse AI response for provider ${providerId}`);
@@ -747,8 +737,8 @@ Respond with JSON only:
 
       // Create recommendations for each alert
       const tokensPerAlert = {
-        prompt: Math.ceil(response.usage.input_tokens / parsed.alerts.length),
-        completion: Math.ceil(response.usage.output_tokens / parsed.alerts.length),
+        prompt: Math.ceil(response.inputTokens / parsed.alerts.length),
+        completion: Math.ceil(response.outputTokens / parsed.alerts.length),
       };
 
       for (const alert of parsed.alerts) {

@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../utils/logger.js';
+import { callLLM } from '../../utils/llm.js';
 
 export interface ExtractedField {
   value: string;
@@ -16,15 +16,6 @@ export interface VisionExtractionInput {
   mimeType: string;
   documentType: string;
   extractionHints?: string[];
-}
-
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ timeout: 60_000 });
-  }
-  return client;
 }
 
 const FIELD_HINTS: Record<string, string[]> = {
@@ -65,15 +56,14 @@ Rules:
  */
 export async function extractWithVision(input: VisionExtractionInput): Promise<VisionExtractionResult> {
   try {
-    const anthropic = getClient();
     const mediaType = input.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
-    const response = await anthropic.messages.create({
+    const response = await callLLM({
       // AI_MODEL_VISION lets vision/OCR be A/B-tested independently of the
       // orchestrator's reasoning model. Falls back to AI_MODEL (Sonnet by
       // default) so existing deploys with only AI_MODEL set keep working.
       model: process.env['AI_MODEL_VISION'] || process.env['AI_MODEL'] || 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      maxTokens: 2000,
       messages: [{
         role: 'user',
         content: [
@@ -89,7 +79,7 @@ export async function extractWithVision(input: VisionExtractionInput): Promise<V
       }],
     });
 
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    const text = response.text;
 
     // Parse JSON from response (handle markdown code blocks)
     const jsonMatch = text.match(/\{[\s\S]*\}/);

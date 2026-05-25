@@ -12,6 +12,7 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { searchSimilarWithSources } from './knowledgeBase.embedding.service.js';
+import { callLLM } from '../utils/llm.js';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -136,7 +137,6 @@ Analyze this denial and provide your triage assessment as JSON.`;
     let modelUsed: string | null = null;
 
     try {
-      const Anthropic = (await import('@anthropic-ai/sdk')).default;
       const apiKey = process.env['ANTHROPIC_API_KEY'];
 
       if (!apiKey) {
@@ -150,29 +150,27 @@ Analyze this denial and provide your triage assessment as JSON.`;
           recommendedSteps: [{ order: 1, action: 'Review denial reason and payer requirements manually', notes: 'AI triage unavailable' }],
         };
       } else {
-        const client = new Anthropic({ apiKey });
         const aiModel = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
 
-        const response = await client.messages.create({
+        const response = await callLLM({
           model: aiModel,
-          max_tokens: 2000,
+          maxTokens: 2000,
           system: TRIAGE_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userMessage }],
         });
 
-        const textContent = response.content.find((c) => c.type === 'text');
-        if (!textContent || textContent.type !== 'text') {
+        if (!response.text) {
           throw new Error('No text response from AI');
         }
 
-        const jsonStr = textContent.text
+        const jsonStr = response.text
           .replace(/```json\n?/g, '')
           .replace(/```\n?/g, '')
           .trim();
 
         triageResponse = JSON.parse(jsonStr) as TriageAiResponse;
-        promptTokens = response.usage.input_tokens;
-        completionTokens = response.usage.output_tokens;
+        promptTokens = response.inputTokens;
+        completionTokens = response.outputTokens;
         modelUsed = aiModel;
       }
     } catch (aiErr) {

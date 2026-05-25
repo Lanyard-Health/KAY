@@ -1,8 +1,9 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { getClient, sanitizeUserInput, checkTokenBudget } from './ai.service.js';
+import { sanitizeUserInput, checkTokenBudget } from './ai.service.js';
 import { searchSimilarWithSources } from './knowledgeBase.embedding.service.js';
 import { getPracticeProviderFilter, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+import { callLLM } from '../utils/llm.js';
 import type { Request } from 'express';
 
 const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
@@ -501,20 +502,18 @@ ${JSON.stringify(contextData, null, 2)}
 ${intentInstruction}`;
 
   // Call Claude
-  const anthropic = getClient();
-  const response = await anthropic.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: 1500,
+    maxTokens: 1500,
     system: systemPrompt,
     messages,
   });
 
-  const textContent = response.content.find(c => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
+  if (!response.text) {
     throw new Error('No text response from AI');
   }
 
-  const assistantContent = textContent.text;
+  const assistantContent = response.text;
 
   // Save assistant message with token counts
   const assistantMessage = await prisma.chatMessage.create({
@@ -522,8 +521,8 @@ ${intentInstruction}`;
       conversationId: conversation.id,
       role: 'assistant',
       content: assistantContent,
-      promptTokens: response.usage.input_tokens,
-      completionTokens: response.usage.output_tokens,
+      promptTokens: response.inputTokens,
+      completionTokens: response.outputTokens,
       metadata: { intent, model: AI_MODEL },
     },
   });
@@ -534,7 +533,7 @@ ${intentInstruction}`;
     data: { updatedAt: new Date() },
   });
 
-  logger.info(`Chat message processed: conversation=${conversation.id}, intent=${intent}, tokens=${response.usage.input_tokens + response.usage.output_tokens}`);
+  logger.info(`Chat message processed: conversation=${conversation.id}, intent=${intent}, tokens=${response.inputTokens + response.outputTokens}`);
 
   return {
     conversationId: conversation.id,

@@ -1,5 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger.js';
+import { callLLM } from '../utils/llm.js';
 
 const VALID_DOCUMENT_TYPES = [
   'license', 'board_certification', 'malpractice_certificate',
@@ -16,15 +17,6 @@ export interface ClassifyInput {
   mimeType: string;
 }
 
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ timeout: 60_000 });
-  }
-  return client;
-}
-
 const SYSTEM_PROMPT = `You are a healthcare credentialing document classifier. Given document content, respond with EXACTLY ONE of these document types (nothing else):
 license, board_certification, malpractice_certificate, diploma, transcript, cv_resume, photo, government_id, dea_certificate, cds_certificate, cme_certificate, hospital_letter, reference_letter, w9, coi, cp575, other
 
@@ -36,8 +28,6 @@ Respond with only the type name, no explanation.`;
  */
 export async function classifyDocumentType(input: ClassifyInput): Promise<DocumentType> {
   try {
-    const anthropic = getClient();
-
     const userContent: Anthropic.MessageCreateParams['messages'][0]['content'] = [];
 
     if (input.imageBase64) {
@@ -56,14 +46,14 @@ export async function classifyDocumentType(input: ClassifyInput): Promise<Docume
       return 'other';
     }
 
-    const response = await anthropic.messages.create({
+    const response = await callLLM({
       model: process.env['AI_MODEL_CLASSIFIER'] || 'claude-haiku-4-5-20251001',
-      max_tokens: 50,
+      maxTokens: 50,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
     });
 
-    const text = response.content[0]?.type === 'text' ? response.content[0].text.trim().toLowerCase() : '';
+    const text = response.text.trim().toLowerCase();
     const cleaned = text.replace(/[^a-z_]/g, '') as DocumentType;
 
     if (VALID_DOCUMENT_TYPES.includes(cleaned)) {
