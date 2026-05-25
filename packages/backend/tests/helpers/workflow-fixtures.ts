@@ -2,132 +2,12 @@
  * Workflow test fixtures
  *
  * Reusable mock data for workflow-related tests.
+ *
+ * Post Phase-6 cleanup: the legacy `mockWorkflowData` JSON-template fixture
+ * (which mirrored payer-workflows.json structure) was removed along with
+ * Path B. The remaining fixtures are step-shaped records used by tests that
+ * still exercise `EnrollmentWorkflowStep` rows in the DB.
  */
-
-// ============================================================
-// Workflow template data (mirrors payer-workflows.json structure)
-// ============================================================
-
-export const mockWorkflowData = {
-  schema_version: '1.0',
-  payers: {
-    aetna: {
-      id: 'aetna',
-      name: 'Aetna',
-      parent_company: 'CVS Health',
-      workflows: {
-        medical: {
-          label: 'Medical Credentialing',
-          estimated_timeline: {
-            official_days: { min: 30, max: 60, unit: 'days' },
-            real_world_days: { min: 45, max: 90, unit: 'days' },
-          },
-          steps: [
-            {
-              id: 'aetna-med-01',
-              name: 'Submit Application',
-              description: 'Submit the credentialing application',
-              action_type: 'form_submission',
-              owner: 'provider',
-              estimated_days: 5,
-              dependencies: [],
-              documents_needed: ['application_form'],
-              warnings: ['Ensure NPI is current'],
-            },
-            {
-              id: 'aetna-med-02',
-              name: 'Payer Review',
-              description: 'Payer reviews application',
-              action_type: 'payer_review',
-              owner: 'payer',
-              estimated_days: { min: 15, max: 30 },
-              dependencies: ['aetna-med-01'],
-              documents_needed: [],
-              warnings: [],
-            },
-            {
-              id: 'aetna-med-03',
-              name: 'Committee Decision',
-              description: 'Credentialing committee decision',
-              action_type: 'committee_review',
-              url: 'https://aetna.com/portal',
-              owner: 'payer',
-              estimated_days: 14,
-              dependencies: ['aetna-med-02', 'caqh-007'],
-              documents_needed: [],
-              warnings: ['May require additional docs'],
-            },
-          ],
-        },
-        behavioral_health: {
-          label: 'Behavioral Health Credentialing',
-          estimated_timeline: {
-            official_days: { min: 20, max: 45, unit: 'days' },
-            real_world_days: { min: 30, max: 60, unit: 'days' },
-          },
-          steps: [
-            {
-              id: 'aetna-bh-01',
-              name: 'BH Application',
-              description: 'Submit BH credentialing application',
-              action_type: 'form_submission',
-              owner: 'staff',
-              estimated_days: 3,
-              dependencies: [],
-              documents_needed: [],
-              warnings: [],
-            },
-            {
-              id: 'aetna-bh-02',
-              name: 'BH Review',
-              description: 'BH payer review',
-              action_type: 'unknown_action',
-              owner: 'unknown_owner',
-              estimated_days: 20,
-              dependencies: ['aetna-bh-01'],
-              documents_needed: [],
-              warnings: [],
-            },
-          ],
-        },
-      },
-    },
-    bcbs: {
-      id: 'bcbs',
-      name: 'Blue Cross Blue Shield',
-      parent_company: 'BCBS Association',
-      workflows: {
-        medical: {
-          label: 'BCBS Medical Credentialing',
-          estimated_timeline: {
-            official_days: { min: 30, max: 60, unit: 'days' },
-            real_world_days: { min: 45, max: 90, unit: 'days' },
-          },
-          steps: [
-            {
-              id: 'bcbs-med-01',
-              name: 'BCBS Application',
-              description: 'Submit BCBS application',
-              action_type: 'portal_registration',
-              owner: 'admin',
-              estimated_days: 7,
-              dependencies: [],
-              documents_needed: [],
-              warnings: [],
-            },
-          ],
-        },
-      },
-    },
-  },
-  action_types: {
-    form_submission: { label: 'Form Submission', icon: 'document', color: 'blue' },
-    payer_review: { label: 'Payer Review', icon: 'eye', color: 'yellow' },
-    committee_review: { label: 'Committee Review', icon: 'users', color: 'purple' },
-    portal_registration: { label: 'Portal Registration', icon: 'globe', color: 'green' },
-  },
-  status_model: {},
-};
 
 // ============================================================
 // Workflow step records (as returned from Prisma)
@@ -203,6 +83,8 @@ export const mockEnrollmentWithPayer = {
   id: 'enrollment-1-id',
   providerId: 'provider-1-id',
   payerId: 'payer-1-id',
+  payerTrackId: 'track-1-id',
+  workflowTemplateId: null,
   status: 'not_started',
   workflowType: null,
   productTypes: ['commercial'],
@@ -223,7 +105,6 @@ export const mockEnrollmentWithPayer = {
   payer: {
     id: 'payer-1-id',
     name: 'Aetna',
-    workflowKey: 'aetna',
   },
   provider: {
     id: 'provider-1-id',

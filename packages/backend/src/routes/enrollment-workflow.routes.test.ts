@@ -6,8 +6,6 @@ import {
   mockWorkflowStep,
   mockWorkflowStepInProgress,
   mockWorkflowStepCompleted,
-  mockWorkflowStepBlocked,
-  mockWorkflowStepSkipped,
   mockEnrollmentWithPayer,
   mockEnrollmentTerminal,
 } from '../../tests/helpers/workflow-fixtures.js';
@@ -24,38 +22,37 @@ vi.mock('../middleware/auth.middleware.js', () => ({
   authorize: vi.fn(() => (_req: any, _res: any, next: any) => next()),
 }));
 
-// Mock hydration service
+// Mock practice scope (passes through)
+vi.mock('../middleware/practiceScope.middleware.js', () => ({
+  validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+}));
+
+// Mock step-operations helpers (kept after Phase 6 cleanup)
 vi.mock('../services/workflow-hydration.service.js', () => ({
-  hydrateWorkflowSteps: vi.fn(),
   updateStepStatus: vi.fn(),
   getWorkflowProgress: vi.fn(),
-  getAvailableWorkflows: vi.fn(),
   getActionTypeConfig: vi.fn().mockReturnValue({
     form_submission: { label: 'Form', icon: 'doc', color: 'blue' },
   }),
 }));
 
-// Mock workflow mapping
-vi.mock('../config/workflow-mapping.js', () => ({
-  resolveWorkflowType: vi.fn().mockReturnValue('medical'),
+// Mock DB-driven Path A instantiator
+vi.mock('../services/workflow-instantiation.service.js', () => ({
+  instantiateWorkflow: vi.fn(),
 }));
 
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import {
-  hydrateWorkflowSteps,
   updateStepStatus,
   getWorkflowProgress,
-  getAvailableWorkflows,
   getActionTypeConfig,
 } from '../services/workflow-hydration.service.js';
-import { resolveWorkflowType } from '../config/workflow-mapping.js';
+import { instantiateWorkflow } from '../services/workflow-instantiation.service.js';
 import router from './enrollment-workflow.routes.js';
 
-const mockedHydrate = vi.mocked(hydrateWorkflowSteps);
 const mockedUpdateStep = vi.mocked(updateStepStatus);
 const mockedProgress = vi.mocked(getWorkflowProgress);
-const mockedAvailable = vi.mocked(getAvailableWorkflows);
-const mockedResolve = vi.mocked(resolveWorkflowType);
+const mockedInstantiate = vi.mocked(instantiateWorkflow);
 
 const app = createTestApp(router, adminUser);
 
@@ -74,7 +71,7 @@ beforeEach(() => {
 
 describe('GET /:id/workflow', () => {
   it('returns 200 with steps, progress, enrollment info, and actionTypeConfig', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([mockWorkflowStep] as any);
     mockedProgress.mockResolvedValue({
       totalSteps: 1,
@@ -97,7 +94,7 @@ describe('GET /:id/workflow', () => {
   });
 
   it('returns 404 when enrollment not found', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+    prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
     const res = await request(app).get('/nonexistent/workflow');
 
@@ -106,7 +103,7 @@ describe('GET /:id/workflow', () => {
   });
 
   it('returns empty steps array when no workflow steps exist', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/enrollment-1-id/workflow');
@@ -116,7 +113,7 @@ describe('GET /:id/workflow', () => {
   });
 
   it('returns 500 when database throws', async () => {
-    prismaMock.payerEnrollment.findUnique.mockRejectedValue(new Error('DB down'));
+    prismaMock.enrollment.findUnique.mockRejectedValue(new Error('DB down'));
 
     const res = await request(app).get('/enrollment-1-id/workflow');
 
@@ -125,7 +122,7 @@ describe('GET /:id/workflow', () => {
   });
 
   it('includes formatted providerName as "firstName lastName"', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/enrollment-1-id/workflow');
@@ -142,20 +139,17 @@ describe('PUT /:id/workflow/:stepId', () => {
   const enrollmentId = 'enrollment-1-id';
   const stepId = 'step-1-id';
 
-  // Helper to set up step mock and return defaults for sync
   function setupStepAndSync(stepOverrides: Record<string, unknown> = {}) {
     const step = { ...mockWorkflowStep, ...stepOverrides };
     prismaMock.enrollmentWorkflowStep.findFirst.mockResolvedValue(step as any);
-    // For syncEnrollmentStatus
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([step] as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
-    // For response
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.update.mockResolvedValue(step as any);
     return step;
   }
 
-  // Validation
   it('returns 404 when step not found for enrollment', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue({ providerId: 'p-1' } as any);
     prismaMock.enrollmentWorkflowStep.findFirst.mockResolvedValue(null);
 
     const res = await request(app)
@@ -197,7 +191,6 @@ describe('PUT /:id/workflow/:stepId', () => {
     expect(res.body.error).toContain('skippedReason');
   });
 
-  // Happy paths
   it('returns 200 for not_started → in_progress', async () => {
     setupStepAndSync({ status: 'not_started' });
 
@@ -227,7 +220,6 @@ describe('PUT /:id/workflow/:stepId', () => {
       .send({ status: 'skipped', skippedReason: 'Not applicable' });
 
     expect(res.status).toBe(200);
-    // skippedReason is saved separately
     expect(prismaMock.enrollmentWorkflowStep.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: stepId },
@@ -236,7 +228,6 @@ describe('PUT /:id/workflow/:stepId', () => {
     );
   });
 
-  // Transition coverage
   it('allows all transitions from in_progress', async () => {
     for (const target of ['completed', 'skipped', 'blocked', 'not_started']) {
       vi.clearAllMocks();
@@ -301,7 +292,6 @@ describe('PUT /:id/workflow/:stepId', () => {
     expect(fail.status).toBe(400);
   });
 
-  // Side effects
   it('passes userId from req.user to updateStepStatus', async () => {
     setupStepAndSync({ status: 'not_started' });
 
@@ -325,7 +315,6 @@ describe('PUT /:id/workflow/:stepId', () => {
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'in_progress' });
 
-    // syncEnrollmentStatus fetches steps and enrollment
     expect(prismaMock.enrollmentWorkflowStep.findMany).toHaveBeenCalled();
   });
 
@@ -351,7 +340,7 @@ describe('PUT /:id/workflow/:stepId', () => {
   });
 
   it('returns 500 when Prisma throws', async () => {
-    prismaMock.enrollmentWorkflowStep.findFirst.mockRejectedValue(new Error('DB error'));
+    prismaMock.enrollment.findUnique.mockRejectedValue(new Error('DB error'));
 
     const res = await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
@@ -370,28 +359,25 @@ describe('syncEnrollmentStatus', () => {
   const stepId = 'step-1-id';
 
   it('advances not_started → in_progress when a step starts', async () => {
-    // Step transitions to in_progress
     prismaMock.enrollmentWorkflowStep.findFirst.mockResolvedValue({
       ...mockWorkflowStep,
       status: 'not_started',
     } as any);
 
-    // syncEnrollmentStatus: steps have one in_progress
     prismaMock.enrollmentWorkflowStep.findMany
-      .mockResolvedValueOnce([{ ...mockWorkflowStepInProgress }] as any)  // sync finds steps
-      .mockResolvedValueOnce([{ ...mockWorkflowStepInProgress }] as any); // response fetch
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+      .mockResolvedValueOnce([{ ...mockWorkflowStepInProgress }] as any)
+      .mockResolvedValueOnce([{ ...mockWorkflowStepInProgress }] as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
       status: 'not_started',
     } as any);
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'in_progress' });
 
-    // Should advance enrollment from not_started to in_progress
-    expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'in_progress' }),
       })
@@ -403,21 +389,20 @@ describe('syncEnrollmentStatus', () => {
       ...mockWorkflowStepInProgress,
     } as any);
 
-    // All steps completed
     prismaMock.enrollmentWorkflowStep.findMany
       .mockResolvedValueOnce([mockWorkflowStepCompleted] as any)
       .mockResolvedValueOnce([mockWorkflowStepCompleted] as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
       status: 'in_progress',
     } as any);
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'completed' });
 
-    expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'submitted' }),
       })
@@ -433,15 +418,13 @@ describe('syncEnrollmentStatus', () => {
     prismaMock.enrollmentWorkflowStep.findMany
       .mockResolvedValueOnce([mockWorkflowStepCompleted] as any)
       .mockResolvedValueOnce([mockWorkflowStepCompleted] as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollmentTerminal as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentTerminal as any);
 
     await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'completed' });
 
-    // payerEnrollment.update should NOT be called for status change
-    // (it may be called for other things, so check no call with status data)
-    const updateCalls = prismaMock.payerEnrollment.update.mock.calls;
+    const updateCalls = prismaMock.enrollment.update.mock.calls;
     const statusUpdates = updateCalls.filter(
       (c) => (c[0].data as any)?.status !== undefined
     );
@@ -455,9 +438,9 @@ describe('syncEnrollmentStatus', () => {
     } as any);
 
     prismaMock.enrollmentWorkflowStep.findMany
-      .mockResolvedValueOnce([mockWorkflowStep] as any)  // all not_started
+      .mockResolvedValueOnce([mockWorkflowStep] as any)
       .mockResolvedValueOnce([mockWorkflowStep] as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
       status: 'not_started',
     } as any);
@@ -466,8 +449,7 @@ describe('syncEnrollmentStatus', () => {
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'not_started' });
 
-    // Should NOT update enrollment status
-    const updateCalls = prismaMock.payerEnrollment.update.mock.calls;
+    const updateCalls = prismaMock.enrollment.update.mock.calls;
     const statusUpdates = updateCalls.filter(
       (c) => (c[0].data as any)?.status !== undefined
     );
@@ -476,30 +458,45 @@ describe('syncEnrollmentStatus', () => {
 });
 
 // ============================================================
-// POST /:id/workflow/hydrate
+// POST /:id/workflow/hydrate (Path A only)
 // ============================================================
 
 describe('POST /:id/workflow/hydrate', () => {
-  it('returns 200 and creates steps for valid enrollment', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+  it('returns 200 and creates steps when payerTrackId resolves to an active template', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
-      payer: { ...mockEnrollmentWithPayer.payer, workflowKey: 'aetna' },
-      provider: { ...mockEnrollmentWithPayer.provider, providerType: 'lcsw' },
+      payerTrackId: 'track-1-id',
       workflowSteps: [],
     } as any);
-    mockedHydrate.mockResolvedValue({ stepsCreated: 3, templateFound: true });
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.payerTrack.findUnique.mockResolvedValue({ stateRegion: 'Nationwide' } as any);
+    mockedInstantiate.mockResolvedValue({
+      stepsCreated: 7,
+      templateFound: true,
+      templateId: 'tmpl-1',
+      templateName: 'Aetna Medical Provider Enrollment',
+      conditionsApplied: 2,
+    });
 
     const res = await request(app)
       .post('/enrollment-1-id/workflow/hydrate')
       .send({});
 
     expect(res.status).toBe(200);
-    expect(res.body.stepsCreated).toBe(3);
+    expect(res.body.stepsCreated).toBe(7);
+    expect(res.body.templateName).toBe('Aetna Medical Provider Enrollment');
+    expect(mockedInstantiate).toHaveBeenCalledWith(
+      expect.anything(),
+      'enrollment-1-id',
+      'track-1-id',
+      expect.objectContaining({
+        state: 'Nationwide',
+        providerType: 'lcsw',
+      })
+    );
   });
 
   it('returns 404 when enrollment not found', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+    prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
     const res = await request(app)
       .post('/nonexistent/workflow/hydrate')
@@ -509,7 +506,7 @@ describe('POST /:id/workflow/hydrate', () => {
   });
 
   it('returns 409 when workflow steps already exist', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
       workflowSteps: [mockWorkflowStep],
     } as any);
@@ -521,10 +518,10 @@ describe('POST /:id/workflow/hydrate', () => {
     expect(res.status).toBe(409);
   });
 
-  it('returns 422 when payer has no workflowKey', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+  it('returns 422 when enrollment has no payerTrackId', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
-      payer: { ...mockEnrollmentWithPayer.payer, workflowKey: null, name: 'No WF Payer' },
+      payerTrackId: null,
       workflowSteps: [],
     } as any);
 
@@ -533,94 +530,38 @@ describe('POST /:id/workflow/hydrate', () => {
       .send({});
 
     expect(res.status).toBe(422);
+    expect(res.body.error).toContain('payerTrackId');
   });
 
-  it('uses explicit workflowType from body when provided', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+  it('returns 404 when no active WorkflowTemplate exists for the PayerTrack', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...mockEnrollmentWithPayer,
-      payer: { ...mockEnrollmentWithPayer.payer, workflowKey: 'aetna' },
-      provider: { ...mockEnrollmentWithPayer.provider },
+      payerTrackId: 'track-1-id',
       workflowSteps: [],
     } as any);
-    mockedHydrate.mockResolvedValue({ stepsCreated: 2, templateFound: true });
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
-
-    const res = await request(app)
-      .post('/enrollment-1-id/workflow/hydrate')
-      .send({ workflowType: 'behavioral_health' });
-
-    expect(res.status).toBe(200);
-    expect(mockedHydrate).toHaveBeenCalledWith(
-      expect.anything(),
-      'enrollment-1-id',
-      'aetna',
-      'behavioral_health'
-    );
-    // resolveWorkflowType should NOT be called when explicit
-    expect(mockedResolve).not.toHaveBeenCalled();
-  });
-
-  it('calls resolveWorkflowType when no explicit type', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
-      ...mockEnrollmentWithPayer,
-      payer: { ...mockEnrollmentWithPayer.payer, workflowKey: 'aetna' },
-      provider: { ...mockEnrollmentWithPayer.provider, providerType: 'lcsw' },
-      workflowSteps: [],
-    } as any);
-    mockedResolve.mockReturnValue('behavioral_health');
-    mockedHydrate.mockResolvedValue({ stepsCreated: 2, templateFound: true });
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
-
-    const res = await request(app)
-      .post('/enrollment-1-id/workflow/hydrate')
-      .send({});
-
-    expect(res.status).toBe(200);
-    expect(mockedResolve).toHaveBeenCalledWith('lcsw', 'aetna');
-  });
-
-  it('returns 500 on error', async () => {
-    prismaMock.payerEnrollment.findUnique.mockRejectedValue(new Error('DB error'));
-
-    const res = await request(app)
-      .post('/enrollment-1-id/workflow/hydrate')
-      .send({});
-
-    expect(res.status).toBe(500);
-  });
-});
-
-// ============================================================
-// GET /workflow/templates/:payerWorkflowKey
-// ============================================================
-
-describe('GET /workflow/templates/:payerWorkflowKey', () => {
-  it('returns 200 with templates for known payer key', async () => {
-    mockedAvailable.mockReturnValue([
-      { type: 'medical', label: 'Medical', stepCount: 3, timeline: {} },
-    ]);
-
-    const res = await request(app).get('/workflow/templates/aetna');
-
-    expect(res.status).toBe(200);
-    expect(res.body.payerWorkflowKey).toBe('aetna');
-    expect(res.body.workflows).toHaveLength(1);
-  });
-
-  it('returns 404 for unknown payer key', async () => {
-    mockedAvailable.mockReturnValue(null);
-
-    const res = await request(app).get('/workflow/templates/nonexistent');
-
-    expect(res.status).toBe(404);
-  });
-
-  it('returns 500 on error', async () => {
-    mockedAvailable.mockImplementation(() => {
-      throw new Error('Template error');
+    prismaMock.payerTrack.findUnique.mockResolvedValue({ stateRegion: 'Nationwide' } as any);
+    mockedInstantiate.mockResolvedValue({
+      stepsCreated: 0,
+      templateFound: false,
+      templateId: null,
+      templateName: null,
+      conditionsApplied: 0,
     });
 
-    const res = await request(app).get('/workflow/templates/aetna');
+    const res = await request(app)
+      .post('/enrollment-1-id/workflow/hydrate')
+      .send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain('No active WorkflowTemplate');
+  });
+
+  it('returns 500 on error', async () => {
+    prismaMock.enrollment.findUnique.mockRejectedValue(new Error('DB error'));
+
+    const res = await request(app)
+      .post('/enrollment-1-id/workflow/hydrate')
+      .send({});
 
     expect(res.status).toBe(500);
   });
