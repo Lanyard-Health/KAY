@@ -59,7 +59,7 @@ describe('ensureDraftEnrollments', () => {
     prismaMock.enrollment.create.mockImplementation(async ({ data }: any) => ({
       id: `e-${data.payerId}`,
       ...data,
-      payer: { workflowKey: null, name: 'x' },
+      payer: { name: 'x' },
       provider: { providerType: 'md' },
     }) as any);
 
@@ -96,7 +96,7 @@ describe('ensureDraftEnrollments', () => {
     prismaMock.enrollment.create.mockImplementation(async ({ data }: any) => ({
       id: `e-${data.payerId}`,
       ...data,
-      payer: { workflowKey: null, name: 'x' },
+      payer: { name: 'x' },
       provider: { providerType: 'md' },
     }) as any);
 
@@ -128,7 +128,7 @@ describe('ensureDraftEnrollments', () => {
     prismaMock.enrollment.create.mockImplementation(async ({ data }: any) => ({
       id: `e-${data.providerId}`,
       ...data,
-      payer: { workflowKey: null, name: 'x' },
+      payer: { name: 'x' },
       provider: { providerType: 'md' },
     }) as any);
 
@@ -172,7 +172,7 @@ describe('ensureDraftEnrollments', () => {
     prismaMock.enrollment.create.mockImplementation(async ({ data }: any) => ({
       id: `e-${data.payerId}`,
       ...data,
-      payer: { workflowKey: null, name: 'x' },
+      payer: { name: 'x' },
       provider: { providerType: 'md' },
     }) as any);
 
@@ -195,7 +195,7 @@ describe('ensureDraftEnrollments', () => {
       id: 'e1',
       providerId: PROVIDER_ID,
       payerId: PAYER_A,
-      payer: { workflowKey: null, name: 'x' },
+      payer: { name: 'x' },
       provider: { providerType: 'md' },
     } as any);
     hookMock.mockRejectedValueOnce(new Error('boom'));
@@ -220,7 +220,7 @@ describe('ensureDraftEnrollments', () => {
         id: 'e2',
         providerId: PROVIDER_ID,
         payerId: PAYER_B,
-        payer: { workflowKey: null, name: 'x' },
+        payer: { name: 'x' },
         provider: { providerType: 'md' },
       } as any);
 

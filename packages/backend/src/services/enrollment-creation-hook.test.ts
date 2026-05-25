@@ -6,8 +6,8 @@ vi.mock('../utils/prisma.js', async () => {
   return { prisma: prismaMock };
 });
 
-vi.mock('./workflow-hydration.service.js', () => ({
-  hydrateWorkflowSteps: vi.fn(),
+vi.mock('./workflow-instantiation.service.js', () => ({
+  instantiateWorkflow: vi.fn(),
 }));
 
 vi.mock('../config/workflow-mapping.js', () => ({
@@ -15,146 +15,174 @@ vi.mock('../config/workflow-mapping.js', () => ({
 }));
 
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { hydrateWorkflowSteps } from './workflow-hydration.service.js';
+import { instantiateWorkflow } from './workflow-instantiation.service.js';
 import { resolveWorkflowType } from '../config/workflow-mapping.js';
 import { onEnrollmentCreated } from './enrollment-creation-hook.js';
 
-const mockedHydrate = vi.mocked(hydrateWorkflowSteps);
+const mockedInstantiate = vi.mocked(instantiateWorkflow);
 const mockedResolve = vi.mocked(resolveWorkflowType);
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockedResolve.mockReturnValue('medical');
-  mockedHydrate.mockResolvedValue({ stepsCreated: 3, templateFound: true });
+  mockedInstantiate.mockResolvedValue({
+    stepsCreated: 3,
+    templateFound: true,
+    templateId: 'tmpl-1',
+    templateName: 'Aetna Medical Provider Enrollment',
+    conditionsApplied: 0,
+  });
+  prismaMock.payerTrack.findUnique.mockResolvedValue({ stateRegion: 'Nationwide' } as any);
 });
 
 describe('onEnrollmentCreated', () => {
-  it('hydrates steps and updates enrollment when payer has workflowKey', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+  describe('Path A — enrollment already has payerTrackId', () => {
+    it('calls instantiateWorkflow and returns its result', async () => {
+      const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
 
-    const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
-
-    expect(mockedHydrate).toHaveBeenCalledWith(
-      prismaMock,
-      mockEnrollmentWithPayer.id,
-      'aetna',
-      'medical'
-    );
-    expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith({
-      where: { id: mockEnrollmentWithPayer.id },
-      data: { workflowType: 'medical' },
+      expect(mockedInstantiate).toHaveBeenCalledWith(
+        prismaMock,
+        mockEnrollmentWithPayer.id,
+        mockEnrollmentWithPayer.payerTrackId,
+        expect.objectContaining({
+          state: 'Nationwide',
+          providerType: 'lcsw',
+        })
+      );
+      expect(result).toEqual({
+        stepsCreated: 3,
+        templateFound: true,
+        workflowType: null,
+      });
     });
-    expect(result.stepsCreated).toBe(3);
-    expect(result.templateFound).toBe(true);
-    expect(result.workflowType).toBe('medical');
+
+    it('returns {0, false, null} when no active template exists for the PayerTrack', async () => {
+      mockedInstantiate.mockResolvedValue({
+        stepsCreated: 0,
+        templateFound: false,
+        templateId: null,
+        templateName: null,
+        conditionsApplied: 0,
+      });
+
+      const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
+
+      expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
+    });
+
+    it('swallows errors from instantiateWorkflow and returns null result', async () => {
+      mockedInstantiate.mockRejectedValue(new Error('boom'));
+
+      const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
+
+      expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
+    });
   });
 
-  it('returns {0, false, null} when payer has no workflowKey', async () => {
-    const enrollment = {
-      ...mockEnrollmentWithPayer,
-      payer: { ...mockEnrollmentWithPayer.payer, workflowKey: null },
-    };
+  describe('Pre-Path-A resolver — enrollment lacks payerTrackId', () => {
+    // Built fresh per test — onEnrollmentCreated mutates enrollment.payerTrackId
+    // in place after resolving it, so sharing a single object across tests
+    // would leak state between them.
+    const makeEnrollmentNoTrack = () => ({ ...mockEnrollmentWithPayer, payerTrackId: null });
 
-    const result = await onEnrollmentCreated(prismaMock, enrollment as any);
+    it('resolves payerTrackId from payer name + provider type and then runs Path A', async () => {
+      const enrollmentNoTrack = makeEnrollmentNoTrack();
+      prismaMock.payerTrack.findFirst.mockResolvedValue({ id: 'resolved-track-id' } as any);
+      prismaMock.enrollment.update.mockResolvedValue({} as any);
 
-    expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
-    expect(mockedHydrate).not.toHaveBeenCalled();
-  });
+      const result = await onEnrollmentCreated(prismaMock, enrollmentNoTrack as any);
 
-  it('fetches full enrollment from DB when payer/provider relations missing', async () => {
-    const bareEnrollment = {
-      id: 'enr-bare',
-      providerId: 'p-1',
-      payerId: 'pay-1',
-      status: 'not_started',
-    } as any;
-
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
-      ...bareEnrollment,
-      payer: { workflowKey: 'aetna', name: 'Aetna' },
-      provider: { providerType: 'lcsw' },
-    } as any);
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
-
-    await onEnrollmentCreated(prismaMock, bareEnrollment);
-
-    expect(prismaMock.payerEnrollment.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'enr-bare' },
-        include: expect.objectContaining({
-          payer: expect.any(Object),
-          provider: expect.any(Object),
+      expect(mockedResolve).toHaveBeenCalledWith('lcsw', 'Aetna', undefined);
+      expect(prismaMock.payerTrack.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          payerName: { equals: 'Aetna', mode: 'insensitive' },
+          track: 'Medical / Primary Care',
+          isActive: true,
         }),
-      })
-    );
-  });
+        select: { id: true },
+      });
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith({
+        where: { id: enrollmentNoTrack.id },
+        data: { payerTrackId: 'resolved-track-id' },
+      });
+      expect(mockedInstantiate).toHaveBeenCalledWith(
+        prismaMock,
+        enrollmentNoTrack.id,
+        'resolved-track-id',
+        expect.any(Object)
+      );
+      expect(result.templateFound).toBe(true);
+    });
 
-  it('returns {0, false, null} when full enrollment fetch returns null', async () => {
-    const bareEnrollment = { id: 'enr-gone' } as any;
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+    it('returns null result when no matching PayerTrack is found', async () => {
+      const enrollmentNoTrack = makeEnrollmentNoTrack();
+      prismaMock.payerTrack.findFirst.mockResolvedValue(null);
 
-    const result = await onEnrollmentCreated(prismaMock, bareEnrollment);
+      const result = await onEnrollmentCreated(prismaMock, enrollmentNoTrack as any);
 
-    expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
-  });
+      expect(mockedInstantiate).not.toHaveBeenCalled();
+      expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
+    });
 
-  it('uses explicit workflowType when provided', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    it('uses behavioral_health track when resolveWorkflowType returns behavioral_health', async () => {
+      const enrollmentNoTrack = makeEnrollmentNoTrack();
+      mockedResolve.mockReturnValue('behavioral_health');
+      prismaMock.payerTrack.findFirst.mockResolvedValue({ id: 'bh-track-id' } as any);
+      prismaMock.enrollment.update.mockResolvedValue({} as any);
 
-    await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any, 'behavioral_health');
+      await onEnrollmentCreated(prismaMock, enrollmentNoTrack as any);
 
-    expect(mockedResolve).toHaveBeenCalledWith(
-      'lcsw',
-      'aetna',
-      'behavioral_health'
-    );
-  });
+      expect(prismaMock.payerTrack.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({ track: 'Behavioral Health' }),
+        select: { id: true },
+      });
+    });
 
-  it('calls resolveWorkflowType with providerType and payerWorkflowKey', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    it('passes explicitWorkflowType through to resolveWorkflowType', async () => {
+      const enrollmentNoTrack = makeEnrollmentNoTrack();
+      prismaMock.payerTrack.findFirst.mockResolvedValue({ id: 'track-id' } as any);
+      prismaMock.enrollment.update.mockResolvedValue({} as any);
 
-    await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
+      await onEnrollmentCreated(prismaMock, enrollmentNoTrack as any, 'behavioral_health');
 
-    expect(mockedResolve).toHaveBeenCalledWith('lcsw', 'aetna', undefined);
-  });
+      expect(mockedResolve).toHaveBeenCalledWith('lcsw', 'Aetna', 'behavioral_health');
+    });
 
-  it('does NOT update enrollment when template not found', async () => {
-    mockedHydrate.mockResolvedValue({ stepsCreated: 0, templateFound: false });
+    it('fetches payer/provider from DB when relations are missing', async () => {
+      const bareEnrollment = {
+        id: 'enr-bare',
+        providerId: 'p-1',
+        payerId: 'pay-1',
+        payerTrackId: null,
+      } as any;
+      prismaMock.payer.findUnique.mockResolvedValue({ name: 'Cigna Healthcare' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ providerType: 'psychiatrist' } as any);
+      prismaMock.payerTrack.findFirst.mockResolvedValue({ id: 'cigna-med' } as any);
+      prismaMock.enrollment.update.mockResolvedValue({} as any);
 
-    const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
+      await onEnrollmentCreated(prismaMock, bareEnrollment);
 
-    expect(prismaMock.payerEnrollment.update).not.toHaveBeenCalled();
-    expect(result.workflowType).toBeNull();
-  });
+      expect(prismaMock.payer.findUnique).toHaveBeenCalledWith({
+        where: { id: 'pay-1' },
+        select: { name: true },
+      });
+      expect(prismaMock.providerProfile.findUnique).toHaveBeenCalledWith({
+        where: { id: 'p-1' },
+        select: { providerType: true },
+      });
+      expect(mockedResolve).toHaveBeenCalledWith('psychiatrist', 'Cigna Healthcare', undefined);
+    });
 
-  it('returns workflowType=null when template not found', async () => {
-    mockedHydrate.mockResolvedValue({ stepsCreated: 0, templateFound: false });
+    it('returns null result when payer + provider context cannot be resolved', async () => {
+      const bareEnrollment = { id: 'enr-empty', providerId: 'p-1', payerId: 'pay-1', payerTrackId: null } as any;
+      prismaMock.payer.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
-    const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
+      const result = await onEnrollmentCreated(prismaMock, bareEnrollment);
 
-    expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
-  });
-
-  it('passes through stepsCreated count from hydrateWorkflowSteps', async () => {
-    mockedHydrate.mockResolvedValue({ stepsCreated: 7, templateFound: true });
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
-
-    const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
-
-    expect(result.stepsCreated).toBe(7);
-  });
-
-  it('handles payer.workflowKey=null in fetched relations', async () => {
-    const bareEnrollment = { id: 'enr-null-key' } as any;
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
-      ...bareEnrollment,
-      payer: { workflowKey: null, name: 'No Workflow Payer' },
-      provider: { providerType: 'lcsw' },
-    } as any);
-
-    const result = await onEnrollmentCreated(prismaMock, bareEnrollment);
-
-    expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
-    expect(mockedHydrate).not.toHaveBeenCalled();
+      expect(prismaMock.payerTrack.findFirst).not.toHaveBeenCalled();
+      expect(mockedInstantiate).not.toHaveBeenCalled();
+      expect(result).toEqual({ stepsCreated: 0, templateFound: false, workflowType: null });
+    });
   });
 });

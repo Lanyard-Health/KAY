@@ -246,10 +246,6 @@
       { "code": "CAC", "label": "Certified Addiction Counselor", "credentialable_by": ["aetna", "optum", "humana"] }
     ]
   },
-
-  "payers": {
-  },
-
   "enrollment_sequencing": {
     "recommended_order": [
       {

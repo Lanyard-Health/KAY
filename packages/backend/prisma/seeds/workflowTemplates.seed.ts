@@ -28,13 +28,16 @@ const SYSTEM_USER = 'system-seed';
 // rows (which the dedicated seeds don't touch). Match is case-insensitive on
 // PayerTrack.payerName.
 //
-// All 5 payers migrated as of Phase 5 (PR #279). Phase 6 retires Path B entirely
-// (deletes the JSON `payers` block, removes the workflow-hydration JSON loader,
-// simplifies enrollment-creation-hook.ts), at which point this set can also be
-// removed and every WorkflowTemplate row is owned by a per-payer seed.
+// Registry of payers that own their own per-payer seed files (under
+// prisma/seeds/payerWorkflows/*.seed.ts). For these payers the auto-generator
+// in this file skips workflow-template creation entirely so it doesn't fight
+// the dedicated seeds. ~63 of the 69 payers in the DB do NOT have dedicated
+// seeds (mostly BCBS variants) and still rely on this generator's
+// 10-step-from-knowledge-base output.
 //
-// Values are matched case-insensitively against PayerTrack.payerName, so they must
-// be the full DB payer_name (e.g. "Cigna Healthcare") not the JSON key ("cigna").
+// Values are matched case-insensitively against PayerTrack.payerName, so they
+// must be the full DB payer_name (e.g. "Cigna Healthcare") not the JSON key.
+// Add a new entry here whenever a new per-payer seed ships.
 const MIGRATED_PAYER_NAMES = new Set([
   'aetna',
   'cigna healthcare',
