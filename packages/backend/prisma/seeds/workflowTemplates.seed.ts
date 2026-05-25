@@ -28,7 +28,11 @@ const SYSTEM_USER = 'system-seed';
 // rows (which the dedicated seeds don't touch). Match is case-insensitive on
 // PayerTrack.payerName.
 //
-// Grows as each per-payer migration ships (Phase 5: + Humana).
+// All 5 payers migrated as of Phase 5 (PR #279). Phase 6 retires Path B entirely
+// (deletes the JSON `payers` block, removes the workflow-hydration JSON loader,
+// simplifies enrollment-creation-hook.ts), at which point this set can also be
+// removed and every WorkflowTemplate row is owned by a per-payer seed.
+//
 // Values are matched case-insensitively against PayerTrack.payerName, so they must
 // be the full DB payer_name (e.g. "Cigna Healthcare") not the JSON key ("cigna").
 const MIGRATED_PAYER_NAMES = new Set([
@@ -37,6 +41,7 @@ const MIGRATED_PAYER_NAMES = new Set([
   'evernorth behavioral health',
   'united healthcare',
   'optum behavioral health',
+  'humana',
 ]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
