@@ -28,8 +28,14 @@ const SYSTEM_USER = 'system-seed';
 // rows (which the dedicated seeds don't touch). Match is case-insensitive on
 // PayerTrack.payerName.
 //
-// Grows as each per-payer migration ships (Phase 2: + Cigna, Phase 3: + UHC, etc.).
-const MIGRATED_PAYER_NAMES = new Set(['aetna']);
+// Grows as each per-payer migration ships (Phase 3: + UHC, Phase 4: + Optum, etc.).
+// Values are matched case-insensitively against PayerTrack.payerName, so they must
+// be the full DB payer_name (e.g. "Cigna Healthcare") not the JSON key ("cigna").
+const MIGRATED_PAYER_NAMES = new Set([
+  'aetna',
+  'cigna healthcare',
+  'evernorth behavioral health',
+]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
