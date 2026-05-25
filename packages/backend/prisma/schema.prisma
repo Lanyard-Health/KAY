@@ -3081,6 +3081,19 @@ model WorkflowTemplateStep {
   triggerDaysAfterPrev Int?             @map("trigger_days_after_prev")
   isBlocking           Boolean          @default(true) @map("is_blocking")
   reviewerInstructions String?          @map("reviewer_instructions")
+  // Per-step URL (payer portal, form link, etc.) populated from payer-workflows.json migration.
+  url                  String?
+  // Estimated-days range. Both nullable; templates that only have a single estimate populate both equally.
+  estimatedDaysMin     Int?             @map("estimated_days_min")
+  estimatedDaysMax     Int?             @map("estimated_days_max")
+  // Plain-text warnings displayed inline with the step (e.g. "Use the MEDICAL form — not the BH form").
+  warnings             String[]         @default([]) @map("warnings")
+  // Discrete outcomes a step can produce; gates downstream WorkflowTemplateCondition rows of type previous_outcome.
+  possibleOutcomes     String[]         @default([]) @map("possible_outcomes")
+  // UI rendering hint: form_submission | phone_call | payer_review | committee_review | contract_execution | confirmation | account_creation | caqh_update | document_review | payer_outreach | site_visit | routing_decision | contract_delivery | system_processing
+  actionType           String?          @map("action_type")
+  // Catch-all for payer-specific structured extras (state_exceptions, routing_rules, discrepancy_process, networks, verification_items).
+  metadata             Json?
   createdAt            DateTime         @default(now()) @map("created_at")
 
   @@map("workflow_template_steps")
@@ -3090,8 +3103,10 @@ model WorkflowTemplateCondition {
   id              String           @id @default(cuid())
   templateId      String           @map("template_id")
   template        WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  conditionType   String           @map("condition_type") // state | provider_type | has_dea | has_hospital_privileges
+  conditionType   String           @map("condition_type") // state | provider_type | has_dea | has_hospital_privileges | previous_outcome
   conditionValue  String           @map("condition_value")
+  // Array form — for IN-list matching (e.g. state IN [IN, KY, MI, OH, OK, VA, WV]). When set, takes precedence over conditionValue for evaluation; populate conditionValue with the first array entry for backward-compat readers.
+  conditionValues String[]         @default([]) @map("condition_values")
   action          String // add_step | skip_step | modify_step
   targetStepOrder Int?             @map("target_step_order")
   stepDefinition  Json?            @map("step_definition")
