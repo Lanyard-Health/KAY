@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe('onEnrollmentCreated', () => {
   it('hydrates steps and updates enrollment when payer has workflowKey', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
 
@@ -40,7 +40,7 @@ describe('onEnrollmentCreated', () => {
       'aetna',
       'medical'
     );
-    expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith({
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith({
       where: { id: mockEnrollmentWithPayer.id },
       data: { workflowType: 'medical' },
     });
@@ -69,16 +69,16 @@ describe('onEnrollmentCreated', () => {
       status: 'not_started',
     } as any;
 
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...bareEnrollment,
       payer: { workflowKey: 'aetna', name: 'Aetna' },
       provider: { providerType: 'lcsw' },
     } as any);
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await onEnrollmentCreated(prismaMock, bareEnrollment);
 
-    expect(prismaMock.payerEnrollment.findUnique).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'enr-bare' },
         include: expect.objectContaining({
@@ -91,7 +91,7 @@ describe('onEnrollmentCreated', () => {
 
   it('returns {0, false, null} when full enrollment fetch returns null', async () => {
     const bareEnrollment = { id: 'enr-gone' } as any;
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+    prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
     const result = await onEnrollmentCreated(prismaMock, bareEnrollment);
 
@@ -99,7 +99,7 @@ describe('onEnrollmentCreated', () => {
   });
 
   it('uses explicit workflowType when provided', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any, 'behavioral_health');
 
@@ -111,7 +111,7 @@ describe('onEnrollmentCreated', () => {
   });
 
   it('calls resolveWorkflowType with providerType and payerWorkflowKey', async () => {
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
 
@@ -123,7 +123,7 @@ describe('onEnrollmentCreated', () => {
 
     const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
 
-    expect(prismaMock.payerEnrollment.update).not.toHaveBeenCalled();
+    expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
     expect(result.workflowType).toBeNull();
   });
 
@@ -137,7 +137,7 @@ describe('onEnrollmentCreated', () => {
 
   it('passes through stepsCreated count from hydrateWorkflowSteps', async () => {
     mockedHydrate.mockResolvedValue({ stepsCreated: 7, templateFound: true });
-    prismaMock.payerEnrollment.update.mockResolvedValue({} as any);
+    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     const result = await onEnrollmentCreated(prismaMock, mockEnrollmentWithPayer as any);
 
@@ -146,7 +146,7 @@ describe('onEnrollmentCreated', () => {
 
   it('handles payer.workflowKey=null in fetched relations', async () => {
     const bareEnrollment = { id: 'enr-null-key' } as any;
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+    prismaMock.enrollment.findUnique.mockResolvedValue({
       ...bareEnrollment,
       payer: { workflowKey: null, name: 'No Workflow Payer' },
       provider: { providerType: 'lcsw' },

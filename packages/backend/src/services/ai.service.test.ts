@@ -170,13 +170,13 @@ describe('generateFollowUpEmail', () => {
   });
 
   it('throws on enrollment not found', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+    prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
     await expect(generateFollowUpEmail('nonexistent')).rejects.toThrow('not found');
   });
 
   it('rejects response missing required fields (subject/body/htmlBody/tone)', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
     prismaMock.aiRecommendation.count.mockResolvedValue(0);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
@@ -188,7 +188,7 @@ describe('generateFollowUpEmail', () => {
   });
 
   it('post-call budget re-check throws on concurrent breach', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
     prismaMock.aiRecommendation.count.mockResolvedValue(0);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
@@ -214,7 +214,7 @@ describe('generateFollowUpEmail', () => {
   });
 
   it('happy path: returns email + creates recommendation', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
     prismaMock.aiRecommendation.count.mockResolvedValue(0);
 
     const emailData = {
@@ -253,7 +253,7 @@ describe('analyzeEnrollment', () => {
   });
 
   it('rejects when urgencyScore not a number', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
       urgencyScore: 'high',
@@ -267,7 +267,7 @@ describe('analyzeEnrollment', () => {
   });
 
   it('rejects when recommendations not an array', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
       urgencyScore: 8,
@@ -281,7 +281,7 @@ describe('analyzeEnrollment', () => {
   });
 
   it('happy path: returns analysis + creates recommendation', async () => {
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(baseMockEnrollment as any);
 
     const analysisData = {
       urgencyScore: 7,
@@ -316,7 +316,7 @@ describe('analyzePortfolio', () => {
   });
 
   it('rejects when enrollments not an array', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
       enrollments: 'not an array',
@@ -327,7 +327,7 @@ describe('analyzePortfolio', () => {
   });
 
   it('creates priority_alert records for urgencyScore >= 7', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
       enrollments: [{
@@ -350,7 +350,7 @@ describe('analyzePortfolio', () => {
   });
 
   it('does NOT create alerts for items below threshold', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([baseMockEnrollment] as any);
 
     mockCreate.mockResolvedValue(makeAnthropicResponse({
       enrollments: [{
@@ -369,7 +369,7 @@ describe('analyzePortfolio', () => {
   });
 
   it('happy path with empty enrollments returns early', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
 
     const result = await analyzePortfolio();
 

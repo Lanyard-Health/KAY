@@ -60,7 +60,7 @@ beforeEach(() => {
   prismaMock.aiRecommendation.aggregate.mockResolvedValue(defaultAggregateResult);
   prismaMock.chatMessage.aggregate.mockResolvedValue(defaultAggregateResult);
   // Default: empty context queries
-  prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+  prismaMock.enrollment.findMany.mockResolvedValue([]);
   prismaMock.license.findMany.mockResolvedValue([]);
   prismaMock.boardCertification.findMany.mockResolvedValue([]);
   prismaMock.provider.findMany.mockResolvedValue([]);

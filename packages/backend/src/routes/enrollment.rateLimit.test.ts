@@ -53,8 +53,8 @@ describe('Enrollment rate limiting regression', () => {
     app.use('/api/enrollments', limiter, enrollmentRouter);
 
     // Mock DB responses
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment] as any);
-    prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+    prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment] as any);
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
     prismaMock.payer.findMany.mockResolvedValue([mockPayer] as any);
 
     // Simulate a realistic enrollment page browsing session:

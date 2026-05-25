@@ -209,7 +209,7 @@ describe('FollowUpService', () => {
   describe('sendFollowUpEmail', () => {
     it('success: calls emailService.sendEmail and updates prisma, returns success=true', async () => {
       vi.mocked(emailService.sendEmail).mockResolvedValue({ success: true } as any);
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       const result = await followUpService.sendFollowUpEmail(mockEnrollment);
 
@@ -219,7 +219,7 @@ describe('FollowUpService', () => {
       expect(result.payerName).toBe('Aetna');
       expect(result.email).toBe('payer@aetna.com');
       expect(emailService.sendEmail).toHaveBeenCalledOnce();
-      expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'enrl-1' },
           data: expect.objectContaining({
@@ -247,7 +247,7 @@ describe('FollowUpService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('SES error');
-      expect(prismaMock.payerEnrollment.update).not.toHaveBeenCalled();
+      expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
     });
   });
 
@@ -255,9 +255,9 @@ describe('FollowUpService', () => {
   describe('processAllDueFollowUps', () => {
     it('processes multiple enrollments and returns correct counts', async () => {
       const enrollment2 = { ...mockEnrollment, id: 'enrl-2', followUpEmail: null };
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([mockEnrollment, enrollment2] as any);
+      prismaMock.enrollment.findMany.mockResolvedValue([mockEnrollment, enrollment2] as any);
       vi.mocked(emailService.sendEmail).mockResolvedValue({ success: true } as any);
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       const result = await followUpService.processAllDueFollowUps();
 
@@ -268,7 +268,7 @@ describe('FollowUpService', () => {
     });
 
     it('handles empty list', async () => {
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+      prismaMock.enrollment.findMany.mockResolvedValue([]);
 
       const result = await followUpService.processAllDueFollowUps();
 
@@ -282,7 +282,7 @@ describe('FollowUpService', () => {
   // 6. sendCustomFollowUp
   describe('sendCustomFollowUp', () => {
     it('returns error when enrollment not found', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
       const result = await followUpService.sendCustomFollowUp('enrl-missing', 'test@example.com');
 
@@ -292,7 +292,7 @@ describe('FollowUpService', () => {
     });
 
     it('returns error when no toEmail', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
 
       const result = await followUpService.sendCustomFollowUp('enrl-1', '');
 
@@ -301,9 +301,9 @@ describe('FollowUpService', () => {
     });
 
     it('success: sends professional email with attachment, updates dates', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
       vi.mocked(emailService.sendEmail).mockResolvedValue({ success: true } as any);
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       const attachment = {
         filename: 'doc.pdf',
@@ -323,7 +323,7 @@ describe('FollowUpService', () => {
           attachments: [expect.objectContaining({ filename: 'doc.pdf' })],
         })
       );
-      expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'enrl-1' },
           data: expect.objectContaining({
@@ -335,21 +335,21 @@ describe('FollowUpService', () => {
     });
 
     it('does not update dates when email fails', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
       vi.mocked(emailService.sendEmail).mockResolvedValue({ success: false, error: 'SES error' } as any);
 
       const result = await followUpService.sendCustomFollowUp('enrl-1', 'custom@example.com');
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('SES error');
-      expect(prismaMock.payerEnrollment.update).not.toHaveBeenCalled();
+      expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
     });
   });
 
   // 7. getEnrollmentEmailData
   describe('getEnrollmentEmailData', () => {
     it('returns extracted data for found enrollment', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
 
       const data = await followUpService.getEnrollmentEmailData('enrl-1');
 
@@ -360,7 +360,7 @@ describe('FollowUpService', () => {
     });
 
     it('returns null for not found', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(null);
+      prismaMock.enrollment.findUnique.mockResolvedValue(null);
 
       const data = await followUpService.getEnrollmentEmailData('enrl-missing');
 
@@ -371,9 +371,9 @@ describe('FollowUpService', () => {
   // 8. sendTestFollowUp
   describe('sendTestFollowUp', () => {
     it('delegates to sendCustomFollowUp with provided email', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
       vi.mocked(emailService.sendEmail).mockResolvedValue({ success: true } as any);
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       const result = await followUpService.sendTestFollowUp('enrl-1', 'test@example.com');
 
@@ -382,7 +382,7 @@ describe('FollowUpService', () => {
     });
 
     it('delegates with empty string when no testEmail provided', async () => {
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment);
 
       const result = await followUpService.sendTestFollowUp('enrl-1');
 
@@ -394,7 +394,7 @@ describe('FollowUpService', () => {
   // 9. configureFollowUp
   describe('configureFollowUp', () => {
     it('enabled with custom frequency sets nextFollowUpDate', async () => {
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       await followUpService.configureFollowUp('enrl-1', {
         enabled: true,
@@ -402,7 +402,7 @@ describe('FollowUpService', () => {
         frequencyDays: 7,
       });
 
-      expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'enrl-1' },
           data: expect.objectContaining({
@@ -415,18 +415,18 @@ describe('FollowUpService', () => {
       );
 
       // Verify the nextFollowUpDate is roughly 7 days from now
-      const callData = prismaMock.payerEnrollment.update.mock.calls[0]![0].data as any;
+      const callData = prismaMock.enrollment.update.mock.calls[0]![0].data as any;
       const diffDays = (callData.nextFollowUpDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
       expect(diffDays).toBeGreaterThan(6.9);
       expect(diffDays).toBeLessThan(7.1);
     });
 
     it('disabled sets nextFollowUpDate to null', async () => {
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       await followUpService.configureFollowUp('enrl-1', { enabled: false });
 
-      expect(prismaMock.payerEnrollment.update).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             followUpEnabled: false,
@@ -437,11 +437,11 @@ describe('FollowUpService', () => {
     });
 
     it('defaults to 14 day frequency when not specified', async () => {
-      prismaMock.payerEnrollment.update.mockResolvedValue(mockEnrollment);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment);
 
       await followUpService.configureFollowUp('enrl-1', { enabled: true });
 
-      const callData = prismaMock.payerEnrollment.update.mock.calls[0]![0].data as any;
+      const callData = prismaMock.enrollment.update.mock.calls[0]![0].data as any;
       expect(callData.followUpFrequencyDays).toBe(14);
       const diffDays = (callData.nextFollowUpDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
       expect(diffDays).toBeGreaterThan(13.9);
@@ -452,12 +452,12 @@ describe('FollowUpService', () => {
   // 10. getEnrollmentsDueForFollowUp
   describe('getEnrollmentsDueForFollowUp', () => {
     it('calls prisma findMany with correct filters', async () => {
-      prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+      prismaMock.enrollment.findMany.mockResolvedValue([]);
 
       await followUpService.getEnrollmentsDueForFollowUp();
 
-      expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledOnce();
-      expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.enrollment.findMany).toHaveBeenCalledOnce();
+      expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             followUpEnabled: true,

@@ -71,7 +71,7 @@ describe('Termination Letter Routes', () => {
 
     it('generates a draft termination letter', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
-      prismaMock.payerEnrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
+      prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue({ id: TASK_ID } as any);
       prismaMock.terminationLetter.findFirst.mockResolvedValue(null); // No existing letter
 
@@ -90,7 +90,7 @@ describe('Termination Letter Routes', () => {
 
     it('returns 409 when letter already exists for enrollment', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
-      prismaMock.payerEnrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
+      prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue({ id: TASK_ID } as any);
       prismaMock.terminationLetter.findFirst.mockResolvedValue(mockTerminationLetter as any);
 
@@ -115,7 +115,7 @@ describe('Termination Letter Routes', () => {
 
     it('returns 404 when enrollment not found for provider', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
-      prismaMock.payerEnrollment.findFirst.mockResolvedValue(null);
+      prismaMock.enrollment.findFirst.mockResolvedValue(null);
 
       const res = await request(app)
         .post(`/providers/${PROVIDER_ID}/termination-letters/generate`)
@@ -137,9 +137,9 @@ describe('Termination Letter Routes', () => {
 
     it('creates task if DRAFT_TERM_LETTER task does not exist yet', async () => {
       prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
-      prismaMock.payerEnrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
+      prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue(null); // No existing task
-      prismaMock.payerEnrollment.findUnique.mockResolvedValue({
+      prismaMock.enrollment.findUnique.mockResolvedValue({
         id: ENROLLMENT_ID,
         payer: { name: 'Blue Cross Blue Shield' },
       } as any);
