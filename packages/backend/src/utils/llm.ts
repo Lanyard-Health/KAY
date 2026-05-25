@@ -55,11 +55,12 @@ let client: Anthropic | null = null;
 
 function getClient(): Anthropic {
   if (!client) {
+    // Don't pre-validate ANTHROPIC_API_KEY here. The SDK itself reads
+    // ANTHROPIC_API_KEY from env at request time and produces a clear error
+    // if missing. Pre-validating breaks tests that mock the SDK module
+    // without setting the env var (e.g., document-classifier.test.ts).
     const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-    client = new Anthropic({ apiKey, timeout: DEFAULT_TIMEOUT_MS });
+    client = new Anthropic(apiKey ? { apiKey, timeout: DEFAULT_TIMEOUT_MS } : { timeout: DEFAULT_TIMEOUT_MS });
   }
   return client;
 }
@@ -116,15 +117,19 @@ export async function callLLM(params: LLMCallParams): Promise<LLMResponse> {
     .map((b) => b.text)
     .join('\n');
 
+  // Defensive reads — real SDK always populates usage, but minimal mocks in
+  // pre-existing tests may omit fields. Fail-soft so a mock without usage
+  // doesn't surface as a runtime TypeError that gets swallowed by callers.
+  const usage = response.usage as Partial<Anthropic.Messages.Usage> | undefined;
   return {
     content: response.content,
     text,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
-    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    inputTokens: usage?.input_tokens ?? 0,
+    outputTokens: usage?.output_tokens ?? 0,
+    cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+    cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
     model,
-    stopReason: response.stop_reason,
+    stopReason: response.stop_reason ?? null,
   };
 }
 

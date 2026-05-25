@@ -11,12 +11,20 @@ vi.mock('./ai.service.js', () => ({
   sanitizeUserInput: vi.fn((s: string) => s),
 }));
 
+// payerIntelligence now calls callLLM directly (post Phase 3 step 2 migration).
+// Mock the wrapper module so tests can inject a stubbed AI response without
+// touching the real Anthropic SDK.
+vi.mock('../utils/llm.js', () => ({
+  callLLM: vi.fn(),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { getClient, checkTokenBudget } from './ai.service.js';
+import { checkTokenBudget } from './ai.service.js';
+import { callLLM } from '../utils/llm.js';
 import {
   getPayerAnalytics,
   getPayerLeaderboard,
@@ -163,20 +171,25 @@ describe('PayerIntelligence Service', () => {
   // analyzePayerWithAI
   // ==========================================
   describe('analyzePayerWithAI', () => {
+    // Shape matches the wrapper's LLMResponse (post Phase 3 step 2). The
+    // wrapper joins text blocks into `.text` and normalizes usage fields.
     const mockAIResponse = {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          riskAssessment: 'medium',
-          summary: 'Moderate processing payer.',
-          strengths: ['Good approval rate'],
-          risks: ['Slow processing times'],
-          recommendations: [{ action: 'Increase follow-up frequency', priority: 'high', reasoning: 'Speed matters' }],
-          optimalFollowUpStrategy: { frequencyDays: 7, bestApproach: 'Phone', escalationThreshold: '30 days' },
-          comparisonInsight: 'Below average speed.',
-        }),
-      }],
-      usage: { input_tokens: 500, output_tokens: 300 },
+      content: [],
+      text: JSON.stringify({
+        riskAssessment: 'medium',
+        summary: 'Moderate processing payer.',
+        strengths: ['Good approval rate'],
+        risks: ['Slow processing times'],
+        recommendations: [{ action: 'Increase follow-up frequency', priority: 'high', reasoning: 'Speed matters' }],
+        optimalFollowUpStrategy: { frequencyDays: 7, bestApproach: 'Phone', escalationThreshold: '30 days' },
+        comparisonInsight: 'Below average speed.',
+      }),
+      inputTokens: 500,
+      outputTokens: 300,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      model: 'claude-sonnet-4-20250514',
+      stopReason: 'end_turn',
     };
 
     it('returns AI insight and stores recommendation', async () => {
@@ -188,8 +201,7 @@ describe('PayerIntelligence Service', () => {
         { id: 'e3', payerId: 'payer-1', status: 'denied', applicationDate: daysAgo(40), effectiveDate: null, updatedAt: daysAgo(3) },
       ] as any);
 
-      const mockClient = { messages: { create: vi.fn().mockResolvedValue(mockAIResponse) } };
-      (getClient as any).mockReturnValue(mockClient);
+      (callLLM as any).mockResolvedValue(mockAIResponse);
       prismaMock.aiRecommendation.create.mockResolvedValue({ id: 'rec-1' } as any);
 
       const result = await analyzePayerWithAI('payer-1');

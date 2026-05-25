@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
 import { getQueue, QUEUE_NAMES } from '../queues.js';
@@ -6,6 +6,7 @@ import { logAgentEvent } from '../event-logger.js';
 import { emitWorkflowEvent } from '../websocket.js';
 import { buildExceptionSystemPrompt, buildExceptionUserMessage } from './prompt.js';
 import { decryptSafe } from '../../utils/crypto.js';
+import { callLLM, setLLMClientForTesting } from '../../utils/llm.js';
 import type { ExceptionJobData, ExceptionJobResult, ExceptionAnalysis } from './types.js';
 
 // ==========================================
@@ -17,25 +18,13 @@ const MAX_TOKENS = 1500;
 const MAX_REMEDIATION_ATTEMPTS = 3;
 
 // ==========================================
-// Anthropic client (lazy singleton)
+// Test seam
 // ==========================================
 
-let anthropicClient: Anthropic | null = null;
-
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    const apiKey = process.env['ANTHROPIC_API_KEY'];
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-    anthropicClient = new Anthropic({ apiKey, timeout: 60_000 });
-  }
-  return anthropicClient;
-}
-
-/** Exposed for testing — allows injecting a mock client */
+/** Backwards-compat shim — exception-agent no longer owns its client; calls
+ *  go through the shared LLM wrapper. */
 export function setAnthropicClient(client: Anthropic | null): void {
-  anthropicClient = client;
+  setLLMClientForTesting(client);
 }
 
 // ==========================================
@@ -121,19 +110,17 @@ export async function processExceptionJob(data: ExceptionJobData): Promise<Excep
   });
 
   // 6. Single Claude call
-  const client = getAnthropicClient();
-  const response = await client.messages.create({
+  const response = await callLLM({
     model: AI_MODEL,
-    max_tokens: MAX_TOKENS,
+    maxTokens: MAX_TOKENS,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+  const tokensUsed = response.inputTokens + response.outputTokens;
 
   // 7. Parse response
-  const textBlock = response.content.find((b) => b.type === 'text');
-  const rawText = textBlock && 'text' in textBlock ? textBlock.text : '';
+  const rawText = response.text;
 
   let analysis: ExceptionAnalysis;
   try {
