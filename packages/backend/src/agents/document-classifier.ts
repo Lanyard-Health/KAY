@@ -57,7 +57,7 @@ export async function classifyDocumentType(input: ClassifyInput): Promise<Docume
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: process.env['AI_MODEL_CLASSIFIER'] || 'claude-haiku-4-5-20251001',
       max_tokens: 50,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],

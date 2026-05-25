@@ -2,7 +2,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { SanitizedBugReport, TriageResult, BugSeverity } from './types.js';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
+// BUG_TRIAGE_MODEL is the legacy per-service override (kept for backward compat:
+// Render currently has it set explicitly). AI_MODEL_CLASSIFIER is the new
+// unified env var for all cheap-tier classification calls. Resolution order:
+// BUG_TRIAGE_MODEL → AI_MODEL_CLASSIFIER → Haiku default. Setting
+// BUG_TRIAGE_MODEL='' (empty string) still disables AI triage (rule-based only).
 const BUG_TRIAGE_MODEL = process.env['BUG_TRIAGE_MODEL'];
+const AI_MODEL_CLASSIFIER = process.env['AI_MODEL_CLASSIFIER'];
 
 let client: Anthropic | null = null;
 
@@ -29,7 +35,7 @@ class BugTriager {
 
     try {
       const anthropic = getClient();
-      const model = BUG_TRIAGE_MODEL || 'claude-haiku-4-5-20251001';
+      const model = BUG_TRIAGE_MODEL || AI_MODEL_CLASSIFIER || 'claude-haiku-4-5-20251001';
 
       const userMessage = [
         `Source: ${report.source}`,

@@ -29,6 +29,13 @@ const envSchema = z.object({
   // AI (optional — feature degrades gracefully)
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('claude-sonnet-4-20250514'),
+  // Cheaper tier for classification/extraction tasks. Document classifier and
+  // bug-monitor triage read this. Default Haiku 4.5 — ~3× cheaper than Sonnet
+  // on input tokens, faster latency, sufficient quality for routine labels.
+  AI_MODEL_CLASSIFIER: z.string().default('claude-haiku-4-5-20251001'),
+  // Vision/OCR extraction tier. Defaults to Sonnet for now; flip to Haiku in
+  // staging only after A/B verifying scanned-PDF extraction quality holds.
+  AI_MODEL_VISION: z.string().default('claude-sonnet-4-20250514'),
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().default(100000),
   MAX_REPLANS_PER_WORKFLOW: z.coerce.number().int().min(0).max(50).default(5),
 
