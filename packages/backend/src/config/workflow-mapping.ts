@@ -32,24 +32,29 @@ export const DUAL_ELIGIBLE_PROVIDER_TYPES: ProviderType[] = [
 ];
 
 /**
- * Payers with behavioral_health-specific workflows.
- * If a payer only has a 'medical' workflow in the template,
- * BH providers will use the medical workflow as fallback.
+ * Payers (by DB payer_name) that have NO behavioral-health workflow.
+ * BH providers enrolling with these payers fall back to the medical workflow.
+ *
+ * Currently just UnitedHealthcare — UHC routes all BH credentialing to Optum
+ * Behavioral Health (a separate payer entry with its own workflow), so a UHC
+ * enrollment for a BH provider shouldn't try to use a non-existent UHC BH
+ * track. The match is case-insensitive substring against PayerTrack.payerName.
  */
-export const PAYERS_WITH_BH_WORKFLOW = ['aetna', 'cigna', 'optum', 'humana'];
+export const PAYER_NAMES_WITHOUT_BH_WORKFLOW: string[] = ['United Healthcare'];
 
 /**
  * Determines which workflow type to use for a given provider type
- * and payer workflow key combination.
+ * and payer combination.
  *
  * Logic:
  * 1. If the user explicitly selected a workflow type, use that
  * 2. Otherwise, infer from provider type
- * 3. If the inferred type doesn't exist for this payer, fall back
+ * 3. If the inferred type is behavioral_health and the payer doesn't have
+ *    a BH workflow, fall back to medical
  */
 export function resolveWorkflowType(
   providerType: ProviderType,
-  payerWorkflowKey: string,
+  payerName?: string | null,
   explicitChoice?: WorkflowType | null
 ): WorkflowType {
   // Explicit user choice takes priority
@@ -59,7 +64,13 @@ export function resolveWorkflowType(
   const defaultType = PROVIDER_TYPE_TO_WORKFLOW[providerType];
 
   // If the payer doesn't have a BH workflow, fall back to medical
-  if (defaultType === 'behavioral_health' && !PAYERS_WITH_BH_WORKFLOW.includes(payerWorkflowKey)) {
+  if (
+    defaultType === 'behavioral_health' &&
+    payerName &&
+    PAYER_NAMES_WITHOUT_BH_WORKFLOW.some((name) =>
+      payerName.toLowerCase().includes(name.toLowerCase())
+    )
+  ) {
     return 'medical';
   }
 

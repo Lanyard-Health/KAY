@@ -489,11 +489,11 @@ server.listen(PORT, async () => {
     if (payerCount === 0) {
       logger.info('Payer table empty — seeding core payers...');
       const corePayers = [
-        { name: 'Aetna', payerId: 'AETNA', payerType: 'Medical', workflowKey: 'aetna' },
-        { name: 'Cigna', payerId: 'CIGNA', payerType: 'Medical', workflowKey: 'cigna' },
-        { name: 'UnitedHealthcare', payerId: 'UHC', payerType: 'Medical', workflowKey: 'uhc' },
-        { name: 'Blue Cross Blue Shield', payerId: 'BCBS', payerType: 'Medical', workflowKey: 'bcbs' },
-        { name: 'Humana', payerId: 'HUMANA', payerType: 'Medical', workflowKey: 'humana' },
+        { name: 'Aetna', payerId: 'AETNA', payerType: 'Medical' },
+        { name: 'Cigna', payerId: 'CIGNA', payerType: 'Medical' },
+        { name: 'UnitedHealthcare', payerId: 'UHC', payerType: 'Medical' },
+        { name: 'Blue Cross Blue Shield', payerId: 'BCBS', payerType: 'Medical' },
+        { name: 'Humana', payerId: 'HUMANA', payerType: 'Medical' },
         { name: 'Kaiser Permanente', payerId: 'KAISER', payerType: 'Medical' },
         { name: 'Molina Healthcare', payerId: 'MOLINA', payerType: 'Medical, Medicaid' },
         { name: 'Centene', payerId: 'CENTENE', payerType: 'Medical, Medicaid' },
