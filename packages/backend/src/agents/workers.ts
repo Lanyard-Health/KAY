@@ -13,6 +13,7 @@ import { processDocumentJob } from './document-agent.js';
 import type { DocumentJobData } from './document-agent.js';
 import { processOrchestratorJob } from './orchestrator/orchestrator.service.js';
 import type { OrchestratorJobData } from './orchestrator/orchestrator.service.js';
+import { routeAndProcessOrchestratorJob } from '../services/workflow-router.service.js';
 import { processMonitorJob } from './monitor/monitor-agent.js';
 import type { MonitorJobData } from './monitor/types.js';
 import { processExceptionJob } from './exception/exception-agent.js';
@@ -89,7 +90,9 @@ function getProcessor(agentName: string) {
   if (agentName === 'orchestrator') {
     return async (job: Job) => {
       const data = job.data as OrchestratorJobData;
-      return processOrchestratorJob(data);
+      // Router decides stepper vs LLM based on DETERMINISTIC_STEPPER flag and
+      // job shape. Defaults to LLM (today's behavior) unless flag is enabled.
+      return routeAndProcessOrchestratorJob(data, processOrchestratorJob);
     };
   }
   if (agentName === 'portal_interaction') {
