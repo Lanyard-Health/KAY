@@ -4,6 +4,11 @@
  * GET    /denials           — list denial triages (filter by status)
  * GET    /denials/:id       — get single denial triage with enrollment context
  * PATCH  /denials/:id       — mark as reviewed or actioned
+ *
+ * Practice scoping: DenialTriage has no direct practiceId column. Scope is
+ * enforced through the relation chain DenialTriage → Enrollment → Provider →
+ * practiceId. Super admins bypass. Pre-fix (Tier 1 #2 audit), staff at one
+ * practice could see and modify denials belonging to other practices.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -12,6 +17,20 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { prisma } from '../utils/prisma.js';
 
 const router = Router();
+
+/**
+ * Returns the practice-scope WHERE fragment for DenialTriage queries.
+ * Super admins: `{}` (no filter). Staff: traverses enrollment → provider →
+ * practiceId. Users with no practice assignments match nothing.
+ */
+function denialScopeFilter(req: Request): Record<string, unknown> {
+  if (req.practiceScope?.isSuperAdmin) return {};
+  const ids = req.practiceScope?.practiceIds ?? [];
+  if (ids.length === 0) {
+    return { enrollment: { provider: { id: '__no_access__' } } };
+  }
+  return { enrollment: { provider: { practiceId: { in: ids } } } };
+}
 
 // ─── List denial triages ────────────────────────────────
 
@@ -23,7 +42,7 @@ router.get(
     try {
       const status = req.query['status'] as string | undefined;
 
-      const where: any = {};
+      const where: any = { ...denialScopeFilter(req) };
       if (status) where.status = status;
 
       const triages = await prisma.denialTriage.findMany({
@@ -57,8 +76,8 @@ router.get(
     try {
       const { id } = req.params;
 
-      const triage = await prisma.denialTriage.findUnique({
-        where: { id },
+      const triage = await prisma.denialTriage.findFirst({
+        where: { id, ...denialScopeFilter(req) },
         include: {
           enrollment: {
             include: {
@@ -105,8 +124,8 @@ router.patch(
       const { id } = req.params;
       const validated = updateSchema.parse(req.body);
 
-      const existing = await prisma.denialTriage.findUnique({
-        where: { id },
+      const existing = await prisma.denialTriage.findFirst({
+        where: { id, ...denialScopeFilter(req) },
       });
 
       if (!existing) {
