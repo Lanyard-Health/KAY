@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { encryptSafe } from '../utils/crypto.js';
 
 vi.hoisted(() => {
   process.env['CAQH_API_URL'] = 'https://caqh.test.com';
@@ -3388,6 +3389,242 @@ describe('CaqhService', () => {
       expect(url).toContain('caqhProviderId=caqh-1');
       expect(url).toContain('organizationId=org-123');
       expect(url).toContain('attestationDate=2%2F9%2F2025');
+    });
+  });
+
+  // ==========================================
+  // CAQH_EXTENDED_PAYLOAD — Tier 1 #4
+  // Roster Individual v2.0 spec field gap fix.
+  // Flag OFF (default) preserves the 10-field payload; flag ON adds 17 more.
+  // ==========================================
+
+  describe('addToRoster — CAQH_EXTENDED_PAYLOAD', () => {
+    beforeEach(() => {
+      process.env['CAQH_ROSTER_MODE'] = 'individual';
+    });
+
+    afterEach(() => {
+      delete process.env['CAQH_EXTENDED_PAYLOAD'];
+    });
+
+    it('with flag OFF, sends only the original 10 spec fields (unchanged from prior behavior)', async () => {
+      delete process.env['CAQH_EXTENDED_PAYLOAD'];
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(Object.keys(body.provider).sort()).toEqual(
+        ['first_name', 'last_name', 'address1', 'city', 'state', 'zip', 'practice_state', 'birthdate', 'type', 'npi'].sort(),
+      );
+      // None of the extended sibling fields should appear when flag is off.
+      expect(body).not.toHaveProperty('po_provider_id');
+      expect(body).not.toHaveProperty('delegation_flag');
+    });
+
+    it('with flag ON and full provider data, sends all available extended fields', async () => {
+      process.env['CAQH_EXTENDED_PAYLOAD'] = 'true';
+      // SSN/tax_id/DEA round-tripped through encryptSafe so decryptSafe
+      // returns the original plaintext.
+      const ssn = encryptSafe('123-45-6789');
+      const taxId = encryptSafe('98-7654321');
+      const dea = encryptSafe('AB1234567');
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        id: 'p1',
+        npi: '1234567890',
+        firstName: 'Jane',
+        middleName: 'Q',
+        suffix: 'Jr',
+        lastName: 'Doe',
+        dateOfBirth: new Date('1985-06-15'),
+        providerType: 'lcsw',
+        gender: 'female',
+        email: 'jane@example.com',
+        phone: '555-555-1234',
+        fax: '555-555-9999',
+        taxonomy: null,
+        primaryPracticeState: null,
+        ssnEncrypted: ssn,
+        caqhProviderId: null,
+        caqhLastSync: new Date('2026-01-15'),
+        practiceLocations: [
+          {
+            addressLine1: '123 Main St',
+            addressLine2: 'Suite 200',
+            city: 'Austin',
+            state: 'CA',
+            zipCode: '78701-4567',
+            isPrimary: true,
+            createdAt: new Date('2024-01-01'),
+            taxIdEncrypted: taxId,
+          },
+        ],
+        licenses: [
+          { state: 'CA', licenseNumber: 'L12345', isPrimary: true, expirationDate: new Date('2027-12-31') },
+        ],
+        deaRegistrations: [
+          { deaNumberEncrypted: dea, expirationDate: new Date('2027-06-30') },
+        ],
+        providerIdentifiers: [
+          { identifierValue: 'U987654' },
+        ],
+      } as any);
+
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+
+      // Provider envelope contains all 25 in-envelope fields (10 base + 15 extended).
+      expect(body.provider).toMatchObject({
+        first_name: 'Jane',
+        middle_name: 'Q',
+        last_name: 'Doe',
+        name_suffix: 'Jr',
+        gender: 'F',
+        address1: '123 Main St',
+        address2: 'Suite 200',
+        city: 'Austin',
+        state: 'CA',
+        zip: '78701',
+        zip_extn: '4567',
+        phone: '555-555-1234',
+        fax: '555-555-9999',
+        email: 'jane@example.com',
+        practice_state: 'CA',
+        birthdate: '19850615',
+        ssn: '123-45-6789',
+        short_ssn: '6789',
+        dea: 'AB1234567',
+        upin: 'U987654',
+        type: 'CSW',
+        tax_id: '98-7654321',
+        npi: '1234567890',
+        license_state: 'CA',
+        license_number: 'L12345',
+      });
+
+      // Sibling-level spec fields outside `provider`.
+      expect(body).toMatchObject({
+        organization_id: 'org-123',
+        po_provider_id: 'p1',
+        last_recredential_date: '20260115',
+        delegation_flag: 'N',
+        application_type: 'I',
+        affiliation_flag: 'N',
+      });
+    });
+
+    it('with flag ON and minimal data, only emits keys for fields that are populated', async () => {
+      process.env['CAQH_EXTENDED_PAYLOAD'] = 'true';
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        // Minimal extended fields — no licenses, DEA, identifiers, SSN, tax_id.
+      }) as any);
+
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+
+      // Base 10 fields always present.
+      expect(body.provider).toMatchObject({
+        first_name: 'Jane',
+        last_name: 'Doe',
+        npi: '1234567890',
+      });
+
+      // None of the optional extended fields should appear when data missing.
+      expect(body.provider).not.toHaveProperty('ssn');
+      expect(body.provider).not.toHaveProperty('tax_id');
+      expect(body.provider).not.toHaveProperty('dea');
+      expect(body.provider).not.toHaveProperty('upin');
+      expect(body.provider).not.toHaveProperty('license_number');
+
+      // But defaults are always emitted under extended mode.
+      expect(body).toMatchObject({
+        delegation_flag: 'N',
+        application_type: 'I',
+        affiliation_flag: 'N',
+        po_provider_id: 'p1',
+      });
+    });
+
+    it('with flag ON and missing SSN column, omits the field but still submits', async () => {
+      process.env['CAQH_EXTENDED_PAYLOAD'] = 'true';
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        ...buildResolvableProvider(),
+        // Null encrypted column — safeDecrypt returns null, field omitted.
+        ssnEncrypted: null,
+        gender: 'male',
+        email: 'jane@example.com',
+        phone: '555-1234',
+      } as any);
+
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+
+      // SSN dropped; submission proceeded; gender, email, phone still populated.
+      expect(body.provider).not.toHaveProperty('ssn');
+      expect(body.provider).not.toHaveProperty('short_ssn');
+      expect(body.provider.gender).toBe('M');
+      expect(body.provider.email).toBe('jane@example.com');
+    });
+
+    it('with flag ON, splits 9-digit zip "12345-6789" into zip + zip_extn', async () => {
+      process.env['CAQH_EXTENDED_PAYLOAD'] = 'true';
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        practiceLocations: [
+          {
+            addressLine1: '123 Main St',
+            city: 'Austin',
+            state: 'TX',
+            zipCode: '78701-1234',
+            isPrimary: true,
+            createdAt: new Date('2024-01-01'),
+          },
+        ],
+      }) as any);
+
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.zip).toBe('78701');
+      expect(body.provider.zip_extn).toBe('1234');
+    });
+
+    it('with flag ON, maps Gender enum to single-letter CAQH code', async () => {
+      process.env['CAQH_EXTENDED_PAYLOAD'] = 'true';
+      const cases: Array<[string, string]> = [
+        ['male', 'M'],
+        ['female', 'F'],
+        ['other', 'U'],
+        ['prefer_not_to_say', 'U'],
+      ];
+
+      for (const [internalGender, caqhCode] of cases) {
+        vi.spyOn(globalThis, 'fetch').mockReset();
+        prismaMock.providerProfile.findUnique.mockResolvedValue({
+          ...buildResolvableProvider(),
+          gender: internalGender,
+        } as any);
+        const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+        await service.addToRoster('p1');
+        const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+        expect(body.provider.gender).toBe(caqhCode);
+      }
     });
   });
 });
