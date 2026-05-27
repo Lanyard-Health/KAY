@@ -1,7 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType, EducationType, ProviderCertificationType, DisclosureCategory, ClaimStatus, PrivilegeType, AffiliationStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
-import { encryptSafe } from '../utils/crypto.js';
+import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 import { z } from 'zod';
 
 export interface CaqhRosterResponse {
@@ -868,6 +868,50 @@ const PROVIDER_TYPE_TO_CAQH_TYPE: Partial<Record<ProviderType, string>> = {
 const CAQH_TYPE_DEFAULT_APPLIED: ReadonlySet<ProviderType> = new Set<ProviderType>(['psychiatrist', 'psychologist']);
 
 /**
+ * Tier 1 #4 feature flag — when enabled, the RosterIndividual payload
+ * carries the full CAQH Roster Individual v2.0 spec field set (27 fields)
+ * instead of the original 10. Default off so the first deploy is a no-op
+ * and we have a one-flip rollback path if prod CAQH rejects the extended
+ * payload. Flip ON in Render env vars only after demo validation per
+ * CLAUDE.md's CAQH workflow (demo POID 6279 first, then prod POID 1873).
+ */
+function isExtendedCaqhPayloadEnabled(): boolean {
+  return process.env['CAQH_EXTENDED_PAYLOAD'] === 'true';
+}
+
+/**
+ * Decrypt a stored ciphertext or return null if the input is null/empty or
+ * decryption throws (corrupt ciphertext, missing ENCRYPTION_KEY). Used for
+ * optional PHI fields — failure should never block the CAQH submission.
+ */
+function safeDecrypt(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const plain = decryptSafe(value);
+    return plain || null;
+  } catch (err) {
+    logger.warn({
+      event: 'caqh_field_decrypt_failed',
+      error: err instanceof Error ? err.message : String(err),
+      reason: 'Skipping field in CAQH payload; submission continues without it',
+    });
+    return null;
+  }
+}
+
+/**
+ * Maps the internal Gender enum to a single-character CAQH code per spec
+ * domain table. "other" and "prefer_not_to_say" both fall through to "U"
+ * (unspecified) — CAQH accepts U but treats it as missing for matching.
+ */
+const GENDER_TO_CAQH_CODE: Record<Gender, string> = {
+  male: 'M',
+  female: 'F',
+  other: 'U',
+  prefer_not_to_say: 'U',
+};
+
+/**
  * NUCC taxonomy → CAQH Type lookup. **Currently inactive** —
  * `provider_type=other` always fails readiness until the taxonomy fallback
  * ships in a later phase. Values pre-validated against spec Table 37 so the
@@ -1201,6 +1245,35 @@ export interface ResolvedRosterData {
   city: string;
   state: string;
   zip: string;
+
+  // Extended spec fields (Tier 1 #4). All optional — populated when the
+  // CAQH_EXTENDED_PAYLOAD feature flag is enabled. Each represents a field
+  // from CAQH Roster Individual v2.0 sample payload that the original
+  // 10-field payload omitted.
+  middleName?: string;
+  nameSuffix?: string;
+  gender?: string;           // CAQH single-letter code
+  address2?: string;
+  zipExtn?: string;          // derived from 9-digit zip "12345-6789" → "6789"
+  phone?: string;
+  fax?: string;
+  email?: string;
+  ssn?: string;              // decrypted; PHI — never log
+  shortSsn?: string;         // last 4 of ssn
+  dea?: string;              // decrypted; PHI — never log
+  upin?: string;
+  taxId?: string;            // decrypted; PHI — never log
+  licenseState?: string;
+  licenseNumber?: string;
+  // Roster envelope (sibling fields, not inside `provider`):
+  caqhProviderId?: string;
+  poProviderId?: string;
+  lastRecredentialDate?: string;  // YYYYMMDD
+  nextRecredentialDate?: string;
+  delegationFlag?: string;
+  applicationType?: string;
+  affiliationFlag?: string;
+  regionId?: string;
 }
 
 /**
@@ -1548,23 +1621,62 @@ export class CaqhService {
    *   Specification v2.0.pdf
    */
   private async addToRosterIndividual(resolved: ResolvedRosterData): Promise<CaqhRosterResponse> {
-    const payload = {
-      provider: {
-        first_name: resolved.firstName,
-        last_name: resolved.lastName,
-        address1: resolved.address1,
-        // Request uses {city, state, zip}; response uses {address_city, address_state, address_zip} per spec.
-        city: resolved.city,
-        state: resolved.state,
-        zip: resolved.zip,
-        practice_state: resolved.practiceState,
-        // Spec section 3.1.1: dates are YYYYMMDD (no separators).
-        birthdate: resolved.birthdate.replace(/-/g, ''),
-        type: resolved.caqhType,
-        npi: resolved.npi,
-      },
+    // Base payload (the 10 spec-required fields plus organization_id). The
+    // CAQH_EXTENDED_PAYLOAD flag controls whether the additional spec fields
+    // (Roster Individual v2.0 sample includes 27) are also sent. Default off
+    // so production behavior is unchanged on first deploy; flip ON via Render
+    // env var after demo validation per CLAUDE.md CAQH workflow.
+    const providerEnvelope: Record<string, string> = {
+      first_name: resolved.firstName,
+      last_name: resolved.lastName,
+      address1: resolved.address1,
+      // Request uses {city, state, zip}; response uses {address_city, address_state, address_zip} per spec.
+      city: resolved.city,
+      state: resolved.state,
+      zip: resolved.zip,
+      practice_state: resolved.practiceState,
+      // Spec section 3.1.1: dates are YYYYMMDD (no separators).
+      birthdate: resolved.birthdate.replace(/-/g, ''),
+      type: resolved.caqhType,
+      npi: resolved.npi,
+    };
+
+    const envelope: Record<string, unknown> = {
+      provider: providerEnvelope,
       organization_id: this.orgId,
     };
+
+    if (isExtendedCaqhPayloadEnabled()) {
+      // Only include keys with present values — empty strings sometimes trip
+      // CAQH validators that are stricter than the spec sample suggests.
+      if (resolved.middleName) providerEnvelope['middle_name'] = resolved.middleName;
+      if (resolved.nameSuffix) providerEnvelope['name_suffix'] = resolved.nameSuffix;
+      if (resolved.gender) providerEnvelope['gender'] = resolved.gender;
+      if (resolved.address2) providerEnvelope['address2'] = resolved.address2;
+      if (resolved.zipExtn) providerEnvelope['zip_extn'] = resolved.zipExtn;
+      if (resolved.phone) providerEnvelope['phone'] = resolved.phone;
+      if (resolved.fax) providerEnvelope['fax'] = resolved.fax;
+      if (resolved.email) providerEnvelope['email'] = resolved.email;
+      if (resolved.ssn) providerEnvelope['ssn'] = resolved.ssn;
+      if (resolved.shortSsn) providerEnvelope['short_ssn'] = resolved.shortSsn;
+      if (resolved.dea) providerEnvelope['dea'] = resolved.dea;
+      if (resolved.upin) providerEnvelope['upin'] = resolved.upin;
+      if (resolved.taxId) providerEnvelope['tax_id'] = resolved.taxId;
+      if (resolved.licenseState) providerEnvelope['license_state'] = resolved.licenseState;
+      if (resolved.licenseNumber) providerEnvelope['license_number'] = resolved.licenseNumber;
+
+      // Sibling-level fields outside `provider` (per spec sample envelope).
+      if (resolved.caqhProviderId) envelope['caqh_provider_id'] = resolved.caqhProviderId;
+      if (resolved.poProviderId) envelope['po_provider_id'] = resolved.poProviderId;
+      if (resolved.lastRecredentialDate) envelope['last_recredential_date'] = resolved.lastRecredentialDate;
+      if (resolved.nextRecredentialDate) envelope['next_recredential_date'] = resolved.nextRecredentialDate;
+      if (resolved.delegationFlag) envelope['delegation_flag'] = resolved.delegationFlag;
+      if (resolved.applicationType) envelope['application_type'] = resolved.applicationType;
+      if (resolved.affiliationFlag) envelope['affiliation_flag'] = resolved.affiliationFlag;
+      if (resolved.regionId) envelope['region_id'] = resolved.regionId;
+    }
+
+    const payload = envelope;
 
     const raw = await this.request<unknown>(
       // Capital R — spec endpoint is `/RosterIndividual`, not lowercase r.
@@ -1700,6 +1812,8 @@ export class CaqhService {
    * - `birthdate` ← `dateOfBirth` reformatted YYYY-MM-DD → YYYYMMDD per spec.
    */
   private async resolveCaqhRosterData(providerId: string): Promise<ResolvedRosterData> {
+    const extended = isExtendedCaqhPayloadEnabled();
+
     const provider = await prisma.providerProfile.findUnique({
       where: { id: providerId },
       select: {
@@ -1711,17 +1825,52 @@ export class CaqhService {
         providerType: true,
         taxonomy: true,
         primaryPracticeState: true,
+        // Extended payload fields — selected unconditionally (cheap) so the
+        // resolver always has them in scope; only emitted when flag is on.
+        middleName: true,
+        suffix: true,
+        gender: true,
+        email: true,
+        phone: true,
+        fax: true,
+        ssnEncrypted: true,
+        caqhProviderId: true,
+        caqhLastSync: true,
         practiceLocations: {
           select: {
             addressLine1: true,
+            addressLine2: true,
             city: true,
             state: true,
             zipCode: true,
             isPrimary: true,
             createdAt: true,
+            taxIdEncrypted: true,
           },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
         },
+        // Extended payload relations
+        licenses: extended
+          ? {
+              where: { status: 'active' },
+              select: { state: true, licenseNumber: true, isPrimary: true, expirationDate: true },
+              orderBy: [{ isPrimary: 'desc' }, { expirationDate: 'desc' }],
+            }
+          : false,
+        deaRegistrations: extended
+          ? {
+              where: { status: 'active' },
+              select: { deaNumberEncrypted: true, expirationDate: true },
+              orderBy: { expirationDate: 'desc' },
+            }
+          : false,
+        providerIdentifiers: extended
+          ? {
+              where: { identifierType: 'UPIN', status: 'active' },
+              select: { identifierValue: true },
+              take: 1,
+            }
+          : false,
       },
     });
 
@@ -1798,7 +1947,7 @@ export class CaqhService {
       throw new ProviderNotReadyForCaqhError(missing);
     }
 
-    return {
+    const base: ResolvedRosterData = {
       providerId,
       npi: provider.npi!,
       firstName: provider.firstName!,
@@ -1810,6 +1959,61 @@ export class CaqhService {
       city: city!,
       state: state!,
       zip: zip!,
+    };
+
+    if (!extended) {
+      return base;
+    }
+
+    // Extended-payload mode: enrich the base resolution with optional fields.
+    // Each field is best-effort — a missing/un-decryptable field becomes
+    // undefined and is simply omitted from the request payload.
+
+    const ssnPlain = safeDecrypt(provider.ssnEncrypted ?? null);
+    const taxIdPlain = primaryLoc ? safeDecrypt(primaryLoc.taxIdEncrypted ?? null) : null;
+    const deaRecord = (provider as { deaRegistrations?: Array<{ deaNumberEncrypted: string | null }> })
+      .deaRegistrations?.[0] ?? null;
+    const deaPlain = deaRecord ? safeDecrypt(deaRecord.deaNumberEncrypted ?? null) : null;
+
+    const primaryLicense = (provider as { licenses?: Array<{ state: string | null; licenseNumber: string | null }> })
+      .licenses?.[0] ?? null;
+    const upinRecord = (provider as { providerIdentifiers?: Array<{ identifierValue: string | null }> })
+      .providerIdentifiers?.[0] ?? null;
+
+    // zip "12345-6789" → ("12345", "6789"); plain "12345" → ("12345", undefined).
+    const zipBase = base.zip;
+    const zipParts = zipBase.includes('-') ? zipBase.split('-') : [zipBase];
+    base.zip = zipParts[0]!;
+    const zipExtnRaw = zipParts[1];
+
+    return {
+      ...base,
+      middleName: provider.middleName ?? undefined,
+      nameSuffix: provider.suffix ?? undefined,
+      gender: GENDER_TO_CAQH_CODE[provider.gender as Gender],
+      address2: primaryLoc?.addressLine2 ?? undefined,
+      zipExtn: zipExtnRaw,
+      phone: provider.phone ?? undefined,
+      fax: provider.fax ?? undefined,
+      email: provider.email ?? undefined,
+      ssn: ssnPlain ?? undefined,
+      shortSsn: ssnPlain ? ssnPlain.replace(/\D/g, '').slice(-4) : undefined,
+      dea: deaPlain ?? undefined,
+      upin: upinRecord?.identifierValue ?? undefined,
+      taxId: taxIdPlain ?? undefined,
+      licenseState: primaryLicense?.state ?? undefined,
+      licenseNumber: primaryLicense?.licenseNumber ?? undefined,
+      caqhProviderId: provider.caqhProviderId ?? undefined,
+      poProviderId: provider.id,  // Lanyard's internal provider UUID
+      lastRecredentialDate: provider.caqhLastSync
+        ? provider.caqhLastSync.toISOString().slice(0, 10).replace(/-/g, '')
+        : undefined,
+      // No DB column for next_recredential_date — omitted intentionally.
+      delegationFlag: 'N',
+      applicationType: 'I',
+      affiliationFlag: 'N',
+      // region_id intentionally omitted; CAQH falls back to organization_id
+      // mapping when absent per spec section 3.1.2.
     };
   }
 
