@@ -38,6 +38,18 @@ export default function LoginPage() {
     confirmForgotPassword,
   } = useAuthStore();
 
+  // Surface a "session expired" notice when api.ts redirected us here after a 401.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('flash:session-expired') === '1') {
+        sessionStorage.removeItem('flash:session-expired');
+        notify.info('Your session expired. Please log in again.');
+      }
+    } catch {
+      /* sessionStorage unavailable */
+    }
+  }, []);
+
   // Animated count-up for the "10x" stat
   useEffect(() => {
     const end = 10;
