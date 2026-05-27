@@ -1,9 +1,33 @@
+import { useAuthStore } from '../stores/auth.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // Check if dev bypass is enabled
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
 const isDevelopment = import.meta.env.DEV;
+
+// Single-flight guard so parallel 401s don't trigger multiple navigations.
+let sessionExpiryHandled = false;
+
+function handleSessionExpired(): void {
+  if (sessionExpiryHandled) return;
+  sessionExpiryHandled = true;
+
+  // Flash flag picked up by LoginPage on mount.
+  try {
+    sessionStorage.setItem('flash:session-expired', '1');
+  } catch {
+    /* sessionStorage unavailable (private mode, etc.) — proceed anyway */
+  }
+
+  // Fire-and-forget; page is about to navigate.
+  void useAuthStore.getState().logout();
+
+  // Avoid loop if we're already on /login.
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.replace('/login');
+  }
+}
 
 class ApiClient {
   private async getAuthToken(): Promise<string | null> {
@@ -45,6 +69,11 @@ class ApiClient {
       ...options,
       headers,
     });
+
+    if (response.status === 401 && !DEV_BYPASS_ENABLED) {
+      handleSessionExpired();
+      throw new Error('Session expired');
+    }
 
     const data = await response.json();
 
@@ -122,6 +151,11 @@ class ApiClient {
       body: formData,
     });
 
+    if (response.status === 401 && !DEV_BYPASS_ENABLED) {
+      handleSessionExpired();
+      throw new Error('Session expired');
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -155,6 +189,11 @@ class ApiClient {
       method: 'GET',
       headers: reqHeaders,
     });
+
+    if (response.status === 401 && !DEV_BYPASS_ENABLED) {
+      handleSessionExpired();
+      throw new Error('Session expired');
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -192,6 +231,11 @@ class ApiClient {
       method: 'GET',
       headers: reqHeaders,
     });
+
+    if (response.status === 401 && !DEV_BYPASS_ENABLED) {
+      handleSessionExpired();
+      throw new Error('Session expired');
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
