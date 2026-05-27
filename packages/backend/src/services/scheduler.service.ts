@@ -7,6 +7,7 @@ import { notificationService } from './notification.service.js';
 import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
+import { sweepStalledTasks } from './stalled-task.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -35,11 +36,13 @@ class SchedulerService {
   private expirationEmailJob: cron.ScheduledTask | null = null;
   private notificationCleanupJob: cron.ScheduledTask | null = null;
   private caqhSyncJob: cron.ScheduledTask | null = null;
+  private stalledTaskJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isFollowUpExecutorRunning = false;
   private isExpirationJobRunning = false;
   private isExpirationEmailJobRunning = false;
   private isCaqhSyncJobRunning = false;
+  private isStalledTaskJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -106,6 +109,48 @@ class SchedulerService {
         .catch((err) => logger.error('[Scheduler] Notification cleanup error:', err));
     });
     logger.info('[Scheduler] Notification cleanup job scheduled: 0 4 * * 0');
+
+    // Schedule stalled-task watchdog (every 15 min) — recovers agent jobs
+    // orphaned by Redis restart / deploy. See stalled-task.service.ts.
+    const stalledSchedule = process.env['STALLED_TASK_SCHEDULE'] || '*/15 * * * *';
+    this.stalledTaskJob = cron.schedule(stalledSchedule, () => {
+      this.runStalledTaskJob();
+    });
+    logger.info(`[Scheduler] Stalled-task watchdog scheduled: ${stalledSchedule}`);
+  }
+
+  /**
+   * Run one sweep of the stalled-task watchdog. Skips if a previous sweep
+   * is still in flight (sweeps should finish in seconds; a multi-tick run
+   * would only happen under extreme orphan counts).
+   */
+  async runStalledTaskJob(): Promise<void> {
+    if (this.isStalledTaskJobRunning) {
+      logger.info('[Scheduler] Stalled-task watchdog already running, skipping...');
+      return;
+    }
+
+    this.isStalledTaskJobRunning = true;
+    try {
+      const result = await sweepStalledTasks();
+      if (result.scanned > 0) {
+        logger.info(
+          `[Scheduler] Stalled-task watchdog: scanned=${result.scanned} reenqueued=${result.reenqueued} failed=${result.failed} errors=${result.errors.length}`,
+        );
+        if (result.errors.length > 0) {
+          Sentry.captureMessage('Stalled-task watchdog encountered errors', {
+            level: 'warning',
+            tags: { job: 'stalled-task-watchdog' },
+            extra: { errors: result.errors },
+          });
+        }
+      }
+    } catch (err) {
+      logger.error('[Scheduler] Stalled-task watchdog error:', err);
+      Sentry.captureException(err, { tags: { job: 'stalled-task-watchdog' } });
+    } finally {
+      this.isStalledTaskJobRunning = false;
+    }
   }
 
   /**

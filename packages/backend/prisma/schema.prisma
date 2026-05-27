@@ -2462,6 +2462,12 @@ model AgentTask {
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
 
+  // Stalled-task watchdog (Tier 1 #3 — recovers jobs lost on Redis restart/deploy).
+  // Set by the watchdog cron when an in_progress task exceeds its queue's
+  // lockDuration + a 10-minute buffer. NULL until first detection so the cron
+  // doesn't reprocess the same task on every tick.
+  stalledDetectedAt DateTime? @map("stalled_detected_at")
+
   // Metrics
   tokensUsed Int @default(0) @map("tokens_used")
 
@@ -2472,6 +2478,7 @@ model AgentTask {
   @@index([workflowId, status])
   @@index([agentType, status])
   @@index([bullmqJobId])
+  @@index([status, startedAt])
   @@map("agent_tasks")
 }
 
