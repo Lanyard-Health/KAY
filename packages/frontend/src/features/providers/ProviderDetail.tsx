@@ -1,6 +1,7 @@
 import { useState, Fragment, useCallback, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
+import ErrorState from '../../components/ui/ErrorState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
 import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon, UsersIcon } from '@heroicons/react/24/outline';
@@ -205,7 +206,7 @@ export default function ProviderDetail() {
     queryClient.invalidateQueries({ queryKey: ['checklist', id] });
   };
 
-  const { data: provider, isLoading, isFetching, error } = useQuery({
+  const { data: provider, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['provider', id],
     queryFn: async () => {
       const response = await api.get(`/providers/${id}`);
@@ -752,10 +753,11 @@ export default function ProviderDetail() {
   if (error) {
     return (
       <div className="space-y-4">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-          <p className="font-medium">Failed to load provider</p>
-          <p className="text-sm mt-1">Please check your connection and try again.</p>
-        </div>
+        <ErrorState
+          title="Couldn't load provider"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
         <Link to="/providers" className="text-primary-600 hover:underline inline-block">
           Back to providers
         </Link>

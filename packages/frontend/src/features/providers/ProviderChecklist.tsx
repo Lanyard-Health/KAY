@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
+import ErrorState from '../../components/ui/ErrorState';
 import {
   CheckCircleIcon,
   ClockIcon,
@@ -83,7 +84,7 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
   const queryClient = useQueryClient();
   const [previewDoc, setPreviewDoc] = useState<{ url: string; name: string; type: string } | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['checklist', providerId],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: ChecklistData }>(`/checklist/provider/${providerId}`);
@@ -129,15 +130,11 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-        <div className="flex items-center space-x-3">
-          <XCircleIcon className="h-6 w-6 text-red-500" />
-          <div>
-            <h3 className="font-medium text-red-800">Failed to load checklist</h3>
-            <p className="text-sm text-red-600">Please refresh the page and try again.</p>
-          </div>
-        </div>
-      </div>
+      <ErrorState
+        title="Couldn't load checklist"
+        message="Check your connection and try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 

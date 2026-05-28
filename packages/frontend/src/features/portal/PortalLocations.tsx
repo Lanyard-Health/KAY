@@ -4,7 +4,6 @@ import {
   PencilIcon,
   MapPinIcon,
   PhoneIcon,
-  ExclamationTriangleIcon,
   CheckCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -17,6 +16,7 @@ import {
   useUpdateLocation,
   type PracticeLocation,
 } from './hooks/usePortalData';
+import ErrorState from '../../components/ui/ErrorState';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS',
@@ -94,7 +94,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 export default function PortalLocations() {
   const { data: providerData, isLoading: providerLoading } = useCurrentProvider();
   const providerId = (providerData as any)?.data?.provider?.id;
-  const { data, isLoading, error } = usePortalLocations(providerId);
+  const { data, isLoading, error, refetch } = usePortalLocations(providerId);
   const createMutation = useCreateLocation();
   const updateMutation = useUpdateLocation();
 
@@ -182,13 +182,11 @@ export default function PortalLocations() {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-red-800">Failed to load locations</h3>
-            <p className="text-sm text-red-600 mt-1">Please try refreshing the page.</p>
-          </div>
-        </div>
+        <ErrorState
+          title="Couldn't load locations"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

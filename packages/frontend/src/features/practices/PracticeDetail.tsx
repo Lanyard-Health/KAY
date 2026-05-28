@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePractice } from '../../hooks/usePractices';
 import { api } from '../../services/api';
+import LoadingState from '../../components/ui/LoadingState';
 import PracticeFormModal from './PracticeFormModal';
 import PracticeUsersTab from './PracticeUsersTab';
 import PracticeProvidersTab from './PracticeProvidersTab';
@@ -34,7 +35,7 @@ export default function PracticeDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600" />
+        <LoadingState label="Loading practice…" />
       </div>
     );
   }

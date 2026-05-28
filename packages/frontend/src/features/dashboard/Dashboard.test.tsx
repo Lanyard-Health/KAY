@@ -81,7 +81,7 @@ describe('Dashboard', () => {
     mockGet.mockRejectedValue(new Error('Network error'));
     render(<Dashboard />, { wrapper: createWrapper() });
 
-    await screen.findByText('Failed to load dashboard data');
+    await screen.findByText("Couldn't load dashboard");
   });
 
   it('quick action links point to correct routes', async () => {

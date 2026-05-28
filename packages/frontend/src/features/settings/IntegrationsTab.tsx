@@ -113,8 +113,7 @@ export default function IntegrationsTab() {
   return (
     <div className="space-y-4 max-w-2xl">
       <p className="text-sm text-gray-500">
-        Integration configurations are managed via environment variables on the deployment platform.
-        These cards show the current connection status.
+        These cards show the current connection status for each integration.
       </p>
 
       <div className="grid grid-cols-1 gap-3">
@@ -123,7 +122,7 @@ export default function IntegrationsTab() {
           name="CAQH ProView"
           description="Automated credential verification and roster management"
           configured={caqhConfigured}
-          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Configure via CAQH_API_URL, CAQH_ORG_ID, CAQH_USERNAME, CAQH_PASSWORD'}
+          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Not configured — contact support to connect your CAQH account.'}
         />
 
         <IntegrationCard
@@ -131,7 +130,7 @@ export default function IntegrationsTab() {
           name="Retell AI"
           description="AI-powered phone follow-ups with payers"
           configured={retellConfigured}
-          details={retellConfigured ? undefined : 'Configure via RETELL_API_KEY'}
+          details={retellConfigured ? undefined : 'Not configured — contact support to enable AI voice calls.'}
         />
 
         <IntegrationCard
@@ -139,7 +138,7 @@ export default function IntegrationsTab() {
           name="Email (Resend)"
           description="Automated email follow-ups and notifications"
           configured={emailConfigured}
-          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Configure via RESEND_FROM_EMAIL and RESEND_API_KEY'}
+          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Not configured — contact support to enable email sending.'}
         />
 
         <IntegrationCard
@@ -150,7 +149,7 @@ export default function IntegrationsTab() {
           details={
             documentStorageConfigured && documentStorageBucket
               ? `Bucket: ${documentStorageBucket}`
-              : 'Configure via S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (optionally S3_ENDPOINT for Cloudflare R2)'
+              : 'Not configured — contact support to enable document storage.'
           }
         />
       </div>

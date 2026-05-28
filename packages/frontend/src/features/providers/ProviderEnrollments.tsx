@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { Combobox } from '@headlessui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
+import ErrorState from '../../components/ui/ErrorState';
 import { usePayerTrackOptions } from '../../hooks/usePayerTrackOptions';
 import type { PayerTrackOption } from '../../hooks/usePayerTrackOptions';
 import {
@@ -174,7 +175,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
   const [launchAgentFor, setLaunchAgentFor] = useState<Enrollment | null>(null);
   const launchWorkflow = useLaunchWorkflow();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['enrollments', providerId],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: Enrollment[] }>(`/enrollments/provider/${providerId}`);
@@ -436,9 +437,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
 
   if (error) {
     return (
-      <div className="text-red-600 p-4 bg-red-50 rounded-lg">
-        Failed to load enrollments. Please try again.
-      </div>
+      <ErrorState
+        title="Couldn't load enrollments"
+        message="Check your connection and try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 

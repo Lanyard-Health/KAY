@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PageTransition from '../../components/ui/PageTransition';
+import ErrorState from '../../components/ui/ErrorState';
 import {
   ViewColumnsIcon,
   TableCellsIcon,
@@ -28,7 +29,7 @@ export default function CommandCenter() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data, isLoading, error } = useCommandCenterMatrix();
+  const { data, isLoading, error, refetch } = useCommandCenterMatrix();
 
   return (
     <PageTransition>
@@ -129,10 +130,11 @@ export default function CommandCenter() {
             </div>
           </div>
         ) : error ? (
-          <div className="p-8 text-center">
-            <p className="text-red-600 font-medium">Failed to load command center data</p>
-            <p className="text-sm text-gray-500 mt-1">Please try again later</p>
-          </div>
+          <ErrorState
+            title="Couldn't load command center data"
+            message="Check your connection and try again."
+            onRetry={() => refetch()}
+          />
         ) : data ? (
           viewMode === 'matrix' ? (
             <MatrixView data={data} statusFilter={statusFilter} searchTerm={searchTerm} />

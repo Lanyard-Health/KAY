@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
+import ErrorState from '../../components/ui/ErrorState';
 
 interface PracticePayer {
   id: string;
@@ -50,7 +51,7 @@ export default function PracticePayersTab({ practiceId }: { practiceId: string }
   const [openId, setOpenId] = useState<string | null>(null);
   const [edit, setEdit] = useState<EditState | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['practice-payers', practiceId],
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: PracticePayer[] }>(
@@ -95,9 +96,11 @@ export default function PracticePayersTab({ practiceId }: { practiceId: string }
   }
   if (error) {
     return (
-      <div className="py-4 px-3 rounded bg-red-50 text-red-800">
-        Failed to load practice payers.
-      </div>
+      <ErrorState
+        title="Couldn't load practice payers"
+        message="Check your connection and try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 

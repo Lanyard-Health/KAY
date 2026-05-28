@@ -4,6 +4,7 @@ import { ArrowLeftIcon, EyeIcon, PencilIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import PageTransition from '../../components/ui/PageTransition';
+import ErrorState from '../../components/ui/ErrorState';
 import {
   useAdminEmailTemplate,
   useUpdateEmailTemplate,
@@ -30,7 +31,7 @@ const SAMPLE_VARS: Record<string, string> = {
 export default function EmailTemplateDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: template, isLoading, error } = useAdminEmailTemplate(id);
+  const { data: template, isLoading, error, refetch } = useAdminEmailTemplate(id);
   const updateMutation = useUpdateEmailTemplate();
 
   const [name, setName] = useState('');
@@ -102,13 +103,17 @@ export default function EmailTemplateDetail() {
 
   if (error || !template) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-800">
-        Failed to load template.
+      <div className="space-y-4">
+        <ErrorState
+          title="Couldn't load template"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
         <button
           onClick={() => navigate('/admin/email-templates')}
-          className="ml-2 underline"
+          className="text-primary-600 hover:underline"
         >
-          Back
+          Back to email templates
         </button>
       </div>
     );
