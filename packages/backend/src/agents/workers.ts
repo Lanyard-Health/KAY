@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
+import * as Sentry from '@sentry/node';
 import { getRedisConfig } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
@@ -182,6 +183,17 @@ export function initializeWorkers(): void {
         jobId: job?.id,
         jobName: job?.name,
         error: err.message,
+      });
+      // Surface worker failures to Sentry. The backend Sentry init (utils/sentry.ts)
+      // already scrubs PII from the event payload before send.
+      Sentry.captureException(err, {
+        tags: {
+          source: 'agent-worker',
+          agent: config.agentName,
+          queue: config.queueName,
+          jobName: job?.name ?? 'unknown',
+        },
+        extra: { jobId: job?.id, attempts: job?.attemptsMade },
       });
     });
 

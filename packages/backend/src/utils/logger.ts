@@ -1,4 +1,5 @@
 import winston from 'winston';
+import { phiSanitizer } from './log-sanitizer.js';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -11,6 +12,9 @@ export const logger = winston.createLogger({
   format: combine(
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     errors({ stack: true }),
+    // PHI sanitizer runs before the printf serializer so file/console
+    // transports never see SSN, tax ID, DOB, banking, etc. in metadata.
+    phiSanitizer(),
     logFormat
   ),
   transports: [

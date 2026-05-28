@@ -99,6 +99,11 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://kay-os62.onrender.com/api/v1
+      # Frontend Sentry — set this in the Render dashboard. Sentry init is a
+      # no-op when this is empty (local dev), so it's safe to ship without it
+      # set and add later.
+      - key: VITE_SENTRY_DSN
+        sync: false
     routes:
       - type: rewrite
         source: /*
