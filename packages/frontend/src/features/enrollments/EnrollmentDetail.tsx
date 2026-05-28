@@ -1,6 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
+import ErrorState from '../../components/ui/ErrorState';
+import LoadingState from '../../components/ui/LoadingState';
 import {
   ArrowLeftIcon,
   CalendarDaysIcon,
@@ -75,7 +77,7 @@ export default function EnrollmentDetail() {
   const demoAvailityPayerId = useDemoAvailityPayerId();
   const demoAetnaPayerId = useDemoAetnaPayerId();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['enrollment', id],
     queryFn: async () => {
       const response = await api.get<{ success: boolean; data: any }>(`/enrollments/${id}`);
@@ -89,20 +91,23 @@ export default function EnrollmentDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+        <LoadingState label="Loading enrollment…" />
       </div>
     );
   }
 
   if (error || !enrollment) {
+    const isNotFound = !error;
     return (
       <div className="p-6">
         <Link to="/enrollments" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4">
           <ArrowLeftIcon className="h-4 w-4 mr-1" /> Back to Enrollments
         </Link>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          Enrollment not found.
-        </div>
+        <ErrorState
+          title={isNotFound ? 'Enrollment not found' : "Couldn't load enrollment"}
+          message={isNotFound ? 'This enrollment may have been deleted.' : 'Check your connection and try again.'}
+          onRetry={isNotFound ? undefined : () => refetch()}
+        />
       </div>
     );
   }

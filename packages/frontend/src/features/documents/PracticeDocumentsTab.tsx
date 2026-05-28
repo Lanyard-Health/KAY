@@ -41,6 +41,7 @@ import {
   type PracticeDocumentOcrStatus,
 } from '../../hooks/usePracticeDocuments';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 import StatusBadge from '../../components/ui/StatusBadge';
 
 // Practice-relevant types first (matches what a practice admin actually
@@ -319,7 +320,7 @@ function UploadCard({ practiceId }: { practiceId: string }) {
 // Documents list
 // ──────────────────────────────────────────────
 function DocumentsList({ practiceId }: { practiceId: string }) {
-  const { data: docs, isLoading, error } = usePracticeDocuments(practiceId);
+  const { data: docs, isLoading, error, refetch } = usePracticeDocuments(practiceId);
 
   if (isLoading) {
     return (
@@ -331,8 +332,12 @@ function DocumentsList({ practiceId }: { practiceId: string }) {
 
   if (error) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 text-sm text-red-700">
-        Failed to load documents.
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
+        <ErrorState
+          title="Couldn't load documents"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

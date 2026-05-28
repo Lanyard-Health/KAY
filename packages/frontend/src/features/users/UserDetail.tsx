@@ -7,6 +7,7 @@ import { useUserDetail, useDeactivateUser, useActivateUser } from '../../hooks/u
 import { useRemoveUser } from '../../hooks/usePractices';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import LoadingState from '../../components/ui/LoadingState';
 import UserFormModal from './UserFormModal';
 import AddUserToPracticeModal from './AddUserToPracticeModal';
 
@@ -107,7 +108,7 @@ export default function UserDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200 border-t-primary-600" />
+        <LoadingState label="Loading user…" />
       </div>
     );
   }

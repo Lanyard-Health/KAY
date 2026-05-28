@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageTransition from '../../components/ui/PageTransition';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 import { DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { format } from 'date-fns';
@@ -54,7 +55,7 @@ export default function OcrReviewQueue() {
   const [page, setPage] = useState(1);
   const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useOcrReviewQueue(page);
+  const { data, isLoading, error, refetch } = useOcrReviewQueue(page);
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -79,9 +80,11 @@ export default function OcrReviewQueue() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-700">
-            <p className="font-medium">Failed to load review queue</p>
-          </div>
+          <ErrorState
+            title="Couldn't load review queue"
+            message="Check your connection and try again."
+            onRetry={() => refetch()}
+          />
         )}
 
         {isLoading ? (

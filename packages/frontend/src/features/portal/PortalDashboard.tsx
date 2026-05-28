@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useCurrentProvider, useProfileCompleteness } from './hooks/usePortalData';
 import OnboardingWizard from './OnboardingWizard';
+import ErrorState from '../../components/ui/ErrorState';
 
 interface SmartPrompt {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
@@ -100,7 +101,7 @@ export default function PortalDashboard() {
   const isWelcome = searchParams.get('welcome') === 'true';
   const [animatedPct, setAnimatedPct] = useState(0);
 
-  const { data: providerData, isLoading, error } = useCurrentProvider();
+  const { data: providerData, isLoading, error, refetch } = useCurrentProvider();
   const completeness = useProfileCompleteness();
 
   const targetPct = (completeness as any)?.data?.data?.percentage ?? (completeness as any)?.data?.percentage ?? 0;
@@ -145,15 +146,11 @@ export default function PortalDashboard() {
   if (error) {
     return (
       <div className="max-w-7xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
-          <svg className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <h3 className="text-sm font-medium text-red-800">Failed to load dashboard</h3>
-            <p className="text-sm text-red-600 mt-1">Please try refreshing the page.</p>
-          </div>
-        </div>
+        <ErrorState
+          title="Couldn't load dashboard"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

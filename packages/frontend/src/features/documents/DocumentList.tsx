@@ -11,6 +11,7 @@ import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 import StatusBadge from '../../components/ui/StatusBadge';
 import OcrReviewModal from './OcrReviewModal';
 import { useAuthStore } from '../../stores/auth.store';
@@ -60,7 +61,7 @@ export default function DocumentList() {
   const [editForm, setEditForm] = useState({ documentType: '', description: '', expirationDate: '' });
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; doc: any }>({ isOpen: false, doc: null });
 
-  const { data: providers, error: providersError } = useQuery({
+  const { data: providers, error: providersError, refetch: refetchProviders } = useQuery({
     queryKey: ['providers', 'list'],
     queryFn: async () => {
       const response = await api.get('/providers?pageSize=100');
@@ -288,9 +289,12 @@ export default function DocumentList() {
 
       {/* Error States */}
       {providersError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 mb-6">
-          <p className="font-medium">Failed to load providers</p>
-          <p className="text-sm mt-1">Please check your connection and try again.</p>
+        <div className="mb-6">
+          <ErrorState
+            title="Couldn't load providers"
+            message="Check your connection and try again."
+            onRetry={() => refetchProviders()}
+          />
         </div>
       )}
 
@@ -304,10 +308,11 @@ export default function DocumentList() {
           />
         </div>
       ) : documentsError ? (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-          <p className="font-medium">Failed to load documents</p>
-          <p className="text-sm mt-1">Please check your connection and try again.</p>
-        </div>
+        <ErrorState
+          title="Couldn't load documents"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       ) : isLoading ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden animate-pulse">
           <div className="bg-gray-50 px-6 py-3 flex gap-8">

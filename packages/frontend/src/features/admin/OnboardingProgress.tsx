@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 import { safeWindowOpen } from '../../utils/safe-navigation';
 
 type FilterTab = 'all' | 'completed' | 'in_progress' | 'not_started';
@@ -57,7 +58,7 @@ export default function OnboardingProgress() {
     },
   });
 
-  const { data: docsData, isLoading: docsLoading, isError: docsError } = useQuery({
+  const { data: docsData, isLoading: docsLoading, isError: docsError, refetch: refetchDocs } = useQuery({
     queryKey: ['admin', 'provider-documents', selectedProvider],
     queryFn: async () => {
       const response = await api.get(`/portal/admin/onboarding/providers/${selectedProvider}/documents`);
@@ -276,10 +277,11 @@ export default function OnboardingProgress() {
                   ))}
                 </div>
               ) : docsError ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-                  <p className="text-sm font-medium">Failed to load documents</p>
-                  <p className="text-xs mt-1">Please try again later.</p>
-                </div>
+                <ErrorState
+                  title="Couldn't load documents"
+                  message="Check your connection and try again."
+                  onRetry={() => refetchDocs()}
+                />
               ) : documents.length === 0 ? (
                 <p className="text-sm text-gray-500 py-4">No portal-uploaded documents.</p>
               ) : (

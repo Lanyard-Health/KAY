@@ -10,6 +10,7 @@ import {
   useDeleteLicense,
   type PortalLicense,
 } from './hooks/usePortalData';
+import ErrorState from '../../components/ui/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 const LICENSE_TYPES: Record<string, string> = {
@@ -66,7 +67,7 @@ const emptyForm: LicenseFormData = {
 };
 
 export default function PortalLicenses() {
-  const { data, isLoading, error } = usePortalLicenses();
+  const { data, isLoading, error, refetch } = usePortalLicenses();
   const createMutation = useCreateLicense();
   const updateMutation = useUpdateLicense();
   const deleteMutation = useDeleteLicense();
@@ -146,13 +147,11 @@ export default function PortalLicenses() {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-medium text-red-800">Failed to load licenses</h3>
-            <p className="text-sm text-red-600 mt-1">Please try refreshing the page.</p>
-          </div>
-        </div>
+        <ErrorState
+          title="Couldn't load licenses"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

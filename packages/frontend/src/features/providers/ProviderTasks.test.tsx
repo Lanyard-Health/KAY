@@ -81,7 +81,7 @@ describe('ProviderTasks', () => {
     mockUseTasks.mockReturnValue({ data: null, isLoading: false, error: new Error('fail') });
     render(<ProviderTasks providerId="p1" />, { wrapper: createWrapper() });
 
-    expect(screen.getByText(/Failed to load tasks/)).toBeInTheDocument();
+    expect(screen.getByText(/Couldn't load tasks/)).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', () => {

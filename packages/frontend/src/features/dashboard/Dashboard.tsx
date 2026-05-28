@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
+import ErrorState from '../../components/ui/ErrorState';
 import {
   UserPlusIcon,
   DocumentArrowUpIcon,
@@ -58,7 +59,7 @@ export default function Dashboard() {
     !gettingStarted.isOnboarded;
 
   // Fetch all dashboard data
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['dashboard-full'],
     queryFn: async () => {
       const [statsRes, expirationsRes, expirationDashRes] = await Promise.all([
@@ -171,10 +172,11 @@ export default function Dashboard() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          <p className="font-medium">Failed to load dashboard data</p>
-          <p className="text-sm mt-1">Please check your connection and try again.</p>
-        </div>
+        <ErrorState
+          title="Couldn't load dashboard"
+          message="Check your connection and try again."
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

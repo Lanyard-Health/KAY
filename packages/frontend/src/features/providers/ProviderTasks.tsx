@@ -4,6 +4,7 @@ import TaskStatusUpdateModal from './TaskStatusUpdateModal';
 import TerminationLetterModal from './TerminationLetterModal';
 import clsx from 'clsx';
 import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
 
 interface ProviderTasksProps {
   providerId: string;
@@ -51,7 +52,7 @@ export default function ProviderTasks({ providerId }: ProviderTasksProps) {
   if (statusFilter) filters.status = statusFilter;
   if (typeFilter) filters.type = typeFilter;
 
-  const { data, isLoading, error } = useTasks(providerId, filters);
+  const { data, isLoading, error, refetch } = useTasks(providerId, filters);
   const { data: lettersData } = useTerminationLetters(providerId);
 
   const tasks = (data?.data as any[]) || [];
@@ -92,9 +93,11 @@ export default function ProviderTasks({ providerId }: ProviderTasksProps) {
 
   if (error) {
     return (
-      <div className="text-red-600 p-4 bg-red-50 rounded-lg">
-        Failed to load tasks. Please try again.
-      </div>
+      <ErrorState
+        title="Couldn't load tasks"
+        message="Check your connection and try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 

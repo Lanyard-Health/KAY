@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
+import ErrorState from '../../components/ui/ErrorState';
 import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
@@ -391,9 +392,11 @@ export default function EnrollmentsList() {
 
   if (error) {
     return (
-      <div className="text-red-600 p-4 bg-red-50 rounded-xl">
-        Failed to load enrollments. Please try again.
-      </div>
+      <ErrorState
+        title="Couldn't load enrollments"
+        message="Check your connection and try again."
+        onRetry={() => refetch()}
+      />
     );
   }
 
