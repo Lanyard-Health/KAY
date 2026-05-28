@@ -8,6 +8,21 @@ import { notificationService } from '../services/notification.service.js';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+import { verifyFileMagicBytes } from '../middleware/file-magic.middleware.js';
+
+// Mime types verifiable via magic bytes. text/csv and old Word .doc formats aren't
+// reliably detectable from headers alone, so we still rely on multer's declared-mime
+// check for those (file-type returns no detection and the middleware will block).
+const VERIFIABLE_ATTACHMENT_MIMES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/tiff',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
 
 // Rate limit email-sending endpoints to prevent abuse
 const emailSendLimiter = rateLimit({
@@ -179,6 +194,7 @@ followUpRoutes.post(
   authorize('admin', 'credentialing_staff'),
   checkEnrollmentPracticeAccess,
   upload.single('attachment'),
+  verifyFileMagicBytes(VERIFIABLE_ATTACHMENT_MIMES, ['text/csv']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
