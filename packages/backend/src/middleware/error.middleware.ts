@@ -86,6 +86,27 @@ export function errorHandler(
     return;
   }
 
+  // Vendor rate-limit (Anthropic / OpenAI). After in-wrapper retries are
+  // exhausted in utils/llm.ts, surface a structured 503 so the customer sees
+  // "AI is temporarily busy" instead of an opaque 500. Detect by name OR
+  // status to cover SDK class shapes that differ between Anthropic & OpenAI.
+  const errStatus = (err as { status?: number; response?: { status?: number } }).status
+    ?? (err as { response?: { status?: number } }).response?.status;
+  if (err.name === 'RateLimitError' || errStatus === 429) {
+    logger.warn('Vendor rate-limit surfaced to client', {
+      vendor: err.constructor?.name ?? 'unknown',
+      message: err.message,
+    });
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'VENDOR_RATE_LIMIT',
+        message: 'AI is temporarily busy. Try again in a minute — if this keeps happening, contact support.',
+      },
+    });
+    return;
+  }
+
   // AWS Cognito errors — never expose internal details to clients.
   // Restrict to Cognito specifically; other AWS services (S3, SES, Textract)
   // used to fall through to this branch via $metadata and got mislabeled

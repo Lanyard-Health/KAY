@@ -50,6 +50,25 @@ export function isConfigured(): boolean {
  * Generate an embedding vector from text using OpenAI's embeddings API.
  * Returns a float array of length 1536.
  */
+async function callEmbeddingsApi(text: string): Promise<Response> {
+  return fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      input: text,
+      model: EMBEDDING_MODEL,
+      dimensions: EMBEDDING_DIMENSIONS,
+    }),
+  });
+}
+
+function embeddingSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function generateEmbedding(text: string): Promise<number[]> {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured — embeddings unavailable');
@@ -57,23 +76,31 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   const trimmed = text.slice(0, 8000); // text-embedding-3-small has 8191 token limit
 
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      input: trimmed,
-      model: EMBEDDING_MODEL,
-      dimensions: EMBEDDING_DIMENSIONS,
-    }),
-  });
+  // Retry on 429 with exponential backoff. Match the LLM wrapper's pattern:
+  // 3 total attempts (1 initial + 2 retries), 1s/2s backoff.
+  const MAX_RETRIES = 2;
+  let response: Response | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    response = await callEmbeddingsApi(trimmed);
+    if (response.status !== 429 || attempt === MAX_RETRIES) {
+      break;
+    }
+    const backoffMs = 1000 * Math.pow(2, attempt);
+    logger.warn('OpenAI embeddings rate-limited, retrying with backoff', {
+      attempt: attempt + 1,
+      maxAttempts: MAX_RETRIES + 1,
+      backoffMs,
+    });
+    await embeddingSleep(backoffMs);
+  }
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    logger.error(`OpenAI embeddings API error: ${response.status} ${errorBody}`);
-    throw new Error(`Embeddings API returned ${response.status}`);
+  if (!response || !response.ok) {
+    const status = response?.status ?? 0;
+    const errorBody = response ? await response.text() : 'no response';
+    logger.error(`OpenAI embeddings API error: ${status} ${errorBody}`);
+    const err = new Error(`Embeddings API returned ${status}`) as Error & { status?: number };
+    err.status = status;
+    throw err;
   }
 
   const result = await response.json() as {
@@ -102,7 +129,22 @@ export async function upsertEmbedding(
     return;
   }
 
-  const embedding = await generateEmbedding(contentText);
+  let embedding: number[];
+  try {
+    embedding = await generateEmbedding(contentText);
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    if (status === 429) {
+      // Vendor rate-limit after retries exhausted. Skip embedding rather than
+      // failing the KB record save — the embedding can be backfilled later.
+      logger.warn('OpenAI rate-limited — saving KB record without embedding', {
+        sourceType,
+        sourceId,
+      });
+      return;
+    }
+    throw err;
+  }
   const prismaField = SOURCE_TYPE_TO_PRISMA_FIELD[sourceType];
   const dbColumn = SOURCE_TYPE_TO_COLUMN[sourceType];
 
