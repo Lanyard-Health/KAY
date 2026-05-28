@@ -191,7 +191,7 @@ export default function App() {
           <Route path="onboarding/clinical-profile" element={<ClinicalProfileWizard />} />
           <Route path="command-center" element={<AdminOnlyRoute><CommandCenter /></AdminOnlyRoute>} />
           <Route path="providers" element={<ProviderList />} />
-          <Route path="providers/import" element={<ProviderImportPage />} />
+          <Route path="providers/import" element={<AdminOnlyRoute><ProviderImportPage /></AdminOnlyRoute>} />
           <Route path="providers/new" element={<ProviderForm />} />
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />
