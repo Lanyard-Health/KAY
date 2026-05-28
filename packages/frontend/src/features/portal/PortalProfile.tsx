@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserCircleIcon, EnvelopeIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import { useCurrentProvider } from './hooks/usePortalData';
 import { api } from '../../services/api';
+import { notify } from '../../utils/notify';
 
 interface ProfileForm {
   firstName: string;
@@ -58,6 +59,11 @@ export default function PortalProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['portal'] });
       setIsEditing(false);
+      notify.success('Profile saved');
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not save your profile';
+      notify.error('Save failed', { description: message });
     },
   });
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
+import { notify } from '../../utils/notify';
 import {
   CheckCircleIcon,
   ClockIcon,
@@ -93,8 +94,16 @@ export function ProviderChecklist({ providerId, onUploadDocument }: ProviderChec
   const updateMutation = useMutation({
     mutationFn: (updates: Record<string, unknown>) =>
       api.put(`/checklist/provider/${providerId}`, updates),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['checklist', providerId] });
+      const status = (variables as Record<string, unknown>)[Object.keys(variables).find((k) => k.endsWith('Status')) ?? ''];
+      if (status === 'approved') notify.success('Document approved');
+      else if (status === 'rejected') notify.success('Document marked for resubmission');
+      else notify.success('Checklist updated');
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not update the checklist';
+      notify.error('Update failed', { description: message });
     },
   });
 

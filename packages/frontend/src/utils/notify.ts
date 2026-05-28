@@ -27,6 +27,9 @@ function createToast(
     {
       duration,
       position: 'top-right',
+      // Strip the default Toaster wrapper styling for our custom toasts;
+      // the ToastComponent provides its own branded container.
+      style: { background: 'transparent', boxShadow: 'none', padding: 0, border: 'none' },
     }
   );
 }

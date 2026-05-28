@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
+import { notify } from '../utils/notify';
 import { api } from '../services/api';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -207,11 +207,11 @@ export function useSaveClinicalProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clinical-profile', 'practice', practiceId] });
-      toast.success('Clinical profile saved');
+      notify.success('Clinical profile saved');
     },
     onError: (error: any) => {
       const message = error.response?.data?.error?.message || error.message || 'Failed to save clinical profile';
-      toast.error(message);
+      notify.error(message);
     },
   });
 }

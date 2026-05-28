@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../stores/auth.store';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
+import { mapCognitoError } from '../../utils/cognito-errors';
 
 export default function UserProfileTab() {
   const user = useAuthStore((s) => s.user);
@@ -15,11 +16,11 @@ export default function UserProfileTab() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      notify.error('Passwords do not match');
       return;
     }
     if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters');
+      notify.error('Password must be at least 8 characters');
       return;
     }
 
@@ -27,13 +28,13 @@ export default function UserProfileTab() {
     try {
       const { updatePassword } = await import('aws-amplify/auth');
       await updatePassword({ oldPassword: currentPassword, newPassword });
-      toast.success('Password changed successfully');
+      notify.success('Password changed');
       setShowPasswordForm(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to change password');
+    } catch (error) {
+      notify.error('Password change failed', { description: mapCognitoError(error) });
     } finally {
       setIsChangingPassword(false);
     }

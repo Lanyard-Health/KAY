@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
+import { notify } from '../utils/notify';
 import { api } from '../services/api';
 import { useAuthStore } from '../stores/auth.store';
 
@@ -84,11 +84,11 @@ export function useUpdateCurrentPractice() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice', practiceId] });
       queryClient.invalidateQueries({ queryKey: ['practices'] });
-      toast.success('Practice profile updated');
+      notify.success('Practice profile updated');
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || error.message || 'Failed to update practice';
-      toast.error(message);
+      notify.error(message);
     },
   });
 }
@@ -136,11 +136,11 @@ export function useInviteUser() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-users'] });
       queryClient.invalidateQueries({ queryKey: ['users-list'] });
-      toast.success('User invited successfully');
+      notify.success('User invited successfully');
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || error.message || 'Failed to invite user';
-      toast.error(message);
+      notify.error(message);
     },
   });
 }
@@ -156,11 +156,11 @@ export function useUpdateUserRole() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-users'] });
       queryClient.invalidateQueries({ queryKey: ['users-list'] });
-      toast.success('User role updated');
+      notify.success('User role updated');
     },
     onError: (error: any) => {
       const message = error.response?.data?.error || error.message || 'Failed to update role';
-      toast.error(message);
+      notify.error(message);
     },
   });
 }
@@ -201,7 +201,7 @@ export function useUpdateNotificationPreferences() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
-      toast.success('Notification preferences saved');
+      notify.success('Notification preferences saved');
     },
   });
 }
