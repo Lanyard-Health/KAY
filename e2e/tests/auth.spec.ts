@@ -6,16 +6,16 @@ test.describe('Authentication', () => {
   test('login page renders correctly', async ({ page }) => {
     await page.goto('/login');
 
-    // Green gradient background
-    const body = page.locator('.bg-gradient-to-br');
+    // Green gradient background (animated, applied via .login-gradient-bg class)
+    const body = page.locator('.login-gradient-bg');
     await expect(body).toBeVisible();
 
-    // Logo
-    const logo = page.locator('img[src="/logo.png"]');
+    // Logo — both desktop logo-full.svg and mobile logo-full.svg are rendered
+    const logo = page.locator('img[alt="Lanyard Health"]').first();
     await expect(logo).toBeVisible();
 
-    // Heading
-    await expect(page.getByText('Sign in to your account')).toBeVisible();
+    // Heading — exact match to avoid colliding with the dev-bypass "Welcome back" toast title
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   });
 
   test('dev mode section visible with both buttons', async ({ page }) => {
@@ -55,6 +55,6 @@ test.describe('Authentication', () => {
     await page.getByText('Sign out').click();
 
     await page.waitForURL('/login', { timeout: 10000 });
-    await expect(page.getByText('Sign in to your account')).toBeVisible();
+    await expect(page.getByText('Welcome back')).toBeVisible();
   });
 });
