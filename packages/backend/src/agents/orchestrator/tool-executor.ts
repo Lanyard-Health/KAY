@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { prisma } from '../../utils/prisma.js';
@@ -6,6 +7,7 @@ import { getQueue, QUEUE_NAMES } from '../queues.js';
 import { logAgentEvent } from '../event-logger.js';
 import { runPdfFill } from '../../services/form-fill/pdf-fill-runner.js';
 import { searchSimilarWithSources, isConfigured as isEmbeddingConfigured } from '../../services/knowledgeBase.embedding.service.js';
+import { approvalExpiryFromNow } from '../approval-policy.js';
 
 // Signed-URL TTL for filled-PDF download links surfaced via narrate(). 30 min
 // is plenty for a demo turn and short enough that links don't leak in logs.
@@ -214,8 +216,31 @@ async function checkCredentialCompleteness(input: { providerId: string; payerId:
   };
 }
 
+/**
+ * Computes a deterministic dedupe key for an agent task dispatch.
+ * SHA-256 of (workflowId, type, JSON.stringify(input)) keeps re-runs with
+ * identical inputs collapsed to a single AgentTask + BullMQ job.
+ */
+function computeDedupeKey(workflowId: string, type: string, input: Record<string, unknown>): string {
+  // Object.keys order is insertion-order in modern V8; we sort to make the
+  // hash insensitive to caller-side key ordering so semantically-identical
+  // inputs hash identically.
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(input).sort()) {
+    // eslint-disable-next-line security/detect-object-injection -- key comes from Object.keys of the input we're hashing
+    sorted[key] = input[key];
+  }
+  return createHash('sha256')
+    .update(workflowId)
+    .update('|')
+    .update(type)
+    .update('|')
+    .update(JSON.stringify(sorted))
+    .digest('hex');
+}
+
 async function dispatchTask(
-  input: { type: string; input: Record<string, unknown> },
+  input: { type: string; input: Record<string, unknown>; dedupeKey?: string },
   ctx: ToolContext
 ) {
   const mapping = TASK_TYPE_MAP[input.type];
@@ -230,6 +255,33 @@ async function dispatchTask(
     return {
       error: `Cannot dispatch ${input.type}: missing required input field(s) ${missing.join(', ')}. For parse_document, only dispatch with a documentId that exists in the provider's profile — do not invent IDs.`,
     };
+  }
+
+  // Tier 2 #9 idempotency. The default key is deterministic — same workflow +
+  // type + input always collapses to one task. Callers can override with an
+  // explicit key when they want finer control (e.g. one-call-per-state
+  // license verification regardless of the input shape).
+  const dedupeKey = input.dedupeKey ?? computeDedupeKey(ctx.workflowId, input.type, taskInput);
+
+  const existing = await prisma.agentTask.findFirst({
+    where: { workflowId: ctx.workflowId, dedupeKey },
+    select: { id: true, status: true, bullmqJobId: true },
+  });
+  if (existing) {
+    logger.info('Skipping duplicate dispatch (dedupe match)', {
+      workflowId: ctx.workflowId,
+      type: input.type,
+      taskId: existing.id,
+      dedupeKey,
+    });
+    await logAgentEvent({
+      workflowId: ctx.workflowId,
+      taskId: existing.id,
+      agent: 'orchestrator',
+      action: 'task_dispatch_deduped',
+      data: { type: input.type, dedupeKey },
+    });
+    return { taskId: existing.id, status: existing.status, deduped: true };
   }
 
   // Adapter-existence guard for portal-bound dispatches. Most payers do not
@@ -267,27 +319,48 @@ async function dispatchTask(
     where: { workflowId: ctx.workflowId },
   });
 
-  // Create task record
-  const task = await prisma.agentTask.create({
-    data: {
-      workflowId: ctx.workflowId,
-      type: input.type,
-      agentType: mapping.agentType,
-      status: 'queued',
-      input: input.input as any,
-      stepNumber: existingTaskCount + 1,
-      queue: mapping.queue,
-      queuedAt: new Date(),
-    },
-  });
+  // Create task record. The (workflowId, dedupeKey) unique catches the rare
+  // race where two callers dispatch the same task concurrently; we surface a
+  // friendly response instead of a Prisma UniqueConstraintViolation.
+  let task;
+  try {
+    task = await prisma.agentTask.create({
+      data: {
+        workflowId: ctx.workflowId,
+        type: input.type,
+        agentType: mapping.agentType,
+        status: 'queued',
+        input: input.input as any,
+        stepNumber: existingTaskCount + 1,
+        queue: mapping.queue,
+        queuedAt: new Date(),
+        dedupeKey,
+      },
+    });
+  } catch (err) {
+    // P2002 is Prisma's unique-violation code.
+    if (err && typeof err === 'object' && (err as { code?: string }).code === 'P2002') {
+      const winner = await prisma.agentTask.findFirstOrThrow({
+        where: { workflowId: ctx.workflowId, dedupeKey },
+        select: { id: true, status: true },
+      });
+      return { taskId: winner.id, status: winner.status, deduped: true };
+    }
+    throw err;
+  }
 
-  // Enqueue to correct queue
+  // Enqueue to correct queue. BullMQ jobId is set to the dedupeKey so the
+  // queue itself drops duplicate enqueues even if the DB check raced.
   const queue = getQueue(mapping.queue as any);
-  const job = await queue.add(input.type, {
-    workflowId: ctx.workflowId,
-    taskId: task.id,
-    ...input.input,
-  });
+  const job = await queue.add(
+    input.type,
+    {
+      workflowId: ctx.workflowId,
+      taskId: task.id,
+      ...input.input,
+    },
+    { jobId: dedupeKey },
+  );
 
   // Update task with BullMQ job ID
   await prisma.agentTask.update({
@@ -316,7 +389,7 @@ async function requestHumanApproval(
       taskId: 'orchestrator',
       type: input.type,
       context: input.context as any,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expiresAt: approvalExpiryFromNow(),
     },
   });
 

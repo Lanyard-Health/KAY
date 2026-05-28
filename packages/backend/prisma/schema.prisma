@@ -2468,6 +2468,13 @@ model AgentTask {
   // doesn't reprocess the same task on every tick.
   stalledDetectedAt DateTime? @map("stalled_detected_at")
 
+  // Idempotency key (Tier 2 #9 — prevents duplicate submissions on retry).
+  // Defaults to SHA-256 of `workflowId + type + JSON.stringify(input)`; callers
+  // may also pass an explicit key. Unique per workflow so the same dedupe
+  // string is fine across different workflows. NULL is allowed so existing
+  // rows pre-migration don't violate the unique constraint.
+  dedupeKey String? @map("dedupe_key")
+
   // Metrics
   tokensUsed Int @default(0) @map("tokens_used")
 
@@ -2475,6 +2482,7 @@ model AgentTask {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@unique([workflowId, dedupeKey])
   @@index([workflowId, status])
   @@index([agentType, status])
   @@index([bullmqJobId])
