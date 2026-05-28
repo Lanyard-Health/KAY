@@ -4,6 +4,7 @@ import { CheckIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useOnboardingProgress, useCompleteOnboarding } from './hooks/usePortalData';
+import { useFormPersistence } from '../../hooks/useFormPersistence';
 import PortalProfile from './PortalProfile';
 import PortalDocuments from './PortalDocuments';
 import PortalLicenseForm from './PortalLicenseForm';
@@ -64,7 +65,10 @@ function Confetti() {
 }
 
 export default function OnboardingWizard() {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep, clearPersistedStep] = useFormPersistence<number>(
+    'onboarding-wizard:step',
+    0
+  );
   const [showCelebration, setShowCelebration] = useState(false);
   const { data: progressData, refetch } = useOnboardingProgress();
   const completeMutation = useCompleteOnboarding();
@@ -93,6 +97,7 @@ export default function OnboardingWizard() {
   const handleComplete = async () => {
     try {
       await completeMutation.mutateAsync();
+      clearPersistedStep();
       setShowCelebration(true);
     } catch {
       toast.error('Failed to complete onboarding');

@@ -6,6 +6,7 @@ import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import PasswordStrength from '../../components/PasswordStrength';
+import { useFormPersistence } from '../../hooks/useFormPersistence';
 
 interface RegistrationData {
   npi: string;
@@ -60,21 +61,25 @@ export default function RegisterPage() {
     enabled: !!practiceParam,
   });
 
-  const [formData, setFormData] = useState<RegistrationData>({
-    npi: '',
-    firstName: '',
-    lastName: '',
-    middleName: '',
-    suffix: '',
-    email: '',
-    phone: '',
-    dateOfBirth: '',
-    gender: '',
-    providerType: '',
-    practiceId: practiceParam || undefined,
-    password: '',
-    confirmPassword: '',
-  });
+  const [formData, setFormData, clearPersistedForm] = useFormPersistence<RegistrationData>(
+    `provider-register${practiceParam ? `:${practiceParam}` : ''}`,
+    {
+      npi: '',
+      firstName: '',
+      lastName: '',
+      middleName: '',
+      suffix: '',
+      email: '',
+      phone: '',
+      dateOfBirth: '',
+      gender: '',
+      providerType: '',
+      practiceId: practiceParam || undefined,
+      password: '',
+      confirmPassword: '',
+    },
+    { exclude: ['password', 'confirmPassword'] }
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [npiLookupStatus, setNpiLookupStatus] = useState<'idle' | 'loading' | 'found' | 'not-found'>('idle');
   const npiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,6 +142,7 @@ export default function RegisterPage() {
       return response.data;
     },
     onSuccess: () => {
+      clearPersistedForm();
       setSubmitted(true);
       notify.success('Application submitted', { description: 'Our team will review and get back to you shortly' });
     },
@@ -153,6 +159,7 @@ export default function RegisterPage() {
       return response.data;
     },
     onSuccess: async () => {
+      clearPersistedForm();
       notify.success('Account created', { description: 'Welcome to Lanyard Health' });
       try {
         if (isDevMode) {

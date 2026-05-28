@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { useFormPersistence } from '../../hooks/useFormPersistence';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import {
@@ -163,10 +164,34 @@ export default function ProviderForm() {
   const userPracticeId = user?.practices?.[0]?.practiceId;
   const { data: userPractice } = usePractice(userPracticeId ?? '');
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const persistKey = `provider-form:new:${user?.id ?? 'anon'}`;
+
+  const persistedFormDefaults = (() => {
+    if (isEditing) return null;
+    try {
+      const raw = sessionStorage.getItem(`form:${persistKey}:values`);
+      if (!raw) return null;
+      const { value, savedAt } = JSON.parse(raw);
+      if (typeof savedAt !== 'number' || Date.now() - savedAt > 24 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(`form:${persistKey}:values`);
+        return null;
+      }
+      return value;
+    } catch {
+      return null;
+    }
+  })();
+
+  const [currentStep, setCurrentStep, clearPersistedStep] = useFormPersistence<number>(
+    `${persistKey}:step`,
+    1
+  );
   const [createdProviderId, setCreatedProviderId] = useState<string | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<{ type: string; name: string }[]>([]);
+  const [uploadedDocs, setUploadedDocs, clearPersistedDocs] = useFormPersistence<{ type: string; name: string }[]>(
+    `${persistKey}:docs`,
+    []
+  );
   const [npiLookupModalOpen, setNpiLookupModalOpen] = useState(false);
   const [npiLookupResult, setNpiLookupResult] = useState<NPILookupResult | null>(null);
   const [npiLookupLoading, setNpiLookupLoading] = useState(false);
@@ -199,12 +224,39 @@ export default function ProviderForm() {
           groupNpi: (provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0])?.groupNpi || '',
           taxId: (provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0])?.taxId || '',
         }
+      : persistedFormDefaults
+      ? { status: 'pending', ...persistedFormDefaults }
       : {
           status: 'pending',
         },
   });
 
   const formValues = watch();
+
+  useEffect(() => {
+    if (isEditing) return;
+    const subscription = watch((value) => {
+      try {
+        sessionStorage.setItem(
+          `form:${persistKey}:values`,
+          JSON.stringify({ value, savedAt: Date.now() })
+        );
+      } catch {
+        /* quota exceeded — ignore */
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, persistKey, isEditing]);
+
+  const clearPersistedForm = () => {
+    try {
+      sessionStorage.removeItem(`form:${persistKey}:values`);
+    } catch {
+      /* ignore */
+    }
+    clearPersistedStep();
+    clearPersistedDocs();
+  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'mobilePhone') => {
     const formatted = formatPhoneNumber(e.target.value);
@@ -243,6 +295,7 @@ export default function ProviderForm() {
       } else {
         const newProviderId = response.data.data.id;
         setCreatedProviderId(newProviderId);
+        clearPersistedForm();
 
         // Create practice location from NPI data, or fall back to practice address
         const npiLoc = npiLookupResult?.found ? npiLookupResult.practiceLocation : null;
