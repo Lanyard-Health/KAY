@@ -2,7 +2,7 @@ import { test as setup, expect } from '@playwright/test';
 
 setup('authenticate as admin', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.getByText('Sign in to your account')).toBeVisible();
+  await expect(page.getByText('Welcome back')).toBeVisible();
 
   await page.getByRole('button', { name: 'Login as Dev Admin' }).click();
 
@@ -15,7 +15,7 @@ setup('authenticate as admin', async ({ page }) => {
 
 setup('authenticate as practice admin', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.getByText('Sign in to your account')).toBeVisible();
+  await expect(page.getByText('Welcome back')).toBeVisible();
 
   await page.getByRole('button', { name: 'Login as Dev Practice Admin' }).click();
 
@@ -28,7 +28,7 @@ setup('authenticate as practice admin', async ({ page }) => {
 
 setup('authenticate as provider', async ({ page }) => {
   await page.goto('/login');
-  await expect(page.getByText('Sign in to your account')).toBeVisible();
+  await expect(page.getByText('Welcome back')).toBeVisible();
 
   await page.getByRole('button', { name: 'Login as Dev Provider' }).click();
 
