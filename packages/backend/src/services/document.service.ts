@@ -387,10 +387,14 @@ export class DocumentService {
         }
       }
     } catch (error) {
-      logger.error('Failed to start OCR processing', error);
+      const reason = error instanceof Error ? error.message : 'OCR processing failed';
+      logger.error('Failed to start OCR processing', { documentId, reason });
       await prisma.document.update({
         where: { id: documentId },
-        data: { ocrStatus: 'failed' },
+        data: {
+          ocrStatus: 'failed',
+          ocrData: { failureReason: reason, failedAt: new Date().toISOString() },
+        },
       });
     }
   }

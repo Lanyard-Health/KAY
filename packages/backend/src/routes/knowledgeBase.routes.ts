@@ -4,6 +4,7 @@ import multer from 'multer';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { verifyFileMagicBytes } from '../middleware/file-magic.middleware.js';
 import { z } from 'zod';
 import { nullablePartial } from '@credential-management/shared';
 import {
@@ -549,6 +550,7 @@ function buildS3Client(): S3Client {
 knowledgeBaseRoutes.post(
   '/forms/:id/upload-pdf',
   pdfUpload.single('file'),
+  verifyFileMagicBytes(['application/pdf']),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const formId = req.params['id']!;
