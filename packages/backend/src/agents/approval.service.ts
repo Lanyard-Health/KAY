@@ -5,6 +5,7 @@ import { emitApprovalRequest, emitApprovalDecision } from './websocket.js';
 import { notifyTaskCompletion } from './coordinator.service.js';
 import { getQueue, QUEUE_NAMES } from './queues.js';
 import { resolveApproval } from '../services/workflow-approval.service.js';
+import { APPROVAL_EXPIRY_MS } from './approval-policy.js';
 
 // ==========================================
 // Types
@@ -35,7 +36,9 @@ export interface ApprovalFilters {
 // requestApproval
 // ==========================================
 
-const DEFAULT_EXPIRY_MS = 48 * 60 * 60 * 1000; // 48 hours
+// DEFAULT_EXPIRY_MS retained as an alias for callers that import it; the real
+// value now flows from the unified APPROVAL_EXPIRY_MS in approval-policy.ts.
+const DEFAULT_EXPIRY_MS = APPROVAL_EXPIRY_MS;
 
 export async function requestApproval(input: RequestApprovalInput) {
   const { workflowId, taskId, type, context, expiresInMs = DEFAULT_EXPIRY_MS } = input;

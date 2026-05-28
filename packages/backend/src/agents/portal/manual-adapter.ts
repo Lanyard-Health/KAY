@@ -1,5 +1,6 @@
 import { prisma } from '../../utils/prisma.js';
 import { logger } from '../../utils/logger.js';
+import { approvalExpiryFromNow } from '../approval-policy.js';
 import type {
   PayerAdapter,
   SubmissionInput,
@@ -58,7 +59,7 @@ export class ManualSubmissionAdapter implements PayerAdapter {
         type: 'manual_submission',
         status: 'pending',
         context: manifest as any,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        expiresAt: approvalExpiryFromNow(),
       },
     });
 

@@ -12,6 +12,7 @@ import { initiateCall, isRetellEnabled } from './retell.service.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
 import { advanceStep } from './followUpExecutor.service.js';
+import { approvalExpiryFromNow } from '../agents/approval-policy.js';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -77,6 +78,9 @@ export async function createStepApproval(
       type: 'workflow_step',
       status: 'pending',
       context: context as any,
+      // Tier 2 #11 — previously NULL, which left these approvals effectively
+      // immortal. 7-day TTL matches the rest of the system.
+      expiresAt: approvalExpiryFromNow(),
     },
   });
 
@@ -117,6 +121,8 @@ export async function createFollowUpApproval(
       type: 'follow_up_outreach',
       status: 'pending',
       context: context as any,
+      // Tier 2 #11 — previously NULL. Match the unified 7-day TTL.
+      expiresAt: approvalExpiryFromNow(),
     },
   });
 
