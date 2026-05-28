@@ -18,6 +18,11 @@
 -- transaction. For initial deployment this is acceptable — the table is
 -- small. For future re-creation: drop manually then run the CONCURRENTLY
 -- form outside migrate.
+--
+-- Why no @@index declaration in schema.prisma: Prisma 5.12 doesn't support
+-- `type: Hnsw` in @@index, so HNSW indexes on Unsupported("vector(N)") columns
+-- can only live in raw-SQL migrations. The Schema Drift Check
+-- (.github/workflows/security-scan.yml) whitelists exactly this drift.
 
 CREATE INDEX IF NOT EXISTS knowledge_base_embeddings_embedding_hnsw_idx
   ON knowledge_base_embeddings
