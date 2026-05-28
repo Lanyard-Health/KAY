@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import toast from 'react-hot-toast';
 import PasswordStrength from '../../components/PasswordStrength';
+import { useFormPersistence } from '../../hooks/useFormPersistence';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -30,26 +31,36 @@ const STATE_NAMES: Record<string, string> = {
 };
 
 export default function PracticeSignupPage() {
-  const [form, setForm] = useState({
-    practiceName: '',
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    isEnterprise: false,
-    groupNpi: '',
-  });
-  const [operatingStates, setOperatingStates] = useState<string[]>([]);
+  const [form, setForm, clearPersistedForm] = useFormPersistence(
+    'practice-signup:form',
+    {
+      practiceName: '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      password: '',
+      confirmPassword: '',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      isEnterprise: false,
+      groupNpi: '',
+    },
+    { exclude: ['password', 'confirmPassword'] }
+  );
+  const [operatingStates, setOperatingStates, clearPersistedStates] = useFormPersistence<string[]>(
+    'practice-signup:operating-states',
+    []
+  );
   const [stateFilter, setStateFilter] = useState('');
   const [payerFilter, setPayerFilter] = useState('');
-  const [targetPayerIds, setTargetPayerIds] = useState<string[]>([]);
+  const [targetPayerIds, setTargetPayerIds, clearPersistedPayers] = useFormPersistence<string[]>(
+    'practice-signup:target-payers',
+    []
+  );
   const [payers, setPayers] = useState<{ id: string; name: string }[]>([]);
   const [payersLoading, setPayersLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -160,6 +171,10 @@ export default function PracticeSignupPage() {
       }
 
       toast.success('Practice registered successfully!');
+
+      clearPersistedForm();
+      clearPersistedStates();
+      clearPersistedPayers();
 
       // Login with the credentials just submitted
       if (isDevMode) {
