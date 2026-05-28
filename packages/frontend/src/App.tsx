@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/auth.store';
+import { notify } from './utils/notify';
 import ErrorBoundary from './components/ErrorBoundary';
 import RouteProgressBar from './components/ui/RouteProgressBar';
 
@@ -80,7 +81,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role === 'provider') {
-    return <Navigate to="/portal" replace />;
+    return <RedirectWithToast to="/portal" message="That page is admin only. Sending you to your portal." />;
   }
 
   return <>{children}</>;
@@ -102,10 +103,30 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role === 'provider' || user?.role === 'practice_admin') {
-    return <Navigate to="/" replace />;
+    return <RedirectWithToast to="/" message="You don't have permission to view that page" />;
   }
 
   return <>{children}</>;
+}
+
+// Fires a single toast before redirecting. Used by route guards so role-based
+// redirects aren't silent (the user wonders why the URL bar changed).
+function RedirectWithToast({ to, message }: { to: string; message: string }) {
+  useEffect(() => {
+    notify.error(message);
+    // Intentionally only fires once when this component mounts. The redirect
+    // unmounts it, so re-mounts on subsequent denied navigations re-fire correctly.
+  }, []);
+  return <Navigate to={to} replace />;
+}
+
+// Toasts on the 404 catch-all so the user knows why the URL changed.
+function NotFoundRedirect() {
+  const location = useLocation();
+  useEffect(() => {
+    notify.error('Page not found', { description: `No page exists at ${location.pathname}` });
+  }, [location.pathname]);
+  return <Navigate to="/" replace />;
 }
 
 function ProviderRoute({ children }: { children: React.ReactNode }) {
@@ -124,7 +145,7 @@ function ProviderRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (user?.role !== 'provider') {
-    return <Navigate to="/" replace />;
+    return <RedirectWithToast to="/" message="The provider portal is for provider accounts only" />;
   }
 
   return <>{children}</>;
@@ -210,7 +231,7 @@ export default function App() {
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
     </Suspense>
     </ErrorBoundary>

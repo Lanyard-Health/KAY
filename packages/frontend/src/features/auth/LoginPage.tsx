@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
+import { mapCognitoError } from '../../utils/cognito-errors';
 import QRCode from 'qrcode';
 
 type AuthStep = 'login' | 'new-password' | 'mfa-totp' | 'mfa-setup' | 'forgot-password' | 'confirm-reset';
@@ -103,7 +104,7 @@ export default function LoginPage() {
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      notify.error('Login failed', { description: error instanceof Error ? error.message : 'Check your email and password' });
+      notify.error('Login failed', { description: mapCognitoError(error) });
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +168,7 @@ export default function LoginPage() {
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      notify.error('Password update failed', { description: error instanceof Error ? error.message : 'Could not set your new password' });
+      notify.error('Password update failed', { description: mapCognitoError(error) });
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +185,7 @@ export default function LoginPage() {
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      notify.error('Verification failed', { description: error instanceof Error ? error.message : 'Invalid verification code' });
+      notify.error('Verification failed', { description: mapCognitoError(error) });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -202,7 +203,7 @@ export default function LoginPage() {
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      notify.error('MFA setup failed', { description: error instanceof Error ? error.message : 'Could not verify authenticator code' });
+      notify.error('MFA setup failed', { description: mapCognitoError(error) });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -217,7 +218,7 @@ export default function LoginPage() {
       notify.success('Code sent', { description: 'Check your email for a verification code' });
       setAuthStep('confirm-reset');
     } catch (error) {
-      notify.error('Reset failed', { description: error instanceof Error ? error.message : 'Could not send verification code' });
+      notify.error('Reset failed', { description: mapCognitoError(error) });
     } finally {
       setIsLoading(false);
     }
@@ -238,7 +239,7 @@ export default function LoginPage() {
       setResetCode('');
       setResetNewPassword('');
     } catch (error) {
-      notify.error('Reset failed', { description: error instanceof Error ? error.message : 'Could not reset your password' });
+      notify.error('Reset failed', { description: mapCognitoError(error) });
     } finally {
       setIsLoading(false);
     }

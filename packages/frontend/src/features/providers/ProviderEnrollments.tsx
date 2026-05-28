@@ -28,7 +28,7 @@ import AiEmailPreviewModal from '../ai-agent/AiEmailPreviewModal';
 import { useGenerateEmail } from '../../hooks/useAi';
 import { useSendFollowUp } from '../../hooks/useFollowUp';
 import type { GeneratedEmail } from '../../hooks/useAi';
-import toast from 'react-hot-toast';
+import { notify } from '../../utils/notify';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 
 interface Payer {
@@ -194,11 +194,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
-      toast.success('Enrollment created');
+      notify.success('Enrollment created');
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -210,11 +210,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
-      toast.success('Enrollment updated');
+      notify.success('Enrollment updated');
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'Failed to update enrollment';
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -225,11 +225,11 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       setDeleteConfirm(null);
-      toast.success('Enrollment deleted');
+      notify.success('Enrollment deleted');
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error?.message || 'Failed to delete enrollment';
-      toast.error(message);
+      notify.error(message);
     },
   });
 
@@ -271,7 +271,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
 
   const handleAiSend = (email: GeneratedEmail) => {
     if (!followUpEnrollment || !recipientEmail) {
-      toast.error('Enter a recipient email first');
+      notify.error('Enter a recipient email first');
       return;
     }
     sendFollowUp.mutate(
@@ -403,7 +403,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
 
   const submitForm = () => {
     if (!formData.payerName.trim()) {
-      toast.error('Please select or enter a payer name');
+      notify.error('Please select or enter a payer name');
       return;
     }
     if (editingEnrollment) {
@@ -412,7 +412,7 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
         {
           onSuccess: () => {
             if (formData.terminationDate && !editingEnrollment.terminationDate) {
-              toast.success('Enrollment updated. Termination workflow tasks have been created.');
+              notify.success('Enrollment updated. Termination workflow tasks have been created.');
             }
           },
         }

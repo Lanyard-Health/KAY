@@ -55,7 +55,22 @@ const initApp = async () => {
               position="top-right"
               toastOptions={{
                 duration: 4000,
-                style: { background: 'transparent', boxShadow: 'none', padding: 0 },
+                // Default styling for raw toast.success / toast.error calls so they
+                // render visibly. The `notify` helper uses toast.custom and passes
+                // its own style override to render the branded Toast component
+                // without this wrapper.
+                style: {
+                  background: '#fff',
+                  color: '#111827',
+                  border: '1px solid rgba(229, 231, 235, 0.6)',
+                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+                  borderRadius: '0.75rem',
+                  padding: '0.875rem 1rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                },
+                success: { iconTheme: { primary: '#0A3D2E', secondary: '#fff' } },
+                error: { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
               }}
               containerStyle={{ top: 16, right: 16 }}
               gutter={8}
