@@ -1,4 +1,5 @@
 import React from 'react';
+import { Sentry } from '../utils/sentry';
 
 interface Props {
   children: React.ReactNode;
@@ -24,6 +25,16 @@ export class BugReportingErrorBoundary extends React.Component<Props, State> {
     // Prevent reporting the same error multiple times
     if (this.state.reportedMessage === error.message) return;
     this.setState({ reportedMessage: error.message });
+
+    // Surface React render crashes to Sentry alongside the existing bug-monitor
+    // POST. Sentry init no-ops when VITE_SENTRY_DSN is unset (local dev), so this
+    // is safe everywhere.
+    Sentry.captureException(error, {
+      tags: { source: 'react-error-boundary' },
+      contexts: {
+        react: { componentStack: (errorInfo.componentStack || '').substring(0, 2000) },
+      },
+    });
 
     const report = {
       source: 'frontend-crash',

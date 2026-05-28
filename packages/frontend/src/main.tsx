@@ -6,8 +6,12 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
 import { validateEnv } from './utils/validateEnv';
+import { initSentry } from './utils/sentry';
 import { BugReportingErrorBoundary } from './components/BugReportingErrorBoundary';
 import { registerGlobalErrorHandlers } from './utils/global-error-handlers';
+
+// Initialize Sentry as early as possible so we capture init-time crashes too.
+initSentry();
 
 // Only configure AWS Amplify if not in dev bypass mode
 const DEV_BYPASS_ENABLED = import.meta.env.VITE_DEV_AUTH_BYPASS === 'true';
