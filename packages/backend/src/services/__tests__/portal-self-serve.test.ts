@@ -71,7 +71,7 @@ describe('selfServeSignup', () => {
   it('creates Cognito user, sets password, creates Provider/User/Application in transaction', async () => {
     // No existing application or provider
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-    prismaMock.provider.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue(null);
 
     mockCreateCognitoUser.mockResolvedValue({ cognitoId: 'cognito-123' });
@@ -112,7 +112,7 @@ describe('selfServeSignup', () => {
 
   it('rejects duplicate NPI when a provider already exists', async () => {
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-    prismaMock.provider.findUnique.mockResolvedValue({ id: 'existing-provider', npi: '1234567890' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'existing-provider', npi: '1234567890' } as any);
 
     await expect(selfServeSignup(validInput)).rejects.toThrow('already exists');
     expect(mockCreateCognitoUser).not.toHaveBeenCalled();
@@ -127,7 +127,7 @@ describe('selfServeSignup', () => {
 
   it('rejects duplicate email', async () => {
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-    prismaMock.provider.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue({ id: 'existing-user' } as any);
 
     await expect(selfServeSignup(validInput)).rejects.toThrow('already exists');
@@ -136,7 +136,7 @@ describe('selfServeSignup', () => {
 
   it('rolls back Cognito on DB transaction failure', async () => {
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-    prismaMock.provider.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue(null);
 
     mockCreateCognitoUser.mockResolvedValue({ cognitoId: 'cognito-123' });
@@ -149,7 +149,7 @@ describe('selfServeSignup', () => {
 
   it('rolls back Cognito on setCognitoUserPassword failure', async () => {
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-    prismaMock.provider.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
     prismaMock.user.findUnique.mockResolvedValue(null);
 
     mockCreateCognitoUser.mockResolvedValue({ cognitoId: 'cognito-123' });

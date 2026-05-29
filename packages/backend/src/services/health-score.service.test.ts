@@ -69,14 +69,14 @@ function mockCounts({
   enrollmentTrend?: number[];
 } = {}) {
   // Provider counts: totalProviders, providersWithCreds, caqhCurrent, completeProviders
-  prismaMock.provider.count
+  prismaMock.providerProfile.count
     .mockResolvedValueOnce(totalProviders)
     .mockResolvedValueOnce(providersWithCreds)
     .mockResolvedValueOnce(caqhCurrent)
     .mockResolvedValueOnce(completeProviders);
   // Then 7 trend days for providers
   for (const val of providerTrend) {
-    prismaMock.provider.count.mockResolvedValueOnce(val);
+    prismaMock.providerProfile.count.mockResolvedValueOnce(val);
   }
 
   // Enrollment counts: totalEnrollments, approvedEnrollments
@@ -309,7 +309,7 @@ describe('computeHealthScore', () => {
 
       expect(result).toEqual(cachedResult);
       // Should NOT have queried Prisma at all
-      expect(prismaMock.provider.count).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.count).not.toHaveBeenCalled();
     });
 
     it('calls setCache after computing a fresh result', async () => {
@@ -330,7 +330,7 @@ describe('computeHealthScore', () => {
 
   describe('error handling', () => {
     it('returns zeros object when Prisma throws an error', async () => {
-      prismaMock.provider.count.mockRejectedValueOnce(new Error('DB connection lost'));
+      prismaMock.providerProfile.count.mockRejectedValueOnce(new Error('DB connection lost'));
 
       const result = await computeHealthScore();
 

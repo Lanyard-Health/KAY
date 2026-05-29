@@ -74,7 +74,7 @@ describe('Portal Service', () => {
   describe('submitApplication', () => {
     it('creates application and notification', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       prismaMock.user.findUnique.mockResolvedValue(null);
       prismaMock.providerApplication.create.mockResolvedValue(mockApplication as any);
       prismaMock.adminNotification.create.mockResolvedValue({} as any);
@@ -120,7 +120,7 @@ describe('Portal Service', () => {
 
     it('throws for existing provider NPI', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'existing-id', npi: '1234567890' } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'existing-id', npi: '1234567890' } as any);
 
       await expect(
         submitApplication({
@@ -137,7 +137,7 @@ describe('Portal Service', () => {
 
     it('throws when email already has a user account', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       prismaMock.user.findUnique.mockResolvedValue({ id: 'existing-user', email: 'jane@test.com' } as any);
 
       await expect(
@@ -158,7 +158,7 @@ describe('Portal Service', () => {
     it('creates provider, user, and updates application status', async () => {
       prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication as any);
       prismaMock.user.findUnique.mockResolvedValue(null);
-      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' } as any);
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' } as any);
       prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' } as any);
       prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
@@ -170,7 +170,7 @@ describe('Portal Service', () => {
       const result = await approveApplication('app-1-id', 'admin@test.com', 'Approved');
 
       expect(result.status).toBe('approved');
-      expect(prismaMock.provider.create).toHaveBeenCalled();
+      expect(prismaMock.providerProfile.create).toHaveBeenCalled();
       expect(prismaMock.user.create).toHaveBeenCalled();
     });
 
@@ -178,7 +178,7 @@ describe('Portal Service', () => {
       const appWithPractice = { ...mockApplication, practiceId: 'practice-123' };
       prismaMock.providerApplication.findUnique.mockResolvedValue(appWithPractice as any);
       prismaMock.user.findUnique.mockResolvedValue(null);
-      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' } as any);
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' } as any);
       prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' } as any);
       prismaMock.userPractice.create.mockResolvedValue({} as any);
       prismaMock.providerApplication.update.mockResolvedValue({

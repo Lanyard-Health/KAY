@@ -83,7 +83,7 @@ describe('Provider Onboarding', () => {
   describe('submitApplication', () => {
     it('creates application with valid data including DOB and gender', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
       prismaMock.adminNotification.create.mockResolvedValue({});
 
@@ -111,14 +111,14 @@ describe('Provider Onboarding', () => {
 
     it('throws for existing provider with same NPI', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue({ id: 'existing', npi: '1234567890' });
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'existing', npi: '1234567890' });
 
       await expect(submitApplication(validInput)).rejects.toThrow('already exists');
     });
 
     it('sends confirmation email to provider when email is configured', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
       prismaMock.adminNotification.create.mockResolvedValue({});
       (emailService.isConfigured as any).mockReturnValue(true);
@@ -137,7 +137,7 @@ describe('Provider Onboarding', () => {
 
     it('does not fail if confirmation email throws', async () => {
       prismaMock.providerApplication.findFirst.mockResolvedValue(null);
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
       prismaMock.providerApplication.create.mockResolvedValue(mockApplication);
       prismaMock.adminNotification.create.mockResolvedValue({});
       (emailService.isConfigured as any).mockReturnValue(true);
@@ -157,7 +157,7 @@ describe('Provider Onboarding', () => {
   describe('approveApplication', () => {
     it('creates Provider + User records and links application', async () => {
       prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' });
       prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
       prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
@@ -181,7 +181,7 @@ describe('Provider Onboarding', () => {
       );
 
       // Provider created with correct data
-      expect(prismaMock.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -240,7 +240,7 @@ describe('Provider Onboarding', () => {
     it('deletes Cognito user if DB transaction fails', async () => {
       prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
       // Make the transaction callback throw (simulating DB failure)
-      prismaMock.provider.create.mockRejectedValue(new Error('DB constraint error'));
+      prismaMock.providerProfile.create.mockRejectedValue(new Error('DB constraint error'));
 
       await expect(
         approveApplication('app-1-id', 'admin@test.com')
@@ -253,7 +253,7 @@ describe('Provider Onboarding', () => {
 
     it('sends approval email when email is configured', async () => {
       prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication);
-      prismaMock.provider.create.mockResolvedValue({ id: 'new-provider-id' });
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' });
       prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' });
       prismaMock.providerApplication.update.mockResolvedValue({
         ...mockApplication,
@@ -294,7 +294,7 @@ describe('Provider Onboarding', () => {
 
       // Should NOT create provider, user, or cognito
       expect(createCognitoUser).not.toHaveBeenCalled();
-      expect(prismaMock.provider.create).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.create).not.toHaveBeenCalled();
       expect(prismaMock.user.create).not.toHaveBeenCalled();
     });
 

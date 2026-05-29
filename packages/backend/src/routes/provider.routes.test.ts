@@ -37,8 +37,8 @@ describe('Provider Routes', () => {
 
   describe('GET /', () => {
     it('returns paginated providers', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([mockProvider] as any);
-      prismaMock.provider.count.mockResolvedValue(1);
+      prismaMock.providerProfile.findMany.mockResolvedValue([mockProvider] as any);
+      prismaMock.providerProfile.count.mockResolvedValue(1);
 
       const res = await request(app).get('/');
 
@@ -52,12 +52,12 @@ describe('Provider Routes', () => {
     });
 
     it('passes search query to Prisma', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
-      prismaMock.provider.count.mockResolvedValue(0);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.count.mockResolvedValue(0);
 
       await request(app).get('/?search=Jane');
 
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             OR: expect.arrayContaining([
@@ -69,12 +69,12 @@ describe('Provider Routes', () => {
     });
 
     it('passes status filter to Prisma', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
-      prismaMock.provider.count.mockResolvedValue(0);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.count.mockResolvedValue(0);
 
       await request(app).get('/?status=active');
 
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: 'active' }),
         })
@@ -82,27 +82,27 @@ describe('Provider Routes', () => {
     });
 
     it('respects pagination params', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
-      prismaMock.provider.count.mockResolvedValue(50);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.count.mockResolvedValue(50);
 
       const res = await request(app).get('/?page=3&pageSize=10');
 
       expect(res.body.data.page).toBe(3);
       expect(res.body.data.pageSize).toBe(10);
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 20, take: 10 })
       );
     });
 
     it('returns unassigned providers when practiceId=null', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([mockProvider] as any);
-      prismaMock.provider.count.mockResolvedValue(1);
+      prismaMock.providerProfile.findMany.mockResolvedValue([mockProvider] as any);
+      prismaMock.providerProfile.count.mockResolvedValue(1);
 
       const res = await request(app).get('/?practiceId=null&pageSize=100');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ practiceId: null }),
         })
@@ -117,14 +117,14 @@ describe('Provider Routes', () => {
     });
 
     it('returns providers for a specific practiceId', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([mockProvider] as any);
-      prismaMock.provider.count.mockResolvedValue(1);
+      prismaMock.providerProfile.findMany.mockResolvedValue([mockProvider] as any);
+      prismaMock.providerProfile.count.mockResolvedValue(1);
 
       const res = await request(app).get('/?practiceId=practice-1-id&pageSize=100');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ practiceId: 'practice-1-id' }),
         })
@@ -134,7 +134,7 @@ describe('Provider Routes', () => {
 
   describe('GET /:providerId', () => {
     it('returns provider with relations', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         addresses: [],
         licenses: [],
@@ -149,7 +149,7 @@ describe('Provider Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).get('/nonexistent-id');
 
@@ -160,7 +160,7 @@ describe('Provider Routes', () => {
 
   describe('POST /', () => {
     it('creates provider with 201', async () => {
-      prismaMock.provider.create.mockResolvedValue({
+      prismaMock.providerProfile.create.mockResolvedValue({
         ...mockProvider,
         id: 'new-provider-id',
       } as any);
@@ -174,11 +174,11 @@ describe('Provider Routes', () => {
     });
 
     it('passes validated data to Prisma create', async () => {
-      prismaMock.provider.create.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.create.mockResolvedValue(mockProvider as any);
 
       await request(app).post('/').send(validProviderInput);
 
-      expect(prismaMock.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             npi: '1234567890',
@@ -190,11 +190,11 @@ describe('Provider Routes', () => {
     });
 
     it('sets createdById from user', async () => {
-      prismaMock.provider.create.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.create.mockResolvedValue(mockProvider as any);
 
       await request(app).post('/').send(validProviderInput);
 
-      expect(prismaMock.provider.create).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             createdById: 'admin-user-id',
@@ -218,8 +218,8 @@ describe('Provider Routes', () => {
 
   describe('PUT /:providerId', () => {
     it('updates provider partially', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
-      prismaMock.provider.update.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue({
         ...mockProvider,
         firstName: 'Updated',
       } as any);
@@ -233,7 +233,7 @@ describe('Provider Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .put('/nonexistent-id')
@@ -244,12 +244,12 @@ describe('Provider Routes', () => {
     });
 
     it('sets updatedById from user', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
-      prismaMock.provider.update.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
 
       await request(app).put('/provider-1-id').send({ firstName: 'Updated' });
 
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             updatedById: 'admin-user-id',
@@ -259,8 +259,8 @@ describe('Provider Routes', () => {
     });
 
     it('assigns provider to a practice via practiceId', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
-      prismaMock.provider.update.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue({
         ...mockProvider,
         practiceId: 'practice-1-id',
       } as any);
@@ -271,7 +271,7 @@ describe('Provider Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             practiceId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -281,11 +281,11 @@ describe('Provider Routes', () => {
     });
 
     it('unassigns provider from a practice via practiceId=null', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...mockProvider,
         practiceId: 'practice-1-id',
       } as any);
-      prismaMock.provider.update.mockResolvedValue({
+      prismaMock.providerProfile.update.mockResolvedValue({
         ...mockProvider,
         practiceId: null,
       } as any);
@@ -296,7 +296,7 @@ describe('Provider Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             practiceId: null,
@@ -308,8 +308,8 @@ describe('Provider Routes', () => {
 
   describe('DELETE /:providerId', () => {
     it('soft deletes by setting status to inactive', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
-      prismaMock.provider.update.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue({
         ...mockProvider,
         status: 'inactive',
       } as any);
@@ -319,7 +319,7 @@ describe('Provider Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Provider deactivated');
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'inactive' }),
         })
@@ -327,7 +327,7 @@ describe('Provider Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).delete('/nonexistent-id');
 

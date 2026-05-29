@@ -28,7 +28,7 @@ describe('getEnrollmentMatrix', () => {
       { id: 'pay1', name: 'Blue Cross', payerId: 'bcbs-001' } as any,
     ]);
 
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Jane',
@@ -78,7 +78,7 @@ describe('getEnrollmentMatrix', () => {
       { id: 'pay2', name: 'Payer B', payerId: 'b-001' } as any,
     ]);
 
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Jane',
@@ -111,7 +111,7 @@ describe('getEnrollmentMatrix', () => {
 
   it('returns empty rows when no providers found', async () => {
     prismaMock.payer.findMany.mockResolvedValue([]);
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
     const result = await getEnrollmentMatrix();
 
@@ -122,12 +122,12 @@ describe('getEnrollmentMatrix', () => {
 
   it('passes practice filter to provider query', async () => {
     prismaMock.payer.findMany.mockResolvedValue([]);
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
     const filter = { practiceId: 'practice-1' };
     await getEnrollmentMatrix(filter);
 
-    expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           practiceId: 'practice-1',
@@ -143,7 +143,7 @@ describe('getEnrollmentMatrix', () => {
       { id: 'pay1', name: 'Payer A', payerId: 'a-001' } as any,
     ]);
 
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Jane',

@@ -116,7 +116,7 @@ describe('processOrchestratorJob', () => {
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
 
     // Mock tool executor side effects
-    prismaMock.provider.findUnique.mockResolvedValue({
+    prismaMock.providerProfile.findUnique.mockResolvedValue({
       id: 'p-1',
       firstName: 'Jane',
       npi: '123',
@@ -382,7 +382,7 @@ describe('processOrchestratorJob', () => {
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
 
     // Mock provider lookup for repeated get_provider_profile calls
-    prismaMock.provider.findUnique.mockResolvedValue({
+    prismaMock.providerProfile.findUnique.mockResolvedValue({
       id: 'p-1',
       npi: '123',
       licenses: [],

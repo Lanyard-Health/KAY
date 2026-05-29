@@ -70,17 +70,17 @@ describe('Portal Onboarding Routes', () => {
 
   describe('POST /complete', () => {
     it('marks onboarding as complete', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         onboardingCompletedAt: null,
       } as any);
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       const res = await request(app).post('/complete');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Onboarding marked as complete');
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'provider-record-id' },
           data: { onboardingCompletedAt: expect.any(Date) },
@@ -89,7 +89,7 @@ describe('Portal Onboarding Routes', () => {
     });
 
     it('returns success without updating if already completed', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         onboardingCompletedAt: new Date(),
       } as any);
 
@@ -97,11 +97,11 @@ describe('Portal Onboarding Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Onboarding already completed');
-      expect(prismaMock.provider.update).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app).post('/complete');
 

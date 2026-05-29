@@ -80,7 +80,7 @@ describe('Document Routes', () => {
 
   describe('POST /upload-url', () => {
     it('generates upload URL when provider exists', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_UUID, providerId: PROVIDER_UUID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: PROVIDER_UUID, providerId: PROVIDER_UUID } as any);
       mockGetUploadUrl.mockResolvedValue({
         uploadUrl: 'https://s3.example.com/presigned-url',
         documentId: 'new-doc-id',
@@ -98,7 +98,7 @@ describe('Document Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .post('/upload-url')
@@ -110,7 +110,7 @@ describe('Document Routes', () => {
 
     it('returns 403 for provider user accessing other provider docs', async () => {
       const providerApp = createTestApp(documentRoutes, providerUser);
-      prismaMock.provider.findUnique.mockResolvedValue({ id: OTHER_PROVIDER_UUID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: OTHER_PROVIDER_UUID } as any);
 
       const res = await request(providerApp)
         .post('/upload-url')

@@ -52,7 +52,7 @@ describe('ManualSubmissionAdapter', () => {
 
   describe('submit', () => {
     it('returns error when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValueOnce(null as never);
+      prismaMock.providerProfile.findUnique.mockResolvedValueOnce(null as never);
 
       const result = await adapter.submit(baseInput);
 
@@ -61,7 +61,7 @@ describe('ManualSubmissionAdapter', () => {
     });
 
     it('creates PendingApproval with credential manifest', async () => {
-      prismaMock.provider.findUnique.mockResolvedValueOnce(fakeProvider as never);
+      prismaMock.providerProfile.findUnique.mockResolvedValueOnce(fakeProvider as never);
       prismaMock.pendingApproval.create.mockResolvedValueOnce({
         id: 'approval-1',
         workflowId: 'wf-1',
@@ -85,7 +85,7 @@ describe('ManualSubmissionAdapter', () => {
     });
 
     it('includes provider credentials in manifest context', async () => {
-      prismaMock.provider.findUnique.mockResolvedValueOnce(fakeProvider as never);
+      prismaMock.providerProfile.findUnique.mockResolvedValueOnce(fakeProvider as never);
       prismaMock.pendingApproval.create.mockResolvedValueOnce({
         id: 'approval-2',
         workflowId: 'wf-1',
@@ -99,7 +99,7 @@ describe('ManualSubmissionAdapter', () => {
     });
 
     it('uses custom instructions from config when provided', async () => {
-      prismaMock.provider.findUnique.mockResolvedValueOnce(fakeProvider as never);
+      prismaMock.providerProfile.findUnique.mockResolvedValueOnce(fakeProvider as never);
       prismaMock.pendingApproval.create.mockResolvedValueOnce({
         id: 'approval-3',
         workflowId: 'wf-1',

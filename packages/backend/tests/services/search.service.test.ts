@@ -48,11 +48,11 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       { id: 'p1', firstName: 'Jane', lastName: 'Doe', npi: '1234567890', email: 'jane@test.com' } as any,
     ]);
     prismaMock.practice.findMany.mockResolvedValue([]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([]);
     prismaMock.document.findMany.mockResolvedValue([]);
 
@@ -74,11 +74,11 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
     prismaMock.practice.findMany.mockResolvedValue([
       { id: 'pr1', name: 'Test Practice', email: 'office@practice.com' } as any,
     ]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([]);
     prismaMock.document.findMany.mockResolvedValue([]);
 
@@ -100,9 +100,9 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: false, practiceIds: ['practice-1'] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
     // practice.findMany should NOT be called for non-superadmin
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([]);
     prismaMock.document.findMany.mockResolvedValue([]);
 
@@ -118,9 +118,9 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
     prismaMock.practice.findMany.mockResolvedValue([]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([
+    prismaMock.enrollment.findMany.mockResolvedValue([
       {
         id: 'e1',
         status: 'in_progress',
@@ -149,9 +149,9 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
     prismaMock.practice.findMany.mockResolvedValue([]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([
       { id: 'pay1', name: 'Aetna', state: 'CA' } as any,
     ]);
@@ -175,9 +175,9 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
     prismaMock.practice.findMany.mockResolvedValue([]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([]);
     prismaMock.document.findMany.mockResolvedValue([
       { id: 'd1', fileName: 'license.pdf', documentType: 'license', providerId: 'p1' } as any,
@@ -201,13 +201,13 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       { id: 'p1', firstName: 'Test', lastName: 'Provider', npi: '111', email: 'tp@t.com' } as any,
     ]);
     prismaMock.practice.findMany.mockResolvedValue([
       { id: 'pr1', name: 'Test Clinic', email: null } as any,
     ]);
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     prismaMock.payer.findMany.mockResolvedValue([]);
     prismaMock.document.findMany.mockResolvedValue([]);
 
@@ -224,7 +224,7 @@ describe('globalSearch', () => {
       practiceScope: { isSuperAdmin: true, practiceIds: [] },
     });
 
-    prismaMock.provider.findMany.mockRejectedValue(new Error('DB error'));
+    prismaMock.providerProfile.findMany.mockRejectedValue(new Error('DB error'));
 
     const results = await globalSearch(req, 'test');
     expect(results).toEqual([]);

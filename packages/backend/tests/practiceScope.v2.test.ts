@@ -61,7 +61,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       await requirePracticeProvider(req, res, next);
 
       expect(next).toHaveBeenCalled();
-      expect(prismaMock.provider.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findUnique).not.toHaveBeenCalled();
     });
 
     it('validateProviderPracticeAccess returns true for admin without DB call', async () => {
@@ -72,7 +72,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       const result = await validateProviderPracticeAccess(req, 'any-provider-id');
 
       expect(result).toBe(true);
-      expect(prismaMock.provider.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findUnique).not.toHaveBeenCalled();
     });
   });
 
@@ -101,7 +101,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: 'practice-B',
       } as any);
 
@@ -142,7 +142,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 
@@ -158,7 +158,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
         user: { id: 'staff-id', role: 'credentialing_staff' } as any,
       } as any);
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 

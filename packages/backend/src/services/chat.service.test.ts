@@ -63,7 +63,7 @@ beforeEach(() => {
   prismaMock.enrollment.findMany.mockResolvedValue([]);
   prismaMock.license.findMany.mockResolvedValue([]);
   prismaMock.boardCertification.findMany.mockResolvedValue([]);
-  prismaMock.provider.findMany.mockResolvedValue([]);
+  prismaMock.providerProfile.findMany.mockResolvedValue([]);
   prismaMock.task.findMany.mockResolvedValue([]);
 });
 
