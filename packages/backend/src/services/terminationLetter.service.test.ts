@@ -9,6 +9,11 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../utils/crypto.js', () => ({
+  encryptSafe: (v: string) => v,
+  decryptSafe: (v: string) => v,
+}));
+
 import { generateTerminationLetter, maskTaxId } from './terminationLetter.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import {

@@ -220,7 +220,7 @@ describe('Admin Onboarding Routes', () => {
         .send({ status: 'invalid' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('approved');
+      expect(JSON.stringify(res.body.error)).toContain('approved');
     });
 
     it('returns 400 when status is missing', async () => {

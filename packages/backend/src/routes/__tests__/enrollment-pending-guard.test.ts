@@ -34,6 +34,10 @@ vi.mock('../../services/enrollment-creation-hook.js', () => ({
   onEnrollmentCreated: vi.fn().mockResolvedValue({ stepsCreated: 0, templateFound: false, workflowType: null }),
 }));
 
+vi.mock('../../services/enrollment.service.js', () => ({
+  updateEnrollmentStatus: vi.fn().mockResolvedValue({ id: 'enr-1', status: 'in_progress', payer: {} }),
+}));
+
 vi.mock('../../services/terminationWorkflow.service.js', () => ({
   triggerTerminationWorkflow: vi.fn(),
 }));

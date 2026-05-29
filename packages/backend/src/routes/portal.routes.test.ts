@@ -440,7 +440,7 @@ describe('Portal Routes', () => {
         id: 'provider-record-id',
         firstName: 'Provider',
         lastName: 'User',
-        payerEnrollments: [{ id: 'enr-1', payer: { name: 'Aetna' } }],
+        enrollments: [{ id: 'enr-1', payer: { name: 'Aetna' } }],
         practiceLocations: [{ id: 'loc-1' }],
       } as any);
 

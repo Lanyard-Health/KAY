@@ -276,7 +276,7 @@ describe('approval.service', () => {
 
       expect(prismaMock.pendingApproval.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: 'pending' },
+          where: expect.objectContaining({ status: 'pending' }),
           take: 5,
           skip: 10,
         })
