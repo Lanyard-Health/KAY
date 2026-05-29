@@ -25,7 +25,7 @@ describe('Onboarding Service', () => {
 
   describe('computeOnboardingProgress', () => {
     it('returns empty progress when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const result = await computeOnboardingProgress('nonexistent-id');
 
@@ -33,7 +33,7 @@ describe('Onboarding Service', () => {
     });
 
     it('returns 20% when only profile is complete', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(0);
       prismaMock.license.count.mockResolvedValue(0);
       prismaMock.practiceLocation.count.mockResolvedValue(0);
@@ -51,7 +51,7 @@ describe('Onboarding Service', () => {
     });
 
     it('marks profile incomplete when fields are missing', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...fullProvider,
         dateOfBirth: null,
       } as any);
@@ -66,7 +66,7 @@ describe('Onboarding Service', () => {
     });
 
     it('returns 60% when profile, documents, and licenses are complete', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(2);
       prismaMock.license.count.mockResolvedValue(1);
       prismaMock.practiceLocation.count.mockResolvedValue(0);
@@ -81,11 +81,11 @@ describe('Onboarding Service', () => {
     });
 
     it('returns 100% and marks review complete when all steps done', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(1);
       prismaMock.license.count.mockResolvedValue(1);
       prismaMock.practiceLocation.count.mockResolvedValue(1);
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       const result = await computeOnboardingProgress('provider-1');
 
@@ -95,15 +95,15 @@ describe('Onboarding Service', () => {
     });
 
     it('auto-sets onboardingCompletedAt when all steps complete and not yet set', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(1);
       prismaMock.license.count.mockResolvedValue(1);
       prismaMock.practiceLocation.count.mockResolvedValue(1);
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       await computeOnboardingProgress('provider-1');
 
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'provider-1' },
           data: { onboardingCompletedAt: expect.any(Date) },
@@ -112,7 +112,7 @@ describe('Onboarding Service', () => {
     });
 
     it('does not update onboardingCompletedAt if already set', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...fullProvider,
         onboardingCompletedAt: new Date('2026-01-01'),
       } as any);
@@ -122,22 +122,22 @@ describe('Onboarding Service', () => {
 
       await computeOnboardingProgress('provider-1');
 
-      expect(prismaMock.provider.update).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
     });
 
     it('does not update onboardingCompletedAt when incomplete', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(0);
       prismaMock.license.count.mockResolvedValue(0);
       prismaMock.practiceLocation.count.mockResolvedValue(0);
 
       await computeOnboardingProgress('provider-1');
 
-      expect(prismaMock.provider.update).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
     });
 
     it('only counts portal-uploaded documents', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(fullProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(fullProvider as any);
       prismaMock.document.count.mockResolvedValue(0);
       prismaMock.license.count.mockResolvedValue(0);
       prismaMock.practiceLocation.count.mockResolvedValue(0);

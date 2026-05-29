@@ -52,7 +52,7 @@ describe('Admin Onboarding Routes', () => {
         ...mockActiveProvider,
         _count: { documents: 1, licenses: 0, practiceLocations: 0 },
       };
-      prismaMock.provider.findMany.mockResolvedValue([providerInProgress] as any);
+      prismaMock.providerProfile.findMany.mockResolvedValue([providerInProgress] as any);
 
       const res = await request(app).get('/providers');
 
@@ -77,7 +77,7 @@ describe('Admin Onboarding Routes', () => {
         onboardingCompletedAt: new Date('2026-02-01'),
         _count: { documents: 3, licenses: 1, practiceLocations: 1 },
       };
-      prismaMock.provider.findMany.mockResolvedValue([completedProvider] as any);
+      prismaMock.providerProfile.findMany.mockResolvedValue([completedProvider] as any);
 
       const res = await request(app).get('/providers');
 
@@ -94,7 +94,7 @@ describe('Admin Onboarding Routes', () => {
         dateOfBirth: null,
         _count: { documents: 0, licenses: 0, practiceLocations: 0 },
       };
-      prismaMock.provider.findMany.mockResolvedValue([notStartedProvider] as any);
+      prismaMock.providerProfile.findMany.mockResolvedValue([notStartedProvider] as any);
 
       const res = await request(app).get('/providers');
 
@@ -103,7 +103,7 @@ describe('Admin Onboarding Routes', () => {
     });
 
     it('returns empty list when no active providers', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const res = await request(app).get('/providers');
 
@@ -113,11 +113,11 @@ describe('Admin Onboarding Routes', () => {
     });
 
     it('only queries active providers', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       await request(app).get('/providers');
 
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: 'active' },
         })
@@ -220,7 +220,7 @@ describe('Admin Onboarding Routes', () => {
         .send({ status: 'invalid' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('approved');
+      expect(JSON.stringify(res.body.error)).toContain('approved');
     });
 
     it('returns 400 when status is missing', async () => {

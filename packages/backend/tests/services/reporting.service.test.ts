@@ -42,7 +42,7 @@ function daysFromNow(n: number): Date {
 
 describe('getEnrollmentPipeline', () => {
   it('returns empty result when no enrollments exist', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
 
     const result = await getEnrollmentPipeline(PRACTICE_ID);
 
@@ -51,7 +51,7 @@ describe('getEnrollmentPipeline', () => {
   });
 
   it('aggregates enrollments by payer and status', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([
+    prismaMock.enrollment.findMany.mockResolvedValue([
       { status: 'approved', payer: { id: 'db-1', name: 'Aetna', payerId: 'aetna-001' } },
       { status: 'approved', payer: { id: 'db-1', name: 'Aetna', payerId: 'aetna-001' } },
       { status: 'submitted', payer: { id: 'db-1', name: 'Aetna', payerId: 'aetna-001' } },
@@ -76,11 +76,11 @@ describe('getEnrollmentPipeline', () => {
   });
 
   it('filters by practiceId via provider relation', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
 
     await getEnrollmentPipeline(PRACTICE_ID);
 
-    expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           provider: { practiceId: PRACTICE_ID },
@@ -90,13 +90,13 @@ describe('getEnrollmentPipeline', () => {
   });
 
   it('passes startDate and endDate as createdAt filter', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     const start = new Date('2024-01-01');
     const end = new Date('2024-12-31');
 
     await getEnrollmentPipeline(PRACTICE_ID, start, end);
 
-    expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           createdAt: { gte: start, lte: end },
@@ -106,12 +106,12 @@ describe('getEnrollmentPipeline', () => {
   });
 
   it('passes only startDate when endDate is omitted', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
     const start = new Date('2024-06-01');
 
     await getEnrollmentPipeline(PRACTICE_ID, start);
 
-    expect(prismaMock.payerEnrollment.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           createdAt: { gte: start },
@@ -121,16 +121,16 @@ describe('getEnrollmentPipeline', () => {
   });
 
   it('omits createdAt filter when no dates provided', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([]);
+    prismaMock.enrollment.findMany.mockResolvedValue([]);
 
     await getEnrollmentPipeline(PRACTICE_ID);
 
-    const call = prismaMock.payerEnrollment.findMany.mock.calls[0]![0]!;
+    const call = prismaMock.enrollment.findMany.mock.calls[0]![0]!;
     expect(call.where).not.toHaveProperty('createdAt');
   });
 
   it('handles a single enrollment correctly', async () => {
-    prismaMock.payerEnrollment.findMany.mockResolvedValue([
+    prismaMock.enrollment.findMany.mockResolvedValue([
       { status: 'pending_review', payer: { id: 'db-1', name: 'Cigna', payerId: 'cigna-001' } },
     ] as any);
 
@@ -447,7 +447,7 @@ describe('getExpirationForecast', () => {
 
 describe('getProviderReadiness', () => {
   it('returns empty result when no providers exist', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
     const result = await getProviderReadiness(PRACTICE_ID);
 
@@ -456,14 +456,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('scores 3 for provider with active license, malpractice, and enrollment', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Jane',
         lastName: 'Doe',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [{ status: 'active', expirationDate: daysFromNow(180) }],
-        payerEnrollments: [{ status: 'approved' }],
+        enrollments: [{ status: 'approved' }],
       },
     ] as any);
 
@@ -477,14 +477,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('scores 0 for provider with no credentials', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Empty',
         lastName: 'Provider',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -495,14 +495,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('does not count expired license as active', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'B',
         licenses: [{ status: 'active', expirationDate: daysFromNow(-10) }],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -512,14 +512,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('does not count revoked license as active', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'B',
         licenses: [{ status: 'revoked', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -529,14 +529,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('does not count expired malpractice as active', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'B',
         licenses: [],
         malpracticeInsurances: [{ status: 'active', expirationDate: daysFromNow(-5) }],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -546,14 +546,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('counts submitted and pending_review as active enrollment', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'B',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [{ status: 'submitted' }],
+        enrollments: [{ status: 'submitted' }],
       },
       {
         id: 'p2',
@@ -561,7 +561,7 @@ describe('getProviderReadiness', () => {
         lastName: 'D',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [{ status: 'pending_review' }],
+        enrollments: [{ status: 'pending_review' }],
       },
     ] as any);
 
@@ -572,14 +572,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('does not count denied or terminated as active enrollment', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'B',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [{ status: 'denied' }],
+        enrollments: [{ status: 'denied' }],
       },
       {
         id: 'p2',
@@ -587,7 +587,7 @@ describe('getProviderReadiness', () => {
         lastName: 'D',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [{ status: 'terminated' }],
+        enrollments: [{ status: 'terminated' }],
       },
     ] as any);
 
@@ -597,14 +597,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('sorts providers by readinessScore ascending (least ready first)', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p-ready',
         firstName: 'Ready',
         lastName: 'Provider',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [{ status: 'active', expirationDate: daysFromNow(90) }],
-        payerEnrollments: [{ status: 'approved' }],
+        enrollments: [{ status: 'approved' }],
       },
       {
         id: 'p-none',
@@ -612,7 +612,7 @@ describe('getProviderReadiness', () => {
         lastName: 'Provider',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
       {
         id: 'p-partial',
@@ -620,7 +620,7 @@ describe('getProviderReadiness', () => {
         lastName: 'Provider',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -632,14 +632,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('summary counts are correct for mixed readiness', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
         lastName: 'A',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [{ status: 'active', expirationDate: daysFromNow(90) }],
-        payerEnrollments: [{ status: 'approved' }],
+        enrollments: [{ status: 'approved' }],
       },
       {
         id: 'p2',
@@ -647,7 +647,7 @@ describe('getProviderReadiness', () => {
         lastName: 'B',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
       {
         id: 'p3',
@@ -655,7 +655,7 @@ describe('getProviderReadiness', () => {
         lastName: 'C',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
       {
         id: 'p4',
@@ -663,7 +663,7 @@ describe('getProviderReadiness', () => {
         lastName: 'D',
         licenses: [{ status: 'active', expirationDate: daysFromNow(90) }],
         malpracticeInsurances: [{ status: 'active', expirationDate: daysFromNow(90) }],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -677,14 +677,14 @@ describe('getProviderReadiness', () => {
   });
 
   it('formats providerName as firstName + lastName', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'Maria',
         lastName: 'Garcia',
         licenses: [],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -694,7 +694,7 @@ describe('getProviderReadiness', () => {
   });
 
   it('considers provider with one active + one expired license as having active license', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([
+    prismaMock.providerProfile.findMany.mockResolvedValue([
       {
         id: 'p1',
         firstName: 'A',
@@ -704,7 +704,7 @@ describe('getProviderReadiness', () => {
           { status: 'active', expirationDate: daysFromNow(60) },
         ],
         malpracticeInsurances: [],
-        payerEnrollments: [],
+        enrollments: [],
       },
     ] as any);
 
@@ -714,11 +714,11 @@ describe('getProviderReadiness', () => {
   });
 
   it('only queries providers from the specified practice', async () => {
-    prismaMock.provider.findMany.mockResolvedValue([]);
+    prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
     await getProviderReadiness(PRACTICE_ID);
 
-    expect(prismaMock.provider.findMany).toHaveBeenCalledWith(
+    expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { practiceId: PRACTICE_ID },
       }),
@@ -732,9 +732,9 @@ describe('getProviderReadiness', () => {
 
 describe('getGettingStartedStatus', () => {
   it('returns all zeros and isOnboarded false for empty practice', async () => {
-    prismaMock.provider.count.mockResolvedValue(0);
+    prismaMock.providerProfile.count.mockResolvedValue(0);
     prismaMock.document.count.mockResolvedValue(0);
-    prismaMock.payerEnrollment.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
 
     const result = await getGettingStartedStatus(PRACTICE_ID);
 
@@ -747,9 +747,9 @@ describe('getGettingStartedStatus', () => {
   });
 
   it('returns isOnboarded true when all three counts are positive', async () => {
-    prismaMock.provider.count.mockResolvedValue(2);
+    prismaMock.providerProfile.count.mockResolvedValue(2);
     prismaMock.document.count.mockResolvedValue(5);
-    prismaMock.payerEnrollment.count.mockResolvedValue(1);
+    prismaMock.enrollment.count.mockResolvedValue(1);
 
     const result = await getGettingStartedStatus(PRACTICE_ID);
 
@@ -760,9 +760,9 @@ describe('getGettingStartedStatus', () => {
   });
 
   it('returns isOnboarded false when providers exist but no documents', async () => {
-    prismaMock.provider.count.mockResolvedValue(3);
+    prismaMock.providerProfile.count.mockResolvedValue(3);
     prismaMock.document.count.mockResolvedValue(0);
-    prismaMock.payerEnrollment.count.mockResolvedValue(1);
+    prismaMock.enrollment.count.mockResolvedValue(1);
 
     const result = await getGettingStartedStatus(PRACTICE_ID);
 
@@ -770,9 +770,9 @@ describe('getGettingStartedStatus', () => {
   });
 
   it('returns isOnboarded false when providers exist but no enrollments', async () => {
-    prismaMock.provider.count.mockResolvedValue(3);
+    prismaMock.providerProfile.count.mockResolvedValue(3);
     prismaMock.document.count.mockResolvedValue(5);
-    prismaMock.payerEnrollment.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
 
     const result = await getGettingStartedStatus(PRACTICE_ID);
 
@@ -780,9 +780,9 @@ describe('getGettingStartedStatus', () => {
   });
 
   it('returns isOnboarded false when no providers exist', async () => {
-    prismaMock.provider.count.mockResolvedValue(0);
+    prismaMock.providerProfile.count.mockResolvedValue(0);
     prismaMock.document.count.mockResolvedValue(5);
-    prismaMock.payerEnrollment.count.mockResolvedValue(2);
+    prismaMock.enrollment.count.mockResolvedValue(2);
 
     const result = await getGettingStartedStatus(PRACTICE_ID);
 
@@ -790,20 +790,20 @@ describe('getGettingStartedStatus', () => {
   });
 
   it('queries with correct practiceId filters', async () => {
-    prismaMock.provider.count.mockResolvedValue(0);
+    prismaMock.providerProfile.count.mockResolvedValue(0);
     prismaMock.document.count.mockResolvedValue(0);
-    prismaMock.payerEnrollment.count.mockResolvedValue(0);
+    prismaMock.enrollment.count.mockResolvedValue(0);
 
     await getGettingStartedStatus(PRACTICE_ID);
 
-    expect(prismaMock.provider.count).toHaveBeenCalledWith({
+    expect(prismaMock.providerProfile.count).toHaveBeenCalledWith({
       where: { practiceId: PRACTICE_ID },
     });
     expect(prismaMock.document.count).toHaveBeenCalledWith({
       where: { provider: { practiceId: PRACTICE_ID } },
     });
-    expect(prismaMock.payerEnrollment.count).toHaveBeenCalledWith({
-      where: { provider: { practiceId: PRACTICE_ID } },
+    expect(prismaMock.enrollment.count).toHaveBeenCalledWith({
+      where: { provider: { practiceId: PRACTICE_ID }, isDraft: false },
     });
   });
 });

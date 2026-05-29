@@ -67,10 +67,12 @@ describe('Payer Enrollment Data Routes', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].supervisorFirstName).toBe('John');
-      expect(prismaMock.supervisingPhysician.findMany).toHaveBeenCalledWith({
-        where: { providerId: PROVIDER_ID },
-        orderBy: { agreementStartDate: 'desc' },
-      });
+      expect(prismaMock.supervisingPhysician.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { providerId: PROVIDER_ID },
+          orderBy: { agreementStartDate: 'desc' },
+        }),
+      );
     });
 
     it('POST creates a supervising physician and returns 201', async () => {
@@ -392,7 +394,7 @@ describe('Payer Enrollment Data Routes', () => {
           accountNumberEncrypted: '1234567890',
           accountNumberLast4: '7890',
           accountHolderName: 'Jane Doe',
-          accountHolderTaxId: '123-45-6789',
+          accountHolderTaxIdEncrypted: '123-45-6789',
           isPrimary: true,
           w9OnFile: true,
           voidedCheckOnFile: false,

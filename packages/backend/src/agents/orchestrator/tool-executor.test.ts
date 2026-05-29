@@ -77,12 +77,12 @@ describe('executeToolCall', () => {
         payerEnrollments: [],
         deaRegistrations: [],
       };
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
 
       const result = await executeToolCall('get_provider_profile', { providerId: 'p-1' }, ctx);
 
       expect(result).toEqual(mockProvider);
-      expect(prismaMock.provider.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.providerProfile.findUnique).toHaveBeenCalledWith({
         where: { id: 'p-1' },
         include: expect.objectContaining({
           licenses: true,
@@ -93,7 +93,7 @@ describe('executeToolCall', () => {
     });
 
     it('returns error when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const result = await executeToolCall('get_provider_profile', { providerId: 'bad' }, ctx);
 
@@ -114,7 +114,7 @@ describe('executeToolCall', () => {
         isActive: true,
         payer: { id: 'pay-1', name: 'Aetna' },
       };
-      prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(mockConfig as any);
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(mockConfig as any);
 
       const result = await executeToolCall('get_payer_requirements', { payerId: 'pay-1' }, ctx);
 
@@ -129,7 +129,7 @@ describe('executeToolCall', () => {
     });
 
     it('returns error when config not found', async () => {
-      prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(null);
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
 
       const result = await executeToolCall('get_payer_requirements', { payerId: 'bad' }, ctx);
 
@@ -151,12 +151,12 @@ describe('executeToolCall', () => {
         educations: [{ id: 'edu-1' }],
         deaRegistrations: [{ status: 'active', expirationDate: future }],
       };
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
 
       const mockConfig = {
         requiredFields: ['npi', 'medical_license', 'board_certification', 'malpractice_insurance', 'education', 'dea_registration'],
       };
-      prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(mockConfig as any);
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(mockConfig as any);
 
       const result = await executeToolCall(
         'check_credential_completeness',
@@ -184,12 +184,12 @@ describe('executeToolCall', () => {
         educations: [],
         deaRegistrations: [],
       };
-      prismaMock.provider.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
 
       const mockConfig = {
         requiredFields: ['npi', 'medical_license', 'board_certification', 'malpractice_insurance'],
       };
-      prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(mockConfig as any);
+      prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(mockConfig as any);
 
       const result = (await executeToolCall(
         'check_credential_completeness',
@@ -672,7 +672,7 @@ describe('executeToolCall', () => {
     });
 
     it('catches exceptions and returns error object', async () => {
-      prismaMock.provider.findUnique.mockRejectedValue(new Error('DB connection failed'));
+      prismaMock.providerProfile.findUnique.mockRejectedValue(new Error('DB connection failed'));
 
       const result = await executeToolCall('get_provider_profile', { providerId: 'p-1' }, ctx);
 

@@ -67,7 +67,7 @@ describe('processPortalJob', () => {
   });
 
   it('marks task in-progress at start', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
     mockSubmit.mockResolvedValueOnce({ success: true, submissionId: 'sub-1' });
 
     await processPortalJob(baseJobData);
@@ -79,7 +79,7 @@ describe('processPortalJob', () => {
   });
 
   it('fails when no adapter config found for payer', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(null as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(null as never);
 
     const result = await processPortalJob(baseJobData);
 
@@ -88,7 +88,7 @@ describe('processPortalJob', () => {
   });
 
   it('fails when adapter config is disabled', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce({
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce({
       ...fakeAdapterConfig,
       isActive: false,
     } as never);
@@ -100,7 +100,7 @@ describe('processPortalJob', () => {
   });
 
   it('fails when adapter type is unknown', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce({
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce({
       ...fakeAdapterConfig,
       adapterType: 'unknown_type',
     } as never);
@@ -112,7 +112,7 @@ describe('processPortalJob', () => {
   });
 
   it('handles check_readiness action', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
     mockCheckReadiness.mockResolvedValueOnce({
       ready: true,
       missingFields: [],
@@ -132,7 +132,7 @@ describe('processPortalJob', () => {
   });
 
   it('completes submit_to_portal on success', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
     mockSubmit.mockResolvedValueOnce({
       success: true,
       submissionId: 'sub-1',
@@ -158,7 +158,7 @@ describe('processPortalJob', () => {
   });
 
   it('fails submit_to_portal when adapter returns failure', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
     mockSubmit.mockResolvedValueOnce({
       success: false,
       error: 'Portal timeout',
@@ -171,7 +171,7 @@ describe('processPortalJob', () => {
   });
 
   it('catches thrown errors and marks task failed', async () => {
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValueOnce(fakeAdapterConfig as never);
     mockSubmit.mockRejectedValueOnce(new Error('Network error'));
 
     const result = await processPortalJob(baseJobData);

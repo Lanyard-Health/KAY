@@ -167,6 +167,16 @@ router.put('/providers/:id/documents/:docId/review', authenticate, authorize('ad
 
     res.json({ success: true, data: updated });
   } catch (error) {
+    // Cross-package ZodError instanceof can fail; check by name
+    if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ZodError') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Validation failed',
+          details: ((error as any).issues ?? []).map((i: any) => ({ field: i.path.join('.'), message: i.message })),
+        },
+      });
+    }
     logger.error('Error reviewing document:', error);
     res.status(500).json({ success: false, error: { message: 'Failed to review document' } });
   }

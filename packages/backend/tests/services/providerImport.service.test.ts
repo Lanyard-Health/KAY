@@ -70,7 +70,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   // Default: NPPES returns matching name, no duplicates
   mockNppesMatch('Jane', 'Doe');
-  prismaMock.provider.findMany.mockResolvedValue([]);
+  prismaMock.providerProfile.findMany.mockResolvedValue([]);
 });
 
 // ==========================================
@@ -404,7 +404,7 @@ describe('parseAndValidateRows', () => {
       const headers = [...REQUIRED_HEADERS, 'phone'];
       for (const phone of ['(555) 123-4567', '555-123-4567', '5551234567', '+1 555 123 4567']) {
         mockNppesMatch('Jane', 'Doe'); // reset for each iteration
-        prismaMock.provider.findMany.mockResolvedValue([]);
+        prismaMock.providerProfile.findMany.mockResolvedValue([]);
         const csv = makeCsv(headers, [[...validRow(), phone]]);
         const result = await parseAndValidateRows(csv, 'practice-1');
         expect(result.rows[0]!.errors.filter(e => e.field === 'phone')).toHaveLength(0);
@@ -659,7 +659,7 @@ describe('parseAndValidateRows', () => {
 
   describe('duplicate detection', () => {
     it('marks row as duplicate when NPI exists in same practice', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([
+      prismaMock.providerProfile.findMany.mockResolvedValue([
         { npi: VALID_NPI, firstName: 'Jane', lastName: 'Doe' },
       ] as any);
 
@@ -675,7 +675,7 @@ describe('parseAndValidateRows', () => {
     });
 
     it('does not mark as duplicate when NPI not in practice', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const csv = makeCsv(REQUIRED_HEADERS, [validRow()]);
       const result = await parseAndValidateRows(csv, 'practice-1');
@@ -686,7 +686,7 @@ describe('parseAndValidateRows', () => {
 
     it('does not mark as duplicate when NPI exists in a different practice', async () => {
       // Provider exists in practice-other, but we're checking practice-1
-      prismaMock.provider.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const csv = makeCsv(REQUIRED_HEADERS, [validRow()]);
       const result = await parseAndValidateRows(csv, 'practice-1');
@@ -694,7 +694,7 @@ describe('parseAndValidateRows', () => {
       expect(result.rows[0]!.status).toBe('valid');
       expect(result.summary.duplicates).toBe(0);
       // Verify we only queried practice-1, not any other practice
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith({
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith({
         where: {
           practiceId: 'practice-1',
           npi: { in: [VALID_NPI] },
@@ -707,7 +707,7 @@ describe('parseAndValidateRows', () => {
       const csv = makeCsv(REQUIRED_HEADERS, [validRow()]);
       await parseAndValidateRows(csv, 'practice-42');
 
-      expect(prismaMock.provider.findMany).toHaveBeenCalledWith({
+      expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith({
         where: {
           practiceId: 'practice-42',
           npi: { in: [VALID_NPI] },
@@ -717,14 +717,14 @@ describe('parseAndValidateRows', () => {
     });
 
     it('skips duplicate check for error rows', async () => {
-      prismaMock.provider.findMany.mockResolvedValue([]);
+      prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       const csv = makeCsv(REQUIRED_HEADERS, [validRow({ npi: '123' })]);
       await parseAndValidateRows(csv, 'practice-1');
 
       // Error rows are filtered out before collecting NPIs;
       // with no valid NPIs, detectDuplicates returns early without querying
-      expect(prismaMock.provider.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findMany).not.toHaveBeenCalled();
     });
 
     it('handles mix of valid, duplicate, and error rows in summary', async () => {
@@ -746,7 +746,7 @@ describe('parseAndValidateRows', () => {
           }), { status: 200 }))
         );
 
-      prismaMock.provider.findMany.mockResolvedValue([
+      prismaMock.providerProfile.findMany.mockResolvedValue([
         { npi: VALID_NPI, firstName: 'Jane', lastName: 'Doe' },
       ] as any);
 
@@ -868,7 +868,7 @@ describe('executeImport', () => {
     (prismaMock.$transaction as any).mockImplementation((fn: any) => fn(prismaMock));
     prismaMock.providerImport.create.mockResolvedValue(mockImportRecord as any);
     prismaMock.providerImport.update.mockResolvedValue({} as any);
-    prismaMock.provider.create.mockResolvedValue({ id: 'provider-1' } as any);
+    prismaMock.providerProfile.create.mockResolvedValue({ id: 'provider-1' } as any);
     prismaMock.license.create.mockResolvedValue({ id: 'license-1' } as any);
   });
 
@@ -895,7 +895,7 @@ describe('executeImport', () => {
       })
     );
 
-    prismaMock.provider.create
+    prismaMock.providerProfile.create
       .mockResolvedValueOnce({ id: 'p-1' } as any)
       .mockResolvedValueOnce({ id: 'p-2' } as any)
       .mockResolvedValueOnce({ id: 'p-3' } as any)
@@ -912,7 +912,7 @@ describe('executeImport', () => {
     expect(result.successCount).toBe(5);
     expect(result.errorCount).toBe(0);
     expect(result.importId).toBe('import-1');
-    expect(prismaMock.provider.create).toHaveBeenCalledTimes(5);
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledTimes(5);
 
     // Verify import record updated to completed with correct counts
     expect(prismaMock.providerImport.update).toHaveBeenCalledWith({
@@ -941,7 +941,7 @@ describe('executeImport', () => {
   it('creates providers with correct field mapping', async () => {
     await executeImport('practice-1', 'user-1', [makeRow()]);
 
-    expect(prismaMock.provider.create).toHaveBeenCalledWith({
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         npi: VALID_NPI,
         firstName: 'Jane',
@@ -976,7 +976,7 @@ describe('executeImport', () => {
 
     await executeImport('practice-1', 'user-1', [row]);
 
-    expect(prismaMock.provider.create).toHaveBeenCalledWith({
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         phone: '555-123-4567',
         dateOfBirth: new Date('1985-06-15'),
@@ -989,7 +989,7 @@ describe('executeImport', () => {
   it('uses placeholder dateOfBirth when not provided', async () => {
     await executeImport('practice-1', 'user-1', [makeRow()]);
 
-    expect(prismaMock.provider.create).toHaveBeenCalledWith({
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         dateOfBirth: new Date('1900-01-01'),
       }),
@@ -1100,7 +1100,7 @@ describe('executeImport', () => {
       (prismaMock.$transaction as any).mockImplementation((fn: any) => fn(prismaMock));
       prismaMock.providerImport.create.mockResolvedValue(mockImportRecord as any);
       prismaMock.providerImport.update.mockResolvedValue({} as any);
-      prismaMock.provider.create.mockResolvedValue({ id: 'provider-1' } as any);
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'provider-1' } as any);
       prismaMock.license.create.mockResolvedValue({ id: 'license-1' } as any);
 
       const row = makeRow({
@@ -1124,7 +1124,7 @@ describe('executeImport', () => {
   });
 
   it('creates multiple providers in a single transaction', async () => {
-    prismaMock.provider.create
+    prismaMock.providerProfile.create
       .mockResolvedValueOnce({ id: 'provider-1' } as any)
       .mockResolvedValueOnce({ id: 'provider-2' } as any);
 
@@ -1151,7 +1151,7 @@ describe('executeImport', () => {
 
     expect(result.successCount).toBe(2);
     expect(result.errorCount).toBe(0);
-    expect(prismaMock.provider.create).toHaveBeenCalledTimes(2);
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 

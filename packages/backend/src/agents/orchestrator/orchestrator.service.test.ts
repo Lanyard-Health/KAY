@@ -116,7 +116,7 @@ describe('processOrchestratorJob', () => {
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
 
     // Mock tool executor side effects
-    prismaMock.provider.findUnique.mockResolvedValue({
+    prismaMock.providerProfile.findUnique.mockResolvedValue({
       id: 'p-1',
       firstName: 'Jane',
       npi: '123',
@@ -126,11 +126,11 @@ describe('processOrchestratorJob', () => {
       educations: [],
       documents: [],
       addresses: [],
-      payerEnrollments: [],
+      enrollments: [],
       deaRegistrations: [],
     } as any);
 
-    prismaMock.payerAdapterConfig.findUnique.mockResolvedValue({
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue({
       payerId: 'pay-1',
       adapterType: 'caqh',
       submissionMethod: 'api',
@@ -261,6 +261,8 @@ describe('processOrchestratorJob', () => {
     prismaMock.agentTask.count.mockResolvedValue(1);
     prismaMock.agentTask.create.mockResolvedValue({ id: 'task-2' } as any);
     prismaMock.agentTask.update.mockResolvedValue({} as any);
+    // dispatch_task for submit_to_portal validates the adapter config exists
+    prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue({ isActive: true } as any);
 
     // Mock for request_human_approval (no need for PendingApproval mock if not called)
     const mockClient = createMockAnthropicClient([
@@ -382,7 +384,7 @@ describe('processOrchestratorJob', () => {
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
 
     // Mock provider lookup for repeated get_provider_profile calls
-    prismaMock.provider.findUnique.mockResolvedValue({
+    prismaMock.providerProfile.findUnique.mockResolvedValue({
       id: 'p-1',
       npi: '123',
       licenses: [],
@@ -391,7 +393,7 @@ describe('processOrchestratorJob', () => {
       educations: [],
       documents: [],
       addresses: [],
-      payerEnrollments: [],
+      enrollments: [],
       deaRegistrations: [],
     } as any);
 

@@ -35,6 +35,12 @@ const validBody = {
   email: 'john@testpractice.com',
   phone: '(555) 123-4567',
   password: 'StrongPass123!',
+  addressLine1: '123 Main St',
+  city: 'Boston',
+  state: 'MA',
+  zipCode: '02101',
+  operatingStates: ['MA'],
+  targetPayerIds: ['00000000-0000-4000-a000-000000000001'],
 };
 
 describe('POST /register', () => {
@@ -67,8 +73,8 @@ describe('POST /register', () => {
       .send({ email: 'test@test.com' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Validation failed');
-    expect(res.body.details).toBeDefined();
+    expect(res.body.error.message).toBe('Validation failed');
+    expect(res.body.error.details).toBeDefined();
   });
 
   it('should return 400 for weak password', async () => {
@@ -77,7 +83,7 @@ describe('POST /register', () => {
       .send({ ...validBody, password: 'weak' });
 
     expect(res.status).toBe(400);
-    expect(res.body.details).toEqual(
+    expect(res.body.error.details).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ field: 'password' }),
       ]),
@@ -92,7 +98,7 @@ describe('POST /register', () => {
       .send(validBody);
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toContain('already exists');
+    expect(res.body.error.message).toContain('already exists');
   });
 
   it('should return 500 for unexpected errors without exposing details', async () => {
@@ -103,7 +109,7 @@ describe('POST /register', () => {
       .send(validBody);
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Registration failed. Please try again.');
+    expect(res.body.error.message).toBe('Registration failed. Please try again.');
     expect(res.body.stack).toBeUndefined();
   });
 });

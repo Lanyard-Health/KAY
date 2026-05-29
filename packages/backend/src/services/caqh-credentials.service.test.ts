@@ -45,12 +45,12 @@ describe('CaqhCredentialsService', () => {
 
   describe('saveCredentials()', () => {
     it('encrypts password before storage', async () => {
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       await service.saveCredentials('provider-1', 'username', 'myP@ssw0rd');
 
       expect(mockEncrypt).toHaveBeenCalledWith('myP@ssw0rd');
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'provider-1' },
           data: expect.objectContaining({
@@ -64,11 +64,11 @@ describe('CaqhCredentialsService', () => {
     });
 
     it('stores username as plaintext', async () => {
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       await service.saveCredentials('provider-1', 'myuser', 'pass');
 
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ caqhUsername: 'myuser' }),
         })
@@ -76,11 +76,11 @@ describe('CaqhCredentialsService', () => {
     });
 
     it('resets validity and lastChecked on save', async () => {
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       await service.saveCredentials('provider-1', 'user', 'pass');
 
-      expect(prismaMock.provider.update).toHaveBeenCalledWith(
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             caqhCredentialsValid: null,
@@ -93,7 +93,7 @@ describe('CaqhCredentialsService', () => {
 
   describe('getCredentialStatus()', () => {
     it('returns status for provider with credentials', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         caqhUsername: 'testuser',
         caqhCredentialsValid: true,
         caqhCredentialsLastChecked: new Date('2024-01-01'),
@@ -108,7 +108,7 @@ describe('CaqhCredentialsService', () => {
     });
 
     it('returns hasCredentials=false when no username set', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         caqhUsername: null,
         caqhCredentialsValid: null,
         caqhCredentialsLastChecked: null,
@@ -120,7 +120,7 @@ describe('CaqhCredentialsService', () => {
     });
 
     it('throws when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       await expect(service.getCredentialStatus('nonexistent')).rejects.toThrow('Provider not found');
     });
@@ -128,7 +128,7 @@ describe('CaqhCredentialsService', () => {
 
   describe('verifyAndUpdateProvider()', () => {
     it('returns error when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const result = await service.verifyAndUpdateProvider('nonexistent');
 
@@ -137,7 +137,7 @@ describe('CaqhCredentialsService', () => {
     });
 
     it('returns error when credentials not configured', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         id: 'provider-1',
         caqhUsername: null,
         caqhPassword: null,

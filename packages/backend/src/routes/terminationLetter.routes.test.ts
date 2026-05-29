@@ -70,7 +70,7 @@ describe('Termination Letter Routes', () => {
     const app = createTestApp(terminationLetterRoutes, adminUser);
 
     it('generates a draft termination letter', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
       prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue({ id: TASK_ID } as any);
       prismaMock.terminationLetter.findFirst.mockResolvedValue(null); // No existing letter
@@ -89,7 +89,7 @@ describe('Termination Letter Routes', () => {
     });
 
     it('returns 409 when letter already exists for enrollment', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
       prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue({ id: TASK_ID } as any);
       prismaMock.terminationLetter.findFirst.mockResolvedValue(mockTerminationLetter as any);
@@ -103,7 +103,7 @@ describe('Termination Letter Routes', () => {
     });
 
     it('returns 404 when provider not found', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(app)
         .post(`/providers/${PROVIDER_ID}/termination-letters/generate`)
@@ -114,7 +114,7 @@ describe('Termination Letter Routes', () => {
     });
 
     it('returns 404 when enrollment not found for provider', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
       prismaMock.enrollment.findFirst.mockResolvedValue(null);
 
       const res = await request(app)
@@ -136,7 +136,7 @@ describe('Termination Letter Routes', () => {
     });
 
     it('creates task if DRAFT_TERM_LETTER task does not exist yet', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue({ id: PROVIDER_ID } as any);
       prismaMock.enrollment.findFirst.mockResolvedValue({ id: ENROLLMENT_ID } as any);
       prismaMock.task.findFirst.mockResolvedValue(null); // No existing task
       prismaMock.enrollment.findUnique.mockResolvedValue({

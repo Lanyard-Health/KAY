@@ -66,9 +66,9 @@ describe('Dashboard Routes', () => {
 
   describe('GET /stats', () => {
     it('returns dashboard stats successfully', async () => {
-      prismaMock.provider.groupBy.mockResolvedValue(mockStatusCounts as any);
-      prismaMock.provider.findMany.mockResolvedValue(mockIncompleteProviders as any);
-      prismaMock.provider.count.mockResolvedValue(2);
+      prismaMock.providerProfile.groupBy.mockResolvedValue(mockStatusCounts as any);
+      prismaMock.providerProfile.findMany.mockResolvedValue(mockIncompleteProviders as any);
+      prismaMock.providerProfile.count.mockResolvedValue(2);
       prismaMock.enrollment.findMany.mockResolvedValue(mockNeedsFollowUp as any);
       prismaMock.enrollment.count.mockResolvedValue(1);
 
@@ -103,21 +103,21 @@ describe('Dashboard Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toEqual(cachedData);
-      expect(prismaMock.provider.groupBy).not.toHaveBeenCalled();
-      expect(prismaMock.provider.findMany).not.toHaveBeenCalled();
-      expect(prismaMock.provider.count).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.groupBy).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.count).not.toHaveBeenCalled();
       expect(prismaMock.enrollment.findMany).not.toHaveBeenCalled();
       expect(prismaMock.enrollment.count).not.toHaveBeenCalled();
     });
 
     it('returns 500 on error', async () => {
-      prismaMock.provider.groupBy.mockRejectedValue(new Error('DB connection failed'));
+      prismaMock.providerProfile.groupBy.mockRejectedValue(new Error('DB connection failed'));
 
       const res = await request(app).get('/stats');
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to fetch dashboard stats');
+      expect(res.body.error.message).toBe('Failed to fetch dashboard stats');
     });
   });
 });

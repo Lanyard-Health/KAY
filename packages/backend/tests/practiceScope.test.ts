@@ -182,7 +182,7 @@ describe('Practice Scope Middleware', () => {
       await requirePracticeProvider(req, res, next);
 
       expect(next).toHaveBeenCalled();
-      expect(prismaMock.provider.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findUnique).not.toHaveBeenCalled();
     });
 
     it('staff with matching practice passes', async () => {
@@ -194,7 +194,7 @@ describe('Practice Scope Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: 'practice-A',
       } as any);
 
@@ -213,7 +213,7 @@ describe('Practice Scope Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: 'practice-B',
       } as any);
 
@@ -238,7 +238,7 @@ describe('Practice Scope Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 
@@ -257,7 +257,7 @@ describe('Practice Scope Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 
@@ -275,7 +275,7 @@ describe('Practice Scope Middleware', () => {
       const res = createMockResponse();
       const next = createMockNext();
 
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       await requirePracticeProvider(req, res, next);
 
@@ -295,7 +295,7 @@ describe('Practice Scope Middleware', () => {
       const result = await validateProviderPracticeAccess(req, 'any-provider');
 
       expect(result).toBe(true);
-      expect(prismaMock.provider.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.providerProfile.findUnique).not.toHaveBeenCalled();
     });
 
     it('returns true when provider is in staff practice', async () => {
@@ -304,7 +304,7 @@ describe('Practice Scope Middleware', () => {
         user: { id: 'staff-id' } as any,
       } as any);
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: 'practice-A',
       } as any);
 
@@ -319,7 +319,7 @@ describe('Practice Scope Middleware', () => {
         user: { id: 'staff-id' } as any,
       } as any);
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: 'practice-B',
       } as any);
 
@@ -334,7 +334,7 @@ describe('Practice Scope Middleware', () => {
         user: { id: 'staff-id', role: 'credentialing_staff' } as any,
       } as any);
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 
@@ -349,7 +349,7 @@ describe('Practice Scope Middleware', () => {
         user: { id: 'user-id', role: 'provider', providerId: 'my-provider-id' } as any,
       } as any);
 
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         practiceId: null,
       } as any);
 

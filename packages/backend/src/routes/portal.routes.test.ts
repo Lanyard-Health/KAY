@@ -436,11 +436,11 @@ describe('Portal Routes', () => {
   // ==========================================
   describe('GET /me', () => {
     it('returns provider dashboard data', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         id: 'provider-record-id',
         firstName: 'Provider',
         lastName: 'User',
-        payerEnrollments: [{ id: 'enr-1', payer: { name: 'Aetna' } }],
+        enrollments: [{ id: 'enr-1', payer: { name: 'Aetna' } }],
         practiceLocations: [{ id: 'loc-1' }],
       } as any);
 
@@ -462,7 +462,7 @@ describe('Portal Routes', () => {
     });
 
     it('returns 404 when provider not found in DB', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
 
       const res = await request(providerApp).get('/me');
 
@@ -475,7 +475,7 @@ describe('Portal Routes', () => {
   // ==========================================
   describe('GET /me/completeness', () => {
     it('returns profile completeness percentage', async () => {
-      prismaMock.provider.findUnique.mockResolvedValue({
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
         id: 'provider-record-id',
         firstName: 'Jane',
         lastName: 'Doe',

@@ -87,14 +87,15 @@ describe('knowledgeBase.embedding.service', () => {
     });
 
     it('throws on API error', async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Service retries 429 up to 3 times (initial + 2 retries) — mock all attempts
+      mockFetch.mockResolvedValue({
         ok: false,
         status: 429,
         text: async () => 'Rate limited',
       });
 
       await expect(generateEmbedding('test')).rejects.toThrow('Embeddings API returned 429');
-    });
+    }, 20000);
 
     it('throws on empty response data', async () => {
       mockFetch.mockResolvedValueOnce({

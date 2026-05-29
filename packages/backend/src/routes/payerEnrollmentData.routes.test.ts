@@ -102,7 +102,7 @@ describe('Payer Enrollment Data Routes', () => {
       it('masks accountHolderTaxId when present', async () => {
         const recordWithTaxId = {
           ...mockBankingRecord,
-          accountHolderTaxId: 'encrypted:123-45-6789',
+          accountHolderTaxIdEncrypted: 'encrypted:123-45-6789',
         };
         prismaMock.providerBanking.findMany.mockResolvedValue([recordWithTaxId] as any);
 

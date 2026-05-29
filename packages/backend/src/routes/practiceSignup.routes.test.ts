@@ -28,6 +28,12 @@ const validPayload = {
   email: 'jane.doe@example.com',
   password: 'SecureP@ss1234',
   phone: '555-123-4567',
+  addressLine1: '123 Main St',
+  city: 'Boston',
+  state: 'MA',
+  zipCode: '02101',
+  operatingStates: ['MA'],
+  targetPayerIds: ['00000000-0000-4000-a000-000000000001'],
 };
 
 describe('Practice Signup Routes', () => {
@@ -59,10 +65,10 @@ describe('Practice Signup Routes', () => {
       const res = await request(app).post('/register').send({});
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe('Validation failed');
-      expect(res.body.details).toBeDefined();
-      expect(Array.isArray(res.body.details)).toBe(true);
-      expect(res.body.details.length).toBeGreaterThan(0);
+      expect(res.body.error.message).toBe('Validation failed');
+      expect(res.body.error.details).toBeDefined();
+      expect(Array.isArray(res.body.error.details)).toBe(true);
+      expect(res.body.error.details.length).toBeGreaterThan(0);
       expect(mockedRegisterPractice).not.toHaveBeenCalled();
     });
 
@@ -72,8 +78,8 @@ describe('Practice Signup Routes', () => {
       const res = await request(app).post('/register').send(incomplete);
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe('Validation failed');
-      expect(res.body.details).toBeDefined();
+      expect(res.body.error.message).toBe('Validation failed');
+      expect(res.body.error.details).toBeDefined();
       expect(mockedRegisterPractice).not.toHaveBeenCalled();
     });
 
@@ -83,7 +89,7 @@ describe('Practice Signup Routes', () => {
       const res = await request(app).post('/register').send(validPayload);
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toBe('An account with this email already exists');
+      expect(res.body.error.message).toBe('An account with this email already exists');
     });
 
     it('returns 500 on unexpected error', async () => {
@@ -92,7 +98,7 @@ describe('Practice Signup Routes', () => {
       const res = await request(app).post('/register').send(validPayload);
 
       expect(res.status).toBe(500);
-      expect(res.body.error).toBe('Registration failed. Please try again.');
+      expect(res.body.error.message).toBe('Registration failed. Please try again.');
     });
   });
 });

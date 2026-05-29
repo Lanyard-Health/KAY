@@ -3164,7 +3164,7 @@ describe('CaqhService', () => {
     it('calls checkStatus first, then pullCredentials with attestation date', async () => {
       prismaMock.caqhSyncLog.create.mockResolvedValue({ id: 'sync-1' } as any);
       prismaMock.caqhSyncLog.update.mockResolvedValue({} as any);
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       // First call: checkStatus returns status with provider_status_date
       // Second call: pullCredentials returns credential data
@@ -3201,7 +3201,7 @@ describe('CaqhService', () => {
     it('falls back to anniversary_date when provider_status_date missing', async () => {
       prismaMock.caqhSyncLog.create.mockResolvedValue({ id: 'sync-1' } as any);
       prismaMock.caqhSyncLog.update.mockResolvedValue({} as any);
-      prismaMock.provider.update.mockResolvedValue({} as any);
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
 
       const fetchSpy = vi.spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce({
