@@ -345,7 +345,7 @@ describe('PracticeDocumentsTab', () => {
 
       render(<PracticeDocumentsTab />, { wrapper: wrapper() });
 
-      expect(screen.getByText(/failed to load documents/i)).toBeInTheDocument();
+      expect(screen.getByText(/couldn't load documents/i)).toBeInTheDocument();
     });
   });
 });

@@ -10,6 +10,12 @@ vi.mock('../../services/api', () => ({
   api: { get: (...args: any[]) => mockGet(...args) },
 }));
 
+vi.mock('../../stores/auth.store', () => ({
+  useAuthStore: () => ({
+    user: { id: 'u1', role: 'admin', email: 'admin@test.com', practices: [] },
+  }),
+}));
+
 import Dashboard from './Dashboard';
 
 function createWrapper() {
@@ -55,6 +61,23 @@ function mockApiSuccess() {
 describe('Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+      clear: () => {
+        Object.keys(store).forEach((k) => delete store[k]);
+      },
+      key: (i: number) => Object.keys(store)[i] ?? null,
+      get length() {
+        return Object.keys(store).length;
+      },
+    });
   });
 
   it('shows loading state initially', () => {
@@ -90,13 +113,13 @@ describe('Dashboard', () => {
 
     await screen.findByText('Add Provider');
 
-    const addProviderLink = screen.getByText('Add Provider').closest('a');
+    const addProviderLink = screen.getAllByText('Add Provider')[0]?.closest('a');
     expect(addProviderLink).toHaveAttribute('href', '/providers/new');
 
-    const uploadLink = screen.getByText('Upload Document').closest('a');
+    const uploadLink = screen.getAllByText('Upload Document')[0]?.closest('a');
     expect(uploadLink).toHaveAttribute('href', '/documents');
 
-    const enrollmentLink = screen.getByText('New Enrollment').closest('a');
+    const enrollmentLink = screen.getAllByText('New Enrollment')[0]?.closest('a');
     expect(enrollmentLink).toHaveAttribute('href', '/enrollments');
   });
 });
