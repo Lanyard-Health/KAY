@@ -17,7 +17,7 @@ const { mockFindUnique } = vi.hoisted(() => ({
 
 vi.mock('../../src/utils/prisma.js', () => ({
   prisma: {
-    provider: {
+    providerProfile: {
       findUnique: mockFindUnique,
     },
   },
@@ -188,12 +188,12 @@ describe('Provider Routes — GET /:providerId', () => {
   // ------------------------------------------
 
   describe('Sensitive field stripping', () => {
+    // Provider self-service does NOT go through this admin route — it lives at /portal/me.
+    // dateOfBirth stripping for self vs. other providers belongs in portal.routes.test.ts.
     it.each([
       ['admin', adminUser],
       ['credentialing_staff', staffUser],
       ['practice_admin', practiceAdminUser],
-      ['provider (self)', providerUserSelf],
-      ['provider (other)', providerUserOther],
     ])(
       'never returns ssnEncrypted, caqhPassword, or caqhUsername for %s',
       async (_roleName, user) => {
@@ -240,22 +240,10 @@ describe('Provider Routes — GET /:providerId', () => {
       expect(res.body.data.dateOfBirth).toBeTruthy();
     });
 
-    it('provider viewing their own record sees dateOfBirth', async () => {
-      const app = createApp(providerUserSelf);
-      const res = await request(app).get(`/providers/${PROVIDER_ID}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.data).toHaveProperty('dateOfBirth');
-      expect(res.body.data.dateOfBirth).toBeTruthy();
-    });
-
-    it('provider viewing another provider does NOT see dateOfBirth', async () => {
-      const app = createApp(providerUserOther);
-      const res = await request(app).get(`/providers/${PROVIDER_ID}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.data).not.toHaveProperty('dateOfBirth');
-    });
+    // Provider role tests removed — providers cannot hit this admin route
+    // (authorize('admin', 'credentialing_staff', 'practice_admin') blocks them).
+    // Provider self-service dateOfBirth visibility lives at GET /portal/me and
+    // belongs in portal.routes.test.ts.
   });
 
   // ------------------------------------------
