@@ -6,8 +6,8 @@ import { errorHandler } from '../../middleware/error.middleware.js';
 // Hoist mocks
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
-    provider: { findUnique: vi.fn() },
-    payerEnrollment: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    providerProfile: { findUnique: vi.fn() },
+    enrollment: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     payer: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn() },
   },
 }));
@@ -92,7 +92,7 @@ describe('Enrollment routes — blockPendingVerification guard', () => {
 
   describe('POST /provider/:providerId (create enrollment)', () => {
     it('returns 403 for pending_verification provider', async () => {
-      mockPrisma.provider.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
+      mockPrisma.providerProfile.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
 
       const res = await request(createApp(pendingVerificationProvider))
         .post('/provider/provider-pv')
@@ -103,7 +103,7 @@ describe('Enrollment routes — blockPendingVerification guard', () => {
     });
 
     it('does not return 403 for active provider', async () => {
-      mockPrisma.provider.findUnique.mockResolvedValue({ id: 'provider-active', status: 'active' });
+      mockPrisma.providerProfile.findUnique.mockResolvedValue({ id: 'provider-active', status: 'active' });
 
       const res = await request(createApp(activeProvider))
         .post('/provider/provider-active')
@@ -126,7 +126,7 @@ describe('Enrollment routes — blockPendingVerification guard', () => {
 
   describe('PUT /:id (update enrollment)', () => {
     it('returns 403 for pending_verification provider', async () => {
-      mockPrisma.provider.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
+      mockPrisma.providerProfile.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
 
       const res = await request(createApp(pendingVerificationProvider))
         .put('/enr-1')
@@ -137,12 +137,12 @@ describe('Enrollment routes — blockPendingVerification guard', () => {
     });
 
     it('allows active provider to update enrollment', async () => {
-      mockPrisma.provider.findUnique.mockResolvedValue({ id: 'provider-active', status: 'active' });
-      mockPrisma.payerEnrollment.findUnique.mockResolvedValue({
+      mockPrisma.providerProfile.findUnique.mockResolvedValue({ id: 'provider-active', status: 'active' });
+      mockPrisma.enrollment.findUnique.mockResolvedValue({
         id: 'enr-1',
         providerId: 'provider-active',
       });
-      mockPrisma.payerEnrollment.update.mockResolvedValue({
+      mockPrisma.enrollment.update.mockResolvedValue({
         id: 'enr-1',
         status: 'in_progress',
         payer: {},
@@ -158,7 +158,7 @@ describe('Enrollment routes — blockPendingVerification guard', () => {
 
   describe('DELETE /:id (delete enrollment)', () => {
     it('returns 403 for pending_verification provider', async () => {
-      mockPrisma.provider.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
+      mockPrisma.providerProfile.findUnique.mockResolvedValue({ id: 'provider-pv', status: 'pending_verification' });
 
       const res = await request(createApp(pendingVerificationProvider))
         .delete('/enr-1');

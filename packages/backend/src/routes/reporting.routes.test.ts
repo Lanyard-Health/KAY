@@ -141,7 +141,7 @@ describe('Reporting Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to load report data');
+      expect(res.body.error.message).toBe('Failed to load report data');
     });
   });
 
@@ -192,7 +192,7 @@ describe('Reporting Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to load report data');
+      expect(res.body.error.message).toBe('Failed to load report data');
     });
   });
 
@@ -231,7 +231,7 @@ describe('Reporting Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to load report data');
+      expect(res.body.error.message).toBe('Failed to load report data');
     });
   });
 
@@ -270,7 +270,7 @@ describe('Reporting Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to load report data');
+      expect(res.body.error.message).toBe('Failed to load report data');
     });
   });
 });
