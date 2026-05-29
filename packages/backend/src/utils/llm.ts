@@ -81,6 +81,46 @@ function isConfigured(): boolean {
 
 export { isConfigured as isLLMConfigured };
 
+const MAX_RETRIES = 2; // total attempts = 1 + 2 retries = 3
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimit(err: unknown): boolean {
+  if (err instanceof Anthropic.APIError) {
+    return err.status === 429;
+  }
+  const anyErr = err as { name?: string; status?: number } | null;
+  return !!anyErr && (anyErr.name === 'RateLimitError' || anyErr.status === 429);
+}
+
+async function sendWithRetry(
+  c: Anthropic,
+  createParams: Anthropic.MessageCreateParams
+): Promise<Anthropic.Messages.Message> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return (await c.messages.create(createParams)) as Anthropic.Messages.Message;
+    } catch (err) {
+      lastErr = err;
+      if (!isRateLimit(err) || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      const backoffMs = 1000 * Math.pow(2, attempt);
+      logger.warn('Anthropic rate-limited, retrying with backoff', {
+        attempt: attempt + 1,
+        maxAttempts: MAX_RETRIES + 1,
+        backoffMs,
+      });
+      await sleep(backoffMs);
+    }
+  }
+  // Unreachable — loop either returns or throws — but TS needs it.
+  throw lastErr;
+}
+
 export async function callLLM(params: LLMCallParams): Promise<LLMResponse> {
   const c = getClient();
   const model = params.model || process.env['AI_MODEL'] || DEFAULT_MODEL;
@@ -110,7 +150,7 @@ export async function callLLM(params: LLMCallParams): Promise<LLMResponse> {
     ...(tools ? { tools } : {}),
   };
 
-  const response = await c.messages.create(createParams) as Anthropic.Messages.Message;
+  const response = await sendWithRetry(c, createParams);
 
   const text = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
