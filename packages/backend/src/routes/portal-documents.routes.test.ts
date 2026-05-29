@@ -111,7 +111,7 @@ describe('Portal Documents Routes', () => {
         .send({ contentType: 'application/pdf', documentType: 'w9' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('fileName');
+      expect(res.body.error.message).toContain('fileName');
     });
 
     it('returns 400 when contentType is missing', async () => {
@@ -120,7 +120,7 @@ describe('Portal Documents Routes', () => {
         .send({ fileName: 'w9.pdf', documentType: 'w9' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('contentType');
+      expect(res.body.error.message).toContain('contentType');
     });
 
     it('returns 400 for invalid documentType', async () => {
@@ -129,7 +129,7 @@ describe('Portal Documents Routes', () => {
         .send({ ...validUpload, documentType: 'invalid_type' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('documentType');
+      expect(res.body.error.message).toContain('documentType');
     });
 
     it('accepts all valid document types', async () => {
@@ -177,7 +177,7 @@ describe('Portal Documents Routes', () => {
       const res = await request(app).post('/confirm').send({});
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('documentId');
+      expect(res.body.error.message).toContain('documentId');
     });
 
     it('returns 404 when document not found', async () => {
@@ -233,7 +233,7 @@ describe('Portal Documents Routes', () => {
       const res = await request(app).delete('/doc-1');
 
       expect(res.status).toBe(403);
-      expect(res.body.error).toContain('approved');
+      expect(res.body.error.message).toContain('approved');
     });
 
     it('returns 404 when document not found', async () => {

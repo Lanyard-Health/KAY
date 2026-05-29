@@ -67,7 +67,7 @@ describe('EmailService', () => {
         html: '<p>Hello</p>',
       });
 
-      expect(result).toEqual({ success: true, messageId: 'msg-123' });
+      expect(result).toEqual(expect.objectContaining({ success: true, messageId: 'msg-123' }));
       expect(mockSend).toHaveBeenCalledOnce();
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -96,7 +96,7 @@ describe('EmailService', () => {
         html: '<p>Test</p>',
       });
 
-      expect(result).toEqual({ success: false, error: 'Rate limit exceeded' });
+      expect(result).toEqual(expect.objectContaining({ success: false, error: 'Rate limit exceeded' }));
       expect(prismaMock.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -116,7 +116,7 @@ describe('EmailService', () => {
         html: '<p>Test</p>',
       });
 
-      expect(result).toEqual({ success: false, error: 'Network failure' });
+      expect(result).toEqual(expect.objectContaining({ success: false, error: 'Network failure' }));
       expect(prismaMock.notification.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({

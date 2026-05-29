@@ -66,6 +66,10 @@ describe('practiceSignup.service', () => {
           practice: { create: vi.fn().mockResolvedValue(mockPractice) },
           user: { create: vi.fn().mockResolvedValue(mockUser) },
           userPractice: { create: vi.fn().mockResolvedValue({}) },
+          practiceSettings: { create: vi.fn().mockResolvedValue({}) },
+          payer: { findMany: vi.fn().mockResolvedValue([]) },
+          practicePayer: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          enterpriseQueue: { create: vi.fn().mockResolvedValue({}) },
         };
         return fn(tx);
       });

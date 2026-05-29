@@ -35,7 +35,7 @@ describe('getEnrollmentMatrix', () => {
         lastName: 'Doe',
         npi: '1234567890',
         status: 'active',
-        payerEnrollments: [
+        enrollments: [
           {
             id: 'e1',
             payerId: 'pay1',
@@ -85,7 +85,7 @@ describe('getEnrollmentMatrix', () => {
         lastName: 'Doe',
         npi: '111',
         status: 'active',
-        payerEnrollments: [
+        enrollments: [
           { id: 'e1', payerId: 'pay1', status: 'approved', applicationDate: null, effectiveDate: null, lastFollowUpDate: null, updatedAt: new Date() },
           { id: 'e2', payerId: 'pay2', status: 'in_progress', applicationDate: null, effectiveDate: null, lastFollowUpDate: null, updatedAt: new Date() },
         ],
@@ -96,7 +96,7 @@ describe('getEnrollmentMatrix', () => {
         lastName: 'Smith',
         npi: '222',
         status: 'pending',
-        payerEnrollments: [
+        enrollments: [
           { id: 'e3', payerId: 'pay1', status: 'approved', applicationDate: null, effectiveDate: null, lastFollowUpDate: null, updatedAt: new Date() },
         ],
       } as any,
@@ -150,7 +150,7 @@ describe('getEnrollmentMatrix', () => {
         lastName: 'Doe',
         npi: '111',
         status: 'active',
-        payerEnrollments: [
+        enrollments: [
           {
             id: 'e1',
             payerId: 'pay1',

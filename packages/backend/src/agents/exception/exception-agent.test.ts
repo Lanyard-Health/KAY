@@ -87,7 +87,7 @@ describe('processExceptionJob', () => {
 
   it('analyzes denial and saves structured analysis', async () => {
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [] } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerAdapterConfig.findUnique.mockResolvedValue({
       adapterType: 'caqh',
       requiredFields: ['npi', 'medical_license'],
@@ -135,7 +135,7 @@ describe('processExceptionJob', () => {
 
   it('handles malformed Claude response gracefully', async () => {
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.count.mockResolvedValue(0);
     prismaMock.agentTask.create.mockResolvedValue({ id: 'exc-1' } as any);
@@ -162,7 +162,7 @@ describe('processExceptionJob', () => {
 
   it('tracks tokens on workflow', async () => {
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.count.mockResolvedValue(0);
     prismaMock.agentTask.create.mockResolvedValue({ id: 'exc-1' } as any);
@@ -193,7 +193,7 @@ describe('processExceptionJob', () => {
       id: 'task-1',
       error: { message: 'submission failed' },
     } as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.update.mockResolvedValue({} as any);
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
@@ -217,7 +217,7 @@ describe('processExceptionJob', () => {
 
   it('creates new task when no taskId provided', async () => {
     prismaMock.agentWorkflow.findUnique.mockResolvedValue(baseWorkflow as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerAdapterConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.count.mockResolvedValue(3);
     prismaMock.agentTask.create.mockResolvedValue({ id: 'exc-1' } as any);
@@ -254,7 +254,7 @@ describe('processExceptionJob', () => {
       error: { message: 'portal timeout' },
       output: { remediationAttempts: 3 },
     } as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.update.mockResolvedValue({} as any);
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
@@ -297,7 +297,7 @@ describe('processExceptionJob', () => {
       error: { message: 'portal timeout' },
       output: { remediationAttempts: 1 },
     } as any);
-    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ npi: '123', licenses: [], boardCertifications: [], malpracticeInsurances: [], deaRegistrations: [], educations: [] } as any);
     prismaMock.payerSubmissionConfig.findUnique.mockResolvedValue(null);
     prismaMock.agentTask.update.mockResolvedValue({} as any);
     prismaMock.agentWorkflow.update.mockResolvedValue({} as any);
