@@ -40,7 +40,10 @@ const initApp = async () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        // 30s default — short enough that an updated license shows up on the
+        // dashboard within a click or two, long enough to amortize bursts.
+        // Per-query overrides (15s/30s/60s/Infinity) take precedence.
+        staleTime: 30 * 1000,
         retry: 1,
       },
     },

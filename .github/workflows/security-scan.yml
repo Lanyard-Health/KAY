@@ -448,9 +448,21 @@ jobs:
             --shadow-database-url "postgresql://credentials:credentials_dev_password@localhost:5433/credentials_shadow" \
             --exit-code 2>&1) && EXIT_CODE=0 || EXIT_CODE=$?
 
+          # Known-ignorable drift: Prisma 5.12 doesn't support `type: Hnsw` in schema.prisma,
+          # so HNSW indexes on Unsupported("vector(N)") columns can only live in raw-SQL migrations.
+          # `migrate diff` will always report this as drift on the embedding column.
+          # We compare only the actionable diff markers ([+], [-], [*]) — informational lines
+          # like "Drift detected" are ignored. If those markers exactly match the expected
+          # HNSW pair, treat as pass. Any other marker still fails.
+          ACTUAL_MARKERS=$(printf '%s\n' "$DIFF_OUTPUT" | grep -E '\[[+*-]\]' | sed 's/^[[:space:]]*//' | sort)
+          EXPECTED_MARKERS=$(printf '%s\n%s\n' '[*] Changed the `knowledge_base_embeddings` table' '[-] Removed index on columns (embedding)' | sort)
+
           if [ "$EXIT_CODE" -eq 0 ]; then
             echo "status=pass" >> "$GITHUB_OUTPUT"
             echo "summary=### :white_check_mark: Schema Drift: Migrations match schema.prisma" >> "$GITHUB_OUTPUT"
+          elif [ "$ACTUAL_MARKERS" = "$EXPECTED_MARKERS" ]; then
+            echo "status=pass" >> "$GITHUB_OUTPUT"
+            echo "summary=### :white_check_mark: Schema Drift: Only known HNSW-index drift (Prisma 5.x limitation; tracked in raw-SQL migration)" >> "$GITHUB_OUTPUT"
           else
             echo "status=fail" >> "$GITHUB_OUTPUT"
             EOF_MARKER=$(uuidgen)
