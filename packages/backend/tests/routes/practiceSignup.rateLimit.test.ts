@@ -28,6 +28,12 @@ const validBody = {
   email: 'john@testpractice.com',
   phone: '(555) 123-4567',
   password: 'StrongPass123!',
+  addressLine1: '123 Main St',
+  city: 'Boston',
+  state: 'MA',
+  zipCode: '02101',
+  operatingStates: ['MA'],
+  targetPayerIds: ['00000000-0000-4000-a000-000000000001'],
 };
 
 describe('POST /register — rate limiting', () => {
@@ -53,6 +59,6 @@ describe('POST /register — rate limiting', () => {
     // 6th request should be rate limited
     const res = await request(app).post('/register').send(validBody);
     expect(res.status).toBe(429);
-    expect(res.body.error).toContain('Too many signup attempts');
+    expect(res.body.error.message).toContain('Too many signup attempts');
   });
 });

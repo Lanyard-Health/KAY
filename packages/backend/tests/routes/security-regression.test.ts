@@ -322,7 +322,7 @@ describe('Security: Document confirm-upload validates documentId', () => {
       .send({ documentId: 'not-a-uuid' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/documentId/i);
+    expect(res.body.error.message).toMatch(/documentId/i);
   });
 
   it('returns 400 for missing documentId', async () => {
@@ -331,7 +331,7 @@ describe('Security: Document confirm-upload validates documentId', () => {
       .send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/documentId/i);
+    expect(res.body.error.message).toMatch(/documentId/i);
   });
 
   it('returns 400 for empty string documentId', async () => {

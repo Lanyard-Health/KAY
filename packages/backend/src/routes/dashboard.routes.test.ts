@@ -117,7 +117,7 @@ describe('Dashboard Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Failed to fetch dashboard stats');
+      expect(res.body.error.message).toBe('Failed to fetch dashboard stats');
     });
   });
 });
