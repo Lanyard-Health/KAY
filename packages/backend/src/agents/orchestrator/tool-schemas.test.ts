@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { ORCHESTRATOR_TOOLS } from './tool-schemas.js';
 
 describe('ORCHESTRATOR_TOOLS', () => {
-  it('exports exactly 9 tools', () => {
-    expect(ORCHESTRATOR_TOOLS).toHaveLength(9);
+  it('exports exactly 10 tools', () => {
+    expect(ORCHESTRATOR_TOOLS).toHaveLength(10);
   });
 
   it('each tool has name, description, and input_schema', () => {
@@ -29,6 +29,7 @@ describe('ORCHESTRATOR_TOOLS', () => {
       'escalate_to_exception',
       'narrate',
       'populate_enrollment_forms',
+      'search_knowledge_base',
     ]);
   });
 

@@ -47,8 +47,8 @@ describe('queues', () => {
   // ------------------------------------------
 
   describe('QUEUE_NAMES', () => {
-    it('has all 6 queue entries', () => {
-      expect(Object.keys(QUEUE_NAMES)).toHaveLength(6);
+    it('has all 7 queue entries', () => {
+      expect(Object.keys(QUEUE_NAMES)).toHaveLength(7);
     });
 
     it('contains ORCHESTRATOR queue', () => {

@@ -243,7 +243,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toContain('not found or inactive');
+      expect(res.body.error.message).toContain('not found or inactive');
     });
   });
 
@@ -295,7 +295,7 @@ describe('Provider Onboarding — v2 (Feature 2)', () => {
         .get('/practice/not-a-uuid/info');
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('Invalid practice ID');
+      expect(res.body.error.message).toContain('Invalid practice ID');
     });
   });
 });

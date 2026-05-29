@@ -145,7 +145,7 @@ describe('Portal Onboarding Routes', () => {
         .send({ ...validLicense, licenseNumber: undefined });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('licenseNumber');
+      expect(res.body.error.message).toContain('licenseNumber');
     });
 
     it('returns 400 when licenseType is invalid', async () => {
@@ -154,7 +154,7 @@ describe('Portal Onboarding Routes', () => {
         .send({ ...validLicense, licenseType: 'invalid_type' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('licenseType');
+      expect(res.body.error.message).toContain('licenseType');
     });
 
     it('returns 400 when expirationDate is missing', async () => {
@@ -163,7 +163,7 @@ describe('Portal Onboarding Routes', () => {
         .send({ ...validLicense, expirationDate: undefined });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain('expirationDate');
+      expect(res.body.error.message).toContain('expirationDate');
     });
 
     it('returns 400 for invalid expirationDate', async () => {
