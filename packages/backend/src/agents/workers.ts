@@ -23,6 +23,9 @@ import { startMonitorCron, stopMonitorCron } from './monitor/monitor-cron.js';
 import { processApprovalJob } from './approval/approval-agent.js';
 import type { ApprovalJobData } from './approval/types.js';
 import { withAgentTelemetry } from './action-telemetry.js';
+import { processSubmissionJob } from '../queues/submission.worker.js';
+import type { SubmissionJobData } from '../queues/submission.queue.js';
+import { registerPhase1Adapters } from './portal/adapter-factory.js';
 
 // ==========================================
 // Worker configuration
@@ -41,6 +44,7 @@ const WORKER_CONFIGS: WorkerConfig[] = [
   { queueName: QUEUE_NAMES.MONITOR, agentName: 'monitor', concurrency: 5 },
   { queueName: QUEUE_NAMES.EXCEPTION, agentName: 'exception', concurrency: 2 },
   { queueName: QUEUE_NAMES.APPROVAL, agentName: 'approval', concurrency: 2 },
+  { queueName: QUEUE_NAMES.SUBMISSION, agentName: 'submission', concurrency: 1 },
 ];
 
 // ==========================================
@@ -126,6 +130,11 @@ function getProcessor(agentName: string) {
       return processApprovalJob(data);
     };
   }
+  if (agentName === 'submission') {
+    return async (job: Job) => {
+      return processSubmissionJob(job as Job<SubmissionJobData>);
+    };
+  }
   return createPlaceholderProcessor(agentName);
 }
 
@@ -144,6 +153,7 @@ export function initializeWorkers(): void {
   }
 
   registerPortalAdapters();
+  registerPhase1Adapters();
   startMonitorCron();
   const connection = getRedisConfig();
 

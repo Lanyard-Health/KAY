@@ -88,6 +88,12 @@ const createInput = {
 describe('coordinator.service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default providerProfile.findUnique → returns a provider with a practiceId.
+    // createWorkflow + dispatchSubmissionRun both require this lookup to
+    // resolve practiceId before creating AgentWorkflow / EnrollmentRun rows.
+    prismaMock.providerProfile.findUnique.mockResolvedValue({
+      practiceId: 'practice-1',
+    } as never);
   });
 
   // ------------------------------------------

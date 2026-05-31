@@ -40,6 +40,16 @@ const PHI_KEYS = new Set([
   'api_key',
   'authorization',
   'cookie',
+  // Submission engine — explicit by exact variable name. Per plan: do not
+  // rely on pattern matching alone for credential scrubbing.
+  // Source: portal-agent.ts:77 `submissionInput.credentials = JSON.parse(decryptSafe(...))`.
+  'credentials',          // decrypted credential blob in portal-agent
+  'username',             // adapter login username — never log
+  'usernameencrypted',
+  'mfaseed',              // TOTP seed for portal MFA
+  'mfaseedencrypted',
+  'extraconfig',          // payer-portal security questions, PIN, etc.
+  'extraconfigencrypted',
 ]);
 
 const REDACT = '[REDACTED]';

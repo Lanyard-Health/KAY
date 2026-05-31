@@ -75,7 +75,7 @@ async function checkEnrollmentStatus(
   const caqhProviderId = enrollment.provider.caqhProviderId;
 
   if (
-    submissionConfig?.adapterType === 'caqh' &&
+    submissionConfig?.adapterType === 'CAQH' &&
     caqhProviderId &&
     process.env['CAQH_API_URL'] &&
     process.env['CAQH_ORG_ID'] &&

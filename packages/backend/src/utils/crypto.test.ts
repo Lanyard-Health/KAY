@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { encrypt, decrypt } from './crypto.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { encrypt, decrypt, deriveTenantKey, encryptForTenant, decryptForTenant, decryptSafe } from './crypto.js';
 
 describe('crypto', () => {
   const VALID_KEY = 'a'.repeat(64);
@@ -95,6 +95,109 @@ describe('crypto', () => {
     it('throws on invalid ENCRYPTION_KEY length', () => {
       process.env['ENCRYPTION_KEY'] = 'tooshort';
       expect(() => encrypt('test')).toThrow('ENCRYPTION_KEY must be a 64-character hex string');
+    });
+  });
+
+  // ==========================================
+  // Phase 1 — Tenant key derivation (HKDF-SHA256)
+  // ==========================================
+
+  describe('deriveTenantKey()', () => {
+    it('is deterministic for the same practiceId', () => {
+      const a = deriveTenantKey('practice-abc');
+      const b = deriveTenantKey('practice-abc');
+      expect(a.equals(b)).toBe(true);
+    });
+
+    it('produces 32-byte keys', () => {
+      expect(deriveTenantKey('practice-abc').length).toBe(32);
+    });
+
+    it('produces different keys for different practiceIds', () => {
+      const a = deriveTenantKey('practice-abc');
+      const b = deriveTenantKey('practice-xyz');
+      expect(a.equals(b)).toBe(false);
+    });
+
+    it('throws on empty practiceId', () => {
+      expect(() => deriveTenantKey('')).toThrow('practiceId is required');
+    });
+  });
+
+  describe('encryptForTenant() / decryptForTenant()', () => {
+    it('roundtrips a value', () => {
+      const ct = encryptForTenant('practice-abc', 'super-secret');
+      expect(decryptForTenant('practice-abc', ct)).toBe('super-secret');
+    });
+
+    it('produces different ciphertexts each call (random IV)', () => {
+      const a = encryptForTenant('practice-abc', 'same text');
+      const b = encryptForTenant('practice-abc', 'same text');
+      expect(a).not.toEqual(b);
+    });
+
+    it('produces different ciphertexts for different practiceIds with same plaintext', () => {
+      // We can't directly compare ciphertexts (random IV) but we can confirm
+      // that practice B cannot decrypt practice A's value — that proves the
+      // keys are distinct.
+      const ctA = encryptForTenant('practice-abc', 'shared-plaintext');
+      expect(() => decryptForTenant('practice-xyz', ctA)).toThrow();
+    });
+
+    it('cross-tenant decrypt fails (GCM auth tag mismatch)', () => {
+      const ct = encryptForTenant('practice-A', 'tenant-A-secret');
+      expect(() => decryptForTenant('practice-B', ct)).toThrow();
+    });
+
+    it('throws on malformed ciphertext', () => {
+      expect(() => decryptForTenant('practice-abc', 'not:enough')).toThrow('Invalid encrypted text format');
+    });
+  });
+
+  // ==========================================
+  // Phase 1 — decryptSafe fail-closed in production
+  // ==========================================
+
+  describe('decryptSafe() production strictness', () => {
+    let originalEnv: string | undefined;
+
+    beforeEach(() => {
+      originalEnv = process.env['NODE_ENV'];
+    });
+
+    afterEach(() => {
+      if (originalEnv !== undefined) {
+        process.env['NODE_ENV'] = originalEnv;
+      } else {
+        delete process.env['NODE_ENV'];
+      }
+    });
+
+    it('roundtrips encrypted values in production', () => {
+      process.env['NODE_ENV'] = 'production';
+      const ct = encrypt('payload');
+      expect(decryptSafe(ct)).toBe('payload');
+    });
+
+    it('throws in production on plaintext (wrong format)', () => {
+      process.env['NODE_ENV'] = 'production';
+      expect(() => decryptSafe('plaintext-no-colons')).toThrow('refusing to return plaintext');
+    });
+
+    it('throws in production on tampered ciphertext', () => {
+      process.env['NODE_ENV'] = 'production';
+      const ct = encrypt('payload');
+      const parts = ct.split(':');
+      const tampered = `${parts[0]}:${parts[1]}:${parts[2]!.replace(/^./, parts[2]![0] === 'a' ? 'b' : 'a')}`;
+      expect(() => decryptSafe(tampered)).toThrow('decryptSafe failed to decrypt');
+    });
+
+    it('tolerates plaintext in non-production (dev backward compat)', () => {
+      process.env['NODE_ENV'] = 'development';
+      // Spy on logger to avoid noisy test output
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(decryptSafe('legacy-plaintext-value')).toBe('legacy-plaintext-value');
+      warnSpy.mockRestore();
     });
   });
 });
