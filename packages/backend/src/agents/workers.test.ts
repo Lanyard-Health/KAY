@@ -96,10 +96,10 @@ describe('workers', () => {
   });
 
   describe('initializeWorkers', () => {
-    it('creates 6 workers (one per queue)', () => {
+    it('creates 7 workers (one per queue)', () => {
       initializeWorkers();
 
-      expect(MockWorker).toHaveBeenCalledTimes(6);
+      expect(MockWorker).toHaveBeenCalledTimes(7);
     });
 
     it('creates workers for all expected queue names', () => {
@@ -114,6 +114,7 @@ describe('workers', () => {
       expect(queueNames).toContain('agent-monitor');
       expect(queueNames).toContain('agent-exception');
       expect(queueNames).toContain('agent-approval');
+      expect(queueNames).toContain('submission');
     });
 
     it('uses real processor for document_parser worker', () => {
@@ -132,8 +133,8 @@ describe('workers', () => {
       initializeWorkers();
 
       // Each worker should have 2 event handlers (completed + failed)
-      // 6 workers * 2 events = 12 .on() calls
-      expect(mockOn).toHaveBeenCalledTimes(12);
+      // 7 workers * 2 events = 14 .on() calls
+      expect(mockOn).toHaveBeenCalledTimes(14);
     });
   });
 
@@ -144,7 +145,7 @@ describe('workers', () => {
 
       await closeAllWorkers();
 
-      expect(mockClose).toHaveBeenCalledTimes(6);
+      expect(mockClose).toHaveBeenCalledTimes(7);
     });
 
     it('handles being called when no workers exist', async () => {
