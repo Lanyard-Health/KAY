@@ -2,6 +2,8 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getQueue, QUEUE_NAMES } from './queues.js';
 import { logAgentEvent } from './event-logger.js';
+import { enqueueSubmission } from '../queues/submission.queue.js';
+import { logSubmissionEvent } from '../services/form-fill/audit.service.js';
 
 // ==========================================
 // Constants
@@ -63,6 +65,19 @@ export async function createWorkflow(input: CreateWorkflowInput) {
     );
   }
 
+  // Resolve practiceId — required on AgentWorkflow as of Phase 1 tenant isolation.
+  // Provider without a practice is a data-integrity error; throw rather than insert NULL.
+  const provider = await prisma.providerProfile.findUnique({
+    where: { id: providerId },
+    select: { practiceId: true },
+  });
+  if (!provider) {
+    throw new Error(`Provider ${providerId} not found`);
+  }
+  if (!provider.practiceId) {
+    throw new Error(`Provider ${providerId} has no associated practice — cannot create AgentWorkflow`);
+  }
+
   // Build goalParams
   const goalParams: Record<string, string> = { providerId };
   if (payerId) goalParams['payerId'] = payerId;
@@ -76,6 +91,7 @@ export async function createWorkflow(input: CreateWorkflowInput) {
       status: 'planning',
       priority: priority ?? 'normal',
       providerId,
+      practiceId: provider.practiceId,
       payerId: payerId ?? null,
       enrollmentId: enrollmentId ?? null,
       requestedBy,
@@ -282,6 +298,99 @@ export async function dispatchPortalSubmission(input: DispatchPortalInput) {
   logger.info('Portal submission dispatched', { workflowId, taskId: task.id, payerId });
 
   return task;
+}
+
+// ==========================================
+// dispatchSubmissionRun — new pipeline (Phase 1)
+// ==========================================
+
+export interface DispatchSubmissionRunInput {
+  workflowId: string;
+  providerId: string;
+  payerId: string;
+  enrollmentId: string;
+  triggeredBy?: string;
+}
+
+/**
+ * Creates an EnrollmentRun in PENDING state and enqueues a job onto the
+ * SUBMISSION queue. This is the new pipeline; legacy dispatchPortalSubmission
+ * still routes to the old PORTAL queue + portal-agent. Phase 2 cutover
+ * switches the live routes to call this function instead.
+ *
+ * Caller flow:
+ *   await dispatchSubmissionRun({ workflowId, providerId, payerId, enrollmentId })
+ *   → returns { enrollmentRunId, jobId, deduplicated }
+ *
+ * Idempotency: if a job already exists for an EnrollmentRun.id (BullMQ jobId =
+ * enrollmentRunId), the existing job is returned instead of a new one.
+ */
+export async function dispatchSubmissionRun(input: DispatchSubmissionRunInput): Promise<{
+  enrollmentRunId: string;
+  jobId: string;
+  deduplicated: boolean;
+}> {
+  const { workflowId, providerId, payerId, enrollmentId, triggeredBy } = input;
+
+  // 1. Resolve practiceId from the provider — this is the tenant boundary.
+  const provider = await prisma.providerProfile.findUnique({
+    where: { id: providerId },
+    select: { practiceId: true },
+  });
+  if (!provider) {
+    throw new Error(`Provider ${providerId} not found`);
+  }
+  if (!provider.practiceId) {
+    throw new Error(
+      `Provider ${providerId} has no associated practice — cannot dispatch submission`
+    );
+  }
+  const practiceId = provider.practiceId;
+
+  // 2. Create EnrollmentRun in PENDING. The worker will transition to
+  //    SUBMITTING when it picks up the job.
+  const run = await prisma.enrollmentRun.create({
+    data: {
+      enrollmentId,
+      status: 'PENDING',
+      triggeredBy: triggeredBy ?? null,
+    },
+    select: { id: true },
+  });
+
+  // 3. Enqueue. enqueueSubmission handles BullMQ dedupe by jobId == runId.
+  const { jobId, deduplicated } = await enqueueSubmission({
+    enrollmentRunId: run.id,
+    payerId,
+    practiceId,
+    providerId,
+  });
+
+  // 4. SUBMISSION_QUEUED audit event (audit_logs + agent_events)
+  await logSubmissionEvent({
+    workflowId,
+    runId: run.id,
+    action: 'SUBMISSION_QUEUED',
+    userId: triggeredBy ?? null,
+    data: {
+      payerId,
+      practiceId,
+      providerId,
+      enrollmentId,
+      jobId,
+      deduplicated,
+    },
+  });
+
+  logger.info('Submission run dispatched', {
+    workflowId,
+    enrollmentRunId: run.id,
+    jobId,
+    payerId,
+    deduplicated,
+  });
+
+  return { enrollmentRunId: run.id, jobId, deduplicated };
 }
 
 // ==========================================

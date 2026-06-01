@@ -190,6 +190,10 @@ model Practice {
   subscription         Subscription?
   practicePayers       PracticePayer[]
 
+  // Phase 1 — submission engine relations
+  portalCredentials    PortalCredential[]
+  agentWorkflows       AgentWorkflow[]
+
   // Clinical profile
   organizationTypeId  String?           @map("organization_type_id")
   organizationTypeRef OrganizationType? @relation(fields: [organizationTypeId], references: [id])
@@ -474,6 +478,7 @@ model ProviderProfile {
   agentWorkflows         AgentWorkflow[]
   agentActions           AgentAction[]
   practice               Practice?               @relation(fields: [practiceId], references: [id])
+  portalCredentials      PortalCredential[]
 
   // Clinical profile
   providerSpecialties        ProviderSpecialty[]
@@ -1722,15 +1727,22 @@ model Payer {
   verticalTags          String[] @default([]) @map("vertical_tags")
   averageProcessingDays Int?     @map("average_processing_days")
 
+  // Credential ownership for this payer's portal login. GROUP = one login
+  // per (payer, practice) — Availity, MCO portals. INDIVIDUAL = one login
+  // per (payer, provider) — CAQH, some payer portals. resolveCredential()
+  // in credential.service.ts dispatches lookup based on this value.
+  credentialType PortalCredentialType @default(GROUP) @map("credential_type")
+
   // Audit
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  enrollments      Enrollment[]
-  agentWorkflows   AgentWorkflow[]
-  submissionConfig PayerSubmissionConfig?
-  practicePayers   PracticePayer[]
+  enrollments       Enrollment[]
+  agentWorkflows    AgentWorkflow[]
+  submissionConfig  PayerSubmissionConfig?
+  practicePayers    PracticePayer[]
+  portalCredentials PortalCredential[]
 
   @@map("payers")
 }
@@ -1800,6 +1812,7 @@ model Enrollment {
   recredentialingDate  DateTime?        @map("recredentialing_date")
   providerNumber       String?          @map("provider_number")
   groupNumber          String?          @map("group_number")
+  confirmationNumber   String?          @map("confirmation_number") // pre-existing column — added to schema 2026-05-30 to resolve drift
   notes                String?
   payerEmail           String?          @map("payer_email")
 
@@ -1934,6 +1947,7 @@ model ChatMessage {
 // ==========================================
 
 enum AuditAction {
+  // Existing values — DO NOT REMOVE OR RENAME
   create
   read
   update
@@ -1942,6 +1956,16 @@ enum AuditAction {
   logout
   export
   import
+
+  // Submission engine — added Phase 1
+  SUBMISSION_QUEUED             // Job enqueued in BullMQ: enrollmentRunId, payerId, adapterType
+  SUBMISSION_STARTED            // Worker picked up job: enrollmentRunId, attemptNumber
+  SUBMISSION_SKIPPED_IDEMPOTENT // Pre-flight guard fired: enrollmentRunId, currentStatus
+  SUBMISSION_FORM_FILLED        // Adapter finished filling fields: enrollmentRunId, fieldCount
+  SUBMISSION_SUBMITTED          // Submit button clicked: enrollmentRunId, preScreenshotKey
+  SUBMISSION_CONFIRMED          // Portal confirmed receipt: enrollmentRunId, confirmationNumber, postScreenshotKey
+  SUBMISSION_ATTEMPT_FAILED     // One attempt failed, retrying: enrollmentRunId, attemptNumber, errorMessage
+  SUBMISSION_DEAD_LETTERED      // All attempts exhausted: enrollmentRunId, finalErrorMessage
 }
 
 model AuditLog {
@@ -2400,6 +2424,8 @@ model AgentWorkflow {
   // Relations
   providerId   String          @map("provider_id")
   provider     ProviderProfile @relation(fields: [providerId], references: [id])
+  practiceId   String          @map("practice_id")
+  practice     Practice        @relation(fields: [practiceId], references: [id])
   payerId      String?         @map("payer_id")
   payer        Payer?          @relation(fields: [payerId], references: [id])
   enrollmentId String?         @map("enrollment_id")
@@ -2694,8 +2720,8 @@ model PayerSubmissionConfig {
   payerId String @unique @map("payer_id")
   payer   Payer  @relation(fields: [payerId], references: [id])
 
-  adapterType          String  @map("adapter_type")
-  submissionMethod     String  @map("submission_method")
+  adapterType          AdapterType      @map("adapter_type")
+  submissionMethod     SubmissionMethod @map("submission_method")
   config               Json
   credentialsEncrypted String? @map("credentials_encrypted")
   requiredFields       Json    @map("required_fields")
@@ -2876,7 +2902,7 @@ model PayerForm {
   payerTrackId String     @map("payer_track_id")
   payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
   formName     String     @map("form_name")
-  format       String // PDF | Online | Email
+  format       PayerFormFormat
   url          String?
   destination  String? // fax or email if not a URL
   isRequired   Boolean    @default(true) @map("is_required")
@@ -2886,7 +2912,7 @@ model PayerForm {
   // Form-fill framework (Phase 3)
   // deliveryEngine drives the dispatcher: which adapter runs this form.
   // assetUrl points to the PDF template (pdf engine) or entry URL (browser).
-  deliveryEngine String? @map("delivery_engine") // browser | pdf | email | deep_link | manual
+  deliveryEngine DeliveryEngine? @map("delivery_engine")
   assetUrl       String? @map("asset_url")
 
   embeddings KnowledgeBaseEmbedding[]
@@ -2968,7 +2994,7 @@ model EnrollmentRun {
   enrollmentId String     @map("enrollment_id")
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
-  status String // pending | filling | awaiting_review | submitting | completed | failed
+  status EnrollmentRunStatus
 
   startedAt   DateTime  @default(now()) @map("started_at")
   reviewedAt  DateTime? @map("reviewed_at")
@@ -2982,6 +3008,15 @@ model EnrollmentRun {
   errorDetails    Json? @map("error_details")
 
   triggeredBy String? @map("triggered_by") // User ID
+
+  // Phase 1 — submission lifecycle additions
+  externalReference  String?   @map("external_reference")  // payer-assigned tracking number
+  confirmationNumber String?   @map("confirmation_number") // payer confirmation on receipt
+  failedAt           DateTime? @map("failed_at")           // timestamp of terminal failure
+
+  // Phase 1 — submission engine relations
+  submissionJob SubmissionJob?
+  faxJobs       FaxJob[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -3661,4 +3696,232 @@ model EmailLog {
   @@index([templateId])
   @@index([practiceId])
   @@map("email_logs")
+}
+
+// =====================
+// Submission Engine — Phase 1
+// =====================
+
+// AdapterType — which adapter handles a given payer's portal/API submission.
+// Phase 1 registers CAQH + MANUAL only. PLAYWRIGHT_GENERIC, AETNA_BH, AVAILITY
+// are placeholders for next-quarter payer adapters. FAX is schema-ready for Phase 4.
+enum AdapterType {
+  CAQH
+  PLAYWRIGHT_GENERIC
+  AETNA_BH
+  AVAILITY
+  MANUAL
+  FAX
+}
+
+// SubmissionMethod — coarse-grained channel category. Independent of AdapterType
+// because one method can have multiple adapter implementations (e.g., AETNA_BH and
+// AVAILITY both use WEB_PORTAL).
+enum SubmissionMethod {
+  WEB_PORTAL
+  API
+  FAX
+  EMAIL
+  MANUAL
+}
+
+// DeliveryEngine — set on PayerForm. Drives channel dispatch: BROWSER → submission
+// queue (Playwright bot); FAX → agent-fax queue (Phaxio); EMAIL/MANUAL → coordinator
+// hand-off paths. Nullable on PayerForm because many seeded forms have no automation
+// configured yet.
+enum DeliveryEngine {
+  BROWSER
+  FAX
+  EMAIL
+  MANUAL
+}
+
+// PayerFormFormat — visual/structural classification of a payer's enrollment form.
+// Drives form-fill engine selection. Distinct from DeliveryEngine: a PDF form can
+// be delivered via FAX or EMAIL; an ONLINE form is BROWSER-delivered.
+enum PayerFormFormat {
+  ONLINE
+  PDF
+  PORTAL
+}
+
+// EnrollmentRunStatus — replaces the unconstrained String status on EnrollmentRun.
+// Terminal states (APPROVED, DENIED, FAILED, CANCELLED) are guarded by
+// validateRunStatusTransition() in enrollment.service.ts.
+enum EnrollmentRunStatus {
+  PENDING          // created, not yet queued
+  QUEUED           // job enqueued in BullMQ
+  FILLING          // adapter is filling the form
+  AWAITING_REVIEW  // needs coordinator approval before submit
+  SUBMITTING       // adapter has clicked submit
+  SUBMITTED        // payer portal confirmed receipt
+  ACKNOWLEDGED     // payer confirmed processing (if async)
+  APPROVED         // payer approved enrollment
+  DENIED           // payer denied enrollment
+  FAILED           // all retry attempts exhausted
+  CANCELLED        // coordinator cancelled before execution
+  NEEDS_REVIEW     // adapter completed but confirmation ambiguous — human check required
+}
+
+// PortalCredentialType — disambiguates credential ownership. CAQH and some payer
+// portals issue per-provider logins (INDIVIDUAL). Availity / MCO portals issue
+// per-practice logins (GROUP). resolveCredential() in credential.service.ts
+// dispatches lookup based on this value on the parent Payer.
+enum PortalCredentialType {
+  GROUP       // practice owns this login
+  INDIVIDUAL  // provider owns this login
+}
+
+// SubmissionJobStatus — lifecycle of a BullMQ submission job record.
+enum SubmissionJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTERED
+}
+
+// FaxJobStatus — lifecycle of a fax channel run.
+enum FaxJobStatus {
+  PENDING        // created, not yet dispatched
+  SENDING        // dispatched to vendor, awaiting delivery
+  SENT           // vendor confirmed delivery via webhook
+  FAILED         // one attempt failed, will retry
+  DEAD_LETTERED  // all attempts exhausted
+}
+
+// PortalCredential — per-tenant credential vault for payer portal logins.
+// Replaces PayerSubmissionConfig.credentialsEncrypted (the cross-tenant leak fix).
+// Encrypted payload uses encryptForTenant(practiceId, ...) — HKDF-derived key per
+// practice. Exactly one of practiceId or providerId is set, governed by credentialType.
+model PortalCredential {
+  id      String @id @default(cuid())
+  payerId String @map("payer_id")
+  payer   Payer  @relation(fields: [payerId], references: [id])
+
+  // Credential ownership — exactly one of these must be set
+  practiceId String?          @map("practice_id")  // GROUP credentials
+  practice   Practice?        @relation(fields: [practiceId], references: [id])
+  providerId String?          @map("provider_id")  // INDIVIDUAL credentials
+  provider   ProviderProfile? @relation(fields: [providerId], references: [id])
+
+  // Encrypted payload — encryptForTenant(practiceId, plaintext)
+  usernameEncrypted    String  @map("username_encrypted")
+  passwordEncrypted    String  @map("password_encrypted")
+  mfaSeedEncrypted     String? @map("mfa_seed_encrypted")     // TOTP seed if payer requires MFA
+  extraConfigEncrypted String? @map("extra_config_encrypted") // security questions, PIN, etc.
+
+  credentialType PortalCredentialType @map("credential_type")
+
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+  isActive       Boolean   @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([payerId, practiceId])   // one GROUP cred per (payer, practice)
+  @@unique([payerId, providerId])   // one INDIVIDUAL cred per (payer, provider)
+  @@index([practiceId])
+  @@index([providerId])
+  @@map("portal_credentials")
+}
+
+// SubmissionJob — BullMQ job record. One-to-one with EnrollmentRun. bullmqJobId
+// equals enrollmentRunId for deduplication. Captures submission artifacts
+// (screenshots, confirmation number) for audit/SOC 2 evidence.
+model SubmissionJob {
+  id              String        @id @default(cuid())
+  enrollmentRunId String        @unique @map("enrollment_run_id")
+  enrollmentRun   EnrollmentRun @relation(fields: [enrollmentRunId], references: [id])
+
+  bullmqJobId  String              @unique @map("bullmq_job_id")  // = enrollmentRunId
+  status       SubmissionJobStatus
+  attemptCount Int                 @default(0) @map("attempt_count")
+  maxAttempts  Int                 @default(3) @map("max_attempts")
+
+  lastError     String?   @map("last_error")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  completedAt   DateTime? @map("completed_at")
+
+  // Submission artifacts
+  confirmationNumber String? @map("confirmation_number")
+  preScreenshotKey   String? @map("pre_screenshot_key")   // S3 key
+  postScreenshotKey  String? @map("post_screenshot_key")  // S3 key
+  rawResponseText    String? @map("raw_response_text")
+
+  // Relations
+  faxJobs FaxJob[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enrollmentRunId])
+  @@map("submission_jobs")
+}
+
+// FaxJob — Phase 4 channel run record. Schema-ready in Phase 1 so EnrollmentRun
+// and SubmissionJob can declare their relations now. Phaxio is the default vendor.
+model FaxJob {
+  id String @id @default(cuid())
+
+  // Parent submission context
+  submissionJobId String?        @map("submission_job_id")
+  submissionJob   SubmissionJob? @relation(fields: [submissionJobId], references: [id])
+  enrollmentRunId String         @map("enrollment_run_id")
+  enrollmentRun   EnrollmentRun  @relation(fields: [enrollmentRunId], references: [id])
+  practiceId      String         @map("practice_id")
+  payerId         String         @map("payer_id")
+
+  // Fax destination
+  toFaxNumber String @map("to_fax_number")
+
+  // Content references (S3 keys)
+  filledPdfKey  String  @map("filled_pdf_key")
+  coverSheetKey String? @map("cover_sheet_key")
+
+  // Vendor tracking
+  vendor      String           // 'phaxio' — or future vendor if swapped
+  vendorFaxId String?          @map("vendor_fax_id")
+
+  // Lifecycle
+  status        FaxJobStatus @default(PENDING)
+  attemptCount  Int          @default(0) @map("attempt_count")
+  maxAttempts   Int          @default(5) @map("max_attempts")
+  lastAttemptAt DateTime?    @map("last_attempt_at")
+  confirmedAt   DateTime?    @map("confirmed_at")
+  failedAt      DateTime?    @map("failed_at")
+  failureReason String?      @map("failure_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enrollmentRunId])
+  @@index([status])
+  @@index([practiceId])
+  @@map("fax_jobs")
+}
+
+// PecosSubmission — stub. Medicare PECOS enrollment record.
+// DEFERRED: implementation next quarter. Schema present so future code can
+// reference the table without a follow-up migration churn.
+model PecosSubmission {
+  id        String   @id @default(cuid())
+  status    String   // stub — will become PecosSubmissionStatus enum when implemented
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("pecos_submissions")
+}
+
+// StateMedicaidEnrollment — stub. State Medicaid adapter run record.
+// DEFERRED: implementation next quarter. Texas STAR+PLUS / CHIP and other states
+// will populate this table when their adapters land.
+model StateMedicaidEnrollment {
+  id        String   @id @default(cuid())
+  status    String   // stub — will become StateMedicaidStatus enum when implemented
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("state_medicaid_enrollments")
 }

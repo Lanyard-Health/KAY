@@ -14,6 +14,9 @@ export const QUEUE_NAMES = {
   EXCEPTION: 'agent-exception',
   APPROVAL: 'agent-approval',
   WEBHOOK_DELIVERY: 'webhook-delivery',
+  // Submission engine — Phase 1. One job per EnrollmentRun (jobId =
+  // EnrollmentRun.id for idempotency). Worker hands off to AdapterFactory.
+  SUBMISSION: 'submission',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -31,6 +34,7 @@ export const QUEUE_LOCK_DURATIONS: Record<QueueName, number> = {
   [QUEUE_NAMES.MONITOR]: 1 * 60_000,         // 1 min — lightweight checks
   [QUEUE_NAMES.APPROVAL]: 1 * 60_000,        // 1 min — DB + email
   [QUEUE_NAMES.WEBHOOK_DELIVERY]: 30_000,    // 30 s — single HTTP POST, 10 s timeout per attempt
+  [QUEUE_NAMES.SUBMISSION]: 6 * 60_000,      // 6 min — wraps 5-min Playwright timeout + DB writes
 };
 
 // ==========================================

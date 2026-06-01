@@ -133,12 +133,12 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
   const run = input.enrollmentRunId
     ? await prisma.enrollmentRun.update({
         where: { id: input.enrollmentRunId },
-        data: { status: 'filling' },
+        data: { status: 'FILLING' },
       })
     : await prisma.enrollmentRun.create({
         data: {
           enrollmentId,
-          status: 'filling',
+          status: 'FILLING',
           triggeredBy: triggeredBy ?? null,
         },
       });
@@ -146,7 +146,7 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
   await logEnrollmentRunTransition({
     runId: run.id,
     from: priorRun?.status ?? null,
-    to: 'filling',
+    to: 'FILLING',
     userId: triggeredBy ?? null,
     details: { enrollmentId, payerFormId },
   });
@@ -164,14 +164,14 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
     // 3. Load the PayerForm and verify it's a PDF form with a template
     const payerForm = await prisma.payerForm.findUnique({
       where: { id: payerFormId },
-      select: { id: true, formName: true, deliveryEngine: true, assetUrl: true },
+      select: { id: true, formName: true, format: true, assetUrl: true },
     });
     if (!payerForm) {
       throw new Error(`PayerForm ${payerFormId} not found`);
     }
-    if (payerForm.deliveryEngine !== 'pdf') {
+    if (payerForm.format !== 'PDF') {
       throw new Error(
-        `PayerForm ${payerFormId} deliveryEngine is ${payerForm.deliveryEngine ?? 'null'}, expected 'pdf'`
+        `PayerForm ${payerFormId} format is ${payerForm.format}, expected 'PDF'`
       );
     }
     if (!payerForm.assetUrl) {
@@ -213,15 +213,15 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
     await prisma.enrollmentRun.update({
       where: { id: run.id },
       data: {
-        status: 'awaiting_review',
+        status: 'AWAITING_REVIEW',
         filledArtifacts: [...existing, artifact as unknown as object] as any,
       },
     });
 
     await logEnrollmentRunTransition({
       runId: run.id,
-      from: 'filling',
-      to: 'awaiting_review',
+      from: 'FILLING',
+      to: 'AWAITING_REVIEW',
       userId: triggeredBy ?? null,
       details: {
         payerFormId,
@@ -243,7 +243,7 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
     await prisma.enrollmentRun.update({
       where: { id: run.id },
       data: {
-        status: 'failed',
+        status: 'FAILED',
         errorDetails: {
           message: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined,

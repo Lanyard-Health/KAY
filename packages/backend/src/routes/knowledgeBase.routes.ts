@@ -98,11 +98,12 @@ const payerStateRuleSchema = z.object({
   expirationDate: z.string().nullable().optional(),
 });
 
-const DELIVERY_ENGINES = ['browser', 'pdf', 'email', 'deep_link', 'manual'] as const;
+const DELIVERY_ENGINES = ['BROWSER', 'FAX', 'EMAIL', 'MANUAL'] as const;
+const PAYER_FORM_FORMATS = ['ONLINE', 'PDF', 'PORTAL'] as const;
 
 const payerFormSchema = z.object({
   formName: z.string().min(1),
-  format: z.string().min(1),
+  format: z.enum(PAYER_FORM_FORMATS),
   url: z.string().nullable().optional(),
   destination: z.string().nullable().optional(),
   isRequired: z.boolean().optional(),
@@ -579,7 +580,7 @@ knowledgeBaseRoutes.post(
       const assetUrl = `s3://${bucket}/${key}`;
       const data = await prisma.payerForm.update({
         where: { id: formId },
-        data: { assetUrl, deliveryEngine: existing.deliveryEngine ?? 'pdf' },
+        data: { assetUrl, deliveryEngine: existing.deliveryEngine ?? 'MANUAL' },
       });
       res.json({ success: true, data });
     } catch (error) {

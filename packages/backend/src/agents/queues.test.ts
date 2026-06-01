@@ -47,8 +47,8 @@ describe('queues', () => {
   // ------------------------------------------
 
   describe('QUEUE_NAMES', () => {
-    it('has all 7 queue entries', () => {
-      expect(Object.keys(QUEUE_NAMES)).toHaveLength(7);
+    it('has all 8 queue entries', () => {
+      expect(Object.keys(QUEUE_NAMES)).toHaveLength(8);
     });
 
     it('contains ORCHESTRATOR queue', () => {
@@ -73,6 +73,10 @@ describe('queues', () => {
 
     it('contains APPROVAL queue', () => {
       expect(QUEUE_NAMES.APPROVAL).toBe('agent-approval');
+    });
+
+    it('contains SUBMISSION queue', () => {
+      expect(QUEUE_NAMES.SUBMISSION).toBe('submission');
     });
   });
 

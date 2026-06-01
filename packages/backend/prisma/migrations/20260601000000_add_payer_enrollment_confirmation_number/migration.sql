@@ -1,0 +1,14 @@
+-- Backfill migration for payer_enrollments.confirmation_number
+--
+-- The `confirmation_number` column already exists on dev and prod databases
+-- (added out-of-band before the column was modeled in schema.prisma). The
+-- schema.prisma now references it as Enrollment.confirmationNumber, but no
+-- migration in the history actually creates it. `prisma migrate diff` flags
+-- this as drift in CI against a clean shadow database.
+--
+-- This migration adds the column idempotently:
+--   - On CI shadow DB (empty): creates the column.
+--   - On dev/prod (column already exists): IF NOT EXISTS makes it a no-op.
+--
+-- No backfill is required: the column is nullable.
+ALTER TABLE "payer_enrollments" ADD COLUMN IF NOT EXISTS "confirmation_number" TEXT;

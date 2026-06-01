@@ -530,7 +530,7 @@ async function populateEnrollmentForms(
         select: {
           id: true,
           forms: {
-            where: { deliveryEngine: 'pdf' },
+            where: { format: 'PDF' },
             select: { id: true, formName: true, assetUrl: true },
           },
         },

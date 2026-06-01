@@ -59,7 +59,7 @@ function happyPathMocks() {
   prismaMock.payerForm.findUnique.mockResolvedValue({
     id: 'form-1',
     formName: 'Test BH Application',
-    deliveryEngine: 'pdf',
+    format: 'PDF',
     assetUrl: 'templates/payer-1/test.pdf',
   } as any);
   prismaMock.payerFormField.findMany.mockResolvedValue([
@@ -120,12 +120,12 @@ describe('runPdfFill', () => {
       triggeredBy: 'user-1',
     });
 
-    // Run created with filling status, then updated to awaiting_review
+    // Run created with FILLING status, then updated to AWAITING_REVIEW
     expect(prismaMock.enrollmentRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           enrollmentId: 'enr-1',
-          status: 'filling',
+          status: 'FILLING',
           triggeredBy: 'user-1',
         }),
       })
@@ -133,7 +133,7 @@ describe('runPdfFill', () => {
     expect(prismaMock.enrollmentRun.update).toHaveBeenLastCalledWith(
       expect.objectContaining({
         where: { id: 'run-1' },
-        data: expect.objectContaining({ status: 'awaiting_review' }),
+        data: expect.objectContaining({ status: 'AWAITING_REVIEW' }),
       })
     );
 
@@ -162,7 +162,7 @@ describe('runPdfFill', () => {
 
     expect(prismaMock.enrollmentRun.update).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'failed' }),
+        data: expect.objectContaining({ status: 'FAILED' }),
       })
     );
   });
@@ -176,13 +176,13 @@ describe('runPdfFill', () => {
     } as any);
     prismaMock.payerForm.findUnique.mockResolvedValue({
       id: 'form-1',
-      deliveryEngine: 'browser',
+      format: 'PORTAL',
       assetUrl: null,
     } as any);
 
     await expect(
       runPdfFill({ enrollmentId: 'enr-1', payerFormId: 'form-1', storage: stubStorage(new Uint8Array()) })
-    ).rejects.toThrow(/expected 'pdf'/);
+    ).rejects.toThrow(/expected 'PDF'/);
   });
 
   it('rejects when PDF form has no assetUrl', async () => {
@@ -194,7 +194,7 @@ describe('runPdfFill', () => {
     } as any);
     prismaMock.payerForm.findUnique.mockResolvedValue({
       id: 'form-1',
-      deliveryEngine: 'pdf',
+      format: 'PDF',
       assetUrl: null,
     } as any);
 
@@ -252,7 +252,7 @@ describe('runPdfFill', () => {
       1,
       expect.objectContaining({
         where: { id: 'existing-run' },
-        data: expect.objectContaining({ status: 'filling' }),
+        data: expect.objectContaining({ status: 'FILLING' }),
       })
     );
   });

@@ -47,6 +47,39 @@ describe('log-sanitizer', () => {
       expect(redactValue(null)).toBe(null);
       expect(redactValue(undefined)).toBe(undefined);
     });
+
+    it('redacts submission-credential keys (username, mfaSeed, extraConfig)', () => {
+      const input = {
+        // portal-agent.ts:77 — `submissionInput.credentials = JSON.parse(decryptSafe(...))`
+        credentials: { username: 'caqh-user', password: 'secret', mfaSeed: 'JBSWY' },
+        username: 'top-level-user',
+        mfaSeed: 'top-mfa',
+        extraConfig: '{"q":"a"}',
+        usernameEncrypted: 'cipher:1:abc',
+        mfaSeedEncrypted: 'cipher:2:def',
+        extraConfigEncrypted: 'cipher:3:ghi',
+        // Non-secret peers preserved
+        payerId: 'payer-1',
+      };
+      const out = redactValue(input) as Record<string, unknown>;
+      expect(out.credentials).toBe('[REDACTED]');
+      expect(out.username).toBe('[REDACTED]');
+      expect(out.mfaSeed).toBe('[REDACTED]');
+      expect(out.extraConfig).toBe('[REDACTED]');
+      expect(out.usernameEncrypted).toBe('[REDACTED]');
+      expect(out.mfaSeedEncrypted).toBe('[REDACTED]');
+      expect(out.extraConfigEncrypted).toBe('[REDACTED]');
+      expect(out.payerId).toBe('payer-1');
+    });
+
+    it('credentials blob is redacted as a whole even if nested', () => {
+      // Defense-in-depth: even if the credentials object somehow had unexpected
+      // child keys that aren't in PHI_KEYS, the parent `credentials` key alone
+      // is enough to block the whole subtree.
+      const input = { submission: { credentials: { username: 'u', token: 't' } } };
+      const out = redactValue(input) as { submission: { credentials: unknown } };
+      expect(out.submission.credentials).toBe('[REDACTED]');
+    });
   });
 
   describe('phiSanitizer Winston format', () => {
