@@ -572,7 +572,7 @@ export default function AgentWorkflowPanel({
               </div>
               {detail.error && (
                 <div className="bg-red-50 rounded-lg p-3 border border-red-200 mb-3">
-                  <p className="text-sm text-red-700">{detail.error}</p>
+                  <p className="text-sm text-red-700">{formatTaskError(detail.error)}</p>
                 </div>
               )}
               <button
