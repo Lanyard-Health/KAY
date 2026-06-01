@@ -40,6 +40,13 @@ export function useFormPersistence<T>(
         sessionStorage.removeItem(storageKey);
         return initial;
       }
+      // Arrays must not be spread into objects — `{...[], ...[]}` produces `{}`,
+      // a plain object with no `.includes()` / `.filter()` / `.map()`. Without
+      // this branch, any caller using `useFormPersistence<string[]>(key, [])`
+      // crashes downstream after the first persisted reload. Preserve type.
+      if (Array.isArray(initial)) {
+        return (Array.isArray(parsed.value) ? parsed.value : initial) as T;
+      }
       if (typeof initial === 'object' && initial !== null && typeof parsed.value === 'object' && parsed.value !== null) {
         return { ...(initial as Record<string, unknown>), ...(parsed.value as Record<string, unknown>) } as T;
       }
