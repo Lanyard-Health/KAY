@@ -42,7 +42,9 @@ export function useApprovals(status?: string) {
     queryKey: ['approvals', status ?? 'all'],
     queryFn: async () => {
       const { data } = await api.get<Approval[]>(endpoint);
-      return data;
+      // Guard against backend returning null / non-array — downstream callers
+      // do `approvals?.filter(...)` which crashes on a truthy non-array value.
+      return Array.isArray(data) ? data : [];
     },
     refetchInterval: 60_000, // Fallback polling; WebSocket handles real-time updates
   });
