@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
 import { adminUser } from '../../tests/helpers/fixtures.js';
@@ -20,6 +20,7 @@ vi.mock('../agents/coordinator.service.js', () => ({
   getWorkflowEvents: vi.fn(),
   cancelWorkflow: vi.fn(),
   dispatchPortalSubmission: vi.fn(),
+  dispatchSubmissionRun: vi.fn(),
   dispatchDocumentParsing: vi.fn(),
 }));
 
@@ -40,6 +41,7 @@ import {
   getWorkflowEvents,
   cancelWorkflow,
   dispatchPortalSubmission,
+  dispatchSubmissionRun,
   dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 
@@ -264,6 +266,106 @@ describe('Agent Routes', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Validation failed');
+    });
+
+    describe('when USE_NEW_SUBMISSION_PIPELINE=true', () => {
+      const originalFlag = process.env['USE_NEW_SUBMISSION_PIPELINE'];
+
+      beforeEach(() => {
+        process.env['USE_NEW_SUBMISSION_PIPELINE'] = 'true';
+      });
+
+      afterEach(() => {
+        if (originalFlag === undefined) {
+          delete process.env['USE_NEW_SUBMISSION_PIPELINE'];
+        } else {
+          process.env['USE_NEW_SUBMISSION_PIPELINE'] = originalFlag;
+        }
+      });
+
+      it('calls dispatchSubmissionRun and returns the new envelope', async () => {
+        (dispatchSubmissionRun as any).mockResolvedValue({
+          enrollmentRunId: 'run-1',
+          jobId: 'job-1',
+          deduplicated: false,
+        });
+
+        const res = await request(app)
+          .post('/workflows/wf-1/submit-to-portal')
+          .send({
+            providerId: '00000000-0000-0000-0000-000000000001',
+            payerId: '00000000-0000-0000-0000-000000000002',
+            enrollmentId: '00000000-0000-0000-0000-000000000003',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toEqual({
+          enrollmentRunId: 'run-1',
+          jobId: 'job-1',
+          deduplicated: false,
+          pipeline: 'v2',
+        });
+        expect(dispatchSubmissionRun).toHaveBeenCalledWith({
+          workflowId: 'wf-1',
+          providerId: '00000000-0000-0000-0000-000000000001',
+          payerId: '00000000-0000-0000-0000-000000000002',
+          enrollmentId: '00000000-0000-0000-0000-000000000003',
+        });
+        expect(dispatchPortalSubmission).not.toHaveBeenCalled();
+      });
+
+      it('returns 400 if enrollmentId is missing', async () => {
+        const res = await request(app)
+          .post('/workflows/wf-1/submit-to-portal')
+          .send({
+            providerId: '00000000-0000-0000-0000-000000000001',
+            payerId: '00000000-0000-0000-0000-000000000002',
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/enrollmentId is required/i);
+        expect(dispatchSubmissionRun).not.toHaveBeenCalled();
+        expect(dispatchPortalSubmission).not.toHaveBeenCalled();
+      });
+
+      it('falls back to legacy dispatch for action=check_readiness', async () => {
+        const mockTask = { id: 'task-3', status: 'queued', type: 'check_readiness' };
+        (dispatchPortalSubmission as any).mockResolvedValue(mockTask);
+
+        const res = await request(app)
+          .post('/workflows/wf-1/submit-to-portal')
+          .send({
+            providerId: '00000000-0000-0000-0000-000000000001',
+            payerId: '00000000-0000-0000-0000-000000000002',
+            action: 'check_readiness',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toEqual(mockTask);
+        expect(dispatchPortalSubmission).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'check_readiness' })
+        );
+        expect(dispatchSubmissionRun).not.toHaveBeenCalled();
+      });
+
+      it('surfaces deduplicated:true when dispatcher returns a dedup hit', async () => {
+        (dispatchSubmissionRun as any).mockResolvedValue({
+          enrollmentRunId: 'run-2',
+          jobId: 'job-2',
+          deduplicated: true,
+        });
+
+        const res = await request(app)
+          .post('/workflows/wf-1/submit-to-portal')
+          .send({
+            providerId: '00000000-0000-0000-0000-000000000001',
+            payerId: '00000000-0000-0000-0000-000000000002',
+            enrollmentId: '00000000-0000-0000-0000-000000000003',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body.deduplicated).toBe(true);
+      });
     });
   });
 
