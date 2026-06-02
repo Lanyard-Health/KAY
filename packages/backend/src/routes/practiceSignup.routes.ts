@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import * as Sentry from '@sentry/node';
 import { practiceSignupSchema } from '@credential-management/shared';
 import { registerPractice } from '../services/practiceSignup.service.js';
 import { NPIService } from '../services/npi.service.js';
@@ -66,7 +67,15 @@ router.get('/payers', payerListLimiter, async (_req: Request, res: Response) => 
     });
     res.json({ data: payers });
   } catch (err) {
-    logger.error('Failed to fetch public payer list:', err);
+    // Explicit Sentry capture — this route swallows errors in its own try/catch
+    // so they never reach Sentry.setupExpressErrorHandler. Without this, prod
+    // failures show only as a generic 500 envelope with no trace.
+    Sentry.captureException(err, { tags: { route: 'GET /api/v1/practices/payers' } });
+    logger.error('Failed to fetch public payer list', {
+      message: (err as Error)?.message,
+      stack: (err as Error)?.stack,
+      name: (err as Error)?.name,
+    });
     res.status(500).json({ success: false, error: { message: 'Failed to load payers.' } });
   }
 });
