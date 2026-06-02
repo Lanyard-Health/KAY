@@ -108,36 +108,9 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-    # Render parses these and emits response headers. The repo also has a
-    # public/_headers file (Netlify-style); Render does NOT process that file,
-    # so this block is the source of truth.
-    headers:
-      # Security headers — applied to every response
-      - path: /*
-        headers:
-          - key: Content-Security-Policy
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://kay-os62.onrender.com; font-src 'self'"
-          - key: X-Frame-Options
-            value: DENY
-          - key: X-Content-Type-Options
-            value: nosniff
-          - key: Referrer-Policy
-            value: strict-origin-when-cross-origin
-          - key: Permissions-Policy
-            value: "camera=(), microphone=(), geolocation=()"
-          - key: Strict-Transport-Security
-            value: max-age=31536000; includeSubDomains
-      # Cache headers — index.html must never cache (it points at hashed
-      # chunk filenames that change every deploy); hashed assets cache forever.
-      - path: /
-        headers:
-          - key: Cache-Control
-            value: no-cache, no-store, must-revalidate
-      - path: /index.html
-        headers:
-          - key: Cache-Control
-            value: no-cache, no-store, must-revalidate
-      - path: /assets/*
-        headers:
-          - key: Cache-Control
-            value: public, max-age=31536000, immutable
+    # Note: response headers for this service (security headers + Cache-Control)
+    # are configured in the Render dashboard under Settings → Headers, not here.
+    # `kay-frontend` was created manually before Blueprint integration, so it is
+    # not Blueprint-managed and any `headers:` block in this file is ignored.
+    # If you adopt this service into a Blueprint later, migrate the dashboard
+    # rules into a `headers:` block here.
