@@ -12,6 +12,7 @@ import {
   getWorkflowEvents,
   cancelWorkflow,
   dispatchPortalSubmission,
+  dispatchSubmissionRun,
   dispatchDocumentParsing,
 } from '../agents/coordinator.service.js';
 import type { ListWorkflowsFilters } from '../agents/coordinator.service.js';
@@ -20,6 +21,7 @@ import {
   getApproval,
   decideApproval,
 } from '../agents/approval.service.js';
+import { isNewSubmissionPipelineEnabled } from '../utils/feature-flags.js';
 
 // ==========================================
 // Zod Schemas
@@ -270,6 +272,9 @@ agentRoutes.patch(
 );
 
 // POST /workflows/:id/submit-to-portal — dispatch portal submission
+// Phase 2 cutover: USE_NEW_SUBMISSION_PIPELINE routes submit_to_portal calls
+// to the new pipeline (dispatchSubmissionRun). check_readiness always uses
+// legacy — the new pipeline is submission-only and doesn't model readiness.
 agentRoutes.post(
   '/workflows/:id/submit-to-portal',
   ...auth,
@@ -285,6 +290,29 @@ agentRoutes.post(
         res.status(503).json({
           error: 'Agent system is not available — background job processing is not configured.',
         });
+        return;
+      }
+
+      const useNewPipeline =
+        isNewSubmissionPipelineEnabled() && parsed.data.action !== 'check_readiness';
+
+      if (useNewPipeline) {
+        if (!parsed.data.enrollmentId) {
+          res.status(400).json({
+            error:
+              'enrollmentId is required when USE_NEW_SUBMISSION_PIPELINE is enabled. The new pipeline creates an EnrollmentRun row keyed to an existing Enrollment.',
+          });
+          return;
+        }
+
+        const result = await dispatchSubmissionRun({
+          workflowId: req.params['id']!,
+          providerId: parsed.data.providerId,
+          payerId: parsed.data.payerId,
+          enrollmentId: parsed.data.enrollmentId,
+        });
+
+        res.status(201).json({ ...result, pipeline: 'v2' });
         return;
       }
 
