@@ -2,50 +2,58 @@
  * One-shot seed script for verifying Phase 3 of the submission engine on
  * STAGING ONLY. Creates a self-contained test tuple:
  *
- *   TEST-PHASE3 Practice
- *     → TEST-PHASE3 Provider (NPI 9999999991, CAQH-ready fields)
- *     → TEST-PHASE3 Payer (CAQH-routed, INDIVIDUAL credential)
- *         → PayerSubmissionConfig (adapterType: CAQH, submissionMethod: API)
- *     → TEST-PHASE3 Enrollment (provider + payer)
- *     → TEST-PHASE3 AgentWorkflow (goal: submit_to_portal)
+ *   TEST-PHASE3 Practice (UUID 00000003-…-0001)
+ *     → TEST-PHASE3 User     (UUID 00000003-…-0002)
+ *     → TEST-PHASE3 Provider (UUID 00000003-…-0003, NPI 9999999991)
+ *     → TEST-PHASE3 Payer    (UUID 00000003-…-0004, CAQH, INDIVIDUAL)
+ *         → PayerSubmissionConfig (UUID 00000003-…-0005, CAQH/API)
+ *     → TEST-PHASE3 Enrollment (UUID 00000003-…-0006)
+ *     → TEST-PHASE3 AgentWorkflow (UUID 00000003-…-0007, goal: submit_to_portal)
+ *
+ * IDs are deterministic v4-shaped UUIDs (variant 8, version 4) so the
+ * upserts are idempotent AND the IDs validate against the route's
+ * `z.string().uuid()` body validator. The `00000003-` prefix is the
+ * cleanup namespace — `DELETE … WHERE id LIKE '00000003-%'` removes
+ * everything seeded by this script and nothing else.
  *
  * Run from Render shell on kay-backend-staging:
  *   cd /opt/render/project/src && npx tsx scripts/staging-phase3-test-seed.ts
  *
- * The script is idempotent — if any TEST-PHASE3-* row already exists, it
- * reuses it and only creates the missing pieces. Prints the workflow ID
- * (and the rest) at the end, which is what you'll curl against.
- *
  * Cleanup later:
  *   psql $DATABASE_URL_ADMIN -c \
- *     "DELETE FROM enrollment_runs WHERE enrollment_id IN (SELECT id FROM enrollments WHERE id LIKE 'test-phase3-%'); \
- *      DELETE FROM agent_workflows WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM enrollments WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM payer_adapter_configs WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM payers WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM provider_profiles WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM users WHERE id LIKE 'test-phase3-%'; \
- *      DELETE FROM practices WHERE id LIKE 'test-phase3-%';"
- *
- * (Use DATABASE_URL_ADMIN because the lanyard_app role has the trigger-
- * protected restrictions on audit_logs — but for cleanup of TEST data,
- * neither audit_logs nor anything trigger-protected is in scope.)
+ *     "DELETE FROM enrollment_runs WHERE enrollment_id LIKE '00000003-%'; \
+ *      DELETE FROM agent_workflows WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM payer_enrollments WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM payer_adapter_configs WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM payers WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM provider_profiles WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM users WHERE id LIKE '00000003-%'; \
+ *      DELETE FROM practices WHERE id LIKE '00000003-%';"
  */
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const TEST_PREFIX = 'test-phase3';
+// Deterministic v4-shaped UUIDs. Third group starts with '4' (version 4),
+// fourth group starts with '8' (variant). The "00000003-" prefix marks
+// "phase 3 test fixture" and is the cleanup namespace.
+const PRACTICE_ID   = '00000003-0000-4000-8000-000000000001';
+const USER_ID       = '00000003-0000-4000-8000-000000000002';
+const PROVIDER_ID   = '00000003-0000-4000-8000-000000000003';
+const PAYER_ID      = '00000003-0000-4000-8000-000000000004';
+const SUB_CONFIG_ID = '00000003-0000-4000-8000-000000000005';
+const ENROLLMENT_ID = '00000003-0000-4000-8000-000000000006';
+const WORKFLOW_ID   = '00000003-0000-4000-8000-000000000007';
 
 async function main() {
   console.log('=== Phase 3 staging test seed — starting ===\n');
 
   // 1. Practice
   const practice = await prisma.practice.upsert({
-    where: { id: `${TEST_PREFIX}-practice` },
+    where: { id: PRACTICE_ID },
     create: {
-      id: `${TEST_PREFIX}-practice`,
+      id: PRACTICE_ID,
       name: 'TEST-PHASE3 Practice',
       organizationType: 'private_practice',
       email: 'test-phase3@dev.local',
@@ -60,10 +68,10 @@ async function main() {
 
   // 2. User (AgentWorkflow.requestedBy is an FK to users.id, so we need a real row)
   const user = await prisma.user.upsert({
-    where: { id: `${TEST_PREFIX}-user` },
+    where: { id: USER_ID },
     create: {
-      id: `${TEST_PREFIX}-user`,
-      cognitoId: `${TEST_PREFIX}-cognito`,
+      id: USER_ID,
+      cognitoId: 'test-phase3-cognito',
       email: 'test-phase3-user@dev.local',
       firstName: 'TestPhase3',
       lastName: 'User',
@@ -75,9 +83,9 @@ async function main() {
 
   // 3. Provider linked to the practice
   const provider = await prisma.providerProfile.upsert({
-    where: { id: `${TEST_PREFIX}-provider` },
+    where: { id: PROVIDER_ID },
     create: {
-      id: `${TEST_PREFIX}-provider`,
+      id: PROVIDER_ID,
       practiceId: practice.id,
       npi: '9999999991',
       firstName: 'TestPhase3',
@@ -95,9 +103,9 @@ async function main() {
 
   // 4. CAQH-routed payer
   const payer = await prisma.payer.upsert({
-    where: { id: `${TEST_PREFIX}-payer` },
+    where: { id: PAYER_ID },
     create: {
-      id: `${TEST_PREFIX}-payer`,
+      id: PAYER_ID,
       name: 'TEST-PHASE3 CAQH Payer',
       payerId: 'TEST-PHASE3-CAQH',
       payerType: 'Medical',
@@ -109,9 +117,9 @@ async function main() {
 
   // 5. PayerSubmissionConfig — the row that actually routes to the CAQH adapter
   const subConfig = await prisma.payerSubmissionConfig.upsert({
-    where: { id: `${TEST_PREFIX}-config` },
+    where: { id: SUB_CONFIG_ID },
     create: {
-      id: `${TEST_PREFIX}-config`,
+      id: SUB_CONFIG_ID,
       payerId: payer.id,
       adapterType: 'CAQH',
       submissionMethod: 'API',
@@ -125,9 +133,9 @@ async function main() {
 
   // 6. Enrollment linking provider + payer
   const enrollment = await prisma.enrollment.upsert({
-    where: { id: `${TEST_PREFIX}-enrollment` },
+    where: { id: ENROLLMENT_ID },
     create: {
-      id: `${TEST_PREFIX}-enrollment`,
+      id: ENROLLMENT_ID,
       providerId: provider.id,
       payerId: payer.id,
       status: 'not_started',
@@ -138,9 +146,9 @@ async function main() {
 
   // 7. AgentWorkflow — the route requires a workflowId in the URL
   const workflow = await prisma.agentWorkflow.upsert({
-    where: { id: `${TEST_PREFIX}-workflow` },
+    where: { id: WORKFLOW_ID },
     create: {
-      id: `${TEST_PREFIX}-workflow`,
+      id: WORKFLOW_ID,
       providerId: provider.id,
       payerId: payer.id,
       practiceId: practice.id,
