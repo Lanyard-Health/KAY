@@ -3,7 +3,7 @@
  * STAGING ONLY. Creates a self-contained test tuple:
  *
  *   TEST-PHASE3 Practice
- *     → TEST-PHASE3 Provider (NPI 1234567890, CAQH-ready fields)
+ *     → TEST-PHASE3 Provider (NPI 9999999991, CAQH-ready fields)
  *     → TEST-PHASE3 Payer (CAQH-routed, INDIVIDUAL credential)
  *         → PayerSubmissionConfig (adapterType: CAQH, submissionMethod: API)
  *     → TEST-PHASE3 Enrollment (provider + payer)
@@ -79,7 +79,7 @@ async function main() {
     create: {
       id: `${TEST_PREFIX}-provider`,
       practiceId: practice.id,
-      npi: '1234567890',
+      npi: '9999999991',
       firstName: 'TestPhase3',
       lastName: 'Provider',
       email: 'test-phase3-provider@dev.local',
