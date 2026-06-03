@@ -195,6 +195,15 @@ describe('processSubmissionJob', () => {
     expect(actions).toContain('SUBMISSION_STARTED');
     expect(actions).toContain('SUBMISSION_ATTEMPT_FAILED');
     expect(actions).not.toContain('SUBMISSION_DEAD_LETTERED');
+
+    // status must be reset to QUEUED so the next BullMQ retry passes the
+    // idempotency pre-flight check (run.status was 'SUBMITTING' when the
+    // attempt began; if we don't reset it, retries log
+    // SUBMISSION_SKIPPED_IDEMPOTENT and bail).
+    const queuedWrite = prismaMock.enrollmentRun.update.mock.calls.find(
+      (c) => (c[0].data as { status?: string }).status === 'QUEUED'
+    );
+    expect(queuedWrite).toBeDefined();
   });
 
   it('terminal failure (last attempt): writes DEAD_LETTERED + sets status=FAILED, does NOT throw', async () => {
