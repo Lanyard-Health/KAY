@@ -284,6 +284,15 @@ async function failRun(args: {
     return { status: 'failed', enrollmentRunId };
   }
 
-  // Non-terminal: throw to trigger BullMQ retry
+  // Non-terminal: reset status to QUEUED so the next BullMQ retry passes the
+  // idempotency pre-flight check at line 81. Without this, the row stays in
+  // SUBMITTING (set when the attempt started) and every retry attempt logs
+  // SUBMISSION_SKIPPED_IDEMPOTENT instead of running.
+  await prisma.enrollmentRun.update({
+    where: { id: enrollmentRunId },
+    data: { status: 'QUEUED' },
+  });
+
+  // Throw to trigger BullMQ retry
   throw new Error(errorMessage);
 }
