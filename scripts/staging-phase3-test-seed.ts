@@ -49,6 +49,8 @@ async function main() {
       name: 'TEST-PHASE3 Practice',
       organizationType: 'private_practice',
       email: 'test-phase3@dev.local',
+      contactEmail: 'test-phase3@dev.local',
+      taxIdEncrypted: null,
       addressLine1: '123 Test St',
       city: 'Testville',
       state: 'CA',
@@ -74,6 +76,7 @@ async function main() {
   console.log(`User: ${user.id}`);
 
   // 3. Provider linked to the practice
+  // 2. Provider linked to the practice
   const provider = await prisma.providerProfile.upsert({
     where: { id: `${TEST_PREFIX}-provider` },
     create: {
@@ -87,6 +90,7 @@ async function main() {
       providerType: 'psychiatrist',
       dateOfBirth: new Date('1980-01-01'),
       gender: 'prefer_not_to_say',
+      gender: 'unknown',
       status: 'active',
     },
     update: { practiceId: practice.id },
@@ -131,6 +135,7 @@ async function main() {
       providerId: provider.id,
       payerId: payer.id,
       status: 'not_started',
+      status: 'pending',
     },
     update: {},
   });
@@ -153,6 +158,8 @@ async function main() {
       },
       status: 'active',
       requestedBy: user.id,
+      status: 'active',
+      requestedBy: 'TEST-PHASE3',
     },
     update: {},
   });
