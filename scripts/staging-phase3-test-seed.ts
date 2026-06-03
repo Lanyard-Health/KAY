@@ -24,6 +24,7 @@
  *      DELETE FROM payer_adapter_configs WHERE id LIKE 'test-phase3-%'; \
  *      DELETE FROM payers WHERE id LIKE 'test-phase3-%'; \
  *      DELETE FROM provider_profiles WHERE id LIKE 'test-phase3-%'; \
+ *      DELETE FROM users WHERE id LIKE 'test-phase3-%'; \
  *      DELETE FROM practices WHERE id LIKE 'test-phase3-%';"
  *
  * (Use DATABASE_URL_ADMIN because the lanyard_app role has the trigger-
@@ -47,8 +48,7 @@ async function main() {
       id: `${TEST_PREFIX}-practice`,
       name: 'TEST-PHASE3 Practice',
       organizationType: 'private_practice',
-      contactEmail: 'test-phase3@dev.local',
-      taxIdEncrypted: null,
+      email: 'test-phase3@dev.local',
       addressLine1: '123 Test St',
       city: 'Testville',
       state: 'CA',
@@ -58,7 +58,22 @@ async function main() {
   });
   console.log(`Practice: ${practice.id}`);
 
-  // 2. Provider linked to the practice
+  // 2. User (AgentWorkflow.requestedBy is an FK to users.id, so we need a real row)
+  const user = await prisma.user.upsert({
+    where: { id: `${TEST_PREFIX}-user` },
+    create: {
+      id: `${TEST_PREFIX}-user`,
+      cognitoId: `${TEST_PREFIX}-cognito`,
+      email: 'test-phase3-user@dev.local',
+      firstName: 'TestPhase3',
+      lastName: 'User',
+      role: 'admin',
+    },
+    update: {},
+  });
+  console.log(`User: ${user.id}`);
+
+  // 3. Provider linked to the practice
   const provider = await prisma.providerProfile.upsert({
     where: { id: `${TEST_PREFIX}-provider` },
     create: {
@@ -71,7 +86,7 @@ async function main() {
       phone: '555-000-0001',
       providerType: 'psychiatrist',
       dateOfBirth: new Date('1980-01-01'),
-      gender: 'unknown',
+      gender: 'prefer_not_to_say',
       status: 'active',
     },
     update: { practiceId: practice.id },
@@ -115,7 +130,7 @@ async function main() {
       id: `${TEST_PREFIX}-enrollment`,
       providerId: provider.id,
       payerId: payer.id,
-      status: 'pending',
+      status: 'not_started',
     },
     update: {},
   });
@@ -131,8 +146,13 @@ async function main() {
       practiceId: practice.id,
       enrollmentId: enrollment.id,
       goal: 'submit_to_portal',
+      goalParams: {
+        providerId: provider.id,
+        payerId: payer.id,
+        enrollmentId: enrollment.id,
+      },
       status: 'active',
-      requestedBy: 'TEST-PHASE3',
+      requestedBy: user.id,
     },
     update: {},
   });
