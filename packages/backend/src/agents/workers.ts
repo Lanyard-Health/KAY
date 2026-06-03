@@ -25,7 +25,7 @@ import type { ApprovalJobData } from './approval/types.js';
 import { withAgentTelemetry } from './action-telemetry.js';
 import { processSubmissionJob } from '../queues/submission.worker.js';
 import type { SubmissionJobData } from '../queues/submission.queue.js';
-import { registerPhase1Adapters } from './portal/adapter-factory.js';
+import { registerSubmissionAdapters } from './portal/adapter-factory.js';
 
 // ==========================================
 // Worker configuration
@@ -153,7 +153,7 @@ export function initializeWorkers(): void {
   }
 
   registerPortalAdapters();
-  registerPhase1Adapters();
+  registerSubmissionAdapters();
   startMonitorCron();
   const connection = getRedisConfig();
 

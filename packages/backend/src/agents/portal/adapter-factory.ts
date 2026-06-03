@@ -9,7 +9,8 @@ import {
  * from a Payer's adapterType. No code outside this file may instantiate an
  * adapter directly. Callers must go through `getSubmissionAdapter(type)`.
  *
- * Phase 1: only CAQH and MANUAL stubs are registered. Real adapters
+ * Phase 3: real CAQH (REST/XML via CaqhService) + MANUAL (creates
+ * PendingApproval) are registered. Real Playwright-based adapters
  * (PLAYWRIGHT_GENERIC, AETNA_BH, AVAILITY) land in later phases. FAX is
  * registered in Phase 4 (vendor DPA must clear first).
  *
@@ -41,19 +42,17 @@ export function clearSubmissionAdapters(): void {
   registry.clear();
 }
 
-// ─── Phase 1 stubs ──────────────────────────────────────────────────────
+// ─── Default registration ───────────────────────────────────────────────
 
-import {
-  CaqhSubmissionAdapterStub,
-  ManualSubmissionAdapterStub,
-} from './phase1-stubs.js';
+import { CaqhSubmissionAdapter } from './caqh-submission-adapter.js';
+import { ManualSubmissionAdapter } from './manual-submission-adapter.js';
 
 /**
- * Registers the Phase 1 adapter set. Idempotent — safe to call multiple
- * times. Called once at server startup from src/index.ts (alongside the
- * legacy registerPortalAdapters from index.ts).
+ * Registers the production adapter set. Idempotent — safe to call multiple
+ * times. Called once at server startup from workers.ts (alongside the legacy
+ * registerPortalAdapters from index.ts, which still owns the legacy pipeline).
  */
-export function registerPhase1Adapters(): void {
-  registerSubmissionAdapter('CAQH', new CaqhSubmissionAdapterStub());
-  registerSubmissionAdapter('MANUAL', new ManualSubmissionAdapterStub());
+export function registerSubmissionAdapters(): void {
+  registerSubmissionAdapter('CAQH', new CaqhSubmissionAdapter());
+  registerSubmissionAdapter('MANUAL', new ManualSubmissionAdapter());
 }
