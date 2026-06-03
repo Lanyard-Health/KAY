@@ -49,8 +49,6 @@ async function main() {
       name: 'TEST-PHASE3 Practice',
       organizationType: 'private_practice',
       email: 'test-phase3@dev.local',
-      contactEmail: 'test-phase3@dev.local',
-      taxIdEncrypted: null,
       addressLine1: '123 Test St',
       city: 'Testville',
       state: 'CA',
@@ -76,7 +74,6 @@ async function main() {
   console.log(`User: ${user.id}`);
 
   // 3. Provider linked to the practice
-  // 2. Provider linked to the practice
   const provider = await prisma.providerProfile.upsert({
     where: { id: `${TEST_PREFIX}-provider` },
     create: {
@@ -90,14 +87,13 @@ async function main() {
       providerType: 'psychiatrist',
       dateOfBirth: new Date('1980-01-01'),
       gender: 'prefer_not_to_say',
-      gender: 'unknown',
       status: 'active',
     },
     update: { practiceId: practice.id },
   });
   console.log(`Provider: ${provider.id}`);
 
-  // 3. CAQH-routed payer
+  // 4. CAQH-routed payer
   const payer = await prisma.payer.upsert({
     where: { id: `${TEST_PREFIX}-payer` },
     create: {
@@ -111,7 +107,7 @@ async function main() {
   });
   console.log(`Payer: ${payer.id}`);
 
-  // 4. PayerSubmissionConfig — the row that actually routes to the CAQH adapter
+  // 5. PayerSubmissionConfig — the row that actually routes to the CAQH adapter
   const subConfig = await prisma.payerSubmissionConfig.upsert({
     where: { id: `${TEST_PREFIX}-config` },
     create: {
@@ -127,7 +123,7 @@ async function main() {
   });
   console.log(`SubmissionConfig: ${subConfig.id} (adapterType=CAQH)`);
 
-  // 5. Enrollment linking provider + payer
+  // 6. Enrollment linking provider + payer
   const enrollment = await prisma.enrollment.upsert({
     where: { id: `${TEST_PREFIX}-enrollment` },
     create: {
@@ -135,13 +131,12 @@ async function main() {
       providerId: provider.id,
       payerId: payer.id,
       status: 'not_started',
-      status: 'pending',
     },
     update: {},
   });
   console.log(`Enrollment: ${enrollment.id}`);
 
-  // 6. AgentWorkflow — the route requires a workflowId in the URL
+  // 7. AgentWorkflow — the route requires a workflowId in the URL
   const workflow = await prisma.agentWorkflow.upsert({
     where: { id: `${TEST_PREFIX}-workflow` },
     create: {
@@ -158,8 +153,6 @@ async function main() {
       },
       status: 'active',
       requestedBy: user.id,
-      status: 'active',
-      requestedBy: 'TEST-PHASE3',
     },
     update: {},
   });
