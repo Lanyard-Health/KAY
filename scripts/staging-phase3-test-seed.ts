@@ -71,8 +71,8 @@ async function main() {
     where: { id: USER_ID },
     create: {
       id: USER_ID,
-      cognitoId: 'test-phase3-cognito',
-      email: 'test-phase3-user@dev.local',
+      cognitoId: 'test-phase3-cognito-uuid',
+      email: 'test-phase3-user-uuid@dev.local',
       firstName: 'TestPhase3',
       lastName: 'User',
       role: 'admin',
@@ -87,10 +87,10 @@ async function main() {
     create: {
       id: PROVIDER_ID,
       practiceId: practice.id,
-      npi: '9999999991',
+      npi: '9999999992',
       firstName: 'TestPhase3',
       lastName: 'Provider',
-      email: 'test-phase3-provider@dev.local',
+      email: 'test-phase3-provider-uuid@dev.local',
       phone: '555-000-0001',
       providerType: 'psychiatrist',
       dateOfBirth: new Date('1980-01-01'),
@@ -107,7 +107,7 @@ async function main() {
     create: {
       id: PAYER_ID,
       name: 'TEST-PHASE3 CAQH Payer',
-      payerId: 'TEST-PHASE3-CAQH',
+      payerId: 'TEST-PHASE3-CAQH-UUID',
       payerType: 'Medical',
       credentialType: 'INDIVIDUAL',
     },
