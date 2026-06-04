@@ -378,7 +378,7 @@ export class ExpirationService {
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
 
           <p style="color: #6b7280; font-size: 12px;">
-            This is an automated message from the Credentials Management System.
+            This is an automated message from Lanyard Health.
             Please do not reply to this email.
           </p>
         </body>
