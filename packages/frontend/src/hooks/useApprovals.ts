@@ -26,7 +26,10 @@ export interface Approval {
   decidedBy: string | null;
   decidedAt: string | null;
   decisionNotes: string | null;
-  workflow: ApprovalWorkflow;
+  // Null for follow-up outreach approvals (which carry `followUpRun`
+  // on the backend, not a workflow). Workflow-step approvals always
+  // populate this. Consumers MUST guard before reading nested fields.
+  workflow: ApprovalWorkflow | null;
 }
 
 // ===========================

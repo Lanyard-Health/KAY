@@ -121,15 +121,15 @@ export default function ApprovalToasts() {
                 <p className="mt-0.5 text-sm text-gray-600 truncate">
                   {description}
                 </p>
-                {(approval.workflow.provider || approval.workflow.payer) && (
+                {(approval.workflow?.provider || approval.workflow?.payer) && (
                   <p className="mt-0.5 text-xs text-gray-400 truncate">
-                    {approval.workflow.provider
+                    {approval.workflow?.provider
                       ? `${approval.workflow.provider.firstName} ${approval.workflow.provider.lastName}`
                       : ''}
-                    {approval.workflow.provider && approval.workflow.payer
+                    {approval.workflow?.provider && approval.workflow?.payer
                       ? ' - '
                       : ''}
-                    {approval.workflow.payer?.name ?? ''}
+                    {approval.workflow?.payer?.name ?? ''}
                   </p>
                 )}
                 <div className="mt-2 flex items-center gap-3">
