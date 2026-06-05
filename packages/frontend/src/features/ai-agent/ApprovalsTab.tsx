@@ -249,11 +249,11 @@ export default function ApprovalsTab() {
                       {approval.type.replace(/_/g, ' ')}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {approval.workflow.provider
+                      {approval.workflow?.provider
                         ? `${approval.workflow.provider.firstName} ${approval.workflow.provider.lastName}`
                         : ''}
-                      {approval.workflow.provider && approval.workflow.payer ? ' / ' : ''}
-                      {approval.workflow.payer?.name ?? ''}
+                      {approval.workflow?.provider && approval.workflow?.payer ? ' / ' : ''}
+                      {approval.workflow?.payer?.name ?? ''}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {formatDate(approval.requestedAt)}
@@ -333,7 +333,7 @@ export default function ApprovalsTab() {
                             <div className="mt-1">{statusBadge(detail.status)}</div>
                           </div>
 
-                          {detail.workflow.provider && (
+                          {detail.workflow?.provider && (
                             <div>
                               <span className="text-xs font-medium uppercase text-gray-400">
                                 Provider
@@ -348,7 +348,7 @@ export default function ApprovalsTab() {
                             </div>
                           )}
 
-                          {detail.workflow.payer && (
+                          {detail.workflow?.payer && (
                             <div>
                               <span className="text-xs font-medium uppercase text-gray-400">
                                 Payer
