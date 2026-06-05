@@ -1,0 +1,176 @@
+name: Linear Auto-Close
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to replay (e.g. 308)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  close-linear-issues:
+    name: Close referenced Linear issues
+    runs-on: ubuntu-latest
+    # On pull_request: only run when actually merged (not just closed).
+    # On workflow_dispatch: always run.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    steps:
+      - name: Close referenced Linear issues
+        uses: actions/github-script@v7
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          MANUAL_PR: ${{ inputs.pr }}
+        with:
+          script: |
+            if (!process.env.LINEAR_API_KEY) {
+              core.setFailed('LINEAR_API_KEY secret not set');
+              return;
+            }
+
+            // ---------- Resolve which PR to act on ----------
+            let prNumber, prTitle, prBody, mergeSha;
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = Number(process.env.MANUAL_PR);
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber,
+              });
+              if (!pr.merged) {
+                core.setFailed(`PR #${prNumber} is not merged — refusing to close issues.`);
+                return;
+              }
+              prTitle = pr.title || '';
+              prBody = pr.body || '';
+              mergeSha = pr.merge_commit_sha || '';
+            } else {
+              prNumber = context.payload.pull_request.number;
+              prTitle = context.payload.pull_request.title || '';
+              prBody = context.payload.pull_request.body || '';
+              mergeSha = context.payload.pull_request.merge_commit_sha || '';
+            }
+
+            // ---------- Collect text to scan (title + body + commit messages) ----------
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber, per_page: 100,
+            });
+            const commitMessages = commits.map(c => c.commit.message).join('\n');
+            const searchText = [prTitle, prBody, commitMessages].join('\n');
+
+            // ---------- Extract issue identifiers ----------
+            // Match magic words followed by one or more TEAM-N identifiers, separated by commas/whitespace.
+            // Examples that match:
+            //   "closes OPS-20"
+            //   "Closes OPS-20, OPS-46, OPS-45"
+            //   "Fixes #OPS-7"  (# tolerated)
+            //   "resolves: BUG-99"
+            const magicWord = /(?:^|[^a-zA-Z])(?:close[sd]?|fixe[sd]?|fix|resolve[sd]?)(?:\s*:)?\s+((?:#?[A-Z][A-Z0-9]+-\d+(?:\s*[,&]\s*|\s+and\s+|\s+)?)+)/gi;
+            const idPattern = /#?([A-Z][A-Z0-9]+-\d+)/g;
+            const identifiers = new Set();
+            let m;
+            while ((m = magicWord.exec(searchText)) !== null) {
+              const chunk = m[1];
+              let im;
+              while ((im = idPattern.exec(chunk)) !== null) {
+                identifiers.add(im[1].toUpperCase());
+              }
+            }
+
+            if (identifiers.size === 0) {
+              core.info(`No Linear issue references found in PR #${prNumber}.`);
+              return;
+            }
+            core.info(`Found references: ${[...identifiers].join(', ')}`);
+
+            // ---------- Linear API helpers ----------
+            const LINEAR_API = 'https://api.linear.app/graphql';
+            async function linear(query, variables = {}) {
+              const res = await fetch(LINEAR_API, {
+                method: 'POST',
+                headers: {
+                  'Authorization': process.env.LINEAR_API_KEY,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query, variables }),
+              });
+              const json = await res.json();
+              if (json.errors) {
+                throw new Error(`Linear API error: ${JSON.stringify(json.errors)}`);
+              }
+              return json.data;
+            }
+
+            // ---------- Look up each issue, comment, move to Done ----------
+            const shortSha = mergeSha ? mergeSha.substring(0, 7) : '';
+            const prUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`;
+            const summary = [];
+
+            for (const id of identifiers) {
+              try {
+                const data = await linear(`
+                  query($id: String!) {
+                    issue(id: $id) {
+                      id
+                      identifier
+                      state { name type }
+                      team {
+                        states(filter: { type: { eq: "completed" } }) {
+                          nodes { id name }
+                        }
+                      }
+                    }
+                  }
+                `, { id });
+
+                const issue = data.issue;
+                if (!issue) {
+                  core.warning(`${id}: not found in Linear (skipping).`);
+                  summary.push(`- ${id}: not found`);
+                  continue;
+                }
+
+                const currentType = issue.state?.type;
+                if (currentType === 'completed' || currentType === 'canceled') {
+                  core.info(`${id}: already ${issue.state.name} — skipping.`);
+                  summary.push(`- ${id}: already ${issue.state.name}`);
+                  continue;
+                }
+
+                const doneState = issue.team?.states?.nodes?.[0];
+                if (!doneState) {
+                  core.warning(`${id}: no completed-type state on its team (skipping).`);
+                  summary.push(`- ${id}: no Done state on team`);
+                  continue;
+                }
+
+                const body = `Auto-closed by [PR #${prNumber}](${prUrl})${shortSha ? ` (commit \`${shortSha}\`)` : ''}.`;
+                await linear(`
+                  mutation($issueId: String!, $body: String!) {
+                    commentCreate(input: { issueId: $issueId, body: $body }) { success }
+                  }
+                `, { issueId: issue.id, body });
+
+                await linear(`
+                  mutation($id: String!, $stateId: String!) {
+                    issueUpdate(id: $id, input: { stateId: $stateId }) { success }
+                  }
+                `, { id: issue.id, stateId: doneState.id });
+
+                core.info(`${id}: moved to ${doneState.name}.`);
+                summary.push(`- ${id}: → ${doneState.name}`);
+              } catch (err) {
+                core.error(`${id}: ${err.message}`);
+                summary.push(`- ${id}: ERROR (${err.message})`);
+              }
+            }
+
+            await core.summary
+              .addHeading(`Linear auto-close for PR #${prNumber}`)
+              .addRaw(summary.join('\n'))
+              .write();
