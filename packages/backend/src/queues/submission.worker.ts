@@ -51,7 +51,7 @@ export async function processSubmissionJob(
       enrollment: {
         select: {
           providerId: true,
-          provider: { select: { practiceId: true } },
+          provider: { select: { practiceId: true, deletedAt: true } },
         },
       },
     },
@@ -62,6 +62,18 @@ export async function processSubmissionJob(
     // done. Re-queueing would just keep failing.
     logger.warn('submission.worker: EnrollmentRun not found, accepting job as no-op', {
       enrollmentRunId,
+    });
+    return { status: 'skipped', enrollmentRunId };
+  }
+
+  // In-flight guard: provider was soft-deleted after this job was enqueued.
+  // Accept the job as a no-op so the queue doesn't keep retrying. We don't
+  // mutate the run state — that's a separate admin decision (likely cancel).
+  if (run.enrollment.provider?.deletedAt) {
+    logger.info('submission.worker: provider archived mid-flight, skipping', {
+      enrollmentRunId,
+      providerId,
+      deletedAt: run.enrollment.provider.deletedAt,
     });
     return { status: 'skipped', enrollmentRunId };
   }

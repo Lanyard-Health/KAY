@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock prisma singleton — portal.service imports from utils/prisma.js
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../src/services/email.service.js', () => ({

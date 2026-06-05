@@ -12,6 +12,13 @@ import { invalidateCache } from '../utils/cache.js';
 import { z } from 'zod';
 import { CaqhService } from '../services/caqh.service.js';
 import { ensureDraftEnrollments } from '../services/draft-enrollment.service.js';
+import {
+  softDeleteProvider,
+  restoreProvider,
+  findArchivedProviders,
+  checkProviderCollision,
+  collisionToHttpResponse,
+} from '../services/provider.service.js';
 import { logger } from '../utils/logger.js';
 
 // Fields to NEVER return in API responses
@@ -32,13 +39,39 @@ export const providerRoutes = Router();
 // Apply authentication to all routes
 providerRoutes.use(authenticate);
 
-// GET /api/v1/providers - List all providers
+// GET /api/v1/providers - List active providers (default) or archived (?status=archived, admin-only)
 providerRoutes.get(
   '/',
   authorize('admin', 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { page, pageSize, search, status } = parseQuery(req.query, providerListQuerySchema);
+
+      // Archived branch — admin-only, deliberately bypasses the soft-delete query extension
+      // to return soft-deleted rows. Tenant scoping is enforced in the service.
+      if (status === 'archived') {
+        if (req.user?.role !== 'admin' && req.user?.role !== 'practice_admin') {
+          res.status(403).json({ success: false, error: { message: 'Admin role required for archived view' } });
+          return;
+        }
+        const archived = await findArchivedProviders({
+          isSuperAdmin: !!req.practiceScope?.isSuperAdmin,
+          practiceIds: req.practiceScope?.practiceIds ?? [],
+          page,
+          pageSize,
+        });
+        res.json({
+          success: true,
+          data: {
+            data: archived.data.map(stripSensitiveFields),
+            total: archived.total,
+            page,
+            pageSize,
+            totalPages: Math.ceil(archived.total / pageSize),
+          },
+        });
+        return;
+      }
 
       const where = {
         ...getPracticeProviderFilter(req),
@@ -182,6 +215,22 @@ providerRoutes.post(
         ? req.practiceScope?.practiceIds[0]
         : undefined;
 
+      // Pre-flight collision check on the unique fields (npi, caqhProviderId).
+      // Catches the case where the admin is re-keying a soft-deleted provider; surfaces
+      // "restore instead?" instead of the bare 409. Out-of-scope collisions get a
+      // leak-free message — no name, no practice.
+      const collision = await checkProviderCollision({
+        npi: providerData.npi ?? null,
+        caqhProviderId: (providerData as { caqhProviderId?: string | null }).caqhProviderId ?? null,
+        isSuperAdmin: !!req.practiceScope?.isSuperAdmin,
+        practiceIds: req.practiceScope?.practiceIds ?? [],
+      });
+      if (collision.kind !== 'none') {
+        const { statusCode, body } = collisionToHttpResponse(collision);
+        res.status(statusCode).json(body);
+        return;
+      }
+
       const provider = await prisma.providerProfile.create({
         data: {
           ...providerData,
@@ -266,37 +315,85 @@ providerRoutes.put(
   }
 );
 
-// DELETE /api/v1/providers/:id - Soft delete provider
+// DELETE /api/v1/providers/:id?reason=<urlencoded> - Soft-delete provider (admin only)
+// The reason is a query param (NOT a body) because some proxies strip DELETE bodies and
+// since reason is optional the silent-null case would not error. Cap enforced in service.
 providerRoutes.delete(
   '/:providerId',
   authorize(...ADMIN_ROLES), requirePracticeProvider,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const existing = await prisma.providerProfile.findUnique({
-        where: { id: req.params['providerId'] },
-      });
-
-      if (!existing) {
-        throw new NotFoundError('Provider');
+      const providerId = req.params['providerId'];
+      if (!providerId) {
+        throw new ValidationError('providerId is required');
       }
 
-      // Soft delete by setting status to inactive
-      await prisma.providerProfile.update({
-        where: { id: req.params['providerId'] },
-        data: {
-          status: 'inactive',
-          updatedById: req.user?.id,
-        },
-      });
+      // Hard cap on raw URL length to avoid a runaway query param.
+      const rawReason = typeof req.query['reason'] === 'string' ? req.query['reason'] : null;
+      if (rawReason && rawReason.length > 2000) {
+        throw new ValidationError('reason too long');
+      }
 
-      setAuditContext(req, {
-        resourceType: 'providers',
-        resourceId: req.params['providerId'],
-        action: 'delete',
-      });
+      try {
+        const { provider, wasAlreadyDeleted } = await softDeleteProvider({
+          providerId,
+          actorId: req.user?.id,
+          reason: rawReason,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.get('user-agent'),
+        });
+        invalidateCache('dashboard');
+        res.json({
+          success: true,
+          data: {
+            provider: stripSensitiveFields(provider),
+            alreadyDeleted: wasAlreadyDeleted,
+          },
+        });
+      } catch (e) {
+        if ((e as Error).message === 'PROVIDER_NOT_FOUND') {
+          throw new NotFoundError('Provider');
+        }
+        throw e;
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
-      invalidateCache('dashboard');
-      res.json({ success: true, message: 'Provider deactivated' });
+// POST /api/v1/providers/:id/restore - Restore a soft-deleted provider (admin only)
+providerRoutes.post(
+  '/:providerId/restore',
+  authorize(...ADMIN_ROLES), requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const providerId = req.params['providerId'];
+      if (!providerId) {
+        throw new ValidationError('providerId is required');
+      }
+
+      try {
+        const { provider, wasAlreadyActive } = await restoreProvider({
+          providerId,
+          actorId: req.user?.id,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.get('user-agent'),
+        });
+        invalidateCache('dashboard');
+        res.json({
+          success: true,
+          data: {
+            provider: stripSensitiveFields(provider),
+            alreadyActive: wasAlreadyActive,
+          },
+        });
+      } catch (e) {
+        if ((e as Error).message === 'PROVIDER_NOT_FOUND') {
+          throw new NotFoundError('Provider');
+        }
+        throw e;
+      }
     } catch (error) {
       next(error);
     }

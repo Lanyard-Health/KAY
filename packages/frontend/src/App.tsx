@@ -16,6 +16,7 @@ const ProviderList = lazy(() => import('./features/providers/ProviderList'));
 const ProviderDetail = lazy(() => import('./features/providers/ProviderDetail'));
 const ProviderForm = lazy(() => import('./features/providers/ProviderForm'));
 const ProviderImportPage = lazy(() => import('./features/providers/ProviderImportPage'));
+const ArchivedProvidersView = lazy(() => import('./features/providers/ArchivedProvidersView'));
 const DocumentList = lazy(() => import('./features/documents/DocumentList'));
 const ExpirationDashboard = lazy(() => import('./features/dashboard/ExpirationDashboard'));
 const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsList'));
@@ -192,6 +193,7 @@ export default function App() {
           <Route path="command-center" element={<AdminOnlyRoute><CommandCenter /></AdminOnlyRoute>} />
           <Route path="providers" element={<ProviderList />} />
           <Route path="providers/import" element={<AdminOnlyRoute><ProviderImportPage /></AdminOnlyRoute>} />
+          <Route path="providers/archived" element={<AdminOnlyRoute><ArchivedProvidersView /></AdminOnlyRoute>} />
           <Route path="providers/new" element={<ProviderForm />} />
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />

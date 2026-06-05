@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('./email.service.js', () => ({

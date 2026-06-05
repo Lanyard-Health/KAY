@@ -5,12 +5,13 @@ import { providerUser } from '../../tests/helpers/fixtures.js';
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../middleware/auth.middleware.js', () => ({
   authenticate: vi.fn((_req: any, _res: any, next: any) => next()),
   authorize: vi.fn(() => (_req: any, _res: any, next: any) => next()),
+  requireActiveProviderSelf: vi.fn((_req: any, _res: any, next: any) => next()),
 }));
 
 vi.mock('../utils/logger.js', () => ({

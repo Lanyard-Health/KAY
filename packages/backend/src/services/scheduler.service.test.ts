@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock all external dependencies before imports
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../utils/logger.js', () => ({

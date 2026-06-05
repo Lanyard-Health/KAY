@@ -4,7 +4,7 @@ import request from 'supertest';
 // Mock Prisma
 vi.mock('../../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Mock auth middleware to use the injected req.user from createTestApp

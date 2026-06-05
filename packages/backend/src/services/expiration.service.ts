@@ -50,6 +50,8 @@ export class ExpirationService {
         where: {
           expirationDate: dateFilter,
           status: statusFilter,
+          // Exclude licenses tied to soft-deleted providers — they don't need expiration alerts.
+          provider: { deletedAt: null },
         },
         include: {
           provider: {
@@ -83,6 +85,7 @@ export class ExpirationService {
         where: {
           expirationDate: dateFilter,
           status: statusFilter,
+          provider: { deletedAt: null },
         },
         include: {
           provider: {
@@ -116,6 +119,7 @@ export class ExpirationService {
         where: {
           expirationDate: dateFilter,
           status: statusFilter,
+          provider: { deletedAt: null },
         },
         include: {
           provider: {
@@ -154,6 +158,7 @@ export class ExpirationService {
         where: {
           expirationDate: dateFilter,
           providerId: { not: null },
+          provider: { deletedAt: null },
         },
         include: {
           provider: {

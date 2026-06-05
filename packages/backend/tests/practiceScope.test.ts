@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -363,21 +363,23 @@ describe('Practice Scope Middleware', () => {
   // getPracticeProviderFilter (WHERE clause builder)
   // ==========================================
   describe('getPracticeProviderFilter', () => {
-    it('returns empty object for super admin', () => {
+    it('returns deletedAt-only filter for super admin (active providers only)', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: true, practiceIds: [] },
       } as any);
 
-      expect(getPracticeProviderFilter(req)).toEqual({});
+      // Soft-delete filter applied to every variant — super admin still sees only active.
+      expect(getPracticeProviderFilter(req)).toEqual({ deletedAt: null });
     });
 
-    it('returns only own practice providers for staff (no unassigned)', () => {
+    it('returns own-practice + deletedAt filter for staff (no unassigned, no archived)', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1', 'p-2'] },
       } as any);
 
       expect(getPracticeProviderFilter(req)).toEqual({
         practiceId: { in: ['p-1', 'p-2'] },
+        deletedAt: null,
       });
     });
 
@@ -396,21 +398,21 @@ describe('Practice Scope Middleware', () => {
   // getPracticeRelationFilter (nested WHERE builder)
   // ==========================================
   describe('getPracticeRelationFilter', () => {
-    it('returns empty object for super admin', () => {
+    it('returns nested deletedAt-only filter for super admin (active providers’ resources)', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: true, practiceIds: [] },
       } as any);
 
-      expect(getPracticeRelationFilter(req)).toEqual({});
+      expect(getPracticeRelationFilter(req)).toEqual({ provider: { deletedAt: null } });
     });
 
-    it('returns nested filter for own practice providers only', () => {
+    it('returns nested filter for own practice + deletedAt: null', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: ['p-1'] },
       } as any);
 
       expect(getPracticeRelationFilter(req)).toEqual({
-        provider: { practiceId: { in: ['p-1'] } },
+        provider: { practiceId: { in: ['p-1'] }, deletedAt: null },
       });
     });
 

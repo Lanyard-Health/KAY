@@ -4,7 +4,7 @@ import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 // Mock prisma
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Mock the embedding service

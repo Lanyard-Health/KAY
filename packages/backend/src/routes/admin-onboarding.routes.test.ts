@@ -5,7 +5,7 @@ import { adminUser } from '../../tests/helpers/fixtures.js';
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../middleware/auth.middleware.js', () => ({
@@ -112,14 +112,16 @@ describe('Admin Onboarding Routes', () => {
       expect(res.body.data.summary.total).toBe(0);
     });
 
-    it('only queries active providers', async () => {
+    it('only queries active, non-archived providers', async () => {
       prismaMock.providerProfile.findMany.mockResolvedValue([]);
 
       await request(app).get('/providers');
 
       expect(prismaMock.providerProfile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: 'active' },
+          // status='active' (credentialing lifecycle) + deletedAt=null (soft-delete filter
+          // applied automatically via practiceScope helper).
+          where: { status: 'active', deletedAt: null },
         })
       );
     });

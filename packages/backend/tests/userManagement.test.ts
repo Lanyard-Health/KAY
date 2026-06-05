@@ -5,7 +5,7 @@ import { adminUser, staffUser } from './helpers/fixtures.js';
 
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../src/middleware/auth.middleware.js', () => ({

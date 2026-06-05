@@ -5,7 +5,7 @@ import { adminUser, providerUser, practiceAdminUser } from '../../tests/helpers/
 
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../middleware/auth.middleware.js', () => ({
@@ -543,7 +543,8 @@ describe('Document Routes', () => {
       expect(res.body.data).toHaveLength(1);
       expect(prismaMock.document.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { providerId: PROVIDER_UUID },
+          // practiceScope helper now layers the soft-delete filter onto the relation.
+          where: { providerId: PROVIDER_UUID, provider: { deletedAt: null } },
           orderBy: { createdAt: 'desc' },
         })
       );

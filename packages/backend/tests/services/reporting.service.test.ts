@@ -7,7 +7,7 @@ import { prismaMock } from '../helpers/mock-prisma.js';
 
 vi.mock('../../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('../helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -83,7 +83,7 @@ describe('getEnrollmentPipeline', () => {
     expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          provider: { practiceId: PRACTICE_ID },
+          provider: { practiceId: PRACTICE_ID, deletedAt: null },
         }),
       }),
     );
@@ -296,7 +296,7 @@ describe('getExpirationForecast', () => {
     expect(prismaMock.license.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          provider: { practiceId: PRACTICE_ID },
+          provider: { practiceId: PRACTICE_ID, deletedAt: null },
           expirationDate: { gt: today, lte: expectedHorizon },
         }),
       }),
@@ -800,10 +800,10 @@ describe('getGettingStartedStatus', () => {
       where: { practiceId: PRACTICE_ID },
     });
     expect(prismaMock.document.count).toHaveBeenCalledWith({
-      where: { provider: { practiceId: PRACTICE_ID } },
+      where: { provider: { practiceId: PRACTICE_ID, deletedAt: null } },
     });
     expect(prismaMock.enrollment.count).toHaveBeenCalledWith({
-      where: { provider: { practiceId: PRACTICE_ID }, isDraft: false },
+      where: { provider: { practiceId: PRACTICE_ID, deletedAt: null }, isDraft: false },
     });
   });
 });

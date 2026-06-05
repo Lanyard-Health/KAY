@@ -9,7 +9,9 @@ import {
   ShieldCheckIcon,
   MapPinIcon,
   DocumentDuplicateIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
+import { PortalArchiveContext } from './PortalArchiveContext';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
 import { useAuthStore } from '../../stores/auth.store';
@@ -32,6 +34,11 @@ export default function PortalLayout() {
   const { data: completeness } = useProfileCompleteness();
   const { data: providerData } = useCurrentProvider();
   const provider = (providerData as any)?.data?.provider;
+  // Q3 banner: backend /portal/me sets `isArchived` as a top-level flag. If absent
+  // (older response shape during deploy), fall back to checking provider.deletedAt.
+  const isArchived = Boolean(
+    (providerData as any)?.data?.isArchived ?? (provider?.deletedAt ?? null)
+  );
 
   const percentage = (completeness as any)?.data?.percentage ?? 0;
 
@@ -228,11 +235,32 @@ export default function PortalLayout() {
           </div>
         </div>
 
+        {/* Archived-self banner (Q3): identity preserved, writes refused.
+            Backend gates writes at 423 too — this is the UX so it isn't a silent wall. */}
+        {isArchived && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="border-b border-amber-200 bg-amber-50 px-4 sm:px-6 lg:px-8 py-3 flex items-start gap-3"
+          >
+            <LockClosedIcon className="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-900">
+              <p className="font-semibold">This profile is no longer active.</p>
+              <p className="mt-0.5">
+                Contact your practice administrator to restore access. You can still view your
+                information, but changes are disabled.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Page content */}
         <main className="py-8 min-h-[calc(100vh-4rem-4rem)]">
           <div className="px-4 sm:px-6 lg:px-8">
             <Suspense fallback={<div className="animate-pulse space-y-4 py-4"><div className="h-8 bg-gray-100 rounded w-1/3" /><div className="h-64 bg-gray-50 rounded" /></div>}>
-              <Outlet />
+              <PortalArchiveContext.Provider value={{ isArchived }}>
+                <Outlet />
+              </PortalArchiveContext.Provider>
             </Suspense>
           </div>
         </main>

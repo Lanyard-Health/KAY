@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireActiveProviderSelf } from '../middleware/auth.middleware.js';
 import { computeOnboardingProgress } from '../services/onboarding.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
@@ -34,7 +34,7 @@ router.get('/progress', authenticate, authorize('provider'), async (req: Request
  * POST /api/v1/portal/onboarding/complete
  * Marks onboarding as complete
  */
-router.post('/complete', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.post('/complete', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
@@ -70,7 +70,7 @@ router.post('/complete', authenticate, authorize('provider'), async (req: Reques
  * POST /api/v1/portal/onboarding/licenses
  * Create a license for the provider's own profile
  */
-router.post('/licenses', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.post('/licenses', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
@@ -155,7 +155,7 @@ router.get('/licenses', authenticate, authorize('provider'), async (req: Request
  * PUT /api/v1/portal/onboarding/licenses/:id
  * Update a license owned by the current provider
  */
-router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.put('/licenses/:id', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
@@ -220,7 +220,7 @@ router.put('/licenses/:id', authenticate, authorize('provider'), async (req: Req
  * DELETE /api/v1/portal/onboarding/licenses/:id
  * Delete a license owned by the current provider
  */
-router.delete('/licenses/:id', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.delete('/licenses/:id', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {

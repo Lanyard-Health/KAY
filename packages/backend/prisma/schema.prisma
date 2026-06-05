@@ -440,6 +440,11 @@ model ProviderProfile {
   createdBy   User?    @relation("ProviderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy   User?    @relation("ProviderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
+  // Soft delete (≥7-year retention; admin-only delete + restore via Prisma client extension)
+  deletedAt      DateTime? @map("deleted_at")
+  deletedBy      String?   @map("deleted_by")
+  deletionReason String?   @map("deletion_reason")
+
   // Multi-tenant
   practiceId String? @map("practice_id")
 
@@ -495,6 +500,7 @@ model ProviderProfile {
   @@index([practiceId])
   @@index([email])
   @@index([status, practiceId])
+  @@index([practiceId, deletedAt])
   @@map("providers")
 }
 
@@ -1966,6 +1972,10 @@ enum AuditAction {
   SUBMISSION_CONFIRMED          // Portal confirmed receipt: enrollmentRunId, confirmationNumber, postScreenshotKey
   SUBMISSION_ATTEMPT_FAILED     // One attempt failed, retrying: enrollmentRunId, attemptNumber, errorMessage
   SUBMISSION_DEAD_LETTERED      // All attempts exhausted: enrollmentRunId, finalErrorMessage
+
+  // Provider lifecycle — soft-delete + restore (admin-only, ≥7y retention)
+  PROVIDER_SOFT_DELETE          // Admin soft-deleted a provider: providerId, deletionReason, deletedBy
+  PROVIDER_RESTORE              // Admin restored a provider: providerId, restoredBy
 }
 
 model AuditLog {

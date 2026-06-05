@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize, requireActiveProviderSelf } from '../middleware/auth.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { DocumentService } from '../services/document.service.js';
 import { logger } from '../utils/logger.js';
@@ -64,7 +64,7 @@ router.get('/', authenticate, authorize('provider'), async (req: Request, res: R
  * POST /api/v1/portal/documents/upload-url
  * Get S3 presigned upload URL
  */
-router.post('/upload-url', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.post('/upload-url', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
@@ -109,7 +109,7 @@ router.post('/upload-url', authenticate, authorize('provider'), async (req: Requ
  * POST /api/v1/portal/documents/confirm
  * Confirm upload completion
  */
-router.post('/confirm', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.post('/confirm', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {
@@ -144,7 +144,7 @@ router.post('/confirm', authenticate, authorize('provider'), async (req: Request
  * DELETE /api/v1/portal/documents/:id
  * Delete own document (only if not approved)
  */
-router.delete('/:id', authenticate, authorize('provider'), async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, authorize('provider'), requireActiveProviderSelf, async (req: Request, res: Response) => {
   try {
     const providerId = req.user!.providerId;
     if (!providerId) {

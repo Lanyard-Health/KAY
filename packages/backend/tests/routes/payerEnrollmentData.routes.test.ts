@@ -8,7 +8,7 @@ import request from 'supertest';
 // Mock prisma
 vi.mock('../../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('../helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Mock logger (imported by practiceScope middleware)

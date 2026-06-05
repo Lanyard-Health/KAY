@@ -17,7 +17,7 @@ import {
 } from '../services/portal.service.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { portalRegistrationSchema, markNotificationsReadSchema, selfServeSignupSchema } from '@credential-management/shared';
-import { prisma } from '../utils/prisma.js';
+import { prisma, prismaBase } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { isValidNpi } from '../constants/validation.js';
 
@@ -475,7 +475,11 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
       });
     }
 
-    const provider = await prisma.providerProfile.findUnique({
+    // Identity preserved per Q3: a soft-deleted provider can still authenticate and read
+    // their own dashboard so they get an explanation of why writes are blocked. Use the
+    // bypass client to see the row, then expose `deletedAt` so the frontend can render
+    // the banner and disable write controls.
+    const provider = await prismaBase.providerProfile.findUnique({
       where: { id: providerId },
       include: {
         enrollments: {
@@ -506,6 +510,8 @@ router.get('/me', authenticate, authorize('provider'), async (req: Request, res:
         provider: providerData,
         enrollmentCount: provider.enrollments.length,
         locationCount: provider.practiceLocations.length,
+        // Top-level flag so the frontend doesn't have to dig into the provider object.
+        isArchived: provider.deletedAt !== null,
       },
     });
   } catch (error) {

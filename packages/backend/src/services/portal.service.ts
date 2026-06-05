@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import { prisma, prismaBase } from '../utils/prisma.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
@@ -50,9 +50,12 @@ export async function checkRejectedApplication(npi: string) {
  * Check if a provider with this NPI already exists
  */
 export async function checkExistingProvider(npi: string) {
-  return prisma.providerProfile.findUnique({
+  // Bypass the soft-delete filter so we can detect that an archived provider already holds
+  // this NPI. The portal signup flow surfaces a distinct "archived — contact admin" message
+  // for that case instead of generic "already exists".
+  return prismaBase.providerProfile.findUnique({
     where: { npi },
-    select: { id: true, npi: true },
+    select: { id: true, npi: true, deletedAt: true },
   });
 }
 
@@ -232,7 +235,17 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
     throw new Error('An application with this NPI is already pending review');
   }
 
-  // 2. Check for existing provider
+  // 2. Check for existing provider (including soft-deleted).
+  //
+  // SECURITY: this path is **public, pre-authentication, rate-limited**. We MUST NOT
+  // surface a different error for "archived" vs "active duplicate" — that would let
+  // an anonymous caller enumerate which NPIs are archived in our system by diffing
+  // status codes (active → caught as "already exists" → 409 generic; archived →
+  // distinct message → falls through to 500 in the route handler).
+  //
+  // Both cases throw the SAME message so the route's catch filter routes them
+  // identically. Archived recovery is an admin path via DELETE /providers/:id/restore.
+  // (Pre-existence leak from active duplicates is unchanged from before this PR.)
   const existingProvider = await checkExistingProvider(data.npi);
   if (existingProvider) {
     throw new Error('A provider with this NPI already exists in our system');
