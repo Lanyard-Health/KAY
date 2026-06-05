@@ -38,6 +38,20 @@ class BugMonitorService {
       return;
     }
 
+    // Pattern-based suppression: drop known dev-environment noise (Vite
+    // chunk-cache crashes, dynamic-import failures from stale local
+    // bundles) before they consume Linear quota or sanitizer cycles.
+    const suppression = this.noiseFilter.shouldSuppress(bug);
+    if (suppression.suppress) {
+      logger.debug(JSON.stringify({
+        service: 'bugMonitor',
+        action: 'suppressed',
+        reason: suppression.reason,
+        title: bug.title,
+      }));
+      return;
+    }
+
     try {
       // 1. Sanitize FIRST (SOC 2 requirement)
       const sanitized = this.sanitizer.scrub(bug);
