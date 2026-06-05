@@ -48,6 +48,24 @@ describe('NoiseFilter', () => {
       });
     });
 
+    it('suppresses dev frontend crashes with the ENCRYPTION_KEY-required pattern', () => {
+      const bug = makeFrontendBug({
+        errorMessage: 'ENCRYPTION_KEY environment variable is required',
+      });
+      expect(noiseFilter.shouldSuppress(bug)).toEqual({
+        suppress: true,
+        reason: 'dev-missing-encryption-key',
+      });
+    });
+
+    it('does NOT suppress production ENCRYPTION_KEY-required errors (real misconfig)', () => {
+      const bug = makeFrontendBug({
+        environment: 'production',
+        errorMessage: 'ENCRYPTION_KEY environment variable is required',
+      });
+      expect(noiseFilter.shouldSuppress(bug)).toEqual({ suppress: false });
+    });
+
     it('does NOT suppress production reports with the same Vite-chunk shape (real CDN issue)', () => {
       const bug = makeFrontendBug({
         environment: 'production',

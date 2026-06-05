@@ -8,6 +8,11 @@ const SEVERITY_ORDER: BugSeverity[] = ['low', 'medium', 'high', 'urgent'];
 // before this filter existed; see PR that introduced this for context.
 const VITE_CHUNK_PATH = /\/node_modules\/\.vite\/deps\//;
 const DYNAMIC_IMPORT_FAILURE = /Failed to fetch dynamically imported module/i;
+// Backend `crypto.ts` throws this exact message when ENCRYPTION_KEY is
+// unset, surfaced to the frontend as an unhandled rejection. In prod,
+// ENCRYPTION_KEY is always set (Render env vars). In dev, it just means
+// the local .env is missing the key — a setup miss, not a bug.
+const MISSING_ENCRYPTION_KEY = /ENCRYPTION_KEY environment variable is required/i;
 
 class NoiseFilter {
   /**
@@ -34,6 +39,10 @@ class NoiseFilter {
 
     if (DYNAMIC_IMPORT_FAILURE.test(bug.errorMessage)) {
       return { suppress: true, reason: 'dev-dynamic-import-failure' };
+    }
+
+    if (MISSING_ENCRYPTION_KEY.test(bug.errorMessage)) {
+      return { suppress: true, reason: 'dev-missing-encryption-key' };
     }
 
     return { suppress: false };
