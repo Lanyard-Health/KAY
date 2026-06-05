@@ -1,0 +1,126 @@
+name: Render Deploy Watchdog
+
+# Why this exists:
+# Render occasionally fails to clone the repo with "could not read Username
+# for 'https://github.com'" — a transient GitHub OAuth glitch on Render's
+# side. When this happens, Render does NOT auto-retry; the deploy sits at
+# build_failed until someone manually re-deploys. This watchdog runs on a
+# cron and explicitly retries one time per failed deploy when the failed
+# commit still matches current master HEAD.
+#
+# Safety:
+# - Retries at most once per (service, commit). State is the per-deploy
+#   ID: a deploy with status build_failed is retried, the retry produces a
+#   NEW deploy ID, so this loop cannot rerun the same failure.
+# - Skips retries when the failed commit is no longer master HEAD (a
+#   newer push has superseded it — retrying old commits is pointless).
+# - All work happens via Render's REST API — no shell into Render.
+
+on:
+  schedule:
+    # Every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would be retried without triggering deploys'
+        required: false
+        default: 'false'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  watchdog:
+    name: Retry failed Render deploys on master HEAD
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and retry failed deploys
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          set -eo pipefail
+
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "::error::RENDER_API_KEY secret not set"
+            exit 1
+          fi
+
+          # Services this watchdog watches. Add new services by appending here.
+          SERVICES='[
+            {"id":"srv-d6212t7pm1nc73fjkdk0","name":"kay-backend"},
+            {"id":"srv-d8fn3628qa3s73afc9q0","name":"kay-backend-staging"},
+            {"id":"srv-d622jvonputs739dmck0","name":"kay-frontend"}
+          ]'
+
+          # Fetch current master HEAD via GitHub API (avoids needing checkout).
+          MASTER_HEAD=$(gh api "repos/$OWNER/$REPO/commits/master" --jq '.sha')
+          echo "Master HEAD: $MASTER_HEAD"
+          echo "Dry run: ${DRY_RUN:-false}"
+          echo
+
+          retried=0
+          skipped_already_live=0
+          skipped_stale_commit=0
+          skipped_not_failed=0
+
+          for row in $(echo "$SERVICES" | jq -c '.[]'); do
+            ID=$(echo "$row" | jq -r '.id')
+            NAME=$(echo "$row" | jq -r '.name')
+
+            # Get the latest deploy for this service.
+            LATEST=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$ID/deploys?limit=1" \
+              | jq -r '.[0].deploy')
+            STATUS=$(echo "$LATEST" | jq -r '.status')
+            COMMIT=$(echo "$LATEST" | jq -r '.commit.id // ""')
+            DEPLOY_ID=$(echo "$LATEST" | jq -r '.id')
+
+            echo "  $NAME: status=$STATUS commit=${COMMIT:0:7} deploy=$DEPLOY_ID"
+
+            if [ "$STATUS" = "live" ]; then
+              skipped_already_live=$((skipped_already_live + 1))
+              continue
+            fi
+
+            if [ "$STATUS" != "build_failed" ] && [ "$STATUS" != "update_failed" ] && [ "$STATUS" != "pre_deploy_failed" ]; then
+              # in_progress, queued, canceled, etc. — leave alone.
+              skipped_not_failed=$((skipped_not_failed + 1))
+              continue
+            fi
+
+            if [ "$COMMIT" != "$MASTER_HEAD" ]; then
+              echo "    skipped — failed commit ${COMMIT:0:7} is not current master HEAD ${MASTER_HEAD:0:7}"
+              skipped_stale_commit=$((skipped_stale_commit + 1))
+              continue
+            fi
+
+            if [ "${DRY_RUN:-false}" = "true" ]; then
+              echo "    [DRY RUN] would trigger retry deploy for commit ${COMMIT:0:7}"
+              retried=$((retried + 1))
+              continue
+            fi
+
+            echo "    triggering retry for commit ${COMMIT:0:7}..."
+            RESULT=$(curl -fsS -X POST -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+              "https://api.render.com/v1/services/$ID/deploys" \
+              -d '{"clearCache":"do_not_clear"}')
+            NEW_ID=$(echo "$RESULT" | jq -r '.id')
+            echo "    -> new deploy $NEW_ID triggered"
+            retried=$((retried + 1))
+          done
+
+          {
+            echo "## Render Deploy Watchdog"
+            echo
+            echo "- Master HEAD: \`$MASTER_HEAD\`"
+            echo "- Retried: $retried"
+            echo "- Skipped (already live): $skipped_already_live"
+            echo "- Skipped (not in failed state): $skipped_not_failed"
+            echo "- Skipped (failed commit ≠ HEAD): $skipped_stale_commit"
+          } >> "$GITHUB_STEP_SUMMARY"
