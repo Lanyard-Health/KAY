@@ -12,6 +12,7 @@ import {
 } from './hooks/usePortalData';
 import ErrorState from '../../components/ui/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { usePortalArchive } from './PortalArchiveContext';
 
 const LICENSE_TYPES: Record<string, string> = {
   state_medical: 'State Medical License',
@@ -71,6 +72,7 @@ export default function PortalLicenses() {
   const createMutation = useCreateLicense();
   const updateMutation = useUpdateLicense();
   const deleteMutation = useDeleteLicense();
+  const { isArchived } = usePortalArchive();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -161,8 +163,14 @@ export default function PortalLicenses() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Licenses & Credentials</h1>
         <button
-          onClick={openCreate}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+          onClick={
+            isArchived
+              ? () => toast.error('This profile is no longer active. Contact your practice admin to restore access.')
+              : openCreate
+          }
+          disabled={isArchived}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          title={isArchived ? 'This profile is no longer active' : undefined}
         >
           <PlusIcon className="h-4 w-4 mr-2" />
           Add License

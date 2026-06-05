@@ -5,6 +5,7 @@ import { notify } from '../../utils/notify';
 import { usePortalDocuments, useUploadDocument, useDeleteDocument } from './hooks/usePortalData';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/ui/EmptyState';
+import { usePortalArchive } from './PortalArchiveContext';
 
 const DOCUMENT_TYPES = [
   { value: '', label: 'Select Document Type' },
@@ -31,6 +32,7 @@ export default function PortalDocuments() {
   const { data, isLoading } = usePortalDocuments();
   const uploadMutation = useUploadDocument();
   const deleteMutation = useDeleteDocument();
+  const { isArchived } = usePortalArchive();
 
   const [documentType, setDocumentType] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,9 +120,14 @@ export default function PortalDocuments() {
           </div>
           <div className="flex items-end">
             <button
-              onClick={handleUpload}
-              disabled={uploadMutation.isPending}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+              onClick={
+                isArchived
+                  ? () => notify.error('This profile is no longer active', { description: 'Contact your practice admin to restore access.' })
+                  : handleUpload
+              }
+              disabled={uploadMutation.isPending || isArchived}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={isArchived ? 'This profile is no longer active' : undefined}
             >
               <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
               {uploadMutation.isPending ? 'Uploading...' : 'Upload'}

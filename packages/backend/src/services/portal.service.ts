@@ -235,16 +235,19 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
     throw new Error('An application with this NPI is already pending review');
   }
 
-  // 2. Check for existing provider (including soft-deleted)
+  // 2. Check for existing provider (including soft-deleted).
+  //
+  // SECURITY: this path is **public, pre-authentication, rate-limited**. We MUST NOT
+  // surface a different error for "archived" vs "active duplicate" — that would let
+  // an anonymous caller enumerate which NPIs are archived in our system by diffing
+  // status codes (active → caught as "already exists" → 409 generic; archived →
+  // distinct message → falls through to 500 in the route handler).
+  //
+  // Both cases throw the SAME message so the route's catch filter routes them
+  // identically. Archived recovery is an admin path via DELETE /providers/:id/restore.
+  // (Pre-existence leak from active duplicates is unchanged from before this PR.)
   const existingProvider = await checkExistingProvider(data.npi);
   if (existingProvider) {
-    if (existingProvider.deletedAt) {
-      // Self-service portal must not let a stranger restore an archived profile.
-      // Surface a leak-free, action-able message; the practice admin can restore via the API.
-      throw new Error(
-        'This NPI is associated with an archived profile. Contact your practice administrator to restore it.'
-      );
-    }
     throw new Error('A provider with this NPI already exists in our system');
   }
 
