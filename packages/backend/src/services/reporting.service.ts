@@ -76,7 +76,7 @@ export async function getEnrollmentPipeline(
   // Drafts are excluded from pipeline metrics — they're placeholders, not real enrollments.
   const enrollments = await prisma.enrollment.findMany({
     where: {
-      provider: { practiceId },
+      provider: { practiceId, deletedAt: null },
       isDraft: false,
       ...(startDate || endDate
         ? {
@@ -163,7 +163,7 @@ export async function getExpirationForecast(
   const [licenses, boardCerts, malpractice] = await Promise.all([
     prisma.license.findMany({
       where: {
-        provider: { practiceId },
+        provider: { practiceId, deletedAt: null },
         expirationDate: dateFilter,
       },
       select: {
@@ -176,7 +176,7 @@ export async function getExpirationForecast(
     }),
     prisma.boardCertification.findMany({
       where: {
-        provider: { practiceId },
+        provider: { practiceId, deletedAt: null },
         expirationDate: dateFilter,
       },
       select: {
@@ -188,7 +188,7 @@ export async function getExpirationForecast(
     }),
     prisma.malpracticeInsurance.findMany({
       where: {
-        provider: { practiceId },
+        provider: { practiceId, deletedAt: null },
         expirationDate: dateFilter,
       },
       select: {
@@ -372,10 +372,10 @@ export async function getGettingStartedStatus(
       where: { practiceId },
     }),
     prisma.document.count({
-      where: { provider: { practiceId } },
+      where: { provider: { practiceId, deletedAt: null } },
     }),
     prisma.enrollment.count({
-      where: { provider: { practiceId }, isDraft: false },
+      where: { provider: { practiceId, deletedAt: null }, isDraft: false },
     }),
   ]);
 

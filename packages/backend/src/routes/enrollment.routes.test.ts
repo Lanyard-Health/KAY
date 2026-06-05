@@ -6,7 +6,7 @@ import { adminUser, mockPayer, mockEnrollment, validEnrollmentInput } from '../.
 // Mock prisma via async factory
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Mock auth middleware to passthrough

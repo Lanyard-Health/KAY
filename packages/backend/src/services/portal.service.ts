@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import { prisma, prismaBase } from '../utils/prisma.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
@@ -50,9 +50,12 @@ export async function checkRejectedApplication(npi: string) {
  * Check if a provider with this NPI already exists
  */
 export async function checkExistingProvider(npi: string) {
-  return prisma.providerProfile.findUnique({
+  // Bypass the soft-delete filter so we can detect that an archived provider already holds
+  // this NPI. The portal signup flow surfaces a distinct "archived — contact admin" message
+  // for that case instead of generic "already exists".
+  return prismaBase.providerProfile.findUnique({
     where: { npi },
-    select: { id: true, npi: true },
+    select: { id: true, npi: true, deletedAt: true },
   });
 }
 
@@ -232,9 +235,16 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
     throw new Error('An application with this NPI is already pending review');
   }
 
-  // 2. Check for existing provider
+  // 2. Check for existing provider (including soft-deleted)
   const existingProvider = await checkExistingProvider(data.npi);
   if (existingProvider) {
+    if (existingProvider.deletedAt) {
+      // Self-service portal must not let a stranger restore an archived profile.
+      // Surface a leak-free, action-able message; the practice admin can restore via the API.
+      throw new Error(
+        'This NPI is associated with an archived profile. Contact your practice administrator to restore it.'
+      );
+    }
     throw new Error('A provider with this NPI already exists in our system');
   }
 

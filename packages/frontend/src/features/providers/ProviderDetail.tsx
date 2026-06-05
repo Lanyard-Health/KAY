@@ -4,7 +4,11 @@ import PageTransition from '../../components/ui/PageTransition';
 import ErrorState from '../../components/ui/ErrorState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Menu, Transition, Tab } from '@headlessui/react';
-import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, DocumentArrowDownIcon, ChevronDownIcon, ChevronRightIcon, MapPinIcon, PlusIcon, TrashIcon, ArchiveBoxXMarkIcon, ClipboardDocumentCheckIcon, BuildingOfficeIcon, UserCircleIcon, AcademicCapIcon, BriefcaseIcon, DocumentTextIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../stores/auth.store';
+import { useDeleteProvider } from '../../hooks/useProviderSoftDelete';
+import DeleteProviderModal from './DeleteProviderModal';
 import { format } from 'date-fns';
 // jsPDF + autotable loaded dynamically in exportToPDF()
 import { api } from '../../services/api';
@@ -132,6 +136,11 @@ function CollapsibleSection({
 export default function ProviderDetail() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canSoftDelete = user?.role === 'admin' || user?.role === 'practice_admin';
+  const deleteProvider = useDeleteProvider();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   // Existing modal state
   const [locationModalOpen, setLocationModalOpen] = useState(false);
@@ -837,6 +846,18 @@ export default function ProviderDetail() {
                 <PencilIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
                 Edit
               </Link>
+              {canSoftDelete && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalOpen(true)}
+                  disabled={deleteProvider.isPending}
+                  className="btn-secondary text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
+                  title="Delete provider (archive — retained for records, restorable)"
+                >
+                  <ArchiveBoxXMarkIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
+                  Delete
+                </button>
+              )}
               <Menu as="div" className="relative">
                 <Menu.Button className="btn-primary text-sm inline-flex items-center">
                   <DocumentArrowDownIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
@@ -2561,6 +2582,27 @@ export default function ProviderDetail() {
         confirmLabel="Delete"
         variant="danger"
       />
+      {deleteModalOpen && provider && (
+        <DeleteProviderModal
+          providerName={`${provider.firstName} ${provider.lastName}`}
+          isSubmitting={deleteProvider.isPending}
+          onCancel={() => setDeleteModalOpen(false)}
+          onConfirm={(reason) => {
+            deleteProvider.mutate(
+              { providerId: provider.id, deletionReason: reason },
+              {
+                onSuccess: () => {
+                  setDeleteModalOpen(false);
+                  // After delete the detail page no longer matches an active provider —
+                  // bounce back to the list. Undo from the toast will re-fetch and re-show.
+                  navigate('/providers');
+                },
+                onError: () => setDeleteModalOpen(false),
+              }
+            );
+          }}
+        />
+      )}
     </div>
     </PageTransition>
   );

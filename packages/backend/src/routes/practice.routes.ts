@@ -59,7 +59,9 @@ router.get(
           _count: {
             select: {
               users: true,
-              providers: true,
+              // Exclude soft-deleted providers from the practice count — Prisma's _count.select
+              // does NOT inherit the providerProfile query extension, so we filter here.
+              providers: { where: { deletedAt: null } },
               practiceLocations: true,
             },
           },
@@ -112,7 +114,8 @@ router.get(
           createdAt: true,
           _count: {
             select: {
-              providers: true,
+              // Exclude soft-deleted providers — Prisma's _count.select doesn't inherit the extension.
+              providers: { where: { deletedAt: null } },
             },
           },
         },
@@ -191,7 +194,9 @@ router.get(
           _count: {
             select: {
               users: true,
-              providers: true,
+              // Exclude soft-deleted providers from the practice count — Prisma's _count.select
+              // does NOT inherit the providerProfile query extension, so we filter here.
+              providers: { where: { deletedAt: null } },
               practiceLocations: true,
             },
           },

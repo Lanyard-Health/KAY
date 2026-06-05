@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { prisma } from '../utils/prisma.js';
+import { prisma, prismaBase } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { ForbiddenError } from './error.middleware.js';
 
@@ -86,7 +86,10 @@ export async function requirePracticeProvider(
   if (!providerId) return next();
 
   try {
-    const provider = await prisma.providerProfile.findUnique({
+    // Bypass the soft-delete filter so the tenant check still runs for the restore route
+    // and any other admin path that legitimately touches soft-deleted rows. Route handlers
+    // are responsible for distinguishing "active" from "archived" in their own response.
+    const provider = await prismaBase.providerProfile.findUnique({
       where: { id: providerId },
       select: { practiceId: true },
     });
@@ -140,7 +143,9 @@ export async function validateProviderPracticeAccess(
 ): Promise<boolean> {
   if (req.practiceScope?.isSuperAdmin) return true;
 
-  const provider = await prisma.providerProfile.findUnique({
+  // Bypass the soft-delete filter so the tenant check still runs for restore + archived
+  // paths. Route handlers downstream decide whether to expose the deleted row.
+  const provider = await prismaBase.providerProfile.findUnique({
     where: { id: providerId },
     select: { practiceId: true },
   });
@@ -170,33 +175,42 @@ export async function validateProviderPracticeAccess(
  * Returns a Prisma WHERE clause fragment to filter providers by practice.
  * Use in list endpoints: { ...existingWhere, ...getPracticeProviderFilter(req) }
  *
- * For super admins: returns {} (no filter).
- * For others: includes providers in the user's practices OR unassigned (null practiceId).
+ * For super admins: returns { deletedAt: null } (active providers only).
+ * For others: includes providers in the user's practices, soft-deleted excluded.
  * For users with no practices: only shows unassigned providers.
+ *
+ * Note: when applied directly to `providerProfile.find*` queries, the `deletedAt: null`
+ * is redundant (the Prisma client extension already adds it). It matters when this
+ * fragment is nested under a relation (e.g. `enrollment.findMany({ where: { provider: filter } })`),
+ * where the extension does NOT reach.
  */
 export function getPracticeProviderFilter(
   req: Request
 ): Record<string, unknown> {
-  if (req.practiceScope?.isSuperAdmin) return {};
+  if (req.practiceScope?.isSuperAdmin) return { deletedAt: null };
   const ids = req.practiceScope?.practiceIds ?? [];
   // Non-admin users only see providers assigned to their practices (not unassigned ones)
   if (ids.length === 0) return { id: '__no_access__' }; // matches nothing
-  return { practiceId: { in: ids } };
+  return { practiceId: { in: ids }, deletedAt: null };
 }
 
 /**
  * Returns a Prisma WHERE clause fragment to filter resources (enrollments, tasks,
  * termination letters) through their provider's practiceId.
  * Use: { ...existingWhere, ...getPracticeRelationFilter(req) }
+ *
+ * Soft-deleted providers are excluded — resources tied to an archived provider do not
+ * surface in active-work lists. Audit/history paths that NEED to show resources for
+ * archived providers should inline their own filter, not use this helper.
  */
 export function getPracticeRelationFilter(
   req: Request
 ): Record<string, unknown> {
-  if (req.practiceScope?.isSuperAdmin) return {};
+  if (req.practiceScope?.isSuperAdmin) return { provider: { deletedAt: null } };
   const ids = req.practiceScope?.practiceIds ?? [];
   // Non-admin users only see resources for providers in their practices
   if (ids.length === 0) {
     return { provider: { id: '__no_access__' } }; // matches nothing
   }
-  return { provider: { practiceId: { in: ids } } };
+  return { provider: { practiceId: { in: ids }, deletedAt: null } };
 }

@@ -402,6 +402,54 @@ export function requirePermission(permission: string) {
 }
 
 // Check if user can access a specific provider's data
+/**
+ * Refuse provider-scoped write/submit actions when the authenticated user's linked
+ * provider is soft-deleted. Identity is preserved (the user can still authenticate
+ * and read), but they cannot mutate their profile.
+ *
+ * Use on every POST/PUT/PATCH/DELETE in `/portal/*` that operates on the provider's
+ * own data — see plan amendments Q3 + Commit 5.
+ *
+ * Bypasses the soft-delete query extension to find the row.
+ */
+export async function requireActiveProviderSelf(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  if (!req.user) {
+    next(new UnauthorizedError('Not authenticated'));
+    return;
+  }
+  // Non-provider roles (admin, practice_admin, credentialing_staff, lanyard_admin)
+  // route through their own gates; this guard is only for the "provider acting on self" case.
+  if (req.user.role !== 'provider' || !req.user.providerId) {
+    next();
+    return;
+  }
+  try {
+    const { prismaBase } = await import('../utils/prisma.js');
+    const provider = await prismaBase.providerProfile.findUnique({
+      where: { id: req.user.providerId },
+      select: { id: true, deletedAt: true },
+    });
+    if (provider?.deletedAt) {
+      res.status(423).json({
+        success: false,
+        error: {
+          code: 'PROVIDER_ARCHIVED',
+          message: 'This provider profile is no longer active. Contact your practice administrator.',
+        },
+      });
+      return;
+    }
+    next();
+  } catch (err) {
+    logger.error('requireActiveProviderSelf lookup failed', err);
+    next(err);
+  }
+}
+
 export function requireProviderAccess(
   req: Request,
   _res: Response,

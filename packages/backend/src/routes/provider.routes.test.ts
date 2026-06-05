@@ -6,7 +6,7 @@ import { adminUser, mockProvider, validProviderInput } from '../../tests/helpers
 // Mock prisma via async factory
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Mock auth middleware to passthrough
@@ -307,21 +307,32 @@ describe('Provider Routes', () => {
   });
 
   describe('DELETE /:providerId', () => {
-    it('soft deletes by setting status to inactive', async () => {
-      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+    it('soft deletes by setting deletedAt + deletedBy + deletionReason and audits the action', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        ...mockProvider, deletedAt: null,
+      } as any);
       prismaMock.providerProfile.update.mockResolvedValue({
-        ...mockProvider,
-        status: 'inactive',
+        ...mockProvider, deletedAt: new Date(),
       } as any);
 
-      const res = await request(app).delete('/provider-1-id');
+      const res = await request(app).delete('/provider-1-id?reason=Duplicate');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.message).toBe('Provider deactivated');
       expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'inactive' }),
+          data: expect.objectContaining({
+            deletedAt: expect.any(Date),
+            deletionReason: 'Duplicate',
+          }),
+        })
+      );
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'PROVIDER_SOFT_DELETE',
+            resourceType: 'provider',
+          }),
         })
       );
     });
@@ -333,6 +344,22 @@ describe('Provider Routes', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
+    });
+
+    it('is idempotent on already-deleted provider', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        ...mockProvider, deletedAt: new Date('2026-06-01'),
+      } as any);
+      prismaMock.providerProfile.findUniqueOrThrow.mockResolvedValue({
+        ...mockProvider, deletedAt: new Date('2026-06-01'),
+      } as any);
+
+      const res = await request(app).delete('/provider-1-id');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.alreadyDeleted).toBe(true);
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
     });
   });
 });

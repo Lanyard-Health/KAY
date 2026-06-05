@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -40,14 +40,14 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
   // SUPER ADMIN BYPASS
   // ==========================================
   describe('Super admin bypasses all practice filters', () => {
-    it('getPracticeProviderFilter returns empty object for admin', () => {
+    it('getPracticeProviderFilter returns deletedAt-only filter for admin (excludes archived)', () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: true, practiceIds: [] },
       } as any);
 
       const filter = getPracticeProviderFilter(req);
 
-      expect(filter).toEqual({});
+      expect(filter).toEqual({ deletedAt: null });
     });
 
     it('requirePracticeProvider calls next without DB lookup for admin', async () => {
@@ -89,6 +89,7 @@ describe('Practice Scope — Multi-Tenant Access Control', () => {
 
       expect(filter).toEqual({
         practiceId: { in: ['practice-A', 'practice-B'] },
+        deletedAt: null,
       });
     });
 

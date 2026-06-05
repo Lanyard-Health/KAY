@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
-import { PlusIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, ArchiveBoxXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import {
@@ -10,7 +10,10 @@ import {
   useAssignProvider,
   useUnassignProvider,
 } from '../../hooks/usePractices';
+import { useDeleteProvider } from '../../hooks/useProviderSoftDelete';
+import { useAuthStore } from '../../stores/auth.store';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import DeleteProviderModal from '../providers/DeleteProviderModal';
 import EmptyState from '../../components/ui/EmptyState';
 
 interface PracticeProvidersTabProps {
@@ -20,8 +23,13 @@ interface PracticeProvidersTabProps {
 export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTabProps) {
   const { data: providersData, isLoading } = usePracticeProviders(practiceId);
   const unassignMutation = useUnassignProvider();
+  const deleteProvider = useDeleteProvider();
+  const user = useAuthStore((s) => s.user);
+  // Admin-only soft-delete affordance. The API enforces 403 too — this is cosmetic.
+  const canSoftDelete = user?.role === 'admin' || user?.role === 'practice_admin';
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState<{ isOpen: boolean; provider: any }>({ isOpen: false, provider: null });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const providers = providersData?.data ?? providersData ?? [];
 
@@ -117,14 +125,32 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
                     {provider.providerType?.replace('_', ' ') || '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => handleUnassign(provider)}
-                      disabled={unassignMutation.isPending}
-                      className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                      title="Remove from practice"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleUnassign(provider)}
+                        disabled={unassignMutation.isPending}
+                        className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                        title="Unassign from this practice (provider stays in system)"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                      {canSoftDelete && (
+                        <button
+                          onClick={() =>
+                            setDeleteTarget({
+                              id: provider.id,
+                              name: `${provider.firstName} ${provider.lastName}`,
+                            })
+                          }
+                          disabled={deleteProvider.isPending}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          title="Delete provider (archive — retained for records, restorable)"
+                          aria-label={`Delete provider ${provider.firstName} ${provider.lastName}`}
+                        >
+                          <ArchiveBoxXMarkIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -138,6 +164,21 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
         onClose={() => setAssignModalOpen(false)}
         practiceId={practiceId}
       />
+
+      {deleteTarget && (
+        <DeleteProviderModal
+          providerName={deleteTarget.name}
+          isSubmitting={deleteProvider.isPending}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(reason) => {
+            const target = deleteTarget;
+            deleteProvider.mutate(
+              { providerId: target.id, deletionReason: reason },
+              { onSettled: () => setDeleteTarget(null) }
+            );
+          }}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={removeConfirm.isOpen}

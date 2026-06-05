@@ -4,7 +4,7 @@ import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 // Mock the prisma import so the service uses our mock
 vi.mock('../utils/prisma.js', async () => {
   const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 // Set env vars before importing service

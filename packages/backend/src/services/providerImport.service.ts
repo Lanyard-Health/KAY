@@ -1,6 +1,7 @@
 import { parse } from 'csv-parse/sync';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { checkProviderCollision } from './provider.service.js';
 
 // ==========================================
 // Types
@@ -593,11 +594,27 @@ function formatDate(date: Date): string {
 // Import execution
 // ==========================================
 
+export interface ImportConflict {
+  rowIndex: number;
+  npi: string | null;
+  caqhProviderId: string | null;
+  conflictType: 'archived_in_scope' | 'active_in_scope' | 'out_of_scope';
+  field: 'npi' | 'caqhProviderId';
+  // Present only when the colliding record is in the caller's scope (active or archived) —
+  // intentionally omitted for out_of_scope to avoid leaking other practices' provider IDs.
+  existingProviderId?: string;
+  existingProviderName?: string;
+}
+
 export interface ImportResult {
   importId: string;
   successCount: number;
   errorCount: number;
   skippedCount: number;
+  // Per-row collisions surfaced for review. Each row that collides with an existing NPI
+  // or CAQH ID (active OR soft-deleted, in-scope OR out-of-scope) is skipped, NOT failed.
+  // The batch continues so a single duplicate doesn't lose the rest of the import.
+  conflicts: ImportConflict[];
   error?: string;
 }
 
@@ -621,6 +638,7 @@ export async function executeImport(
       successCount: 0,
       errorCount: 0,
       skippedCount: 0,
+      conflicts: [],
       error: 'No rows to import',
     };
   }
@@ -639,10 +657,50 @@ export async function executeImport(
 
   const importId = importRecord.id;
 
+  // Per-row collision pre-check (must run BEFORE the transaction so a single duplicate
+  // doesn't fail the whole batch — see plan amendment, providerImport rule 1).
+  // The check uses the bypass client (via provider.service) so it catches soft-deleted rows.
+  const conflicts: ImportConflict[] = [];
+  const safeRows: ValidatedRow[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const npi = row.data['npi'] ?? null;
+    const caqhProviderId = row.data['caqhProviderId'] ?? null;
+    const collision = await checkProviderCollision({
+      npi,
+      caqhProviderId,
+      // Import is always scoped to the target practice — never escalate to super-admin here
+      // even if the caller is one. Out-of-scope duplicates surface as such, no detail leak.
+      isSuperAdmin: false,
+      practiceIds: [practiceId],
+    });
+    if (collision.kind === 'none') {
+      safeRows.push(row);
+      continue;
+    }
+    const conflictType = collision.kind === 'archived_in_scope'
+      ? 'archived_in_scope'
+      : collision.kind === 'active_in_scope'
+        ? 'active_in_scope'
+        : 'out_of_scope';
+    const conflict: ImportConflict = {
+      rowIndex: i,
+      npi,
+      caqhProviderId,
+      conflictType,
+      field: collision.field,
+    };
+    if (collision.kind === 'archived_in_scope' || collision.kind === 'active_in_scope') {
+      conflict.existingProviderId = collision.providerId;
+      conflict.existingProviderName = collision.providerName;
+    }
+    conflicts.push(conflict);
+  }
+
   try {
     // Single transaction with 2-minute timeout for up to 500 rows
     await prisma.$transaction(async (tx) => {
-      for (const row of rows) {
+      for (const row of safeRows) {
         const provider = await tx.providerProfile.create({
           data: {
             npi: row.data['npi']!,
@@ -695,7 +753,7 @@ export async function executeImport(
       where: { id: importId },
       data: {
         status: 'completed',
-        successCount: rows.length,
+        successCount: safeRows.length,
         completedAt: new Date(),
       },
     });
@@ -704,16 +762,22 @@ export async function executeImport(
       event: 'provider_import_completed',
       practiceId,
       importId,
-      successCount: rows.length,
-      skippedCount: 0,
+      successCount: safeRows.length,
+      skippedCount: conflicts.length,
+      conflictBreakdown: {
+        archived: conflicts.filter((c) => c.conflictType === 'archived_in_scope').length,
+        active: conflicts.filter((c) => c.conflictType === 'active_in_scope').length,
+        outOfScope: conflicts.filter((c) => c.conflictType === 'out_of_scope').length,
+      },
       durationMs,
     });
 
     return {
       importId,
-      successCount: rows.length,
+      successCount: safeRows.length,
       errorCount: 0,
-      skippedCount: 0,
+      skippedCount: conflicts.length,
+      conflicts,
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown import error';
@@ -739,7 +803,8 @@ export async function executeImport(
       importId,
       successCount: 0,
       errorCount: rows.length,
-      skippedCount: 0,
+      skippedCount: conflicts.length,
+      conflicts,
       error,
     };
   }

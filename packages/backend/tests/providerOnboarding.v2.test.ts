@@ -24,7 +24,7 @@ vi.mock('../src/services/notification.service.js', () => ({
 // Mock prisma for route-level tests (portal.routes.ts imports from utils/prisma)
 vi.mock('../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('./helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../src/middleware/auth.middleware.js', () => ({

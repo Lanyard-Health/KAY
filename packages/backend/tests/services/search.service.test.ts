@@ -4,7 +4,7 @@ import { createMockRequest } from '../helpers/mock-express.js';
 
 vi.mock('../../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('../helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../../src/utils/logger.js', () => ({

@@ -71,7 +71,7 @@ vi.mock('../../src/middleware/auth.middleware.js', () => ({
 
 vi.mock('../../src/utils/prisma.js', async () => {
   const { prismaMock } = await import('../helpers/mock-prisma.js');
-  return { prisma: prismaMock };
+  return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
 vi.mock('../../src/services/ai.service.js', () => ({
