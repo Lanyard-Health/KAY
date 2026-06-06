@@ -6,6 +6,7 @@ import { ADMIN_ROLES } from '../constants/roles.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { decryptSafe, encryptSafe } from '../utils/crypto.js';
 import { ensureDraftEnrollments } from '../services/draft-enrollment.service.js';
+import { softDeletePractice, restorePractice } from '../services/practice.service.js';
 import { logger } from '../utils/logger.js';
 
 function maskPractice(practice: any) {
@@ -54,7 +55,9 @@ router.get(
   authorize(...ADMIN_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const includeDeleted = req.query['includeDeleted'] === 'true' && req.practiceScope?.isSuperAdmin;
       const practices = await prisma.practice.findMany({
+        where: includeDeleted ? {} : { deletedAt: null },
         include: {
           _count: {
             select: {
@@ -107,6 +110,7 @@ router.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const practices = await prisma.practice.findMany({
+        where: { deletedAt: null },
         select: {
           id: true,
           name: true,
@@ -188,6 +192,7 @@ router.get(
         return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
       }
 
+      const includeDeleted = req.query['includeDeleted'] === 'true' && req.practiceScope?.isSuperAdmin;
       const practice = await prisma.practice.findUnique({
         where: { id: practiceId },
         include: {
@@ -203,7 +208,7 @@ router.get(
         },
       });
 
-      if (!practice) {
+      if (!practice || (!includeDeleted && practice.deletedAt)) {
         return res.status(404).json({
           success: false,
           error: { message: 'Practice not found' },
@@ -502,6 +507,104 @@ router.delete(
       });
 
       res.json({ success: true, data: { message: 'User removed from practice' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/v1/practices/:practiceId?reason=<urlencoded> - Soft-delete practice
+// Reason is a query param (not body) because some proxies strip DELETE bodies.
+router.delete(
+  '/:practiceId',
+  authenticate,
+  authorize(...ADMIN_ROLES, 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practiceId = req.params['practiceId']!;
+
+      // Practice-admin can only delete their own practice
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds?.includes(practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+      }
+
+      const rawReason = typeof req.query['reason'] === 'string' ? req.query['reason'] : null;
+      if (rawReason && rawReason.length > 2000) {
+        return res.status(400).json({ success: false, error: { message: 'reason too long' } });
+      }
+
+      setAuditContext(req, {
+        resourceType: 'practice',
+        resourceId: practiceId,
+        action: 'delete',
+      });
+
+      try {
+        const { practice, wasAlreadyDeleted } = await softDeletePractice({
+          practiceId,
+          actorId: req.user?.id,
+          reason: rawReason,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.get('user-agent'),
+        });
+        res.json({
+          success: true,
+          data: {
+            practice: maskPractice(practice),
+            alreadyDeleted: wasAlreadyDeleted,
+          },
+        });
+      } catch (e) {
+        if ((e as Error).message === 'PRACTICE_NOT_FOUND') {
+          return res.status(404).json({ success: false, error: { message: 'Practice not found' } });
+        }
+        throw e;
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/practices/:practiceId/restore - Restore a soft-deleted practice
+router.post(
+  '/:practiceId/restore',
+  authenticate,
+  authorize(...ADMIN_ROLES, 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practiceId = req.params['practiceId']!;
+
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds?.includes(practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Insufficient permissions' } });
+      }
+
+      setAuditContext(req, {
+        resourceType: 'practice',
+        resourceId: practiceId,
+        action: 'update',
+      });
+
+      try {
+        const { practice, wasAlreadyActive } = await restorePractice({
+          practiceId,
+          actorId: req.user?.id,
+          ipAddress: req.ip || req.socket.remoteAddress,
+          userAgent: req.get('user-agent'),
+        });
+        res.json({
+          success: true,
+          data: {
+            practice: maskPractice(practice),
+            alreadyActive: wasAlreadyActive,
+          },
+        });
+      } catch (e) {
+        if ((e as Error).message === 'PRACTICE_NOT_FOUND') {
+          return res.status(404).json({ success: false, error: { message: 'Practice not found' } });
+        }
+        throw e;
+      }
     } catch (error) {
       next(error);
     }

@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Tab, Switch } from '@headlessui/react';
-import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon, Cog6ToothIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, LinkIcon, PencilIcon, UserGroupIcon, UsersIcon, Cog6ToothIcon, BuildingOffice2Icon, ArchiveBoxXMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePractice } from '../../hooks/usePractices';
+import { useDeletePractice } from '../../hooks/usePracticeSoftDelete';
+import { useAuthStore } from '../../stores/auth.store';
 import { api } from '../../services/api';
 import LoadingState from '../../components/ui/LoadingState';
 import PracticeFormModal from './PracticeFormModal';
+import DeletePracticeModal from './DeletePracticeModal';
 import PracticeUsersTab from './PracticeUsersTab';
 import PracticeProvidersTab from './PracticeProvidersTab';
 import PracticePayersTab from './PracticePayersTab';
@@ -22,8 +25,13 @@ const TABS = [
 
 export default function PracticeDetail() {
   const { practiceId } = useParams();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canSoftDelete = user?.role === 'admin' || user?.role === 'practice_admin';
   const { data: practice, isLoading } = usePractice(practiceId!);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const deletePractice = useDeletePractice();
 
   const handleCopyRegistrationLink = () => {
     const link = `${window.location.origin}/register?practice=${practiceId}`;
@@ -114,6 +122,17 @@ export default function PracticeDetail() {
             <PencilIcon className="-ml-1 mr-2 h-5 w-5" />
             Edit
           </button>
+          {canSoftDelete && (
+            <button
+              onClick={() => setDeleteModalOpen(true)}
+              disabled={deletePractice.isPending}
+              className="btn-secondary text-red-600"
+              title="Delete practice (archive — retained for records, restorable)"
+            >
+              <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -159,6 +178,25 @@ export default function PracticeDetail() {
         onClose={() => setEditModalOpen(false)}
         practice={practice}
       />
+
+      {deleteModalOpen && (
+        <DeletePracticeModal
+          practiceName={practice.name}
+          isSubmitting={deletePractice.isPending}
+          onCancel={() => setDeleteModalOpen(false)}
+          onConfirm={(reason) =>
+            deletePractice.mutate(
+              { practiceId: practiceId!, deletionReason: reason },
+              {
+                onSuccess: () => {
+                  setDeleteModalOpen(false);
+                  navigate('/practices');
+                },
+              }
+            )
+          }
+        />
+      )}
     </div>
   );
 }

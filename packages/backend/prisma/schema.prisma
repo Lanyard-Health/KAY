@@ -182,6 +182,11 @@ model Practice {
   maxProviderSlots Int?    @map("max_provider_slots")
   maxUserSeats     Int?    @map("max_user_seats")
 
+  // Soft delete
+  deletedAt      DateTime? @map("deleted_at")
+  deletedBy      String?   @map("deleted_by")
+  deletionReason String?   @map("deletion_reason")
+
   users                UserPractice[]
   providers            ProviderProfile[]
   providerApplications ProviderApplication[]
@@ -213,6 +218,7 @@ model Practice {
   webhookSubscriptions       WebhookSubscription[]
   documents                  Document[]
 
+  @@index([deletedAt])
   @@map("practices")
 }
 
@@ -1976,6 +1982,10 @@ enum AuditAction {
   // Provider lifecycle — soft-delete + restore (admin-only, ≥7y retention)
   PROVIDER_SOFT_DELETE          // Admin soft-deleted a provider: providerId, deletionReason, deletedBy
   PROVIDER_RESTORE              // Admin restored a provider: providerId, restoredBy
+
+  // Practice lifecycle — soft-delete + restore (admin/practice_admin, ≥7y retention)
+  PRACTICE_SOFT_DELETE          // Soft-deleted a practice: practiceId, deletionReason, deletedBy
+  PRACTICE_RESTORE              // Restored a practice: practiceId, restoredBy
 }
 
 model AuditLog {
