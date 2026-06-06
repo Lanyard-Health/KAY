@@ -430,4 +430,127 @@ describe('Practice Routes', () => {
       expect(res.body.error.message).toContain('not assigned');
     });
   });
+
+  // ==========================================
+  // DELETE /:practiceId — Soft-delete practice
+  // ==========================================
+  describe('DELETE /:practiceId', () => {
+    it('soft deletes by setting deletedAt + deletedBy + deletionReason and audits the action', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue({
+        ...mockPractice, deletedAt: null,
+      } as any);
+      prismaMock.practice.update.mockResolvedValue({
+        ...mockPractice, deletedAt: new Date(),
+      } as any);
+
+      const res = await request(app).delete('/practice-1-id?reason=Duplicate');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.alreadyDeleted).toBe(false);
+      expect(prismaMock.practice.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            deletedAt: expect.any(Date),
+            deletionReason: 'Duplicate',
+          }),
+        })
+      );
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'PRACTICE_SOFT_DELETE',
+            resourceType: 'practice',
+          }),
+        })
+      );
+    });
+
+    it('returns 404 when practice not found', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).delete('/nonexistent-id');
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('is idempotent on already-deleted practice', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue({
+        ...mockPractice, deletedAt: new Date('2026-06-01'),
+      } as any);
+      prismaMock.practice.findUniqueOrThrow.mockResolvedValue({
+        ...mockPractice, deletedAt: new Date('2026-06-01'),
+      } as any);
+
+      const res = await request(app).delete('/practice-1-id');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.alreadyDeleted).toBe(true);
+      expect(prismaMock.practice.update).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================
+  // POST /:practiceId/restore — Restore practice
+  // ==========================================
+  describe('POST /:practiceId/restore', () => {
+    it('clears soft-delete columns and audits restore', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue({
+        ...mockPractice, deletedAt: new Date('2026-06-01'),
+      } as any);
+      prismaMock.practice.update.mockResolvedValue({
+        ...mockPractice, deletedAt: null,
+      } as any);
+
+      const res = await request(app).post('/practice-1-id/restore');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.alreadyActive).toBe(false);
+      expect(prismaMock.practice.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            deletedAt: null,
+            deletedBy: null,
+            deletionReason: null,
+          }),
+        })
+      );
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'PRACTICE_RESTORE',
+            resourceType: 'practice',
+          }),
+        })
+      );
+    });
+
+    it('is idempotent on already-active practice', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue({
+        ...mockPractice, deletedAt: null,
+      } as any);
+      prismaMock.practice.findUniqueOrThrow.mockResolvedValue({
+        ...mockPractice, deletedAt: null,
+      } as any);
+
+      const res = await request(app).post('/practice-1-id/restore');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.alreadyActive).toBe(true);
+      expect(prismaMock.practice.update).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when practice not found', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).post('/nonexistent-id/restore');
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });
