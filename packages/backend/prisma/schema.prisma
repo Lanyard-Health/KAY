@@ -218,6 +218,7 @@ model Practice {
   webhookSubscriptions       WebhookSubscription[]
   documents                  Document[]
 
+  @@index([deletedAt])
   @@map("practices")
 }
 
