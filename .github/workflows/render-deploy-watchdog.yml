@@ -9,9 +9,16 @@ name: Render Deploy Watchdog
 # commit still matches current master HEAD.
 #
 # Safety:
-# - Retries at most once per (service, commit). State is the per-deploy
-#   ID: a deploy with status build_failed is retried, the retry produces a
-#   NEW deploy ID, so this loop cannot rerun the same failure.
+# - Retries at most once per (service, COMMIT SHA). State lives in Render's
+#   own deploy history: we count how many deploys exist for the commit and
+#   skip if it's already >1. This survives across cron ticks because Render
+#   persists the deploy log indefinitely.
+# - Only retries `build_failed`. Does NOT retry `update_failed` or
+#   `pre_deploy_failed` — those are release-/migration-level errors that
+#   need a human; retrying them just adds noise and can mask real problems.
+# - Also pulls deploy logs and hard-skips if Prisma migration errors
+#   (P3009, P3018) are present, as a belt-and-suspenders against future
+#   drift (e.g. if someone moves `prisma migrate` into the build step).
 # - Skips retries when the failed commit is no longer master HEAD (a
 #   newer push has superseded it — retrying old commits is pointless).
 # - All work happens via Render's REST API — no shell into Render.
@@ -51,6 +58,9 @@ jobs:
             exit 1
           fi
 
+          # Render workspace owner — required for the /v1/logs API.
+          RENDER_OWNER_ID="tea-d61unukr85hc7387vg80"
+
           # Services this watchdog watches. Add new services by appending here.
           SERVICES='[
             {"id":"srv-d6212t7pm1nc73fjkdk0","name":"kay-backend"},
@@ -67,16 +77,18 @@ jobs:
           retried=0
           skipped_already_live=0
           skipped_stale_commit=0
-          skipped_not_failed=0
+          skipped_not_retryable=0
+          skipped_retry_cap=0
+          skipped_migration_error=0
 
           for row in $(echo "$SERVICES" | jq -c '.[]'); do
             ID=$(echo "$row" | jq -r '.id')
             NAME=$(echo "$row" | jq -r '.name')
 
-            # Get the latest deploy for this service.
-            LATEST=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$ID/deploys?limit=1" \
-              | jq -r '.[0].deploy')
+            # Fetch recent deploys (need >1 so we can detect prior retries for the same commit).
+            DEPLOYS_JSON=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$ID/deploys?limit=10")
+            LATEST=$(echo "$DEPLOYS_JSON" | jq -r '.[0].deploy')
             STATUS=$(echo "$LATEST" | jq -r '.status')
             COMMIT=$(echo "$LATEST" | jq -r '.commit.id // ""')
             DEPLOY_ID=$(echo "$LATEST" | jq -r '.id')
@@ -88,9 +100,13 @@ jobs:
               continue
             fi
 
-            if [ "$STATUS" != "build_failed" ] && [ "$STATUS" != "update_failed" ] && [ "$STATUS" != "pre_deploy_failed" ]; then
-              # in_progress, queued, canceled, etc. — leave alone.
-              skipped_not_failed=$((skipped_not_failed + 1))
+            # Only build_failed is a candidate. update_failed and pre_deploy_failed
+            # are release-level errors (broken start command, migration that won't
+            # apply, env var mismatch) — no amount of retrying fixes them, and
+            # retrying masks the real problem from the operator.
+            if [ "$STATUS" != "build_failed" ]; then
+              echo "    skipped — status '$STATUS' is not retryable (only build_failed)"
+              skipped_not_retryable=$((skipped_not_retryable + 1))
               continue
             fi
 
@@ -98,6 +114,33 @@ jobs:
               echo "    skipped — failed commit ${COMMIT:0:7} is not current master HEAD ${MASTER_HEAD:0:7}"
               skipped_stale_commit=$((skipped_stale_commit + 1))
               continue
+            fi
+
+            # Per-commit retry cap. Uses Render's deploy history as durable state:
+            # if >1 deploy exists for this commit, we (or a human) have already
+            # retried it at least once. Survives cron ticks because Render keeps
+            # the deploy log indefinitely.
+            PRIOR_COUNT=$(echo "$DEPLOYS_JSON" | jq "[.[] | select(.deploy.commit.id == \"$COMMIT\")] | length")
+            if [ "$PRIOR_COUNT" -gt 1 ]; then
+              echo "    skipped — commit ${COMMIT:0:7} already has $PRIOR_COUNT deploys (max 1 retry per commit)"
+              skipped_retry_cap=$((skipped_retry_cap + 1))
+              continue
+            fi
+
+            # Belt-and-suspenders: if the deploy logs show a Prisma migration
+            # error code, that's a structural failure no retry can fix. Hard-skip
+            # with a clear log line so the operator sees it in the workflow summary.
+            LOG_START=$(echo "$LATEST" | jq -r '.createdAt // empty')
+            LOG_END=$(echo "$LATEST" | jq -r '.finishedAt // .updatedAt // empty')
+            if [ -n "$LOG_START" ] && [ -n "$LOG_END" ]; then
+              LOG_BODY=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+                "https://api.render.com/v1/logs?ownerId=$RENDER_OWNER_ID&resource=$ID&startTime=$LOG_START&endTime=$LOG_END&limit=200&direction=backward" \
+                2>/dev/null || echo '{}')
+              if echo "$LOG_BODY" | grep -qE 'P3009|P3018'; then
+                echo "    skipped — Prisma migration error (P3009/P3018) detected; needs human"
+                skipped_migration_error=$((skipped_migration_error + 1))
+                continue
+              fi
             fi
 
             if [ "${DRY_RUN:-false}" = "true" ]; then
@@ -121,6 +164,8 @@ jobs:
             echo "- Master HEAD: \`$MASTER_HEAD\`"
             echo "- Retried: $retried"
             echo "- Skipped (already live): $skipped_already_live"
-            echo "- Skipped (not in failed state): $skipped_not_failed"
+            echo "- Skipped (status not retryable): $skipped_not_retryable"
             echo "- Skipped (failed commit ≠ HEAD): $skipped_stale_commit"
+            echo "- Skipped (retry cap reached for commit): $skipped_retry_cap"
+            echo "- Skipped (Prisma migration error in logs): $skipped_migration_error"
           } >> "$GITHUB_STEP_SUMMARY"
