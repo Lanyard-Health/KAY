@@ -380,8 +380,12 @@ server.listen(PORT, async () => {
     logger.info('Keep-alive ping enabled (every 5 minutes)');
   }
 
-  // Pre-create dev bypass users on startup so auth never fails after restart
-  if (process.env['DEV_AUTH_BYPASS'] === 'true') {
+  // Pre-create dev bypass users on startup so auth never fails after restart.
+  // Fail-closed: NODE_ENV must be the literal 'development' or 'test'.
+  if (
+    process.env['DEV_AUTH_BYPASS'] === 'true' &&
+    (process.env['NODE_ENV'] === 'development' || process.env['NODE_ENV'] === 'test')
+  ) {
     try {
       // Ensure dev admin user exists
       const adminUser = await prisma.user.findUnique({

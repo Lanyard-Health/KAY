@@ -7,10 +7,14 @@ import { RolePermissions } from '@credential-management/shared';
 import { logger } from '../utils/logger.js';
 import { initPracticeScope } from './practiceScope.middleware.js';
 
-// Auth bypass controlled by DEV_AUTH_BYPASS env var (set to "false" when real auth is ready)
-const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
+// Auth bypass controlled by DEV_AUTH_BYPASS env var.
+// Fail-closed: bypass only activates when NODE_ENV is EXPLICITLY 'development'
+// or 'test'. An unset or typo'd NODE_ENV does NOT activate the bypass.
+const DEV_BYPASS_ENABLED =
+  process.env['DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env['NODE_ENV'] === 'development' || process.env['NODE_ENV'] === 'test');
 
-if (DEV_BYPASS_ENABLED && process.env['NODE_ENV'] === 'production') {
+if (process.env['DEV_AUTH_BYPASS'] === 'true' && process.env['NODE_ENV'] === 'production') {
   throw new Error('FATAL: DEV_AUTH_BYPASS cannot be enabled in production');
 }
 

@@ -4,7 +4,7 @@ vi.mock('./logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { validateEnv } from './env.js';
+import { validateEnv, devBypassEnabled } from './env.js';
 import { logger } from './logger.js';
 
 const CAQH_REQUIRED = ['CAQH_API_URL', 'CAQH_ORG_ID', 'CAQH_USERNAME', 'CAQH_PASSWORD'] as const;
@@ -161,5 +161,104 @@ describe('validateEnv — CAQH_ROSTER_MODE default', () => {
   it('rejects unknown CAQH_ROSTER_MODE values at startup', () => {
     process.env['CAQH_ROSTER_MODE'] = 'asynchronous';
     expect(() => validateEnv()).toThrow(/CAQH_ROSTER_MODE/);
+  });
+});
+
+describe('DEV_AUTH_BYPASS — fail-closed behavior', () => {
+  const DEV_KEYS = ['NODE_ENV', 'DATABASE_URL', 'DEV_AUTH_BYPASS', ...CAQH_REQUIRED] as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    snapshot(DEV_KEYS);
+    process.env['DATABASE_URL'] = 'postgresql://test';
+    // CAQH vars present so we don't trip the CAQH guard during these tests
+    process.env['CAQH_API_URL'] = 'https://proview-demo.nonprod.caqh.org';
+    process.env['CAQH_ORG_ID'] = '6279';
+    process.env['CAQH_USERNAME'] = 'demouser';
+    process.env['CAQH_PASSWORD'] = 'demopass';
+  });
+
+  afterEach(() => {
+    restore(DEV_KEYS);
+  });
+
+  describe('devBypassEnabled() helper', () => {
+    it('returns true when DEV_AUTH_BYPASS=true and NODE_ENV=development', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'development';
+      expect(devBypassEnabled()).toBe(true);
+    });
+
+    it('returns false when DEV_AUTH_BYPASS=true and NODE_ENV=production', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'production';
+      expect(devBypassEnabled()).toBe(false);
+    });
+
+    it('returns false when DEV_AUTH_BYPASS=true and NODE_ENV is unset (the critical fail-closed case)', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      delete process.env['NODE_ENV'];
+      expect(devBypassEnabled()).toBe(false);
+    });
+
+    it('returns false when DEV_AUTH_BYPASS=true and NODE_ENV is a typo (e.g. "Production" or "dev")', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'Production'; // wrong case
+      expect(devBypassEnabled()).toBe(false);
+
+      process.env['NODE_ENV'] = 'dev'; // not the literal 'development'
+      expect(devBypassEnabled()).toBe(false);
+
+      process.env['NODE_ENV'] = 'staging'; // not on the allowlist
+      expect(devBypassEnabled()).toBe(false);
+    });
+
+    it('returns true when DEV_AUTH_BYPASS=true and NODE_ENV=test (test runners)', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'test';
+      expect(devBypassEnabled()).toBe(true);
+    });
+
+    it('returns false when DEV_AUTH_BYPASS is unset', () => {
+      delete process.env['DEV_AUTH_BYPASS'];
+      process.env['NODE_ENV'] = 'development';
+      expect(devBypassEnabled()).toBe(false);
+    });
+
+    it('returns false when DEV_AUTH_BYPASS=1 (must be the literal string "true")', () => {
+      process.env['DEV_AUTH_BYPASS'] = '1';
+      process.env['NODE_ENV'] = 'development';
+      expect(devBypassEnabled()).toBe(false);
+    });
+  });
+
+  describe('validateEnv() boot-time guard', () => {
+    it('throws when DEV_AUTH_BYPASS=true and NODE_ENV=production', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'production';
+      // CAQH vars set to production values so CAQH guard doesn't fire first
+      process.env['CAQH_API_URL'] = 'https://proview.caqh.org';
+      process.env['CAQH_ORG_ID'] = '1873';
+      process.env['CAQH_USERNAME'] = 'user';
+      process.env['CAQH_PASSWORD'] = 'pass';
+      expect(() => validateEnv()).toThrow(/DEV_AUTH_BYPASS=true is not allowed when NODE_ENV=production/);
+    });
+
+    it('does NOT throw when DEV_AUTH_BYPASS=true and NODE_ENV=development', () => {
+      process.env['DEV_AUTH_BYPASS'] = 'true';
+      process.env['NODE_ENV'] = 'development';
+      expect(() => validateEnv()).not.toThrow();
+    });
+
+    it('does NOT throw when DEV_AUTH_BYPASS is unset and NODE_ENV=production', () => {
+      delete process.env['DEV_AUTH_BYPASS'];
+      process.env['NODE_ENV'] = 'production';
+      // CAQH vars set to production values so CAQH guard doesn't fire
+      process.env['CAQH_API_URL'] = 'https://proview.caqh.org';
+      process.env['CAQH_ORG_ID'] = '1873';
+      process.env['CAQH_USERNAME'] = 'user';
+      process.env['CAQH_PASSWORD'] = 'pass';
+      expect(() => validateEnv()).not.toThrow();
+    });
   });
 });
