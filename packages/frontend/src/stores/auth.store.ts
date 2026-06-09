@@ -369,10 +369,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         }
 
+        if (step === 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION') {
+          // Cognito returns this when the user pool allows multiple MFA
+          // methods (typically SMS + TOTP). We auto-select TOTP — SMS MFA
+          // is deprecated for high-security apps per NIST 800-63B and the
+          // frontend has no SMS UI. Cognito then returns the actual next
+          // challenge (TOTP setup for new users, TOTP code for enrolled).
+          const { confirmSignIn } = await import('aws-amplify/auth');
+          const next = await confirmSignIn({ challengeResponse: 'TOTP' });
+          const nextStep = next.nextStep?.signInStep;
+          if (nextStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
+            set({ challengeName: 'MFA_SETUP', challengeSession: next, isLoading: false });
+            return;
+          }
+          if (nextStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
+            set({ challengeName: 'MFA_TOTP', challengeSession: next, isLoading: false });
+            return;
+          }
+          // Anything else after TOTP selection is unexpected; surface it
+          // instead of falling through to a silent checkAuth() (which would
+          // produce the "spinner then back to login" bug).
+          // eslint-disable-next-line no-console
+          console.error('[auth] Unhandled signInStep after TOTP selection:', nextStep, next.nextStep);
+          set({
+            error: `Sign-in returned an unsupported step after TOTP selection: ${nextStep ?? 'unknown'}.`,
+            isLoading: false,
+          });
+          return;
+        }
+
         if (step === 'DONE') {
           await get().checkAuth();
           return;
         }
+
+        // Catch-all for any Cognito signInStep we don't handle. Previously
+        // the function fell through to checkAuth() with no error message,
+        // which surfaced to the user as "spinner then no login, no error" —
+        // an effective lockout when MFA was misconfigured. Surface the step
+        // name so it's actionable rather than mysterious.
+        // eslint-disable-next-line no-console
+        console.error('[auth] Unhandled signInStep:', step, result.nextStep);
+        set({
+          error: `Sign-in returned an unsupported step: ${step}. Please contact support.`,
+          isLoading: false,
+        });
+        return;
       }
 
       await get().checkAuth();
