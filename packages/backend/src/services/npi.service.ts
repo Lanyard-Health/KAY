@@ -146,19 +146,19 @@ export class NPIService {
 
     try {
       const url = `${this.baseUrl}?version=2.1&number=${npiNumber}`;
-      logger.info(`Looking up NPI: ${npiNumber}`);
+      logger.info('Looking up NPI', { npi: npiNumber });
 
       const response = await fetch(url);
 
       if (!response.ok) {
-        logger.error(`NPI API returned ${response.status}`);
+        logger.error('NPI API returned non-OK status', { status: response.status });
         return { found: false };
       }
 
       const data = await response.json() as NPIAPIResponse;
 
       if (data.result_count === 0 || !data.results || data.results.length === 0) {
-        logger.info(`NPI ${npiNumber} not found`);
+        logger.info('NPI not found', { npi: npiNumber });
         return { found: false };
       }
 
@@ -186,7 +186,7 @@ export class NPIService {
       params.append('enumeration_type', 'NPI-1'); // Individual providers only
 
       const url = `${this.baseUrl}?${params.toString()}`;
-      logger.info(`Searching NPI by name: ${firstName} ${lastName}`);
+      logger.info('Searching NPI by name', { firstName, lastName, state, city });
 
       const response = await fetch(url);
 

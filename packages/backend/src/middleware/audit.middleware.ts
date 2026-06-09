@@ -45,6 +45,21 @@ const excludedPaths = [
   '/api/v1/auth/refresh',
 ];
 
+// GET requests on these path prefixes are sensitive PII reads (provider
+// records, enrollment data, document downloads). SOC 2 + breach forensics
+// require a record of who-read-what-when, so we audit GETs here in addition
+// to the usual write-operation logging.
+const SENSITIVE_READ_PATHS = [
+  '/api/v1/providers',
+  '/api/v1/enrollments',
+  '/api/v1/documents',
+];
+
+export function isSensitiveRead(method: string, path: string): boolean {
+  if (method !== 'GET') return false;
+  return SENSITIVE_READ_PATHS.some((prefix) => path.startsWith(prefix));
+}
+
 export async function auditMiddleware(
   req: Request,
   res: Response,
@@ -64,8 +79,12 @@ export async function auditMiddleware(
   res.end = function(this: Response, ...args: Parameters<Response['end']>): Response {
     const responseTime = Date.now() - startTime;
 
-    // Only audit successful write operations
-    if (req.method !== 'GET' && res.statusCode < 400) {
+    // Audit (a) successful write operations and (b) successful sensitive
+    // reads on PII routes. Reads are required for SOC 2 + breach forensics
+    // even though they don't mutate state.
+    const isWrite = req.method !== 'GET';
+    const auditableRead = isSensitiveRead(req.method, req.path);
+    if ((isWrite || auditableRead) && res.statusCode < 400) {
       const action = methodToAction[req.method] || 'read';
       const resourceType = extractResourceType(req.path);
       const resourceId = extractResourceId(req.path);
