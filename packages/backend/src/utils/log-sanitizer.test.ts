@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import winston from 'winston';
-import { phiSanitizer, redactValue } from './log-sanitizer.js';
+import { phiSanitizer, redactValue, scrubMessage } from './log-sanitizer.js';
 
 describe('log-sanitizer', () => {
   describe('redactValue (deep walker)', () => {
@@ -82,6 +82,91 @@ describe('log-sanitizer', () => {
     });
   });
 
+  describe('PHI_KEYS expansion (P1-3)', () => {
+    it('redacts NPI keys (npi, npiNumber, npi_number)', () => {
+      const input = { npi: '1234567890', npiNumber: '9999999999', npi_number: '1111111111' };
+      const out = redactValue(input) as Record<string, unknown>;
+      expect(out.npi).toBe('[REDACTED]');
+      expect(out.npiNumber).toBe('[REDACTED]');
+      expect(out.npi_number).toBe('[REDACTED]');
+    });
+
+    it('redacts license number keys', () => {
+      const input = { licenseNumber: 'MD-12345', license_number: 'TX-67890' };
+      const out = redactValue(input) as Record<string, unknown>;
+      expect(out.licenseNumber).toBe('[REDACTED]');
+      expect(out.license_number).toBe('[REDACTED]');
+    });
+
+    it('redacts auth token keys (jwt, accessToken, refreshToken, idToken)', () => {
+      const input = {
+        jwt: 'eyJ...',
+        accessToken: 'at-abc',
+        access_token: 'at-def',
+        refreshToken: 'rt-abc',
+        refresh_token: 'rt-def',
+        idToken: 'it-abc',
+        id_token: 'it-def',
+      };
+      const out = redactValue(input) as Record<string, unknown>;
+      expect(out.jwt).toBe('[REDACTED]');
+      expect(out.accessToken).toBe('[REDACTED]');
+      expect(out.access_token).toBe('[REDACTED]');
+      expect(out.refreshToken).toBe('[REDACTED]');
+      expect(out.refresh_token).toBe('[REDACTED]');
+      expect(out.idToken).toBe('[REDACTED]');
+      expect(out.id_token).toBe('[REDACTED]');
+    });
+
+    it('redacts Medicare/Medicaid IDs', () => {
+      const input = { medicareId: 'MC-1', medicare_id: 'MC-2', medicaidId: 'MD-1', medicaid_id: 'MD-2' };
+      const out = redactValue(input) as Record<string, unknown>;
+      expect(out.medicareId).toBe('[REDACTED]');
+      expect(out.medicare_id).toBe('[REDACTED]');
+      expect(out.medicaidId).toBe('[REDACTED]');
+      expect(out.medicaid_id).toBe('[REDACTED]');
+    });
+  });
+
+  describe('scrubMessage (string-pattern scrubber)', () => {
+    it('redacts SSN with dashes anywhere in the string', () => {
+      expect(scrubMessage('User SSN is 123-45-6789, please verify')).toBe(
+        'User SSN is [REDACTED SSN], please verify'
+      );
+    });
+
+    it('redacts EIN format', () => {
+      expect(scrubMessage('Tax ID 12-3456789 invalid')).toBe('Tax ID [REDACTED EIN] invalid');
+    });
+
+    it('redacts 10-digit NPI runs', () => {
+      expect(scrubMessage('Looking up NPI: 1234567890')).toBe('Looking up NPI: [REDACTED 10-DIGIT]');
+    });
+
+    it('redacts multiple NPI occurrences in one message', () => {
+      expect(scrubMessage('Comparing 1111111111 and 2222222222')).toBe(
+        'Comparing [REDACTED 10-DIGIT] and [REDACTED 10-DIGIT]'
+      );
+    });
+
+    it('preserves messages with no PII patterns', () => {
+      expect(scrubMessage('Provider record updated successfully')).toBe('Provider record updated successfully');
+    });
+
+    it('does not redact 9-digit numbers (too many false positives)', () => {
+      // We deliberately do not scrub bare 9-digit runs — they false-match
+      // transaction IDs, db sequence numbers, etc. Real SSNs without dashes
+      // should travel as `ssn` keys in metadata.
+      expect(scrubMessage('Order id 123456789 processed')).toBe('Order id 123456789 processed');
+    });
+
+    it('redacts 10-digit timestamps as a known false-positive trade-off', () => {
+      // 1735000000-style Unix timestamps look like NPIs. We accept this
+      // false-positive to keep real NPIs out of free-form log strings.
+      expect(scrubMessage('Event at 1735000000 fired')).toBe('Event at [REDACTED 10-DIGIT] fired');
+    });
+  });
+
   describe('phiSanitizer Winston format', () => {
     it('strips PHI from logger metadata before output', async () => {
       const captured: string[] = [];
@@ -114,6 +199,31 @@ describe('log-sanitizer', () => {
       // Non-PHI fields preserved
       expect(captured[0]).toContain('user_123');
       expect(captured[0]).toContain('Atlanta');
+    });
+
+    it('scrubs PII patterns from the message body itself', async () => {
+      const captured: string[] = [];
+
+      const Transport = (await import('winston-transport')).default;
+      class MemoryTransport extends Transport {
+        log(info: { level: string; message: string } & Record<string, unknown>, next: () => void) {
+          captured.push(JSON.stringify(info));
+          next();
+        }
+      }
+
+      const logger = winston.createLogger({
+        format: winston.format.combine(phiSanitizer()),
+        transports: [new MemoryTransport()],
+      });
+
+      logger.info('Looking up NPI: 1234567890 for user with SSN 123-45-6789');
+
+      expect(captured.length).toBe(1);
+      expect(captured[0]).not.toContain('1234567890');
+      expect(captured[0]).not.toContain('123-45-6789');
+      expect(captured[0]).toContain('[REDACTED 10-DIGIT]');
+      expect(captured[0]).toContain('[REDACTED SSN]');
     });
   });
 });

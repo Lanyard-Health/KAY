@@ -28,14 +28,35 @@ const PHI_KEYS = new Set([
   'dea',
   'deanumber',
   'deanumberencrypted',
+  'dea_number',
   'accountnumber',
   'accountnumberencrypted',
+  'account_number',
   'routingnumber',
   'routingnumberencrypted',
+  'routing_number',
+  // Provider identifiers — single 10-digit NPI is enough to look up a provider
+  // by name in the public NPPES registry, so treat as PII.
+  'npi',
+  'npinumber',
+  'npi_number',
+  'licensenumber',
+  'license_number',
+  'medicareid',
+  'medicare_id',
+  'medicaidid',
+  'medicaid_id',
   'password',
   'passwd',
   'secret',
   'token',
+  'jwt',
+  'accesstoken',
+  'access_token',
+  'refreshtoken',
+  'refresh_token',
+  'idtoken',
+  'id_token',
   'apikey',
   'api_key',
   'authorization',
@@ -73,7 +94,31 @@ export function redactValue(value: unknown, depth = 0): unknown {
     }
     return out;
   }
+  if (typeof value === 'string') {
+    return scrubMessage(value);
+  }
   return value;
+}
+
+/**
+ * Scrub PII-shaped substrings from a free-form message body. This catches
+ * `logger.info('Looking up NPI: ' + npiNumber)` style call sites where the
+ * sensitive value is concatenated into the message string and so bypasses the
+ * key-based redactor entirely.
+ *
+ * Patterns: 10-digit runs (NPI), SSN with dashes, EIN. 9-digit runs are
+ * deliberately skipped — too many false positives (random IDs, transaction
+ * numbers). Real SSNs without dashes should be carried in structured metadata
+ * with a `ssn` key, which the key-based redactor already catches.
+ */
+export function scrubMessage(msg: string): string {
+  return msg
+    .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED SSN]')
+    .replace(/\b\d{2}-\d{7}\b/g, '[REDACTED EIN]')
+    // NPIs are 10-digit, but so are Unix timestamps and some transaction IDs.
+    // The false-positive cost (redacted timestamp in a log message) is much
+    // lower than the leak cost of a real NPI in a public log aggregator.
+    .replace(/\b\d{10}\b/g, '[REDACTED 10-DIGIT]');
 }
 
 /**
@@ -94,6 +139,20 @@ export const phiSanitizer = format((info: TransformableInfo) => {
       // eslint-disable-next-line security/detect-object-injection
       (info as Record<string, unknown>)[key] = redactValue((info as Record<string, unknown>)[key]);
     }
+  }
+  // Scrub PII-shaped substrings from the message body itself. Catches
+  // `logger.info('Looking up NPI: ' + npiNumber)` style call sites that
+  // bypass the key-based redactor.
+  if (typeof info.message === 'string') {
+    info.message = scrubMessage(info.message);
+  }
+  // Same for an error stack — they're free-form strings that can carry
+  // request/response context concatenated into the trace. `stack` is not
+  // a declared TransformableInfo property, so bracket-access through the
+  // index signature.
+  const record = info as Record<string, unknown>;
+  if (typeof record['stack'] === 'string') {
+    record['stack'] = scrubMessage(record['stack'] as string);
   }
   return info;
 });

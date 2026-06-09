@@ -222,7 +222,7 @@ export class CaqhCredentialsService {
       };
     }
 
-    logger.info(`Verifying CAQH credentials for provider: ${provider.firstName} ${provider.lastName}`);
+    logger.info('Verifying CAQH credentials for provider', { providerId });
 
     // Decrypt password before verification
     let decryptedPassword: string;
@@ -231,7 +231,7 @@ export class CaqhCredentialsService {
     } catch {
       // Handle legacy unencrypted passwords
       decryptedPassword = provider.caqhPassword;
-      logger.warn(`Provider ${providerId} has unencrypted CAQH password — re-encrypting`);
+      logger.warn('Provider has unencrypted CAQH password — re-encrypting', { providerId });
       await this.saveCredentials(providerId, provider.caqhUsername, provider.caqhPassword);
     }
 
@@ -412,8 +412,7 @@ export class CaqhCredentialsService {
       return (globalThis as any).document.body.innerText;
     });
 
-    logger.info(`CAQH login check - URL: ${currentUrl}`);
-    logger.info(`CAQH login check - Page text length: ${pageText.length}`);
+    logger.info('CAQH login check', { url: currentUrl, pageTextLength: pageText.length });
 
     // Check for error messages indicating invalid credentials (check FIRST)
     const invalidCredentialPatterns = [
