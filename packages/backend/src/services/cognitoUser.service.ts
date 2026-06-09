@@ -11,7 +11,10 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { logger } from '../utils/logger.js';
 
-const DEV_BYPASS_ENABLED = process.env['DEV_AUTH_BYPASS'] === 'true';
+// Fail-closed: bypass only activates when NODE_ENV is the literal 'development' or 'test'.
+const DEV_BYPASS_ENABLED =
+  process.env['DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env['NODE_ENV'] === 'development' || process.env['NODE_ENV'] === 'test');
 
 // Lazy-init the client (not needed in dev bypass mode)
 let client: CognitoIdentityProviderClient | null = null;

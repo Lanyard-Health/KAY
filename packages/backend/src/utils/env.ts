@@ -109,10 +109,34 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 /**
+ * Fail-closed check for the dev auth bypass. Bypass activates ONLY when:
+ *   - DEV_AUTH_BYPASS is exactly the literal string "true", AND
+ *   - NODE_ENV is exactly the literal "development" or "test"
+ *
+ * Any other state — missing NODE_ENV, typo'd NODE_ENV, flag not set to the
+ * literal "true" — returns false. This is an explicit allowlist, not a
+ * "not production" denylist, so a deploy that forgets to set NODE_ENV cannot
+ * silently behave like dev.
+ */
+export const devBypassEnabled = (): boolean =>
+  process.env['DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env['NODE_ENV'] === 'development' || process.env['NODE_ENV'] === 'test');
+
+/**
  * Validate environment variables on startup.
  * Throws with clear error messages if required vars are missing.
  */
 export function validateEnv(): Env {
+  // Hard fail-closed: refuse to boot if the dev bypass is enabled in production.
+  // Runs BEFORE schema parsing so a misconfigured deploy dies immediately with
+  // an obvious error rather than booting and silently letting bypass-allowed
+  // routes through.
+  if (process.env['DEV_AUTH_BYPASS'] === 'true' && process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'FATAL: DEV_AUTH_BYPASS=true is not allowed when NODE_ENV=production. Unset DEV_AUTH_BYPASS in the production environment.'
+    );
+  }
+
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
