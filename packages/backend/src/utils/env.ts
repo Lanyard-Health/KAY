@@ -119,8 +119,8 @@ export type Env = z.infer<typeof envSchema>;
  * silently behave like dev.
  */
 export const devBypassEnabled = (): boolean =>
-  process.env.DEV_AUTH_BYPASS === 'true' &&
-  (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
+  process.env['DEV_AUTH_BYPASS'] === 'true' &&
+  (process.env['NODE_ENV'] === 'development' || process.env['NODE_ENV'] === 'test');
 
 /**
  * Validate environment variables on startup.
@@ -131,7 +131,7 @@ export function validateEnv(): Env {
   // Runs BEFORE schema parsing so a misconfigured deploy dies immediately with
   // an obvious error rather than booting and silently letting bypass-allowed
   // routes through.
-  if (process.env.DEV_AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'production') {
+  if (process.env['DEV_AUTH_BYPASS'] === 'true' && process.env['NODE_ENV'] === 'production') {
     throw new Error(
       'FATAL: DEV_AUTH_BYPASS=true is not allowed when NODE_ENV=production. Unset DEV_AUTH_BYPASS in the production environment.'
     );
