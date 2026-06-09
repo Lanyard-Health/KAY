@@ -5,7 +5,15 @@ import { notify } from '../../utils/notify';
 import { mapCognitoError } from '../../utils/cognito-errors';
 import QRCode from 'qrcode';
 
-type AuthStep = 'login' | 'new-password' | 'mfa-totp' | 'mfa-setup' | 'forgot-password' | 'confirm-reset';
+type AuthStep =
+  | 'login'
+  | 'new-password'
+  | 'mfa-select'  // user picks Authenticator vs Email
+  | 'mfa-totp'    // enter 6-digit TOTP code
+  | 'mfa-setup'   // first-time TOTP enrollment (QR code)
+  | 'mfa-email'   // enter 6-digit code sent to email
+  | 'forgot-password'
+  | 'confirm-reset';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -31,10 +39,13 @@ export default function LoginPage() {
     devPracticeAdminLogin,
     isDevMode,
     challengeName,
+    availableMfaTypes,
     handleNewPasswordChallenge,
     handleMfaChallenge,
     handleMfaSetup,
     confirmMfaSetup,
+    selectMfaMethod,
+    handleEmailMfaCode,
     forgotPassword,
     confirmForgotPassword,
   } = useAuthStore();
@@ -70,8 +81,12 @@ export default function LoginPage() {
   useEffect(() => {
     if (challengeName === 'NEW_PASSWORD_REQUIRED') {
       setAuthStep('new-password');
+    } else if (challengeName === 'MFA_SELECT') {
+      setAuthStep('mfa-select');
     } else if (challengeName === 'MFA_TOTP') {
       setAuthStep('mfa-totp');
+    } else if (challengeName === 'MFA_EMAIL') {
+      setAuthStep('mfa-email');
     } else if (challengeName === 'MFA_SETUP') {
       setAuthStep('mfa-setup');
       handleMfaSetup().then(({ qrUri: uri, secretCode: code }) => {
@@ -192,6 +207,35 @@ export default function LoginPage() {
     }
   };
 
+  const handleMfaSelectClick = async (method: 'TOTP' | 'EMAIL') => {
+    setIsLoading(true);
+    try {
+      await selectMfaMethod(method);
+    } catch (error) {
+      notify.error('Could not start verification', { description: mapCognitoError(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMfaEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await handleEmailMfaCode(mfaCode);
+      const state = useAuthStore.getState();
+      if (state.isAuthenticated) {
+        notify.success('Welcome back');
+        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+      }
+    } catch (error) {
+      notify.error('Verification failed', { description: mapCognitoError(error) });
+      setMfaCode('');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleMfaSetupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -295,6 +339,83 @@ export default function LoginPage() {
               >
                 {isLoading ? 'Setting password...' : 'Set Password'}
               </button>
+            </form>
+          </div>
+        );
+
+      case 'mfa-select':
+        return (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-2">Choose verification method</h3>
+            <p className="text-sm text-white/60 mb-4">
+              How would you like to receive your verification code?
+            </p>
+            <div className="space-y-3">
+              {availableMfaTypes.includes('TOTP') && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleMfaSelectClick('TOTP')}
+                  className="w-full text-left px-4 py-3 border border-white/[0.15] bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-50"
+                >
+                  <div className="font-medium">Authenticator app</div>
+                  <div className="text-xs text-white/60 mt-0.5">
+                    Use a 6-digit code from Google Authenticator, 1Password, Authy, etc.
+                  </div>
+                </button>
+              )}
+              {availableMfaTypes.includes('EMAIL') && (
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleMfaSelectClick('EMAIL')}
+                  className="w-full text-left px-4 py-3 border border-white/[0.15] bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-50"
+                >
+                  <div className="font-medium">Email</div>
+                  <div className="text-xs text-white/60 mt-0.5">
+                    Receive a 6-digit code at your registered email address.
+                  </div>
+                </button>
+              )}
+              {availableMfaTypes.length === 0 && (
+                <p className="text-sm text-white/60">
+                  No verification methods are available. Contact support.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'mfa-email':
+        return (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-2">Check your email</h3>
+            <p className="text-sm text-white/60 mb-4">
+              We sent a 6-digit code to your registered email. Enter it below.
+            </p>
+            <form onSubmit={handleMfaEmailSubmit} className="space-y-4">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                autoFocus
+                className="appearance-none relative block w-full px-3 py-3 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 text-center text-2xl tracking-widest"
+                placeholder="000000"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <button
+                type="submit"
+                disabled={isLoading || mfaCode.length !== 6}
+                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+              >
+                {isLoading ? 'Verifying...' : 'Verify'}
+              </button>
+              <p className="text-xs text-white/50 text-center">
+                Code didn't arrive? Check spam, then try logging in again.
+              </p>
             </form>
           </div>
         );

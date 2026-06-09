@@ -72,10 +72,21 @@ interface AuthState {
   challengeSession: any | null;
   challengeEmail: string | null;
   challengeMissingAttributes: string[];
+  // When Cognito returns CONTINUE_SIGN_IN_WITH_MFA_SELECTION we capture the
+  // list of methods the user pool allows so the UI can present a picker.
+  // Values match Amplify v6's challengeResponse strings: 'TOTP', 'EMAIL', 'SMS'.
+  availableMfaTypes: string[];
   handleNewPasswordChallenge: (newPassword: string) => Promise<void>;
   handleMfaChallenge: (code: string) => Promise<void>;
   handleMfaSetup: () => Promise<{ qrUri: string; secretCode: string }>;
   confirmMfaSetup: (code: string) => Promise<void>;
+  // User selects a method on the MFA_SELECT step. The handler calls
+  // confirmSignIn(challengeResponse: method) and routes to the next state
+  // (MFA_SETUP for first-time TOTP, MFA_TOTP for enrolled TOTP, MFA_EMAIL
+  // for the email code path).
+  selectMfaMethod: (method: 'TOTP' | 'EMAIL' | 'SMS') => Promise<void>;
+  // Verifies a 6-digit email code (CONFIRM_SIGN_IN_WITH_EMAIL_CODE).
+  handleEmailMfaCode: (code: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   confirmForgotPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }
@@ -91,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   challengeSession: null,
   challengeEmail: null,
   challengeMissingAttributes: [],
+  availableMfaTypes: [],
 
   checkAuth: async () => {
     try {
@@ -371,28 +383,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         if (step === 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION') {
           // Cognito returns this when the user pool allows multiple MFA
-          // methods (typically SMS + TOTP). We auto-select TOTP — SMS MFA
-          // is deprecated for high-security apps per NIST 800-63B and the
-          // frontend has no SMS UI. Cognito then returns the actual next
-          // challenge (TOTP setup for new users, TOTP code for enrolled).
-          const { confirmSignIn } = await import('aws-amplify/auth');
-          const next = await confirmSignIn({ challengeResponse: 'TOTP' });
-          const nextStep = next.nextStep?.signInStep;
-          if (nextStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
-            set({ challengeName: 'MFA_SETUP', challengeSession: next, isLoading: false });
-            return;
-          }
-          if (nextStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
-            set({ challengeName: 'MFA_TOTP', challengeSession: next, isLoading: false });
-            return;
-          }
-          // Anything else after TOTP selection is unexpected; surface it
-          // instead of falling through to a silent checkAuth() (which would
-          // produce the "spinner then back to login" bug).
-          // eslint-disable-next-line no-console
-          console.error('[auth] Unhandled signInStep after TOTP selection:', nextStep, next.nextStep);
+          // methods. Capture the allowed methods and route the UI to a
+          // picker so the user chooses Authenticator or Email.
+          // Per [[project_lanyard_mfa_preference]] we do NOT auto-select —
+          // the founder explicitly wants end users to pick. The picker
+          // calls selectMfaMethod() which calls confirmSignIn() with the
+          // chosen challengeResponse.
+          const allowed = ((result.nextStep as any).allowedMFATypes ?? []) as string[];
           set({
-            error: `Sign-in returned an unsupported step after TOTP selection: ${nextStep ?? 'unknown'}.`,
+            challengeName: 'MFA_SELECT',
+            challengeSession: result,
+            availableMfaTypes: allowed,
+            isLoading: false,
+          });
+          return;
+        }
+
+        if (step === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') {
+          // Cognito sent a 6-digit code to the user's verified email.
+          // Surface the email-code input UI.
+          set({
+            challengeName: 'MFA_EMAIL',
+            challengeSession: result,
             isLoading: false,
           });
           return;
@@ -482,6 +494,62 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Invalid MFA code',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  selectMfaMethod: async (method: 'TOTP' | 'EMAIL' | 'SMS') => {
+    try {
+      set({ isLoading: true, error: null });
+      const { confirmSignIn } = await import('aws-amplify/auth');
+      const next = await confirmSignIn({ challengeResponse: method });
+      const nextStep = next.nextStep?.signInStep;
+
+      // Route to the appropriate next-state UI based on what Cognito asks for.
+      if (nextStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
+        set({ challengeName: 'MFA_SETUP', challengeSession: next, availableMfaTypes: [], isLoading: false });
+        return;
+      }
+      if (nextStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
+        set({ challengeName: 'MFA_TOTP', challengeSession: next, availableMfaTypes: [], isLoading: false });
+        return;
+      }
+      if (nextStep === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') {
+        set({ challengeName: 'MFA_EMAIL', challengeSession: next, availableMfaTypes: [], isLoading: false });
+        return;
+      }
+      if (nextStep === 'DONE') {
+        set({ challengeName: null, challengeSession: null, availableMfaTypes: [] });
+        await get().checkAuth();
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error('[auth] Unhandled signInStep after MFA selection:', nextStep, next.nextStep);
+      set({
+        error: `Sign-in returned an unsupported step after selecting ${method}: ${nextStep ?? 'unknown'}.`,
+        isLoading: false,
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to select MFA method',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  handleEmailMfaCode: async (code: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const { confirmSignIn } = await import('aws-amplify/auth');
+      await confirmSignIn({ challengeResponse: code });
+      set({ challengeName: null, challengeSession: null });
+      await get().checkAuth();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Invalid email code',
         isLoading: false,
       });
       throw error;
