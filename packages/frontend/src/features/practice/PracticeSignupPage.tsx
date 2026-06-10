@@ -30,6 +30,38 @@ const STATE_NAMES: Record<string, string> = {
   DC:'District of Columbia',
 };
 
+// Typo suggestions for common email TLD + domain mistakes.
+// We don't reach for a library (~6KB dep) because the long tail of TLD typos
+// isn't worth it; these 30-ish rules catch the typos that actually happen.
+const TLD_FIXES: Record<string, string> = {
+  co: 'com', con: 'com', cm: 'com', om: 'com', comm: 'com', vom: 'com', xom: 'com',
+  ne: 'net', nett: 'net', met: 'net',
+  og: 'org', or: 'org', orgg: 'org',
+};
+const DOMAIN_FIXES: Record<string, string> = {
+  'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gnail.com': 'gmail.com',
+  'gamil.com': 'gmail.com', 'gmail.co': 'gmail.com', 'gmaill.com': 'gmail.com',
+  'yhoo.com': 'yahoo.com', 'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com',
+  'yahoo.co': 'yahoo.com',
+  'hotnail.com': 'hotmail.com', 'hotmial.com': 'hotmail.com',
+  'hotmai.com': 'hotmail.com', 'hotmail.co': 'hotmail.com',
+  'outlok.com': 'outlook.com', 'outloook.com': 'outlook.com', 'outlook.co': 'outlook.com',
+  'icoud.com': 'icloud.com', 'iclod.com': 'icloud.com', 'icloud.co': 'icloud.com',
+};
+function suggestEmailFix(email: string): string | null {
+  const at = email.lastIndexOf('@');
+  if (at < 1 || at === email.length - 1) return null;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1).toLowerCase();
+  if (DOMAIN_FIXES[domain]) return `${local}@${DOMAIN_FIXES[domain]}`;
+  const lastDot = domain.lastIndexOf('.');
+  if (lastDot < 1) return null;
+  const root = domain.slice(0, lastDot);
+  const tld = domain.slice(lastDot + 1);
+  if (TLD_FIXES[tld]) return `${local}@${root}.${TLD_FIXES[tld]}`;
+  return null;
+}
+
 export default function PracticeSignupPage() {
   const [form, setForm, clearPersistedForm] = useFormPersistence(
     'practice-signup:form',
@@ -38,6 +70,7 @@ export default function PracticeSignupPage() {
       firstName: '',
       lastName: '',
       email: '',
+      confirmEmail: '',
       phone: '',
       password: '',
       confirmPassword: '',
@@ -66,6 +99,7 @@ export default function PracticeSignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [npiLoading, setNpiLoading] = useState(false);
   const [npiMessage, setNpiMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const navigate = useNavigate();
   const { checkAuth, isDevMode } = useAuthStore();
 
@@ -120,6 +154,10 @@ export default function PracticeSignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (form.email.trim().toLowerCase() !== form.confirmEmail.trim().toLowerCase()) {
+      toast.error('Email addresses do not match');
+      return;
+    }
     if (form.password !== form.confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -282,8 +320,59 @@ export default function PracticeSignupPage() {
                 className={inputClassName}
                 placeholder="you@practice.com"
                 value={form.email}
-                onChange={update('email')}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, email: e.target.value }));
+                  if (emailSuggestion) setEmailSuggestion(null);
+                }}
+                onBlur={(e) => setEmailSuggestion(suggestEmailFix(e.target.value))}
               />
+              {emailSuggestion && (
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+                  <span>
+                    Did you mean <strong>{emailSuggestion}</strong>?
+                  </span>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, email: emailSuggestion, confirmEmail: emailSuggestion }));
+                        setEmailSuggestion(null);
+                      }}
+                      className="px-2 py-1 rounded bg-amber-600 text-white text-xs font-medium hover:bg-amber-700"
+                    >
+                      Use this
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmailSuggestion(null)}
+                      className="px-2 py-1 rounded bg-white border border-amber-300 text-amber-900 text-xs font-medium hover:bg-amber-100"
+                    >
+                      Keep mine
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="confirmEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm Email
+              </label>
+              <input
+                id="confirmEmail"
+                type="email"
+                required
+                autoComplete="off"
+                onPaste={(e) => e.preventDefault()}
+                className={inputClassName}
+                placeholder="Re-type your email"
+                value={form.confirmEmail}
+                onChange={update('confirmEmail')}
+              />
+              {form.confirmEmail.length > 0 &&
+                form.email.trim().toLowerCase() !== form.confirmEmail.trim().toLowerCase() && (
+                  <p className="mt-1 text-xs text-red-600">Email addresses don't match.</p>
+                )}
             </div>
 
             <div>
