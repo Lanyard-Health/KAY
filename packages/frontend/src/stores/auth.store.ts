@@ -460,19 +460,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }),
       });
 
-      if (result.nextStep?.signInStep === 'DONE') {
+      // After the new password is accepted Cognito can still require an MFA
+      // step (the user pool offers Email + Authenticator — see
+      // [[project_lanyard_mfa_preference]]). Route each step to its UI, mirroring
+      // loginWithCognito / selectMfaMethod. The previous code only handled DONE
+      // and TOTP_SETUP and treated everything else as "signed in", which
+      // stranded first-time providers on the email-code MFA challenge with no
+      // screen to enter the code.
+      const nextStep = result.nextStep?.signInStep;
+
+      if (nextStep === 'DONE') {
         set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
         await get().checkAuth();
-      } else if (result.nextStep?.signInStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
-        set({
-          challengeName: 'MFA_SETUP',
-          challengeSession: result,
-          isLoading: false,
-        });
-      } else {
-        set({ challengeName: null, challengeSession: null, challengeEmail: null, challengeMissingAttributes: [] });
-        await get().checkAuth();
+        return;
       }
+      if (nextStep === 'CONTINUE_SIGN_IN_WITH_TOTP_SETUP') {
+        set({ challengeName: 'MFA_SETUP', challengeSession: result, isLoading: false });
+        return;
+      }
+      if (nextStep === 'CONTINUE_SIGN_IN_WITH_MFA_SELECTION') {
+        // Pool allows multiple MFA methods — surface the picker (we never
+        // auto-select; the founder wants end users to choose).
+        const allowed = ((result.nextStep as any).allowedMFATypes ?? []) as string[];
+        set({ challengeName: 'MFA_SELECT', challengeSession: result, availableMfaTypes: allowed, isLoading: false });
+        return;
+      }
+      if (nextStep === 'CONFIRM_SIGN_IN_WITH_EMAIL_CODE') {
+        // Cognito emailed a 6-digit code — surface the email-code input.
+        set({ challengeName: 'MFA_EMAIL', challengeSession: result, isLoading: false });
+        return;
+      }
+      if (nextStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
+        set({ challengeName: 'MFA_TOTP', challengeSession: result, isLoading: false });
+        return;
+      }
+
+      // Unknown step — do NOT silently assume signed in (that was the bug).
+      // eslint-disable-next-line no-console
+      console.error('[auth] Unhandled signInStep after new password:', nextStep, result.nextStep);
+      set({ isLoading: false });
+      throw new Error(
+        `Sign-in returned an unsupported step after setting your password: ${nextStep ?? 'unknown'}.`
+      );
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to set new password',
