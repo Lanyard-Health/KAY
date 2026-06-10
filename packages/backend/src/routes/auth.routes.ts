@@ -1,18 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
-
-// Rate limit auth endpoints to prevent brute-force attempts
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 attempts per window
-  message: { success: false, error: { message: 'Too many authentication attempts, please try again later' } },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+import { authLimiter } from '../middleware/rate-limit.js';
 
 export const authRoutes = Router();
-authRoutes.use(authLimiter);
+authRoutes.use(authLimiter());
 
 // POST /api/v1/auth/login - Handled by Cognito hosted UI or API
 authRoutes.post('/login', async (_req: Request, res: Response, _next: NextFunction) => {

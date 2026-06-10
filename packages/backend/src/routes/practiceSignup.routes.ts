@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import { signupLimiter, lookupLimiter } from '../middleware/rate-limit.js';
 import * as Sentry from '@sentry/node';
 import { practiceSignupSchema } from '@credential-management/shared';
 import { registerPractice } from '../services/practiceSignup.service.js';
@@ -10,17 +10,8 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-// Rate limit: 5 requests per 15 minutes per IP (disabled in dev for E2E testing)
-const signupLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env['NODE_ENV'] === 'development' ? 100 : 5,
-  message: { success: false, error: { message: 'Too many signup attempts, please try again later.' } },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// POST /api/v1/practices/register — public, rate-limited
-router.post('/register', signupLimiter, async (req: Request, res: Response) => {
+// POST /api/v1/practices/register — public, rate-limited (signupLimiter: 5/15min/IP)
+router.post('/register', signupLimiter(), async (req: Request, res: Response) => {
   try {
     const parsed = practiceSignupSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -50,16 +41,8 @@ router.post('/register', signupLimiter, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/v1/practices/payers — public, rate-limited (for signup form payer multi-select)
-const payerListLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: process.env['NODE_ENV'] === 'development' ? 100 : 10,
-  message: { success: false, error: { message: 'Too many requests, please try again later.' } },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-router.get('/payers', payerListLimiter, async (_req: Request, res: Response) => {
+// GET /api/v1/practices/payers — public, rate-limited (lookupLimiter: 10/min/IP)
+router.get('/payers', lookupLimiter(), async (_req: Request, res: Response) => {
   try {
     const payers = await prisma.payer.findMany({
       select: { id: true, name: true },
@@ -80,18 +63,10 @@ router.get('/payers', payerListLimiter, async (_req: Request, res: Response) => 
   }
 });
 
-// GET /api/v1/practices/npi-lookup/:npi — public, rate-limited (for signup form NPI autofill)
-const npiLookupLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: process.env['NODE_ENV'] === 'development' ? 100 : 10,
-  message: { success: false, error: { message: 'Too many requests, please try again later.' } },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
 const npiService = new NPIService();
 
-router.get('/npi-lookup/:npi', npiLookupLimiter, async (req: Request, res: Response) => {
+// GET /api/v1/practices/npi-lookup/:npi — public, rate-limited (lookupLimiter: 10/min/IP)
+router.get('/npi-lookup/:npi', lookupLimiter(), async (req: Request, res: Response) => {
   try {
     const { npi } = req.params;
     if (!npi || !/^\d{10}$/.test(npi)) {
