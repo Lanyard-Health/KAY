@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import { signupLimiter, portalLookupLimiter } from '../middleware/rate-limit.js';
 import {
   submitApplication,
   getApplicationStatusByNpi,
@@ -21,17 +21,8 @@ import { prisma, prismaBase } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { isValidNpi } from '../constants/validation.js';
 
-const portalRegistrationLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: { success: false, error: { message: 'Too many registration attempts. Please try again later.' } },
-});
-
-const portalLookupLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  message: { success: false, error: { message: 'Too many lookup requests. Please try again later.' } },
-});
+const portalRegistrationLimit = signupLimiter();
+const portalLookupLimit = portalLookupLimiter();
 
 const router = Router();
 

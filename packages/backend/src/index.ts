@@ -16,7 +16,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+import { apiLimiter } from './middleware/rate-limit.js';
 
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
@@ -154,16 +154,11 @@ app.use(cors({
   maxAge: 600, // Cache preflight for 10 minutes
 }));
 
-// Rate limiting (skip in dev/test to avoid throttling E2E tests)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Rate limiting (skip in dev/test to avoid throttling E2E tests).
+// 300 req/min per IP — defensive against credential stuffing / scraping;
+// real attack surfaces (auth, signup, lookup) get tighter per-route caps.
 if (process.env['NODE_ENV'] === 'production') {
-  app.use('/api', limiter);
+  app.use('/api', apiLimiter());
 }
 
 // Webhook routes — MUST be mounted BEFORE express.json() so the raw body
