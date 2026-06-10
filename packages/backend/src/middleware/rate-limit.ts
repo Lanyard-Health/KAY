@@ -1,7 +1,9 @@
 import rateLimit, { type Options } from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import type { Request, Response, NextFunction } from 'express';
 import { createHash } from 'node:crypto';
 import { logger } from '../utils/logger.js';
+import { isRedisConfigured, getRedisConnection } from '../utils/redis.js';
 
 const isTest = process.env['NODE_ENV'] === 'test';
 const isDev = process.env['NODE_ENV'] === 'development';
@@ -46,7 +48,32 @@ interface LimiterConfig {
   keyGenerator?: (req: Request) => string;
 }
 
+function buildStore(scope: string) {
+  // In tests we always use the in-memory store — Redis isn't running and
+  // the test-mode bypass short-circuits the limiter anyway.
+  if (isTest) return undefined;
+  if (!isRedisConfigured()) {
+    logger.warn('Rate limiter: Redis not configured, falling back to in-memory store', { scope });
+    return undefined;
+  }
+  try {
+    const client = getRedisConnection();
+    return new RedisStore({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sendCommand: ((...args: string[]) => (client as any).call(...args)) as any,
+      prefix: `rl:${scope}:`,
+    });
+  } catch (err) {
+    logger.error('Rate limiter: failed to construct RedisStore — falling back to memory', {
+      scope,
+      err: (err as Error).message,
+    });
+    return undefined;
+  }
+}
+
 function buildLimiter(cfg: LimiterConfig) {
+  const store = buildStore(cfg.scope);
   return rateLimit({
     windowMs: cfg.windowMs,
     max: cfg.max,
@@ -55,6 +82,7 @@ function buildLimiter(cfg: LimiterConfig) {
     skip: (req) => shouldBypass(req),
     keyGenerator: cfg.keyGenerator ?? ((req) => req.ip ?? 'unknown'),
     handler: logBlocked(cfg.scope),
+    ...(store ? { store } : {}),
   });
 }
 
