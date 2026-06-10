@@ -415,18 +415,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         }
 
-        // Catch-all for any Cognito signInStep we don't handle. Previously
-        // the function fell through to checkAuth() with no error message,
-        // which surfaced to the user as "spinner then no login, no error" —
-        // an effective lockout when MFA was misconfigured. Surface the step
-        // name so it's actionable rather than mysterious.
+        // Catch-all for any Cognito signInStep we don't handle. THROW so the
+        // LoginPage's handleSubmit catch fires notify.error and the user
+        // actually sees the step name. Previous attempts set the error in
+        // the store but the LoginPage doesn't render store errors directly,
+        // so the failure was silent — "spinner then back to login form, no
+        // toast, no nothing". This makes the failure visible and actionable.
         // eslint-disable-next-line no-console
         console.error('[auth] Unhandled signInStep:', step, result.nextStep);
-        set({
-          error: `Sign-in returned an unsupported step: ${step}. Please contact support.`,
-          isLoading: false,
-        });
-        return;
+        set({ isLoading: false });
+        throw new Error(`Sign-in returned an unsupported step: ${step}. Please contact support.`);
       }
 
       await get().checkAuth();
@@ -527,10 +525,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // eslint-disable-next-line no-console
       console.error('[auth] Unhandled signInStep after MFA selection:', nextStep, next.nextStep);
-      set({
-        error: `Sign-in returned an unsupported step after selecting ${method}: ${nextStep ?? 'unknown'}.`,
-        isLoading: false,
-      });
+      set({ isLoading: false });
+      throw new Error(
+        `Sign-in returned an unsupported step after selecting ${method}: ${nextStep ?? 'unknown'}.`
+      );
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to select MFA method',
