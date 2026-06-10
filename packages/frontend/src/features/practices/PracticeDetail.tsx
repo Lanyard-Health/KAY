@@ -9,6 +9,7 @@ import { usePractice } from '../../hooks/usePractices';
 import { useDeletePractice } from '../../hooks/usePracticeSoftDelete';
 import { useAuthStore } from '../../stores/auth.store';
 import { api } from '../../services/api';
+import { buildRegistrationLink } from '../../utils/registrationLink';
 import LoadingState from '../../components/ui/LoadingState';
 import PracticeFormModal from './PracticeFormModal';
 import DeletePracticeModal from './DeletePracticeModal';
@@ -34,8 +35,7 @@ export default function PracticeDetail() {
   const deletePractice = useDeletePractice();
 
   const handleCopyRegistrationLink = () => {
-    const link = `${window.location.origin}/register?practice=${practiceId}`;
-    navigator.clipboard.writeText(link).then(() => {
+    navigator.clipboard.writeText(buildRegistrationLink(practiceId!)).then(() => {
       toast.success('Registration link copied to clipboard');
     });
   };
