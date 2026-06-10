@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog, Transition } from '@headlessui/react';
-import { PlusIcon, TrashIcon, ArchiveBoxXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, ArchiveBoxXMarkIcon, XMarkIcon, LinkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import {
@@ -12,6 +12,8 @@ import {
 } from '../../hooks/usePractices';
 import { useDeleteProvider } from '../../hooks/useProviderSoftDelete';
 import { useAuthStore } from '../../stores/auth.store';
+import { notify } from '../../utils/notify';
+import { buildRegistrationLink } from '../../utils/registrationLink';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import DeleteProviderModal from '../providers/DeleteProviderModal';
 import EmptyState from '../../components/ui/EmptyState';
@@ -220,6 +222,9 @@ function AssignProviderModal({
   const assignMutation = useAssignProvider();
 
   const unassigned = unassignedData?.data ?? unassignedData ?? [];
+  // No assignable providers exist at all (regardless of search) — show the invite
+  // path instead of an empty dropdown so the user isn't dead-ended.
+  const hasNoUnassigned = Array.isArray(unassigned) && unassigned.length === 0;
   const filtered = Array.isArray(unassigned)
     ? unassigned.filter((p: any) => {
         if (!search) return true;
@@ -255,6 +260,15 @@ function AssignProviderModal({
     setSelectedProviderId('');
     setSearch('');
     onClose();
+  };
+
+  const handleCopyInviteLink = () => {
+    navigator.clipboard.writeText(buildRegistrationLink(practiceId)).then(() => {
+      notify.success('Invite link copied', {
+        description:
+          "Send it to the provider so they can register. Approve their application and they'll appear here.",
+      });
+    });
   };
 
   return (
@@ -295,54 +309,88 @@ function AssignProviderModal({
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <label className="label">Search Providers</label>
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="Filter by name or NPI..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="label">Select Provider *</label>
-                      {isLoading ? (
-                        <div className="h-10 bg-gray-100 rounded animate-pulse" />
-                      ) : (
-                        <select
-                          className="input"
-                          value={selectedProviderId}
-                          onChange={(e) => setSelectedProviderId(e.target.value)}
-                          required
-                        >
-                          <option value="">Choose a provider...</option>
-                          {filtered.map((p: any) => (
-                            <option key={p.id} value={p.id}>
-                              {p.firstName} {p.lastName} — NPI: {p.npi}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {!isLoading && filtered.length === 0 && (
+                    {isLoading ? (
+                      <div className="h-10 bg-gray-100 rounded animate-pulse" />
+                    ) : hasNoUnassigned ? (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-5 text-center">
+                        <h4 className="text-sm font-semibold text-gray-900">
+                          No providers available to assign
+                        </h4>
                         <p className="mt-1 text-sm text-gray-500">
-                          {search ? 'No matching unassigned providers found.' : 'All providers are already assigned to a practice.'}
+                          To onboard a new provider, send them this practice&apos;s registration link. They
+                          register, you approve their application, and they&apos;re added here automatically.
                         </p>
-                      )}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyInviteLink}
+                          className="btn-primary mt-4 inline-flex items-center"
+                        >
+                          <LinkIcon className="-ml-1 mr-2 h-4 w-4" />
+                          Copy invite link
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="label">Search Providers</label>
+                          <input
+                            type="text"
+                            className="input"
+                            placeholder="Filter by name or NPI..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label">Select Provider *</label>
+                          <select
+                            className="input"
+                            value={selectedProviderId}
+                            onChange={(e) => setSelectedProviderId(e.target.value)}
+                            required
+                          >
+                            <option value="">Choose a provider...</option>
+                            {filtered.map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.firstName} {p.lastName} — NPI: {p.npi}
+                              </option>
+                            ))}
+                          </select>
+                          {filtered.length === 0 && (
+                            <p className="mt-1 text-sm text-gray-500">
+                              No matching unassigned providers found.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                          <span>Onboarding someone new?</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyInviteLink}
+                            className="inline-flex items-center font-medium text-primary-600 hover:text-primary-500"
+                          >
+                            <LinkIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
+                            Copy invite link
+                          </button>
+                        </div>
+                      </>
+                    )}
 
                     <div className="flex justify-end gap-3 pt-4 border-t">
                       <button type="button" onClick={handleClose} className="btn-secondary">
-                        Cancel
+                        {hasNoUnassigned ? 'Close' : 'Cancel'}
                       </button>
-                      <button
-                        type="submit"
-                        disabled={assignMutation.isPending || !selectedProviderId}
-                        className="btn-primary"
-                      >
-                        {assignMutation.isPending ? 'Assigning...' : 'Assign Provider'}
-                      </button>
+                      {!hasNoUnassigned && (
+                        <button
+                          type="submit"
+                          disabled={assignMutation.isPending || !selectedProviderId}
+                          className="btn-primary"
+                        >
+                          {assignMutation.isPending ? 'Assigning...' : 'Assign Provider'}
+                        </button>
+                      )}
                     </div>
                   </form>
                 </div>
