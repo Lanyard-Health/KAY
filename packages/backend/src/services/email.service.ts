@@ -16,6 +16,7 @@ interface SendEmailParams {
   text?: string;
   attachments?: Attachment[];
   notificationType?: string;
+  replyTo?: string;
 }
 
 type Transport = 'resend' | 'smtp' | 'none';
@@ -129,6 +130,7 @@ class EmailService {
           subject: string;
           html: string;
           text: string;
+          reply_to?: string;
           attachments?: { filename: string; content: Buffer }[];
         } = {
           from: `Lanyard Health <${this.fromEmail}>`,
@@ -137,6 +139,9 @@ class EmailService {
           html: params.html,
           text: plainText,
         };
+        if (params.replyTo) {
+          resendPayload.reply_to = params.replyTo;
+        }
         if (params.attachments?.length) {
           resendPayload.attachments = params.attachments.map((att) => ({
             filename: att.filename,
@@ -153,6 +158,7 @@ class EmailService {
           subject: params.subject,
           html: params.html,
           text: plainText,
+          ...(params.replyTo ? { replyTo: params.replyTo } : {}),
           attachments: params.attachments?.map((att) => ({
             filename: att.filename,
             content: att.content,

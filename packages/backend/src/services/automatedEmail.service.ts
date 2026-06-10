@@ -3,6 +3,14 @@ import { emailService } from './email.service.js';
 import { logger } from '../utils/logger.js';
 import type { EmailSendStatus } from '@prisma/client';
 
+interface MergeContext {
+  practiceName: string;
+  practiceEmail: string;
+  firstName: string;
+  lastName: string;
+  dashboardUrl: string;
+}
+
 /**
  * Fires a template-driven automated email for a given trigger event.
  * Non-blocking — logs errors but never throws.
@@ -17,10 +25,31 @@ export async function triggerAutomatedEmail(triggerEvent: string, practiceId: st
     const practice = await prisma.practice.findUnique({ where: { id: practiceId } });
     if (!practice || !practice.email) return;
 
-    const subject = replaceMergeTags(template.subject, practice);
-    const html = replaceMergeTags(template.body, practice);
+    // Find the primary owner (SUPER_ADMIN of this practice) for first-name greeting.
+    // Falls back to any practice admin user if SUPER_ADMIN isn't set.
+    const owner = await prisma.userPractice.findFirst({
+      where: { practiceId, role: 'SUPER_ADMIN' },
+      include: { user: true },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    const result = await emailService.sendEmail({ to: practice.email, subject, html });
+    const ctx: MergeContext = {
+      practiceName: practice.name,
+      practiceEmail: practice.email,
+      firstName: owner?.user.firstName ?? 'there',
+      lastName: owner?.user.lastName ?? '',
+      dashboardUrl: process.env['FRONTEND_URL'] ?? 'https://portal.lanyardhealth.com',
+    };
+
+    const subject = replaceMergeTags(template.subject, ctx);
+    const html = replaceMergeTags(template.body, ctx);
+
+    const result = await emailService.sendEmail({
+      to: practice.email,
+      subject,
+      html,
+      replyTo: process.env['REPLY_TO_EMAIL'] ?? undefined,
+    });
 
     const status: EmailSendStatus = result.success ? 'SENT' : 'FAILED';
 
@@ -45,8 +74,11 @@ export async function triggerAutomatedEmail(triggerEvent: string, practiceId: st
   }
 }
 
-function replaceMergeTags(text: string, practice: { name: string; email: string | null }): string {
+function replaceMergeTags(text: string, ctx: MergeContext): string {
   return text
-    .replace(/\{\{practiceName\}\}/g, practice.name)
-    .replace(/\{\{practiceEmail\}\}/g, practice.email ?? '');
+    .replace(/\{\{practiceName\}\}/g, ctx.practiceName)
+    .replace(/\{\{practiceEmail\}\}/g, ctx.practiceEmail)
+    .replace(/\{\{firstName\}\}/g, ctx.firstName)
+    .replace(/\{\{lastName\}\}/g, ctx.lastName)
+    .replace(/\{\{dashboardUrl\}\}/g, ctx.dashboardUrl);
 }
