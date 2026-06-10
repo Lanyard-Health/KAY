@@ -12,8 +12,8 @@ Verdict P1-2 — Require MFA on the prod Cognito user pool.
 | Frontend client uses | `lanyard-frontend` (matches Render `COGNITO_CLIENT_ID`) |
 | Frontend auth flows enabled | Choice-based sign-in (`USER_AUTH`), Secure remote password (`USER_SRP_AUTH`) |
 | Pool factors configured | Email (SES `invites@lanyardhealth.com`), Passkey (Cognito prefix domain). **SMS not configured.** |
-| Current MFA enforcement | **No MFA** (rolled back after the 2026-06-09 enable attempt) |
-| Founder user (Kay) MFA status | MFA setting: inactive. MFA methods: none. |
+| Current MFA enforcement | **Require MFA** — Authenticator + Email both enabled (live 2026-06-09 after PR #345) |
+| Founder user (Kay) MFA status | Active — verified working via dual-MFA picker flow |
 
 ## What went wrong on the 2026-06-09 enable attempt
 
