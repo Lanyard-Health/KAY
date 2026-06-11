@@ -19,6 +19,7 @@ interface RegistrationData {
   dateOfBirth: string;
   gender: string;
   providerType?: string;
+  caqhProviderId?: string;
   practiceId?: string;
   password?: string;
   confirmPassword?: string;
@@ -74,6 +75,7 @@ export default function RegisterPage() {
       dateOfBirth: '',
       gender: '',
       providerType: '',
+      caqhProviderId: '',
       practiceId: practiceParam || undefined,
       password: '',
       confirmPassword: '',
@@ -229,6 +231,10 @@ export default function RegisterPage() {
 
     if (!formData.gender) {
       newErrors.gender = 'Gender is required';
+    }
+
+    if (formData.caqhProviderId && !/^\d{6,12}$/.test(formData.caqhProviderId.trim())) {
+      newErrors.caqhProviderId = 'CAQH Provider ID should be a number (usually 8 digits)';
     }
 
     // Self-serve password validation
@@ -462,6 +468,29 @@ export default function RegisterPage() {
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* CAQH Provider ID */}
+            <div>
+              <label htmlFor="caqhProviderId" className="block text-sm font-medium text-white/80">CAQH Provider ID</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                name="caqhProviderId"
+                id="caqhProviderId"
+                value={formData.caqhProviderId}
+                onChange={handleChange}
+                placeholder="Usually 8 digits"
+                className={inputClass('caqhProviderId')}
+              />
+              {errors.caqhProviderId ? (
+                <p className="mt-1 text-sm text-red-300">{errors.caqhProviderId}</p>
+              ) : (
+                <p className="mt-1 text-xs text-white/50">
+                  With your CAQH ID we can import your profile and documents automatically.
+                  Don't have one? Leave blank — we'll help you set it up later.
+                </p>
+              )}
             </div>
 
             {/* Password fields — self-serve only */}

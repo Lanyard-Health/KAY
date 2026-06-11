@@ -11,6 +11,8 @@
  *   - DELETE /api/v1/webhook-subscriptions/{id} (PR 4)
  *   - GET    /.well-known/lanyard-signing-key.pem  (PR 1)
  *   - GET    /.well-known/lanyard-signing-keys.json (PR 1)
+ *   - POST   /api/v1/portal/register             (CAQH-first onboarding PR 1)
+ *   - POST   /api/v1/portal/self-serve-signup    (CAQH-first onboarding PR 1)
  *
  * Usage:
  *   npm run openapi:generate --workspace=packages/backend
@@ -35,6 +37,10 @@ import {
   createWebhookSubscriptionSchema,
   REGISTERED_EVENT_TYPES,
 } from '../src/routes/webhook-subscription.routes.js';
+import {
+  portalRegistrationSchema,
+  selfServeSignupSchema,
+} from '@credential-management/shared';
 
 // ──────────────────────────────────────────────
 // Reusable component schemas
@@ -93,6 +99,13 @@ const SigningKeysetSchema = z
 const CreateWebhookSubscriptionRequestSchema = createWebhookSubscriptionSchema.openapi(
   'CreateWebhookSubscriptionRequest'
 );
+
+// The shared package's compiled schemas are bound to a different zod module
+// instance than this script's, so `.openapi()` (a prototype extension) is not
+// available on them. Passing them un-annotated inlines the schema in the spec
+// instead of emitting a named component — acceptable; the structure is identical.
+const PortalRegistrationRequestSchema = portalRegistrationSchema;
+const SelfServeSignupRequestSchema = selfServeSignupSchema;
 
 // ──────────────────────────────────────────────
 // Build the registry
@@ -223,6 +236,100 @@ function buildRegistry(): OpenAPIRegistry {
   });
 
   registry.registerPath({
+    method: 'post',
+    path: '/api/v1/portal/register',
+    summary: 'Submit a provider application',
+    description:
+      'Public, rate-limited. Creates a pending ProviderApplication for admin review. ' +
+      'caqhProviderId is optional; when provided it is validated for uniqueness against ' +
+      'existing providers and pending applications, and is copied to the provider profile ' +
+      'on approval (enables automatic CAQH profile/document import).',
+    tags: ['Portal'],
+    request: {
+      body: {
+        required: true,
+        content: {
+          'application/json': { schema: PortalRegistrationRequestSchema },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Application submitted and queued for review.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.literal(true),
+              message: z.string(),
+              data: z.object({
+                id: z.string().uuid(),
+                status: z.string(),
+                submittedAt: z.string().datetime(),
+              }),
+            }),
+          },
+        },
+      },
+      400: {
+        description: 'Validation failure or unknown/inactive practice link.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      409: {
+        description:
+          'Duplicate NPI, email, or CAQH Provider ID (existing provider or pending application).',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      429: { description: 'Rate limit exceeded.' },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/api/v1/portal/self-serve-signup',
+    summary: 'Self-serve provider signup (instant access)',
+    description:
+      'Public, rate-limited. Creates a Cognito user, ProviderProfile (pending_verification), ' +
+      'User, and a pending ProviderApplication in one step. Same caqhProviderId semantics ' +
+      'as /portal/register, except the ID lands on the provider profile immediately.',
+    tags: ['Portal'],
+    request: {
+      body: {
+        required: true,
+        content: {
+          'application/json': { schema: SelfServeSignupRequestSchema },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Account created; provider has instant portal access pending verification.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.literal(true),
+              message: z.string(),
+              data: z.object({
+                userId: z.string().uuid(),
+                providerId: z.string().uuid(),
+                email: z.string().email(),
+              }),
+            }),
+          },
+        },
+      },
+      400: {
+        description: 'Validation failure.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      409: {
+        description: 'Duplicate NPI, email, or CAQH Provider ID.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      429: { description: 'Rate limit exceeded.' },
+    },
+  });
+
+  registry.registerPath({
     method: 'get',
     path: '/.well-known/lanyard-signing-key.pem',
     summary: 'Current signing public key (PEM)',
@@ -309,7 +416,8 @@ export function buildOpenApiSpec(): string {
       description:
         'OpenAPI 3.1 spec for the Lanyard Health backend. Phase 0.A scope: ' +
         'webhook subscription API and the .well-known signing-key endpoints ' +
-        'shipped in PRs 1 and 4. The remaining 46 existing routes will be ' +
+        'shipped in PRs 1 and 4, plus the public portal registration endpoints ' +
+        '(CAQH-first onboarding). The remaining existing routes will be ' +
         'annotated in Phase 0.B per the platform foundations plan.',
     },
     servers: [

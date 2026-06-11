@@ -17,8 +17,25 @@ export interface ProviderApplicationInput {
   providerType?: string;
   taxonomy?: string;
   specialties?: string[];
+  caqhProviderId?: string;
   practiceId?: string;
   previousApplicationId?: string;
+}
+
+/**
+ * ProviderProfile.caqhProviderId is unique. Catch a taken ID at submission time with a
+ * friendly message instead of a P2002 crash at approval time. Uses the bypass client so
+ * archived providers count too (the DB constraint doesn't care about soft-deletes).
+ * Public path — message must not reveal whose ID it is or whether they're archived.
+ */
+async function assertCaqhIdAvailable(caqhProviderId: string) {
+  const providerWithCaqhId = await prismaBase.providerProfile.findFirst({
+    where: { caqhProviderId },
+    select: { id: true },
+  });
+  if (providerWithCaqhId) {
+    throw new Error('A provider with this CAQH Provider ID already exists in our system');
+  }
 }
 
 /**
@@ -81,6 +98,18 @@ export async function submitApplication(data: ProviderApplicationInput) {
     throw new Error('An account with this email address already exists');
   }
 
+  // CAQH ID collisions: against existing providers and other pending applications
+  if (data.caqhProviderId) {
+    await assertCaqhIdAvailable(data.caqhProviderId);
+    const pendingWithCaqhId = await prisma.providerApplication.findFirst({
+      where: { caqhProviderId: data.caqhProviderId, status: 'pending' },
+      select: { id: true },
+    });
+    if (pendingWithCaqhId) {
+      throw new Error('An application with this CAQH Provider ID is already pending review');
+    }
+  }
+
   // Validate previousApplicationId if provided
   let previousApplicationId: string | undefined;
   if (data.previousApplicationId) {
@@ -130,6 +159,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
       providerType: data.providerType,
       taxonomy: data.taxonomy,
       specialties: data.specialties || [],
+      ...(data.caqhProviderId && { caqhProviderId: data.caqhProviderId }),
       ...(data.practiceId && { practiceId: data.practiceId }),
       ...(previousApplicationId && { previousApplicationId }),
     },
@@ -257,6 +287,12 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
     throw new Error('An account with this email address already exists');
   }
 
+  // 3b. CAQH ID collision — this path creates the provider row immediately, so a taken
+  // ID would otherwise crash the transaction with a unique-constraint error
+  if (data.caqhProviderId) {
+    await assertCaqhIdAvailable(data.caqhProviderId);
+  }
+
   // 4. Create Cognito user (suppress invite email — they already set their password)
   const { cognitoId } = await createCognitoUser({
     email: data.email,
@@ -286,6 +322,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
           taxonomy: data.taxonomy,
           specialties: data.specialties || [],
           status: 'pending_verification',
+          ...(data.caqhProviderId && { caqhProviderId: data.caqhProviderId }),
         },
       });
 
@@ -315,6 +352,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
           providerType: data.providerType,
           taxonomy: data.taxonomy,
           specialties: data.specialties || [],
+          ...(data.caqhProviderId && { caqhProviderId: data.caqhProviderId }),
           status: 'pending',
           providerId: provider.id,
         },
@@ -515,6 +553,20 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
     throw new Error('An account with this email address already exists');
   }
 
+  // Re-check CAQH ID availability — it could have been claimed between submission and approval
+  if (application.caqhProviderId) {
+    const caqhConflict = await prismaBase.providerProfile.findFirst({
+      where: { caqhProviderId: application.caqhProviderId },
+      select: { id: true },
+    });
+    if (caqhConflict) {
+      throw new Error(
+        `This application's CAQH Provider ID is already linked to another provider. ` +
+          `Correct the CAQH ID on the existing provider record, then approve again.`
+      );
+    }
+  }
+
   // 1. Create Cognito user first (outside transaction — can't roll back Cognito)
   const { cognitoId } = await createCognitoUser({
     email: application.email,
@@ -540,6 +592,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
           taxonomy: application.taxonomy,
           specialties: application.specialties,
           status: 'active',
+          ...(application.caqhProviderId && { caqhProviderId: application.caqhProviderId }),
           ...(application.practiceId && { practiceId: application.practiceId }),
         },
       });

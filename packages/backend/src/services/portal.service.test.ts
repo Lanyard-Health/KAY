@@ -152,6 +152,79 @@ describe('Portal Service', () => {
         })
       ).rejects.toThrow('email address already exists');
     });
+
+    it('persists caqhProviderId when provided', async () => {
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findFirst.mockResolvedValue(null);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.providerApplication.create.mockResolvedValue({
+        ...mockApplication,
+        caqhProviderId: '12345678',
+      } as any);
+      prismaMock.adminNotification.create.mockResolvedValue({} as any);
+
+      await submitApplication({
+        npi: '1234567890',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@test.com',
+        phone: '555-1234',
+        dateOfBirth: '1985-06-15',
+        gender: 'female',
+        caqhProviderId: '12345678',
+      });
+
+      expect(prismaMock.providerApplication.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ caqhProviderId: '12345678' }),
+        })
+      );
+    });
+
+    it('throws when caqhProviderId already belongs to an existing provider', async () => {
+      prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null); // NPI check passes
+      prismaMock.providerProfile.findFirst.mockResolvedValue({ id: 'other-provider' } as any); // CAQH ID taken
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        submitApplication({
+          npi: '1234567890',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: 'jane@test.com',
+          phone: '555-1234',
+          dateOfBirth: '1985-06-15',
+          gender: 'female',
+          caqhProviderId: '12345678',
+        })
+      ).rejects.toThrow('CAQH Provider ID already exists');
+    });
+
+    it('throws when another pending application has the same caqhProviderId', async () => {
+      // findFirst on applications: NPI-pending check passes (null), CAQH-pending check hits
+      prismaMock.providerApplication.findFirst.mockImplementation(((args: any) =>
+        args?.where?.caqhProviderId
+          ? Promise.resolve(mockApplication)
+          : Promise.resolve(null)) as any);
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findFirst.mockResolvedValue(null);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        submitApplication({
+          npi: '1234567890',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: 'jane@test.com',
+          phone: '555-1234',
+          dateOfBirth: '1985-06-15',
+          gender: 'female',
+          caqhProviderId: '12345678',
+        })
+      ).rejects.toThrow('already pending');
+    });
   });
 
   describe('approveApplication', () => {
@@ -240,6 +313,46 @@ describe('Portal Service', () => {
       await expect(
         approveApplication('app-1-id', 'admin@test.com')
       ).rejects.toThrow('already been reviewed');
+    });
+
+    it('copies caqhProviderId from application to the new provider', async () => {
+      prismaMock.providerApplication.findUnique.mockResolvedValue({
+        ...mockApplication,
+        caqhProviderId: '12345678',
+      } as any);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findFirst.mockResolvedValue(null); // CAQH collision check passes
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' } as any);
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' } as any);
+      prismaMock.providerApplication.update.mockResolvedValue({
+        ...mockApplication,
+        status: 'approved',
+        providerId: 'new-provider-id',
+      } as any);
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+
+      await approveApplication('app-1-id', 'admin@test.com');
+
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ caqhProviderId: '12345678' }),
+        })
+      );
+    });
+
+    it('throws before Cognito when application CAQH ID is already linked to another provider', async () => {
+      prismaMock.providerApplication.findUnique.mockResolvedValue({
+        ...mockApplication,
+        caqhProviderId: '12345678',
+      } as any);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findFirst.mockResolvedValue({ id: 'someone-else' } as any);
+
+      await expect(
+        approveApplication('app-1-id', 'admin@test.com')
+      ).rejects.toThrow('CAQH Provider ID');
+
+      expect(createCognitoUser).not.toHaveBeenCalled();
     });
   });
 

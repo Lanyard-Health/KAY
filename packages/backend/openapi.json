@@ -217,7 +217,7 @@
     }
   },
   "info": {
-    "description": "OpenAPI 3.1 spec for the Lanyard Health backend. Phase 0.A scope: webhook subscription API and the .well-known signing-key endpoints shipped in PRs 1 and 4. The remaining 46 existing routes will be annotated in Phase 0.B per the platform foundations plan.",
+    "description": "OpenAPI 3.1 spec for the Lanyard Health backend. Phase 0.A scope: webhook subscription API and the .well-known signing-key endpoints shipped in PRs 1 and 4, plus the public portal registration endpoints (CAQH-first onboarding). The remaining existing routes will be annotated in Phase 0.B per the platform foundations plan.",
     "title": "Lanyard Health API",
     "version": "0.1.0-phase-0a"
   },
@@ -266,6 +266,387 @@
         "summary": "Full signing keyset (current + retired)",
         "tags": [
           "Well-Known"
+        ]
+      }
+    },
+    "/api/v1/portal/register": {
+      "post": {
+        "description": "Public, rate-limited. Creates a pending ProviderApplication for admin review. caqhProviderId is optional; when provided it is validated for uniqueness against existing providers and pending applications, and is copied to the provider profile on approval (enables automatic CAQH profile/document import).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "caqhProviderId": {
+                    "anyOf": [
+                      {
+                        "pattern": "^\\d{6,12}$",
+                        "type": "string"
+                      },
+                      {
+                        "enum": [
+                          ""
+                        ],
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "dateOfBirth": {
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  "email": {
+                    "format": "email",
+                    "type": "string"
+                  },
+                  "firstName": {
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "gender": {
+                    "enum": [
+                      "male",
+                      "female",
+                      "other",
+                      "prefer_not_to_say"
+                    ],
+                    "type": "string"
+                  },
+                  "lastName": {
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "middleName": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "npi": {
+                    "pattern": "^\\d{10}$",
+                    "type": "string"
+                  },
+                  "phone": {
+                    "pattern": "^\\+?1?[-.\\s]?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}$",
+                    "type": "string"
+                  },
+                  "practiceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "providerType": {
+                    "enum": [
+                      "psychiatrist",
+                      "psychologist",
+                      "lcsw",
+                      "lpc",
+                      "lmft",
+                      "pmhnp",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "specialties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "suffix": {
+                    "maxLength": 20,
+                    "type": "string"
+                  },
+                  "taxonomy": {
+                    "maxLength": 50,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "npi",
+                  "firstName",
+                  "lastName",
+                  "email",
+                  "phone",
+                  "dateOfBirth",
+                  "gender"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "submittedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "submittedAt"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Application submitted and queued for review."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation failure or unknown/inactive practice link."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Duplicate NPI, email, or CAQH Provider ID (existing provider or pending application)."
+          },
+          "429": {
+            "description": "Rate limit exceeded."
+          }
+        },
+        "summary": "Submit a provider application",
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/api/v1/portal/self-serve-signup": {
+      "post": {
+        "description": "Public, rate-limited. Creates a Cognito user, ProviderProfile (pending_verification), User, and a pending ProviderApplication in one step. Same caqhProviderId semantics as /portal/register, except the ID lands on the provider profile immediately.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "caqhProviderId": {
+                    "anyOf": [
+                      {
+                        "pattern": "^\\d{6,12}$",
+                        "type": "string"
+                      },
+                      {
+                        "enum": [
+                          ""
+                        ],
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "confirmPassword": {
+                    "type": "string"
+                  },
+                  "dateOfBirth": {
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  "email": {
+                    "format": "email",
+                    "type": "string"
+                  },
+                  "firstName": {
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "gender": {
+                    "enum": [
+                      "male",
+                      "female",
+                      "other",
+                      "prefer_not_to_say"
+                    ],
+                    "type": "string"
+                  },
+                  "lastName": {
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "middleName": {
+                    "maxLength": 100,
+                    "type": "string"
+                  },
+                  "npi": {
+                    "pattern": "^\\d{10}$",
+                    "type": "string"
+                  },
+                  "password": {
+                    "minLength": 12,
+                    "pattern": "[A-Z]",
+                    "type": "string"
+                  },
+                  "phone": {
+                    "pattern": "^\\+?1?[-.\\s]?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}$",
+                    "type": "string"
+                  },
+                  "practiceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "providerType": {
+                    "enum": [
+                      "psychiatrist",
+                      "psychologist",
+                      "lcsw",
+                      "lpc",
+                      "lmft",
+                      "pmhnp",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "specialties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "suffix": {
+                    "maxLength": 20,
+                    "type": "string"
+                  },
+                  "taxonomy": {
+                    "maxLength": 50,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "npi",
+                  "firstName",
+                  "lastName",
+                  "email",
+                  "phone",
+                  "dateOfBirth",
+                  "gender",
+                  "password",
+                  "confirmPassword"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "email": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "providerId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "userId": {
+                          "format": "uuid",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "userId",
+                        "providerId",
+                        "email"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Account created; provider has instant portal access pending verification."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation failure."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Duplicate NPI, email, or CAQH Provider ID."
+          },
+          "429": {
+            "description": "Rate limit exceeded."
+          }
+        },
+        "summary": "Self-serve provider signup (instant access)",
+        "tags": [
+          "Portal"
         ]
       }
     },

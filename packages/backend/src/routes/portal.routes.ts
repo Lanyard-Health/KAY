@@ -69,6 +69,12 @@ router.post('/register', portalRegistrationLimit, async (req: Request, res: Resp
     logger.error('Error submitting application:', error);
 
     if (error instanceof Error) {
+      if (error.message.includes('CAQH Provider ID')) {
+        return res.status(409).json({
+          success: false,
+          error: 'This CAQH Provider ID is already registered with us. Double-check the number, or leave it blank and we\'ll sort it out during review.',
+        });
+      }
       if (
         error.message.includes('already pending') ||
         error.message.includes('already exists')
@@ -111,6 +117,12 @@ router.post('/self-serve-signup', portalRegistrationLimit, async (req: Request, 
     logger.error('Error in self-serve signup:', error);
 
     if (error instanceof Error) {
+      if (error.message.includes('CAQH Provider ID')) {
+        return res.status(409).json({
+          success: false,
+          error: 'This CAQH Provider ID is already registered with us. Double-check the number, or leave it blank and we\'ll sort it out during review.',
+        });
+      }
       if (
         error.message.includes('already pending') ||
         error.message.includes('already exists')
