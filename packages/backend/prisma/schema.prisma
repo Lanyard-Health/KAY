@@ -135,6 +135,9 @@ model User {
   cdsRegsCreated              CdsRegistration[]       @relation("CdsRegCreatedBy")
   cdsRegsUpdated              CdsRegistration[]       @relation("CdsRegUpdatedBy")
   webhookSubscriptionsCreated WebhookSubscription[]   @relation("WebhookSubscriptionCreatedBy")
+  practiceOwnersCreated       PracticeOwner[]         @relation("PracticeOwnerCreatedBy")
+  practiceOwnersUpdated       PracticeOwner[]         @relation("PracticeOwnerUpdatedBy")
+  practiceInvitationsSent     PracticeInvitation[]    @relation("PracticeInvitationInvitedBy")
 
   @@map("users")
 }
@@ -159,8 +162,17 @@ model Practice {
   contractEndDate   DateTime? @map("contract_end_date")
   billingEmail      String?   @map("billing_email")
   taxIdEncrypted    String?   @map("tax_id_encrypted") // Encrypted AES-256-GCM
+  taxIdLast4        String?   @map("tax_id_last4") // For display (matches ProviderBanking)
   groupNpi          String?   @map("group_npi")
   setupComplete     Boolean   @default(false) @map("setup_complete")
+
+  // Intake — group profile
+  legalName            String? @map("legal_name")
+  dba                  String? @map("dba")
+  entityType           String? @map("entity_type") // legal structure (LLC, PC, ...); distinct from organizationType
+  emrVendor            String? @map("emr_vendor")
+  billingVendor        String? @map("billing_vendor")
+  billingClearinghouse String? @map("billing_clearinghouse")
 
   // Intake context fields
   accountId         String?  @map("account_id")
@@ -171,12 +183,26 @@ model Practice {
   targetPayerIds    String[] @default([]) @map("target_payer_ids")
   providerTypes     String[] @default([]) @map("provider_types")
 
-  // Address
+  // Address (office / primary)
   addressLine1 String? @map("address_line_1")
   addressLine2 String? @map("address_line_2")
   city         String?
   state        String?
   zipCode      String? @map("zip_code")
+
+  // Billing address
+  billingAddressLine1 String? @map("billing_address_line_1")
+  billingAddressLine2 String? @map("billing_address_line_2")
+  billingCity         String? @map("billing_city")
+  billingState        String? @map("billing_state")
+  billingZipCode      String? @map("billing_zip_code")
+
+  // Mailing address
+  mailingAddressLine1 String? @map("mailing_address_line_1")
+  mailingAddressLine2 String? @map("mailing_address_line_2")
+  mailingCity         String? @map("mailing_city")
+  mailingState        String? @map("mailing_state")
+  mailingZipCode      String? @map("mailing_zip_code")
 
   organizationType String? @map("organization_type")
   maxProviderSlots Int?    @map("max_provider_slots")
@@ -191,6 +217,8 @@ model Practice {
   providers            ProviderProfile[]
   providerApplications ProviderApplication[]
   practiceLocations    PracticeLocation[]
+  owners               PracticeOwner[]
+  invitations          PracticeInvitation[]
   providerImports      ProviderImport[]
   subscription         Subscription?
   practicePayers       PracticePayer[]
@@ -262,6 +290,71 @@ model UserPractice {
   @@unique([userId, practiceId])
   @@index([practiceId])
   @@map("user_practices")
+}
+
+// Practice ownership disclosure (up to 3 per practice; more → contact credentialing).
+// Sensitive PII (SSN, DOB) follows the ProviderBanking convention: *Encrypted column
+// + *Last4 display column, plus the standard audit columns.
+model PracticeOwner {
+  id         String @id @default(uuid())
+  practiceId String @map("practice_id")
+
+  name                 String
+  ssnEncrypted         String?  @map("ssn_encrypted") // Encrypted AES-256-GCM
+  ssnLast4             String?  @map("ssn_last4") // For display
+  ownershipPercentage  Decimal? @map("ownership_percentage") @db.Decimal(5, 2)
+  dateOfBirthEncrypted String?  @map("date_of_birth_encrypted") // Encrypted AES-256-GCM
+
+  // Home address
+  homeAddressLine1 String? @map("home_address_line_1")
+  homeAddressLine2 String? @map("home_address_line_2")
+  homeCity         String? @map("home_city")
+  homeState        String? @map("home_state")
+  homeZipCode      String? @map("home_zip_code")
+
+  // Audit
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String?  @map("created_by_id")
+  updatedById String?  @map("updated_by_id")
+  createdBy   User?    @relation("PracticeOwnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?    @relation("PracticeOwnerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@index([practiceId])
+  @@map("practice_owners")
+}
+
+enum PracticeInvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+// Invitation for a person to join an existing practice with a given role.
+// The raw token is emailed; only its SHA-256 hash is stored.
+model PracticeInvitation {
+  id          String                   @id @default(uuid())
+  practiceId  String                   @map("practice_id")
+  email       String
+  role        PracticeRole
+  tokenHash   String                   @unique @map("token_hash")
+  status      PracticeInvitationStatus @default(pending)
+  expiresAt   DateTime                 @map("expires_at")
+  acceptedAt  DateTime?                @map("accepted_at")
+  invitedById String?                  @map("invited_by_id")
+  invitedBy   User?                    @relation("PracticeInvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@index([practiceId])
+  @@index([email])
+  @@map("practice_invitations")
 }
 
 // ==========================================
