@@ -26,6 +26,8 @@ import { withAgentTelemetry } from './action-telemetry.js';
 import { processSubmissionJob } from '../queues/submission.worker.js';
 import type { SubmissionJobData } from '../queues/submission.queue.js';
 import { registerSubmissionAdapters } from './portal/adapter-factory.js';
+import { processCaqhImportJob } from '../services/caqh-import.service.js';
+import type { CaqhImportJobData } from '../queues/caqh-import.queue.js';
 
 // ==========================================
 // Worker configuration
@@ -45,6 +47,8 @@ const WORKER_CONFIGS: WorkerConfig[] = [
   { queueName: QUEUE_NAMES.EXCEPTION, agentName: 'exception', concurrency: 2 },
   { queueName: QUEUE_NAMES.APPROVAL, agentName: 'approval', concurrency: 2 },
   { queueName: QUEUE_NAMES.SUBMISSION, agentName: 'submission', concurrency: 1 },
+  // Concurrency 1 — serialize CAQH API access (same courtesy as the nightly sync).
+  { queueName: QUEUE_NAMES.CAQH_IMPORT, agentName: 'caqh_import', concurrency: 1 },
 ];
 
 // ==========================================
@@ -133,6 +137,11 @@ function getProcessor(agentName: string) {
   if (agentName === 'submission') {
     return async (job: Job) => {
       return processSubmissionJob(job as Job<SubmissionJobData>);
+    };
+  }
+  if (agentName === 'caqh_import') {
+    return async (job: Job) => {
+      return processCaqhImportJob(job.data as CaqhImportJobData);
     };
   }
   return createPlaceholderProcessor(agentName);

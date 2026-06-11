@@ -25,6 +25,13 @@ vi.mock('./notification.service.js', () => ({
   },
 }));
 
+const enqueueCaqhImportMock = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve({ jobId: 'caqh-import-job', deduplicated: false }))
+);
+vi.mock('../queues/caqh-import.queue.js', () => ({
+  enqueueCaqhImport: enqueueCaqhImportMock,
+}));
+
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { createCognitoUser, deleteCognitoUser } from './cognitoUser.service.js';
 import {
@@ -338,6 +345,50 @@ describe('Portal Service', () => {
           data: expect.objectContaining({ caqhProviderId: '12345678' }),
         })
       );
+    });
+
+    it('enqueues the CAQH import job after approval when the provider has a CAQH ID', async () => {
+      prismaMock.providerApplication.findUnique.mockResolvedValue({
+        ...mockApplication,
+        caqhProviderId: '12345678',
+      } as any);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.findFirst.mockResolvedValue(null);
+      prismaMock.providerProfile.create.mockResolvedValue({
+        id: 'new-provider-id',
+        caqhProviderId: '12345678',
+      } as any);
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' } as any);
+      prismaMock.providerApplication.update.mockResolvedValue({
+        ...mockApplication,
+        status: 'approved',
+        providerId: 'new-provider-id',
+      } as any);
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+
+      await approveApplication('app-1-id', 'admin@test.com');
+
+      expect(enqueueCaqhImportMock).toHaveBeenCalledWith({
+        providerId: 'new-provider-id',
+        trigger: 'approval',
+      });
+    });
+
+    it('does not enqueue a CAQH import when the provider has no CAQH ID', async () => {
+      prismaMock.providerApplication.findUnique.mockResolvedValue(mockApplication as any);
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'new-provider-id' } as any);
+      prismaMock.user.create.mockResolvedValue({ id: 'new-user-id' } as any);
+      prismaMock.providerApplication.update.mockResolvedValue({
+        ...mockApplication,
+        status: 'approved',
+        providerId: 'new-provider-id',
+      } as any);
+      prismaMock.adminNotification.updateMany.mockResolvedValue({ count: 1 });
+
+      await approveApplication('app-1-id', 'admin@test.com');
+
+      expect(enqueueCaqhImportMock).not.toHaveBeenCalled();
     });
 
     it('throws before Cognito when application CAQH ID is already linked to another provider', async () => {

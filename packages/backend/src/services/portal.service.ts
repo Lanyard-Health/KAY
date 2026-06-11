@@ -1,4 +1,5 @@
 import { prisma, prismaBase } from '../utils/prisma.js';
+import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
@@ -494,6 +495,18 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
       });
     });
 
+    // CAQH-first onboarding: the self-serve provider row already carries the CAQH ID
+    // (set at signup) — start the background import now that they're verified.
+    const verifiedProvider = await prisma.providerProfile.findUnique({
+      where: { id: application.providerId },
+      select: { caqhProviderId: true },
+    });
+    if (verifiedProvider?.caqhProviderId) {
+      enqueueCaqhImport({ providerId: application.providerId, trigger: 'approval' }).catch(
+        (err: unknown) => logger.error('Failed to enqueue CAQH import after verification:', err)
+      );
+    }
+
     // Mark related notification as read
     await prisma.adminNotification.updateMany({
       where: { applicationId: id, read: false },
@@ -633,6 +646,14 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
 
       return { provider, updatedApplication, newUser };
     });
+
+    // CAQH-first onboarding: kick off the background profile import now that the
+    // provider exists. Fire-and-forget — approval must not fail on queue trouble.
+    if (provider.caqhProviderId) {
+      enqueueCaqhImport({ providerId: provider.id, trigger: 'approval' }).catch((err: unknown) =>
+        logger.error('Failed to enqueue CAQH import after approval:', err)
+      );
+    }
 
     // Mark related notification as read
     await prisma.adminNotification.updateMany({

@@ -300,6 +300,17 @@ enum CareType {
   other
 }
 
+// CAQH-first onboarding: lifecycle of the background import job.
+// waiting_* states mean the provider must act in CAQH ProView before we can pull.
+enum CaqhImportStatus {
+  queued
+  in_progress
+  waiting_authorization
+  waiting_attestation
+  completed
+  failed
+}
+
 enum CaqhStatus {
   active
   inactive
@@ -406,6 +417,11 @@ model ProviderProfile {
   caqhPassword               String?     @map("caqh_password") // Encrypted
   caqhCredentialsValid       Boolean?    @map("caqh_credentials_valid")
   caqhCredentialsLastChecked DateTime?   @map("caqh_credentials_last_checked")
+
+  // CAQH-first onboarding import state machine (set by caqh-import job)
+  caqhImportStatus    CaqhImportStatus? @map("caqh_import_status")
+  caqhImportError     String?           @map("caqh_import_error")
+  caqhImportUpdatedAt DateTime?         @map("caqh_import_updated_at")
 
   // CAQH extended fields — populated by CAQH sync
   hospitalBasedFlag             Boolean?  @map("hospital_based_flag")
@@ -2167,6 +2183,7 @@ enum InAppNotificationType {
   application_rejected
   enrollment_status_change
   system_announcement
+  caqh_import_stalled
 }
 
 model InAppNotification {

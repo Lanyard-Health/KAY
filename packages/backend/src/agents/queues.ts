@@ -17,6 +17,9 @@ export const QUEUE_NAMES = {
   // Submission engine — Phase 1. One job per EnrollmentRun (jobId =
   // EnrollmentRun.id for idempotency). Worker hands off to AdapterFactory.
   SUBMISSION: 'submission',
+  // CAQH-first onboarding — roster-add → status check → full profile sync.
+  // One active job per provider (jobId = caqh-import-<providerId>).
+  CAQH_IMPORT: 'caqh-import',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -35,6 +38,7 @@ export const QUEUE_LOCK_DURATIONS: Record<QueueName, number> = {
   [QUEUE_NAMES.APPROVAL]: 1 * 60_000,        // 1 min — DB + email
   [QUEUE_NAMES.WEBHOOK_DELIVERY]: 30_000,    // 30 s — single HTTP POST, 10 s timeout per attempt
   [QUEUE_NAMES.SUBMISSION]: 6 * 60_000,      // 6 min — wraps 5-min Playwright timeout + DB writes
+  [QUEUE_NAMES.CAQH_IMPORT]: 5 * 60_000,     // 5 min — roster add + status check + full profile pull
 };
 
 // ==========================================

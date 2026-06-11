@@ -47,8 +47,12 @@ describe('queues', () => {
   // ------------------------------------------
 
   describe('QUEUE_NAMES', () => {
-    it('has all 8 queue entries', () => {
-      expect(Object.keys(QUEUE_NAMES)).toHaveLength(8);
+    it('has all 9 queue entries', () => {
+      expect(Object.keys(QUEUE_NAMES)).toHaveLength(9);
+    });
+
+    it('contains CAQH_IMPORT queue', () => {
+      expect(QUEUE_NAMES.CAQH_IMPORT).toBe('caqh-import');
     });
 
     it('contains ORCHESTRATOR queue', () => {
