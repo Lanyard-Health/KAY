@@ -2,13 +2,18 @@
  * Branded transactional email template for provider-facing notifications.
  *
  * Email-client reality dictates the implementation: table layout, inline
- * styles, hex colors, no external fonts or images required to render. The
- * green header band is text (wordmark), so the email looks branded even with
- * image loading disabled, which is the default for first-time senders.
+ * styles, hex colors, no external fonts. The green header band shows the
+ * hosted logo image; its alt text is styled to render as a white text
+ * wordmark when image loading is disabled (the default for first-time
+ * senders), so the email stays branded either way.
  *
  * Palette: deep forest green #0A3D2E on green-tinted neutrals. No pure black
  * or white anywhere; every neutral leans toward the brand hue.
  */
+
+// White wordmark served by the production frontend (packages/frontend/public/
+// email/). 480px source rendered at 240px = sharp on retina screens.
+const LOGO_URL = 'https://portal.lanyardhealth.com/email/logo-wordmark-light.png';
 
 const FONT_STACK =
   "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -103,8 +108,8 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
 
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%; background-color: ${COLOR.card}; border: 1px solid ${COLOR.border}; border-radius: 12px; overflow: hidden;">
         <!-- Brand band -->
-        <tr><td style="background-color: ${COLOR.brand}; padding: 18px 32px;">
-          <span style="font-family: ${FONT_STACK}; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; color: ${COLOR.onBrand};">Lanyard Health</span>
+        <tr><td style="background-color: ${COLOR.brand}; padding: 22px 32px;">
+          <img src="${LOGO_URL}" width="240" height="35" alt="Lanyard Health" style="display: block; border: 0; outline: none; font-family: ${FONT_STACK}; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; color: ${COLOR.onBrand};" />
         </td></tr>
 
         <!-- Content -->

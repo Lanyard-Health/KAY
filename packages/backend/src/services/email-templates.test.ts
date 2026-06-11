@@ -31,12 +31,18 @@ describe('renderProviderActionEmail', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
-  it('uses email-safe styling: no external resources, brand green present', () => {
+  it('uses email-safe styling: no external CSS, brand green present', () => {
     const html = renderProviderActionEmail(baseParams);
     expect(html).toContain('#0A3D2E'); // brand green
-    expect(html).not.toMatch(/<link|@import|url\(/); // nothing external to load
+    expect(html).not.toMatch(/<link|@import|url\(/); // no external fonts/stylesheets
     expect(html).not.toContain('#000');
     expect(html).not.toMatch(/#fff\b|#ffffff/i); // tinted neutrals only
+  });
+
+  it('header logo is the hosted wordmark with a text fallback for blocked images', () => {
+    const html = renderProviderActionEmail(baseParams);
+    expect(html).toContain('https://portal.lanyardhealth.com/email/logo-wordmark-light.png');
+    expect(html).toMatch(/<img[^>]*alt="Lanyard Health"/); // alt renders as wordmark when images are off
   });
 
   it('omits steps and CTA blocks when not provided', () => {
