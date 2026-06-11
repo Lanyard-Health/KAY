@@ -207,46 +207,6 @@ describe('Agent Routes', () => {
   });
 
   describe('POST /workflows/:id/submit-to-portal', () => {
-    it('dispatches portal submission and returns 201', async () => {
-      const mockTask = { id: 'task-1', status: 'queued', type: 'submit_to_portal' };
-      (dispatchPortalSubmission as any).mockResolvedValue(mockTask);
-
-      const res = await request(app)
-        .post('/workflows/wf-1/submit-to-portal')
-        .send({
-          providerId: '00000000-0000-0000-0000-000000000001',
-          payerId: '00000000-0000-0000-0000-000000000002',
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body).toEqual(mockTask);
-      expect(dispatchPortalSubmission).toHaveBeenCalledWith({
-        workflowId: 'wf-1',
-        providerId: '00000000-0000-0000-0000-000000000001',
-        payerId: '00000000-0000-0000-0000-000000000002',
-        enrollmentId: undefined,
-        action: undefined,
-      });
-    });
-
-    it('passes action when provided', async () => {
-      const mockTask = { id: 'task-2', status: 'queued' };
-      (dispatchPortalSubmission as any).mockResolvedValue(mockTask);
-
-      const res = await request(app)
-        .post('/workflows/wf-1/submit-to-portal')
-        .send({
-          providerId: '00000000-0000-0000-0000-000000000001',
-          payerId: '00000000-0000-0000-0000-000000000002',
-          action: 'check_readiness',
-        });
-
-      expect(res.status).toBe(201);
-      expect(dispatchPortalSubmission).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'check_readiness' })
-      );
-    });
-
     it('returns 400 for invalid payerId', async () => {
       const res = await request(app)
         .post('/workflows/wf-1/submit-to-portal')
@@ -268,22 +228,8 @@ describe('Agent Routes', () => {
       expect(res.body.error).toBe('Validation failed');
     });
 
-    describe('when USE_NEW_SUBMISSION_PIPELINE=true', () => {
-      const originalFlag = process.env['USE_NEW_SUBMISSION_PIPELINE'];
-
-      beforeEach(() => {
-        process.env['USE_NEW_SUBMISSION_PIPELINE'] = 'true';
-      });
-
-      afterEach(() => {
-        if (originalFlag === undefined) {
-          delete process.env['USE_NEW_SUBMISSION_PIPELINE'];
-        } else {
-          process.env['USE_NEW_SUBMISSION_PIPELINE'] = originalFlag;
-        }
-      });
-
-      it('calls dispatchSubmissionRun and returns the new envelope', async () => {
+    describe('submit_to_portal routes to the submission pipeline', () => {
+      it('calls dispatchSubmissionRun and returns the run envelope', async () => {
         (dispatchSubmissionRun as any).mockResolvedValue({
           enrollmentRunId: 'run-1',
           jobId: 'job-1',

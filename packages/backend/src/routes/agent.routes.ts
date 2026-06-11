@@ -21,7 +21,6 @@ import {
   getApproval,
   decideApproval,
 } from '../agents/approval.service.js';
-import { isNewSubmissionPipelineEnabled } from '../utils/feature-flags.js';
 
 // ==========================================
 // Zod Schemas
@@ -272,9 +271,9 @@ agentRoutes.patch(
 );
 
 // POST /workflows/:id/submit-to-portal — dispatch portal submission
-// Phase 2 cutover: USE_NEW_SUBMISSION_PIPELINE routes submit_to_portal calls
-// to the new pipeline (dispatchSubmissionRun). check_readiness always uses
-// legacy — the new pipeline is submission-only and doesn't model readiness.
+// submit_to_portal routes to the submission pipeline (dispatchSubmissionRun).
+// check_readiness uses the legacy portal path — the submission pipeline is
+// submission-only and doesn't model readiness.
 agentRoutes.post(
   '/workflows/:id/submit-to-portal',
   ...auth,
@@ -293,14 +292,13 @@ agentRoutes.post(
         return;
       }
 
-      const useNewPipeline =
-        isNewSubmissionPipelineEnabled() && parsed.data.action !== 'check_readiness';
+      const useNewPipeline = parsed.data.action !== 'check_readiness';
 
       if (useNewPipeline) {
         if (!parsed.data.enrollmentId) {
           res.status(400).json({
             error:
-              'enrollmentId is required when USE_NEW_SUBMISSION_PIPELINE is enabled. The new pipeline creates an EnrollmentRun row keyed to an existing Enrollment.',
+              'enrollmentId is required for portal submission. The submission pipeline creates an EnrollmentRun row keyed to an existing Enrollment.',
           });
           return;
         }
