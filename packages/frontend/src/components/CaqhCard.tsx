@@ -90,6 +90,27 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
     },
   });
 
+  // CAQH-first onboarding: orchestrated background import (roster-add → status
+  // check → full profile sync), unlike syncMutation which pulls inline and fails
+  // if the provider isn't roster-ready.
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post(`/caqh/import/${providerId}`);
+      return response.data.data;
+    },
+    onSuccess: (data: { deduplicated?: boolean }) => {
+      toast.success(
+        data?.deduplicated
+          ? 'An import is already running for this provider'
+          : 'Import started — this runs in the background. We\'ll email the provider if anything needs their action in CAQH.'
+      );
+      queryClient.invalidateQueries({ queryKey: ['provider', providerId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to start CAQH import');
+    },
+  });
+
   const credentialStatus = credentialStatusData?.data;
 
   const handleSaveCredentials = async () => {
@@ -453,6 +474,13 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
 
             {credentialStatus?.caqhProviderId && (
               <div className="pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => importMutation.mutate()}
+                  disabled={importMutation.isPending}
+                  className="w-full mb-2 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {importMutation.isPending ? 'Starting import…' : 'Import from CAQH'}
+                </button>
                 <button
                   onClick={() => setRemoveRosterConfirm(true)}
                   disabled={removeFromRoster.isPending}
