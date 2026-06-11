@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { CaqhService } from './caqh.service.js';
+import { CaqhService, CaqhDuplicateException } from './caqh.service.js';
+import { renderProviderActionEmail } from './email-templates.js';
 import { importCaqhDocuments } from './caqh-document-import.service.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
@@ -42,7 +43,8 @@ async function setImportStatus(
  * Plain-English nudge emails for the two real-world blockers (per Kay 2026-06-11:
  * the common one is a provider who has never attested; specific-orgs-only
  * authorization is rare but possible). Copy must tell the provider exactly what
- * to do in CAQH — not mention rosters, APIs, or sync jobs.
+ * to do in CAQH, never mention rosters, APIs, or sync jobs. Rendered through the
+ * shared branded template (email-templates.ts).
  */
 function waitingEmailContent(
   reason: WaitingReason,
@@ -51,45 +53,42 @@ function waitingEmailContent(
   if (reason === 'waiting_attestation') {
     return {
       subject: 'Action needed: complete your CAQH attestation',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0A3D2E;">One step left to import your CAQH profile</h2>
-          <p>Dear ${firstName},</p>
-          <p>We tried to import your professional profile from CAQH, but your CAQH profile
-          hasn't been attested yet. CAQH only releases your information after you review
-          and attest to it.</p>
-          <p><strong>What to do:</strong> log in at
-          <a href="https://proview.caqh.org">proview.caqh.org</a>, review your profile,
-          and click <strong>Attest</strong>. That's it — we check daily and will import
-          your licenses, work history, and documents automatically once you've attested.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="color: #6b7280; font-size: 12px;">
-            This is an automated notification from Lanyard Health. Please do not reply to this email.
-          </p>
-        </div>
-      `,
+      html: renderProviderActionEmail({
+        previewText: 'One step in CAQH ProView and we take care of the rest.',
+        heading: 'One step left to import your CAQH profile',
+        firstName,
+        paragraphs: [
+          'We tried to import your professional profile from CAQH, but your profile has not been attested yet. CAQH only releases your information after you review and attest to it.',
+        ],
+        steps: [
+          'Log in to CAQH ProView',
+          'Review your profile for accuracy',
+          'Click Attest',
+        ],
+        cta: { label: 'Open CAQH ProView', url: 'https://proview.caqh.org' },
+        reassurance:
+          'We check once a day. As soon as you attest, your licenses, work history, and documents import automatically. Nothing else is needed from you.',
+      }),
     };
   }
   return {
     subject: 'Action needed: authorize Lanyard Health in CAQH',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #0A3D2E;">One step left to import your CAQH profile</h2>
-        <p>Dear ${firstName},</p>
-        <p>We tried to import your professional profile from CAQH, but your CAQH account is
-        set to share your information with specific organizations only, and Lanyard Health
-        isn't on that list yet.</p>
-        <p><strong>What to do:</strong> log in at
-        <a href="https://proview.caqh.org">proview.caqh.org</a>, go to
-        <strong>Authorize</strong>, and either select "All healthcare organizations" or add
-        <strong>Lanyard Health</strong> to your authorized list. We check daily and will
-        import your profile automatically once access is granted.</p>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-        <p style="color: #6b7280; font-size: 12px;">
-          This is an automated notification from Lanyard Health. Please do not reply to this email.
-        </p>
-      </div>
-    `,
+    html: renderProviderActionEmail({
+      previewText: 'One step in CAQH ProView and we take care of the rest.',
+      heading: 'One step left to import your CAQH profile',
+      firstName,
+      paragraphs: [
+        'We tried to import your professional profile from CAQH, but your CAQH account currently shares information with specific organizations only, and Lanyard Health is not on that list yet.',
+      ],
+      steps: [
+        'Log in to CAQH ProView',
+        'Go to the Authorize section',
+        'Select "All healthcare organizations", or add Lanyard Health to your list',
+      ],
+      cta: { label: 'Open CAQH ProView', url: 'https://proview.caqh.org' },
+      reassurance:
+        'We check once a day. As soon as access is granted, your profile imports automatically. Nothing else is needed from you.',
+    }),
   };
 }
 
@@ -133,7 +132,10 @@ async function parkInWaitingState(params: {
   if (params.previousStatus !== reason && emailService.isConfigured()) {
     const { subject, html } = waitingEmailContent(reason, params.providerFirstName);
     emailService
-      .sendEmail({ to: params.providerEmail, subject, html, notificationType: `caqh_import_${reason}` })
+      // notificationType must be a valid NotificationType enum value — the email log
+      // table rejects invented ones (staging finding 2026-06-11). These nudges are
+      // follow-ups; the subject line distinguishes them in the log.
+      .sendEmail({ to: params.providerEmail, subject, html, notificationType: 'enrollment_follow_up' })
       .catch((err: unknown) => logger.error('Failed to send CAQH waiting email:', err));
   }
 
@@ -190,7 +192,20 @@ export async function processCaqhImportJob(data: CaqhImportJobData): Promise<{
     // Step 1: make sure the provider is on our roster.
     if (status.roster_status === 'NOT ON ROSTER') {
       logger.info('caqh-import: adding provider to roster', { providerId: provider.id });
-      await getCaqhService().addToRoster(provider.id);
+      try {
+        await getCaqhService().addToRoster(provider.id);
+      } catch (error) {
+        // CAQH's status endpoint can report NOT ON ROSTER for a provider we already
+        // rostered (observed on demo: membership isn't reflected pre-attestation).
+        // "Already on roster" means our goal is met — carry on, don't fail the import.
+        if (error instanceof CaqhDuplicateException) {
+          logger.info('caqh-import: provider already on roster — continuing', {
+            providerId: provider.id,
+          });
+        } else {
+          throw error;
+        }
+      }
       status = await getCaqhService().checkStatus(provider.caqhProviderId);
     }
 

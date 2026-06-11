@@ -59,6 +59,7 @@ import ProviderEnrollments from './ProviderEnrollments';
 import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { CaqhCard } from '../../components/CaqhCard';
+import { CaqhImportPanel } from '../../components/CaqhImportPanel';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
@@ -1829,6 +1830,8 @@ export default function ProviderDetail() {
                 </div>
 
                 <CaqhCard providerId={id!} />
+
+                <CaqhImportPanel providerId={id!} />
 
                 <TaxonomyAssistant
                   providerId={id!}

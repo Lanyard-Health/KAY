@@ -18,6 +18,7 @@ import {
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
 import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
 import { importCaqhDocuments } from '../services/caqh-document-import.service.js';
+import { getCaqhImportSummary } from '../services/caqh-import-summary.service.js';
 import { scrubPii, buildCsv, buildPdf, slugifyForFilename, type ExportContext } from '../utils/caqh-export.js';
 import rateLimit from 'express-rate-limit';
 
@@ -114,6 +115,25 @@ caqhRoutes.post(
         data: { jobId, deduplicated, status: 'queued' },
       });
     } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/caqh/import-summary/:providerId — CAQH-first onboarding PR 4:
+// everything the "Imported from CAQH" review panel shows (import status, last
+// sync change log, imported documents + attachments, form-vs-CAQH conflicts).
+caqhRoutes.get(
+  '/import-summary/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const summary = await getCaqhImportSummary(req.params['providerId']!);
+      res.json({ success: true, data: summary });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Provider not found') {
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+      }
       next(error);
     }
   }
