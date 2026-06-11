@@ -133,7 +133,10 @@ async function parkInWaitingState(params: {
   if (params.previousStatus !== reason && emailService.isConfigured()) {
     const { subject, html } = waitingEmailContent(reason, params.providerFirstName);
     emailService
-      .sendEmail({ to: params.providerEmail, subject, html, notificationType: `caqh_import_${reason}` })
+      // notificationType must be a valid NotificationType enum value — the email log
+      // table rejects invented ones (staging finding 2026-06-11). These nudges are
+      // follow-ups; the subject line distinguishes them in the log.
+      .sendEmail({ to: params.providerEmail, subject, html, notificationType: 'enrollment_follow_up' })
       .catch((err: unknown) => logger.error('Failed to send CAQH waiting email:', err));
   }
 
