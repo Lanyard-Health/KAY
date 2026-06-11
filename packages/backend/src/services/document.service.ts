@@ -215,6 +215,68 @@ export class DocumentService {
     return { uploadUrl, documentId, s3Key, expiresAt };
   }
 
+  /**
+   * Server-side ingestion path (CAQH document import): PUT a buffer we already
+   * hold straight to storage and create the Document row in one step — no
+   * presigned URL round-trip, no confirmUpload. The caller supplies a
+   * deterministic s3KeySuffix so re-imports can detect already-saved files.
+   */
+  async saveImportedDocument(params: {
+    providerId: string;
+    s3KeySuffix: string;
+    buffer: Buffer;
+    contentType: string;
+    originalFileName: string;
+    documentType: DocumentType;
+    description?: string;
+    expirationDate?: Date | null;
+    reviewStatus?: 'approved' | 'pending';
+    links?: Partial<{
+      linkedLicenseId: string;
+      linkedBoardCertificationId: string;
+      linkedMalpracticeInsuranceId: string;
+    }>;
+  }): Promise<{ id: string; s3Key: string }> {
+    const documentId = uuid();
+    const s3Key = `${this.documentsPrefix}${params.providerId}/${params.s3KeySuffix}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        Body: params.buffer,
+        ContentType: params.contentType,
+        Metadata: {
+          'document-id': documentId,
+          'provider-id': params.providerId,
+          'document-type': params.documentType,
+          source: 'caqh-import',
+        },
+      })
+    );
+
+    const document = await prisma.document.create({
+      data: {
+        id: documentId,
+        providerId: params.providerId,
+        fileName: params.s3KeySuffix.split('/').pop() || params.s3KeySuffix,
+        originalFileName: params.originalFileName,
+        fileSize: params.buffer.length,
+        mimeType: params.contentType,
+        s3Key,
+        documentType: params.documentType,
+        description: params.description,
+        expirationDate: params.expirationDate ?? undefined,
+        ocrStatus: 'not_applicable',
+        reviewStatus: params.reviewStatus ?? 'pending',
+        ...(params.links ?? {}),
+      },
+      select: { id: true, s3Key: true },
+    });
+
+    return document;
+  }
+
   async confirmUpload(documentId: string): Promise<any> {
     const document = await prisma.document.findUnique({
       where: { id: documentId },

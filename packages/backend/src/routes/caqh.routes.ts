@@ -17,6 +17,7 @@ import {
 } from '../services/caqh.service.js';
 import { caqhCredentialsService } from '../services/caqh-credentials.service.js';
 import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
+import { importCaqhDocuments } from '../services/caqh-document-import.service.js';
 import { scrubPii, buildCsv, buildPdf, slugifyForFilename, type ExportContext } from '../utils/caqh-export.js';
 import rateLimit from 'express-rate-limit';
 
@@ -112,6 +113,38 @@ caqhRoutes.post(
         success: true,
         data: { jobId, deduplicated, status: 'queued' },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/caqh/import-documents/:providerId — CAQH-first onboarding PR 3:
+// pull the provider's documents from CAQH into our document system. Idempotent;
+// also runs automatically as the tail of the caqh-import job.
+caqhRoutes.post(
+  '/import-documents/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const providerId = req.params['providerId']!;
+
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+        select: { id: true, caqhProviderId: true },
+      });
+      if (!provider) {
+        return caqhError(res, 'PROVIDER_NOT_FOUND', 'Provider does not exist');
+      }
+      if (!provider.caqhProviderId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Provider has no CAQH Provider ID — add one on the provider page first',
+        });
+      }
+
+      const summary = await importCaqhDocuments(providerId);
+      res.json({ success: true, data: summary });
     } catch (error) {
       next(error);
     }

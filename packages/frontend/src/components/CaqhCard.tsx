@@ -111,6 +111,25 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
     },
   });
 
+  // PR 3: documents-only import (profile import above also ingests documents
+  // automatically; this button re-runs just the document pull — it's idempotent).
+  const importDocsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post(`/caqh/import-documents/${providerId}`);
+      return response.data.data;
+    },
+    onSuccess: (summary: { imported?: number; skippedAlreadyImported?: number; failed?: number }) => {
+      const imported = summary?.imported ?? 0;
+      const skipped = summary?.skippedAlreadyImported ?? 0;
+      toast.success(`Documents imported: ${imported} new, ${skipped} already on file`);
+      queryClient.invalidateQueries({ queryKey: ['provider', providerId] });
+      queryClient.invalidateQueries({ queryKey: ['documents', providerId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to import documents from CAQH');
+    },
+  });
+
   const credentialStatus = credentialStatusData?.data;
 
   const handleSaveCredentials = async () => {
@@ -480,6 +499,13 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                   className="w-full mb-2 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:opacity-50"
                 >
                   {importMutation.isPending ? 'Starting import…' : 'Import from CAQH'}
+                </button>
+                <button
+                  onClick={() => importDocsMutation.mutate()}
+                  disabled={importDocsMutation.isPending}
+                  className="w-full mb-2 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-md hover:bg-primary-100 disabled:opacity-50"
+                >
+                  {importDocsMutation.isPending ? 'Importing documents…' : 'Import documents only'}
                 </button>
                 <button
                   onClick={() => setRemoveRosterConfirm(true)}
