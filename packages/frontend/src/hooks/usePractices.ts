@@ -5,6 +5,33 @@ import { api } from '../services/api';
 // Types
 // ==========================================
 
+// Group-intake fields, sent to create/update as optional strings.
+export interface PracticeGroupFieldsInput {
+  legalName?: string;
+  dba?: string;
+  entityType?: string;
+  groupNpi?: string;
+  taxId?: string;
+  emrVendor?: string;
+  billingVendor?: string;
+  billingClearinghouse?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  billingAddressLine1?: string;
+  billingAddressLine2?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingZipCode?: string;
+  mailingAddressLine1?: string;
+  mailingAddressLine2?: string;
+  mailingCity?: string;
+  mailingState?: string;
+  mailingZipCode?: string;
+}
+
 export interface Practice {
   id: string;
   name: string;
@@ -18,6 +45,25 @@ export interface Practice {
   city: string | null;
   state: string | null;
   zipCode: string | null;
+  // Group profile
+  legalName: string | null;
+  dba: string | null;
+  entityType: string | null;
+  groupNpi: string | null;
+  taxId: string | null; // masked (****1234) from the API
+  emrVendor: string | null;
+  billingVendor: string | null;
+  billingClearinghouse: string | null;
+  billingAddressLine1: string | null;
+  billingAddressLine2: string | null;
+  billingCity: string | null;
+  billingState: string | null;
+  billingZipCode: string | null;
+  mailingAddressLine1: string | null;
+  mailingAddressLine2: string | null;
+  mailingCity: string | null;
+  mailingState: string | null;
+  mailingZipCode: string | null;
   targetPayerIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -117,7 +163,7 @@ export function useCreatePractice() {
       email?: string;
       website?: string;
       notes?: string;
-    }) => {
+    } & PracticeGroupFieldsInput) => {
       const response = await api.post('/practices', data);
       return response.data.data;
     },
@@ -142,7 +188,7 @@ export function useUpdatePractice() {
       email?: string;
       website?: string;
       notes?: string;
-    }) => {
+    } & PracticeGroupFieldsInput) => {
       const response = await api.patch(`/practices/${practiceId}`, data);
       return response.data.data;
     },
