@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { CaqhService } from './caqh.service.js';
+import { importCaqhDocuments } from './caqh-document-import.service.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
 import {
@@ -12,7 +13,13 @@ import type { CaqhImportStatus } from '@prisma/client';
 
 const RECHECK_DELAY_MS = 24 * 60 * 60 * 1000; // re-poll waiting providers daily
 
-const caqhService = new CaqhService();
+// Lazy — avoids a module-load-time CaqhService construction (route tests pin
+// the first constructed instance).
+let caqhServiceInstance: CaqhService | null = null;
+function getCaqhService(): CaqhService {
+  if (!caqhServiceInstance) caqhServiceInstance = new CaqhService();
+  return caqhServiceInstance;
+}
 
 type WaitingReason = 'waiting_authorization' | 'waiting_attestation';
 
@@ -178,13 +185,13 @@ export async function processCaqhImportJob(data: CaqhImportJobData): Promise<{
   await setImportStatus(provider.id, 'in_progress');
 
   try {
-    let status = await caqhService.checkStatus(provider.caqhProviderId);
+    let status = await getCaqhService().checkStatus(provider.caqhProviderId);
 
     // Step 1: make sure the provider is on our roster.
     if (status.roster_status === 'NOT ON ROSTER') {
       logger.info('caqh-import: adding provider to roster', { providerId: provider.id });
-      await caqhService.addToRoster(provider.id);
-      status = await caqhService.checkStatus(provider.caqhProviderId);
+      await getCaqhService().addToRoster(provider.id);
+      status = await getCaqhService().checkStatus(provider.caqhProviderId);
     }
 
     // Step 2: can we actually pull? Two known blockers, each with its own
@@ -216,7 +223,20 @@ export async function processCaqhImportJob(data: CaqhImportJobData): Promise<{
     }
 
     // Step 3: pull the full profile via the existing sync pipeline.
-    const { syncId } = await caqhService.syncProvider(provider.id, provider.caqhProviderId);
+    const { syncId } = await getCaqhService().syncProvider(provider.id, provider.caqhProviderId);
+
+    // Step 4: pull their actual documents into our document system. Non-fatal —
+    // a document hiccup must not mark a successful profile import as failed;
+    // failures are logged and re-runs are idempotent.
+    try {
+      const docSummary = await importCaqhDocuments(provider.id);
+      logger.info('caqh-import: document ingestion summary', { providerId: provider.id, ...docSummary });
+    } catch (docError) {
+      logger.error('caqh-import: document ingestion failed (profile import unaffected)', {
+        providerId: provider.id,
+        error: docError instanceof Error ? docError.message : String(docError),
+      });
+    }
 
     await prisma.providerProfile.update({
       where: { id: provider.id },
