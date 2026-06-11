@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { CaqhService } from './caqh.service.js';
+import { CaqhService, CaqhDuplicateException } from './caqh.service.js';
 import { importCaqhDocuments } from './caqh-document-import.service.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
@@ -190,7 +190,20 @@ export async function processCaqhImportJob(data: CaqhImportJobData): Promise<{
     // Step 1: make sure the provider is on our roster.
     if (status.roster_status === 'NOT ON ROSTER') {
       logger.info('caqh-import: adding provider to roster', { providerId: provider.id });
-      await getCaqhService().addToRoster(provider.id);
+      try {
+        await getCaqhService().addToRoster(provider.id);
+      } catch (error) {
+        // CAQH's status endpoint can report NOT ON ROSTER for a provider we already
+        // rostered (observed on demo: membership isn't reflected pre-attestation).
+        // "Already on roster" means our goal is met — carry on, don't fail the import.
+        if (error instanceof CaqhDuplicateException) {
+          logger.info('caqh-import: provider already on roster — continuing', {
+            providerId: provider.id,
+          });
+        } else {
+          throw error;
+        }
+      }
       status = await getCaqhService().checkStatus(provider.caqhProviderId);
     }
 

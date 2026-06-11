@@ -11,11 +11,17 @@ const caqhMocks = vi.hoisted(() => ({
   syncProvider: vi.fn(),
 }));
 
+const { MockCaqhDuplicateException } = vi.hoisted(() => {
+  class MockCaqhDuplicateException extends Error {}
+  return { MockCaqhDuplicateException };
+});
+
 vi.mock('./caqh.service.js', () => ({
   // Vitest v4: constructor mocks must use function(), not arrow
   CaqhService: vi.fn().mockImplementation(function () {
     return caqhMocks;
   }),
+  CaqhDuplicateException: MockCaqhDuplicateException,
 }));
 
 vi.mock('./email.service.js', () => ({
@@ -94,6 +100,23 @@ describe('processCaqhImportJob', () => {
 
     expect(caqhMocks.addToRoster).toHaveBeenCalledWith('prov-1');
     expect(result.outcome).toBe('completed');
+  });
+
+  it('treats "already on roster" duplicate rejection as success and continues', async () => {
+    // Regression: observed on CAQH demo 2026-06-11 — status says NOT ON ROSTER for a
+    // provider we already rostered, so the re-add gets a duplicate rejection. That
+    // must not fail the import.
+    prismaMock.providerProfile.findUnique.mockResolvedValue(provider as any);
+    caqhMocks.checkStatus
+      .mockResolvedValueOnce({ ...attestedStatus, roster_status: 'NOT ON ROSTER' })
+      .mockResolvedValueOnce(attestedStatus);
+    caqhMocks.addToRoster.mockRejectedValue(new MockCaqhDuplicateException('already on roster'));
+    caqhMocks.syncProvider.mockResolvedValue({ syncId: 'sync-1', changes: {} });
+
+    const result = await processCaqhImportJob({ providerId: 'prov-1', trigger: 'recheck', recheckCount: 1 });
+
+    expect(result.outcome).toBe('completed');
+    expect(caqhMocks.syncProvider).toHaveBeenCalled();
   });
 
   it('parks in waiting_authorization with a nudge email and daily recheck', async () => {
