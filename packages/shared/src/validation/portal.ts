@@ -14,6 +14,15 @@ export const portalRegistrationSchema = z.object({
   providerType: providerTypeSchema.optional(),
   taxonomy: z.string().max(50).optional(),
   specialties: z.array(z.string()).optional(),
+  // Optional at registration — providers without one get the "we'll help you set it up" path.
+  // Empty string (untouched form field) is treated as not provided.
+  caqhProviderId: z
+    .union([
+      z.string().trim().regex(/^\d{6,12}$/, 'CAQH Provider ID should be a number (usually 8 digits)'),
+      z.literal(''),
+    ])
+    .optional()
+    .transform((val) => (val === '' ? undefined : val)),
   practiceId: z.string().uuid('Invalid practice ID format').optional(),
 });
 

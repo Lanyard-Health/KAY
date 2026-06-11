@@ -110,6 +110,46 @@ describe('selfServeSignup', () => {
     expect(prismaMock.adminNotification.create).toHaveBeenCalled();
   });
 
+  it('persists caqhProviderId on both provider and application when provided', async () => {
+    prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findFirst.mockResolvedValue(null); // CAQH collision check passes
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    mockCreateCognitoUser.mockResolvedValue({ cognitoId: 'cognito-123' });
+    mockSetCognitoUserPassword.mockResolvedValue(undefined);
+    (prismaMock.$transaction as any).mockImplementation((fn: any) => fn(prismaMock));
+    prismaMock.providerProfile.create.mockResolvedValue({ id: 'provider-1' } as any);
+    prismaMock.user.create.mockResolvedValue({ id: 'user-1', email: 'jane@example.com' } as any);
+    prismaMock.providerApplication.create.mockResolvedValue({ id: 'app-1' } as any);
+    prismaMock.adminNotification.create.mockResolvedValue({} as any);
+
+    await selfServeSignup({ ...validInput, caqhProviderId: '12345678' });
+
+    expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ caqhProviderId: '12345678' }),
+      })
+    );
+    expect(prismaMock.providerApplication.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ caqhProviderId: '12345678' }),
+      })
+    );
+  });
+
+  it('rejects when caqhProviderId already belongs to a provider (before Cognito)', async () => {
+    prismaMock.providerApplication.findFirst.mockResolvedValue(null);
+    prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+    prismaMock.providerProfile.findFirst.mockResolvedValue({ id: 'other-provider' } as any);
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      selfServeSignup({ ...validInput, caqhProviderId: '12345678' })
+    ).rejects.toThrow('CAQH Provider ID already exists');
+
+    expect(mockCreateCognitoUser).not.toHaveBeenCalled();
+  });
+
   it('rejects duplicate NPI when a provider already exists', async () => {
     prismaMock.providerApplication.findFirst.mockResolvedValue(null);
     prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'existing-provider', npi: '1234567890' } as any);

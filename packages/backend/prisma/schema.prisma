@@ -2113,6 +2113,9 @@ model ProviderApplication {
   taxonomy     String?
   specialties  String[]
 
+  // CAQH-first onboarding: captured at registration, copied to ProviderProfile.caqhProviderId on approval
+  caqhProviderId String? @map("caqh_provider_id")
+
   // Tracking
   submittedAt DateTime  @default(now()) @map("submitted_at")
   reviewedAt  DateTime? @map("reviewed_at")
