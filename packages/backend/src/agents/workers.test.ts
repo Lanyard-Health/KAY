@@ -74,7 +74,7 @@ vi.mock('./approval/approval-agent.js', () => ({
   processApprovalJob: vi.fn().mockResolvedValue({ action: 'scheduled_expiry' }),
 }));
 
-import { initializeWorkers, closeAllWorkers } from './workers.js';
+import { initializeWorkers, closeAllWorkers, isReferencedEntityMissing } from './workers.js';
 
 // ==========================================
 // Tests
@@ -93,6 +93,30 @@ describe('workers', () => {
 
   it('exports closeAllWorkers as a function', () => {
     expect(typeof closeAllWorkers).toBe('function');
+  });
+
+  describe('isReferencedEntityMissing', () => {
+    it('flags our "<Entity> ... not found" throws (deleted/stale workflow or provider)', () => {
+      expect(isReferencedEntityMissing(new Error('Workflow wf-1 not found'))).toBe(true);
+      expect(isReferencedEntityMissing(new Error('Provider prov-9 not found'))).toBe(true);
+    });
+
+    it('flags Prisma P2025 (record required but not found — the "record to update not found" case)', () => {
+      expect(
+        isReferencedEntityMissing({ code: 'P2025', message: 'Record to update not found.' })
+      ).toBe(true);
+      // Robust to empty/odd messages as long as the Prisma code is present.
+      expect(isReferencedEntityMissing({ code: 'P2025', message: '' })).toBe(true);
+    });
+
+    it('does NOT flag genuine, actionable failures (these must still reach Sentry)', () => {
+      expect(isReferencedEntityMissing(new Error('Payer portal returned 500'))).toBe(false);
+      expect(isReferencedEntityMissing(new Error('connect ECONNREFUSED 127.0.0.1:6379'))).toBe(false);
+      expect(isReferencedEntityMissing(new Error('Not found, but more text after'))).toBe(false);
+      expect(isReferencedEntityMissing(null)).toBe(false);
+      expect(isReferencedEntityMissing(undefined)).toBe(false);
+      expect(isReferencedEntityMissing('a string')).toBe(false);
+    });
   });
 
   describe('initializeWorkers', () => {

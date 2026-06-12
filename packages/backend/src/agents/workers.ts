@@ -58,6 +58,27 @@ const WORKER_CONFIGS: WorkerConfig[] = [
 const workers: Worker[] = [];
 
 // ==========================================
+// Failure classification
+// ==========================================
+
+/**
+ * True when a job failed because the data it referenced no longer exists —
+ * e.g. its workflow/record was deleted, or a stale queued job points at data
+ * that has since been wiped. These failures are permanent and not actionable,
+ * so the worker's failed-handler logs them quietly and keeps them OUT of
+ * Sentry. That preserves alerting signal for genuine, fixable failures.
+ *
+ * Covers our own `<Entity> ... not found` throws and Prisma's P2025
+ * ("record required but not found") raised by updates against a missing row.
+ */
+export function isReferencedEntityMissing(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  if ((err as { code?: string }).code === 'P2025') return true;
+  const message = (err as { message?: string }).message ?? '';
+  return /\bnot found\.?$/i.test(message);
+}
+
+// ==========================================
 // Placeholder processor factory
 // ==========================================
 
@@ -197,6 +218,17 @@ export function initializeWorkers(): void {
     });
 
     worker.on('failed', (job, err) => {
+      // A job whose referenced data was deleted (stale queue entry, wiped demo
+      // data, a workflow removed mid-flight) is a permanent, non-actionable
+      // failure. Log it quietly and do NOT alert Sentry — otherwise these drown
+      // out real errors and train us to ignore the alerts.
+      if (isReferencedEntityMissing(err)) {
+        logger.warn(
+          `[${config.agentName}] Job ${job?.id} skipped — referenced data no longer exists: ${err.message}`,
+          { agent: config.agentName, jobId: job?.id, jobName: job?.name }
+        );
+        return;
+      }
       logger.error(`[${config.agentName}] Job ${job?.id} failed: ${err.message}`, {
         agent: config.agentName,
         jobId: job?.id,
