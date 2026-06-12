@@ -2164,6 +2164,7 @@ enum NotificationType {
   verification_complete
   application_submitted
   application_approved
+  practice_invitation
 }
 
 enum NotificationStatus {
