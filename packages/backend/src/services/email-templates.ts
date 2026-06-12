@@ -49,6 +49,8 @@ export interface ProviderActionEmailParams {
   paragraphs: string[];
   /** Optional numbered steps rendered inside the action panel. Plain text (escaped). */
   steps?: string[];
+  /** Heading for the steps panel. Defaults to "What to do". */
+  stepsTitle?: string;
   cta?: { label: string; url: string };
   /** Calm closing line under the CTA, e.g. what happens automatically next. */
   reassurance?: string;
@@ -66,7 +68,7 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
   const stepsHtml = params.steps?.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px; margin: 8px 0 24px 0;">
         <tr><td style="padding: 18px 22px;">
-          <p style="margin: 0 0 10px 0; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 600; color: ${COLOR.heading};">What to do</p>
+          <p style="margin: 0 0 10px 0; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 600; color: ${COLOR.heading};">${escapeHtml(params.stepsTitle ?? 'What to do')}</p>
           <ol style="margin: 0; padding: 0 0 0 18px;">
             ${params.steps
               .map(
