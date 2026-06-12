@@ -26,7 +26,7 @@ export default function AcceptInvitationPage() {
   const [state, setState] = useState<InviteState>({ kind: 'loading' });
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,7 +53,7 @@ export default function AcceptInvitationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (state.kind !== 'pending') return;
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
@@ -63,7 +63,7 @@ export default function AcceptInvitationPage() {
       const response = await fetch(`${API_BASE_URL}/practices/invitations/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password, firstName, lastName }),
+        body: JSON.stringify({ token, password: newPassword, firstName, lastName }),
       });
       const data = await response.json();
 
@@ -84,7 +84,7 @@ export default function AcceptInvitationPage() {
         return;
       }
       try {
-        await useAuthStore.getState().login(state.email, password);
+        await useAuthStore.getState().login(state.email, newPassword);
         navigate('/');
       } catch {
         navigate('/login');
@@ -144,8 +144,8 @@ export default function AcceptInvitationPage() {
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input id="password" type="password" required minLength={12} className={inputClassName} placeholder="Minimum 12 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
-                <PasswordStrength password={password} />
+                <input id="password" type="password" required minLength={12} className={inputClassName} placeholder="Minimum 12 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                <PasswordStrength password={newPassword} />
               </div>
 
               <div>
