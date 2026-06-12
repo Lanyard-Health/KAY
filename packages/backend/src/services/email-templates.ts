@@ -52,6 +52,8 @@ export interface ProviderActionEmailParams {
   /** Heading for the steps panel. Defaults to "What to do". */
   stepsTitle?: string;
   cta?: { label: string; url: string };
+  /** Small muted helper link rendered under the CTA (e.g. login recovery). */
+  secondaryLink?: { label: string; url: string };
   /** Calm closing line under the CTA, e.g. what happens automatically next. */
   reassurance?: string;
 }
@@ -90,6 +92,10 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
       <p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.5; color: ${COLOR.muted};">Or copy this address into your browser: ${escapeHtml(params.cta.url)}</p>`
     : '';
 
+  const secondaryLinkHtml = params.secondaryLink
+    ? `<p style="margin: 0 0 24px 0; font-family: ${FONT_STACK}; font-size: 13px; line-height: 1.5;"><a href="${escapeHtml(params.secondaryLink.url)}" target="_blank" style="color: ${COLOR.brand}; text-decoration: underline;">${escapeHtml(params.secondaryLink.label)}</a></p>`
+    : '';
+
   const reassuranceHtml = params.reassurance
     ? `<p style="margin: 0; padding-top: 16px; border-top: 1px solid ${COLOR.border}; font-family: ${FONT_STACK}; font-size: 14px; line-height: 1.6; color: ${COLOR.body};">${escapeHtml(params.reassurance)}</p>`
     : '';
@@ -121,6 +127,7 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
           ${paragraphsHtml}
           ${stepsHtml}
           ${ctaHtml}
+          ${secondaryLinkHtml}
           ${reassuranceHtml}
         </td></tr>
       </table>

@@ -27,6 +27,20 @@ import { renderProviderActionEmail } from './email-templates.js';
 import { daysUntil, EXPIRED_STATUS, CYCLE_DAYS_DEFAULT } from './caqh-attestation.service.js';
 
 const PROVIEW_URL = 'https://proview.caqh.org/pr';
+// Verified live 2026-06-12: official ProView self-service reset page.
+const PROVIEW_FORGOT_PASSWORD_URL = 'https://proview.caqh.org/Login/ForgotPassword?Type=PR';
+
+/** In-app locker page (PR 5). Account-holders only, per decision Q2. */
+function lockerUrl(): string {
+  return `${process.env['FRONTEND_URL'] || 'https://portal.lanyardhealth.com'}/portal/caqh-login`;
+}
+
+/** Q2: account-holders → in-app locker; account-less → DataSpring's own reset. */
+function loginHelpLink(hasAccount: boolean): { label: string; url: string } {
+  return hasAccount
+    ? { label: "Can't remember your CAQH login? View your username and reset your password", url: lockerUrl() }
+    : { label: 'Forgot your password? Reset it on DataSpring', url: PROVIEW_FORGOT_PASSWORD_URL };
+}
 const SUPPORT_LINE =
   'Questions? Email credentialing@lanyardhealth.com and we will help.';
 const OVERDUE_REASSURANCE =
@@ -119,9 +133,9 @@ interface EmailContent { subject: string; previewText: string; html: string }
 
 export function buildReminderEmail(
   r: ReminderKind,
-  params: { firstName: string; tracker: TrackerLike },
+  params: { firstName: string; tracker: TrackerLike; hasAccount?: boolean },
 ): EmailContent {
-  const { firstName, tracker } = params;
+  const { firstName, tracker, hasAccount = false } = params;
   const dueDate = tracker.nextDueDate ? formatDate(tracker.nextDueDate) : '';
 
   if (r.kind === 'preDue') {
@@ -147,6 +161,7 @@ export function buildReminderEmail(
           previewText: 'A 30-second re-attestation keeps you active with your payers.',
           heading, firstName, paragraphs,
           cta: { label: 'Re-attest on DataSpring', url: PROVIEW_URL },
+          secondaryLink: loginHelpLink(hasAccount),
           reassurance: `Staying current keeps payers seeing you as active and in-network. ${SUPPORT_LINE}`,
         }),
       };
@@ -169,6 +184,7 @@ export function buildReminderEmail(
         previewText: 'Re-attesting on time keeps you active with your payers.',
         heading, firstName, paragraphs,
         cta: { label: 'Review and re-attest on DataSpring', url: PROVIEW_URL },
+        secondaryLink: loginHelpLink(hasAccount),
         reassurance: `Staying current keeps payers seeing you as active and in-network. ${SUPPORT_LINE}`,
       }),
     };
@@ -197,6 +213,7 @@ export function buildReminderEmail(
           'Being dropped from a directory means patients and referring providers cannot find you in-network, which can directly affect your revenue.',
         ],
         cta: { label: 'Re-attest now on DataSpring', url: PROVIEW_URL },
+        secondaryLink: loginHelpLink(hasAccount),
         reassurance: OVERDUE_REASSURANCE,
       }),
     };
@@ -217,6 +234,7 @@ export function buildReminderEmail(
           'The longer a profile stays lapsed, the higher the chance payers remove you from their directories.',
         ],
         cta: { label: 'Re-attest now on DataSpring', url: PROVIEW_URL },
+        secondaryLink: loginHelpLink(hasAccount),
         reassurance: OVERDUE_REASSURANCE,
       }),
     };
@@ -248,6 +266,8 @@ export interface ProviderReminderInput {
   firstName: string;
   email: string | null;
   practiceId: string | null;
+  /** Provider has a linked Lanyard login (drives the Q2 login-help link). */
+  hasAccount?: boolean;
   now?: Date;
 }
 
@@ -304,7 +324,7 @@ export async function evaluateProviderReminder(input: ProviderReminderInput): Pr
     data: { remindersSent: { ...sent, [key]: now.toISOString() } as Prisma.InputJsonValue },
   });
 
-  const content = buildReminderEmail(reminder, { firstName, tracker });
+  const content = buildReminderEmail(reminder, { firstName, tracker, hasAccount: input.hasAccount ?? false });
   try {
     await emailService.sendEmail({
       to: email,

@@ -37,6 +37,7 @@ const PortalProfile = lazy(() => import('./features/portal/PortalProfile'));
 const PortalLicenses = lazy(() => import('./features/portal/PortalLicenses'));
 const PortalLocations = lazy(() => import('./features/portal/PortalLocations'));
 const PortalDocuments = lazy(() => import('./features/portal/PortalDocuments'));
+const PortalCaqhLogin = lazy(() => import('./features/portal/PortalCaqhLogin'));
 const RegistrationSuccess = lazy(() => import('./features/portal/RegistrationSuccess'));
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const OnboardingProgress = lazy(() => import('./features/admin/OnboardingProgress'));
@@ -178,6 +179,7 @@ export default function App() {
           <Route path="documents" element={<PortalDocuments />} />
           <Route path="licenses" element={<PortalLicenses />} />
           <Route path="locations" element={<PortalLocations />} />
+          <Route path="caqh-login" element={<PortalCaqhLogin />} />
           <Route path="notifications" element={<NotificationsPage />} />
         </Route>
 

@@ -176,6 +176,31 @@ describe('buildReminderEmail', () => {
     expect(html).toContain('October 18, 2026');
   });
 
+  it('login-help link: account-holders get the in-app locker, account-less get DataSpring reset (Q2)', () => {
+    const withAccount = buildReminderEmail(
+      { kind: 'preDue', threshold: 14, variant: 'unchanged' },
+      { firstName: 'Jane', tracker: tracker(), hasAccount: true },
+    );
+    expect(withAccount.html).toContain('/portal/caqh-login');
+    expect(withAccount.html).toContain("Can't remember your CAQH login?");
+
+    const withoutAccount = buildReminderEmail(
+      { kind: 'preDue', threshold: 14, variant: 'unchanged' },
+      { firstName: 'Jane', tracker: tracker(), hasAccount: false },
+    );
+    expect(withoutAccount.html).toContain('Login/ForgotPassword?Type=PR');
+    expect(withoutAccount.html).not.toContain('/portal/caqh-login');
+  });
+
+  it('confirmation email carries no login-help link', () => {
+    const { html } = buildReminderEmail(
+      { kind: 'confirmation' },
+      { firstName: 'Jane', tracker: tracker(), hasAccount: true },
+    );
+    expect(html).not.toContain('/portal/caqh-login');
+    expect(html).not.toContain('ForgotPassword');
+  });
+
   it('1-day variants append the last-reminder line', () => {
     const { html } = buildReminderEmail(
       { kind: 'preDue', threshold: 1, variant: 'neutral' },

@@ -338,6 +338,7 @@ class SchedulerService {
           email: true,
           caqhProviderId: true,
           practiceId: true,
+          user: { select: { id: true } },
         },
       });
 
@@ -386,6 +387,7 @@ class SchedulerService {
               firstName: provider.firstName,
               email: provider.email,
               practiceId: provider.practiceId,
+              hasAccount: provider.user != null,
             });
           } catch (trackerError) {
             logger.warn({

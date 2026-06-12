@@ -24,6 +24,7 @@ const navigation = [
   { name: 'Documents', href: '/portal/documents', icon: DocumentDuplicateIcon },
   { name: 'Licenses', href: '/portal/licenses', icon: ShieldCheckIcon },
   { name: 'Locations', href: '/portal/locations', icon: MapPinIcon },
+  { name: 'CAQH Login', href: '/portal/caqh-login', icon: LockClosedIcon },
 ];
 
 export default function PortalLayout() {

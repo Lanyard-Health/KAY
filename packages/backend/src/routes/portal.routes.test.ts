@@ -507,4 +507,62 @@ describe('Portal Routes', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('CAQH login locker (/me/caqh-login)', () => {
+    it('returns the provider\'s own username and audits the view', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue({
+        caqhUsername: 'drjane2026',
+        caqhProviderId: '16174500',
+      } as any);
+      prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+      const res = await request(providerApp).get('/me/caqh-login');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ caqhUsername: 'drjane2026', caqhProviderId: '16174500' });
+      // Ownership by construction: the lookup uses the token's providerId —
+      // there is no id parameter for provider A to point at provider B.
+      expect(prismaMock.providerProfile.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'provider-record-id' } }),
+      );
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'read', resourceType: 'caqh_login' }),
+        }),
+      );
+    });
+
+    it('returns 404 when no provider is linked to the account', async () => {
+      const noProviderApp = createTestApp(portalRouter, { ...providerUser, providerId: null });
+      const res = await request(noProviderApp).get('/me/caqh-login');
+      expect(res.status).toBe(404);
+    });
+
+    it('saves a username, audits without logging the value', async () => {
+      prismaMock.providerProfile.update.mockResolvedValue({} as any);
+      prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+      const res = await request(providerApp)
+        .patch('/me/caqh-login')
+        .send({ caqhUsername: '  drjane2026  ' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.caqhUsername).toBe('drjane2026');
+      expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'provider-record-id' },
+          data: { caqhUsername: 'drjane2026' },
+        }),
+      );
+      const audit = prismaMock.auditLog.create.mock.calls[0][0];
+      expect(JSON.stringify(audit)).not.toContain('drjane2026');
+    });
+
+    it('rejects empty and oversized usernames', async () => {
+      expect((await request(providerApp).patch('/me/caqh-login').send({ caqhUsername: '   ' })).status).toBe(400);
+      expect((await request(providerApp).patch('/me/caqh-login').send({ caqhUsername: 'x'.repeat(101) })).status).toBe(400);
+      expect((await request(providerApp).patch('/me/caqh-login').send({})).status).toBe(400);
+      expect(prismaMock.providerProfile.update).not.toHaveBeenCalled();
+    });
+  });
 });
