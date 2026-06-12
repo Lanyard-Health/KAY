@@ -258,6 +258,7 @@ model PracticeSettings {
   enrollmentCap        Int?     @map("enrollment_cap") // null = unlimited
   followUpSubmissions  Boolean  @default(true) @map("follow_up_submissions")
   followUpDenialTriage Boolean  @default(true) @map("follow_up_denial_triage")
+  caqhRemindersEnabled Boolean  @default(true) @map("caqh_reminders_enabled")
   multipleLocations    Boolean  @default(false) @map("multiple_locations")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
@@ -596,6 +597,7 @@ model ProviderProfile {
   banking                ProviderBanking[]
   demographics           ProviderDemographics?
   caqhMirror             ProviderCaqhMirror?
+  caqhAttestationTracker CaqhAttestationTracker?
   agentWorkflows         AgentWorkflow[]
   agentActions           AgentAction[]
   practice               Practice?               @relation(fields: [practiceId], references: [id])
@@ -2946,6 +2948,32 @@ model ProviderCaqhMirror {
   updatedAt            DateTime        @updatedAt @map("updated_at")
 
   @@map("provider_caqh_mirrors")
+}
+
+// Per-provider re-attestation scoreboard: due dates from the DataSpring status API,
+// the baseline snapshot for the "nothing changed" diff, and per-cycle reminder state.
+model CaqhAttestationTracker {
+  id                String          @id @default(cuid())
+  providerProfileId String          @unique @map("provider_profile_id")
+  providerProfile   ProviderProfile @relation(fields: [providerProfileId], references: [id], onDelete: Cascade)
+
+  lastAttestationDate DateTime? @map("last_attestation_date")
+  nextDueDate         DateTime? @map("next_due_date")
+  providerStatus      String?   @map("provider_status") // raw DataSpring status, e.g. "Re-Attestation" | "Expired Attestation"
+
+  baselineSnapshot   Json?     @map("baseline_snapshot")
+  baselineCapturedAt DateTime? @map("baseline_captured_at")
+
+  diffVerdict     String   @default("no_baseline") @map("diff_verdict") // no_baseline | unchanged | changed
+  changedSections String[] @default([]) @map("changed_sections")
+
+  remindersSent Json?     @map("reminders_sent") // null = none this cycle; {"21": ISO date, ...}
+  cycleAnchor   DateTime? @map("cycle_anchor")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("caqh_attestation_trackers")
 }
 
 // ==========================================
