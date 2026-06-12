@@ -85,9 +85,20 @@ function emptyChanges() {
 describe('SchedulerService — CAQH Sync Job', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Advisory lock for the nightly sync: acquired by default in tests.
+    prismaMock.$queryRaw.mockResolvedValue([{ locked: true }] as never);
   });
 
   describe('runCaqhSyncJob', () => {
+    it('skips the run when another instance holds the advisory lock', async () => {
+      prismaMock.$queryRaw.mockResolvedValue([{ locked: false }] as never);
+
+      const result = await schedulerService.runCaqhSyncJob();
+
+      expect(result).toEqual({ synced: 0, failed: 0, skipped: 0, results: [] });
+      expect(prismaMock.providerProfile.findMany).not.toHaveBeenCalled();
+    });
+
     it('returns empty result when no eligible providers found', async () => {
       prismaMock.providerProfile.findMany.mockResolvedValue([]);
 

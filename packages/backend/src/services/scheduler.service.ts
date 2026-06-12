@@ -9,6 +9,10 @@ import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { sweepStalledTasks } from './stalled-task.service.js';
 import { updateAttestationTracker, evaluateAdminAttestationAlerts } from './caqh-attestation.service.js';
+import { evaluateProviderReminder } from './caqh-reminder.service.js';
+
+/** Advisory lock key for the nightly CAQH sync (arbitrary stable int). */
+const CAQH_SYNC_LOCK_KEY = 73411001;
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -305,6 +309,17 @@ class SchedulerService {
     this.isCaqhSyncJobRunning = true;
     logger.info('[Scheduler] Starting CAQH sync job...');
 
+    // Cross-instance guard: the in-process flag above only protects this
+    // instance; Render can run several. Session advisory lock per standing
+    // rule (never SETNX — its TTL can expire mid-run).
+    const lockRows = await prisma.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_lock(${CAQH_SYNC_LOCK_KEY}) AS locked`;
+    if (!lockRows[0]?.locked) {
+      logger.info('[Scheduler] CAQH sync lock held by another instance, skipping.');
+      this.isCaqhSyncJobRunning = false;
+      return { synced: 0, failed: 0, skipped: 0, results: [] };
+    }
+
     const results: Array<{ providerId: string; providerName: string; success: boolean; error?: string; changes?: any }> = [];
     let synced = 0;
     let failed = 0;
@@ -320,6 +335,7 @@ class SchedulerService {
           id: true,
           firstName: true,
           lastName: true,
+          email: true,
           caqhProviderId: true,
           practiceId: true,
         },
@@ -363,6 +379,12 @@ class SchedulerService {
             await evaluateAdminAttestationAlerts({
               providerProfileId: provider.id,
               providerName,
+              practiceId: provider.practiceId,
+            });
+            await evaluateProviderReminder({
+              providerProfileId: provider.id,
+              firstName: provider.firstName,
+              email: provider.email,
               practiceId: provider.practiceId,
             });
           } catch (trackerError) {
@@ -451,6 +473,9 @@ class SchedulerService {
       logger.error('[Scheduler] CAQH sync job error:', error);
       throw error;
     } finally {
+      await prisma.$queryRaw`SELECT pg_advisory_unlock(${CAQH_SYNC_LOCK_KEY})`.catch((err: unknown) => {
+        logger.warn({ event: 'caqh_sync_unlock_failed', error: err instanceof Error ? err.message : 'unknown' });
+      });
       this.isCaqhSyncJobRunning = false;
     }
   }
