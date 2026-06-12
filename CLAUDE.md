@@ -43,9 +43,11 @@
 4. **Surface trade-offs in plain language.** Don't bury decisions. "Option A is cheaper but harder to undo. Option B is more expensive but safer." Make the cost visible.
 5. **Default to confirmation on irreversible actions.** DB migrations, force pushes, destructive deletes, schema changes — confirm BEFORE, not after.
 6. **No unexplained jargon.** First use of any acronym gets a parenthetical translation. "RBAC (the permission system that controls who can do what)."
-7. **Never assume Kay will catch a code bug.** Tests, type checks, smoke tests, and YOUR verification are the only safety net.
+7. **No unverified claims.** Kay cannot audit your code, so two mechanical rules apply:
+   - **Cite or hedge.** When you state how code, an API, an env var, a deploy flow, or any system behaves, either cite evidence from THIS turn (`file:line`, quoted command output, doc URL you just read) or explicitly say "I haven't checked — best guess based on X." No confident assertions from memory or training data.
+   - **Don't say "done" without proof.** The words "done," "shipped," "fixed," "working," "verified," "tests pass," "deployed" require a quoted command output, log line, screenshot, or HTTP response in the same response. Before any completion claim, invoke `superpowers:verification-before-completion`. If you can't produce the evidence, you didn't finish — keep going or hand it back with what's missing.
 8. **For multi-step plans, use TaskCreate.** Kay can't hold a 9-step plan in their head while executing. Visible checkboxes help them know where you are.
-9. **When you finish, summarize in plain English.** What changed, what's deployed, what's left, what could go wrong. Not "shipped 3 commits to feat/branch."
+9. **When you finish, summarize in plain English AND quote the evidence from #7.** What changed, what's deployed, what's left, what could go wrong — plus the command output, log line, or response that proves "done." Not "shipped 3 commits to feat/branch."
 
 ### What this does NOT mean
 - Don't dumb down product decisions. Kay knows the business better than you do.
