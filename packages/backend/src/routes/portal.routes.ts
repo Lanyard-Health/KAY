@@ -586,4 +586,80 @@ router.get('/me/completeness', authenticate, authorize('provider'), async (req: 
   }
 });
 
+// ==========================================
+// CAQH LOGIN LOCKER (B2 PR 5)
+// Username only, never the password (DataSpring ToS §3 + locker decision
+// 2026-06-12). Ownership by construction: providerId comes from the token,
+// no id parameter exists, so a provider can only ever read their own row.
+// ==========================================
+
+router.get('/me/caqh-login', portalLookupLimit, authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+    if (!providerId) {
+      return res.status(404).json({ success: false, error: 'No provider profile linked to this account' });
+    }
+
+    const provider = await prisma.providerProfile.findUnique({
+      where: { id: providerId },
+      select: { caqhUsername: true, caqhProviderId: true },
+    });
+    if (!provider) {
+      return res.status(404).json({ success: false, error: 'Provider not found' });
+    }
+
+    // Every view is audited (who looked at a credential identifier, when).
+    prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'read',
+        resourceType: 'caqh_login',
+        resourceId: providerId,
+      },
+    }).catch((err) => logger.error('Failed to audit CAQH login view:', err));
+
+    res.json({
+      success: true,
+      data: { caqhUsername: provider.caqhUsername, caqhProviderId: provider.caqhProviderId },
+    });
+  } catch (error) {
+    logger.error('Error fetching CAQH login info:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch CAQH login info' });
+  }
+});
+
+router.patch('/me/caqh-login', portalLookupLimit, authenticate, authorize('provider'), async (req: Request, res: Response) => {
+  try {
+    const providerId = req.user!.providerId;
+    if (!providerId) {
+      return res.status(404).json({ success: false, error: 'No provider profile linked to this account' });
+    }
+
+    const username = typeof req.body?.caqhUsername === 'string' ? req.body.caqhUsername.trim() : '';
+    if (!username || username.length > 100) {
+      return res.status(400).json({ success: false, error: 'caqhUsername must be a non-empty string of at most 100 characters' });
+    }
+
+    await prisma.providerProfile.update({
+      where: { id: providerId },
+      data: { caqhUsername: username },
+    });
+
+    prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        action: 'update',
+        resourceType: 'caqh_login',
+        resourceId: providerId,
+        changes: { field: 'caqhUsername' }, // value deliberately not logged
+      },
+    }).catch((err) => logger.error('Failed to audit CAQH username update:', err));
+
+    res.json({ success: true, data: { caqhUsername: username } });
+  } catch (error) {
+    logger.error('Error updating CAQH username:', error);
+    res.status(500).json({ success: false, error: 'Failed to update CAQH username' });
+  }
+});
+
 export default router;
