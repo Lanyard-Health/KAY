@@ -21,7 +21,7 @@ function maskPractice(practice: any) {
 
 // Group-intake scalar fields shared by create + update. Empty string clears the column.
 const INTAKE_KEYS = [
-  'legalName', 'dba', 'entityType', 'groupNpi', 'emrVendor', 'billingVendor', 'billingClearinghouse',
+  'legalName', 'dba', 'entityType', 'groupNpi', 'groupSpecialty', 'emrVendor', 'billingVendor', 'billingClearinghouse',
   'addressLine1', 'addressLine2', 'city', 'state', 'zipCode',
   'billingAddressLine1', 'billingAddressLine2', 'billingCity', 'billingState', 'billingZipCode',
   'mailingAddressLine1', 'mailingAddressLine2', 'mailingCity', 'mailingState', 'mailingZipCode',
@@ -57,6 +57,7 @@ const groupIntakeFields = {
   dba: optStr(200),
   entityType: optStr(100),
   groupNpi: z.string().regex(/^\d{10}$/, 'Group NPI must be 10 digits').optional().or(z.literal('')),
+  groupSpecialty: optStr(120),
   emrVendor: optStr(120),
   billingVendor: optStr(120),
   billingClearinghouse: optStr(120),

@@ -58,6 +58,7 @@ export const practiceSignupSchema = z.object({
   dba: z.string().max(200).optional(),
   entityType: z.string().max(100).optional(),
   groupTin: z.string().max(20).optional(),
+  groupSpecialty: z.string().max(120).optional(),
   emrVendor: z.string().max(120).optional(),
   billingVendor: z.string().max(120).optional(),
   billingClearinghouse: z.string().max(120).optional(),

@@ -170,6 +170,7 @@ model Practice {
   legalName            String? @map("legal_name")
   dba                  String? @map("dba")
   entityType           String? @map("entity_type") // legal structure (LLC, PC, ...); distinct from organizationType
+  groupSpecialty       String? @map("group_specialty")
   emrVendor            String? @map("emr_vendor")
   billingVendor        String? @map("billing_vendor")
   billingClearinghouse String? @map("billing_clearinghouse")

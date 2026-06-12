@@ -11,6 +11,7 @@ export interface PracticeGroupFieldsInput {
   dba?: string;
   entityType?: string;
   groupNpi?: string;
+  groupSpecialty?: string;
   taxId?: string;
   emrVendor?: string;
   billingVendor?: string;
@@ -50,6 +51,7 @@ export interface Practice {
   dba: string | null;
   entityType: string | null;
   groupNpi: string | null;
+  groupSpecialty: string | null;
   taxId: string | null; // masked (****1234) from the API
   emrVendor: string | null;
   billingVendor: string | null;

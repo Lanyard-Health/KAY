@@ -4,6 +4,14 @@ import { useAuthStore } from '../../stores/auth.store';
 import toast from 'react-hot-toast';
 import PasswordStrength from '../../components/PasswordStrength';
 import { useFormPersistence } from '../../hooks/useFormPersistence';
+import SelectWithOther from '../../components/SelectWithOther';
+import {
+  ENTITY_TYPES,
+  GROUP_SPECIALTIES,
+  EMR_VENDOR_GROUPS,
+  BILLING_VENDORS,
+  CLEARINGHOUSES,
+} from '../../constants/practiceOptions';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -81,9 +89,33 @@ export default function PracticeSignupPage() {
       zipCode: '',
       isEnterprise: false,
       groupNpi: '',
+      // Group profile intake
+      legalName: '',
+      dba: '',
+      entityType: '',
+      groupSpecialty: '',
+      groupTin: '',
+      emrVendor: '',
+      billingVendor: '',
+      billingClearinghouse: '',
+      // Billing address
+      billingAddressLine1: '',
+      billingAddressLine2: '',
+      billingCity: '',
+      billingState: '',
+      billingZipCode: '',
+      // Mailing address
+      mailingAddressLine1: '',
+      mailingAddressLine2: '',
+      mailingCity: '',
+      mailingState: '',
+      mailingZipCode: '',
     },
-    { exclude: ['password', 'confirmPassword'] }
+    // Never persist secrets or the tax ID to localStorage.
+    { exclude: ['password', 'confirmPassword', 'groupTin'] }
   );
+  const [sameBilling, setSameBilling] = useState(false);
+  const [sameMailing, setSameMailing] = useState(false);
   const [operatingStates, setOperatingStates, clearPersistedStates] = useFormPersistence<string[]>(
     'practice-signup:operating-states',
     []
@@ -111,8 +143,30 @@ export default function PracticeSignupPage() {
       .finally(() => setPayersLoading(false));
   }, []);
 
+  // Keep billing/mailing in sync with the office address while "same as office" is on.
+  useEffect(() => {
+    if (!sameBilling) return;
+    setForm((f) => ({
+      ...f,
+      billingAddressLine1: f.addressLine1, billingAddressLine2: f.addressLine2,
+      billingCity: f.city, billingState: f.state, billingZipCode: f.zipCode,
+    }));
+  }, [sameBilling, form.addressLine1, form.addressLine2, form.city, form.state, form.zipCode, setForm]);
+  useEffect(() => {
+    if (!sameMailing) return;
+    setForm((f) => ({
+      ...f,
+      mailingAddressLine1: f.addressLine1, mailingAddressLine2: f.addressLine2,
+      mailingCity: f.city, mailingState: f.state, mailingZipCode: f.zipCode,
+    }));
+  }, [sameMailing, form.addressLine1, form.addressLine2, form.city, form.state, form.zipCode, setForm]);
+
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  // Group dropdowns are controlled by SelectWithOther (value/onChange of a string).
+  const updateField = (field: string) => (value: string) =>
+    setForm((f) => ({ ...f, [field]: value }));
 
   const toggleArrayItem = (arr: string[], item: string) =>
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
@@ -192,6 +246,25 @@ export default function PracticeSignupPage() {
           targetPayerIds,
           isEnterprise: form.isEnterprise,
           groupNpi: form.groupNpi || undefined,
+          // Group profile intake (all optional)
+          legalName: form.legalName || undefined,
+          dba: form.dba || undefined,
+          entityType: form.entityType || undefined,
+          groupSpecialty: form.groupSpecialty || undefined,
+          groupTin: form.groupTin || undefined,
+          emrVendor: form.emrVendor || undefined,
+          billingVendor: form.billingVendor || undefined,
+          billingClearinghouse: form.billingClearinghouse || undefined,
+          billingAddressLine1: form.billingAddressLine1 || undefined,
+          billingAddressLine2: form.billingAddressLine2 || undefined,
+          billingCity: form.billingCity || undefined,
+          billingState: form.billingState || undefined,
+          billingZipCode: form.billingZipCode || undefined,
+          mailingAddressLine1: form.mailingAddressLine1 || undefined,
+          mailingAddressLine2: form.mailingAddressLine2 || undefined,
+          mailingCity: form.mailingCity || undefined,
+          mailingState: form.mailingState || undefined,
+          mailingZipCode: form.mailingZipCode || undefined,
         }),
       });
 
@@ -544,6 +617,226 @@ export default function PracticeSignupPage() {
                 placeholder="12345"
                 value={form.zipCode}
                 onChange={update('zipCode')}
+              />
+            </div>
+          </div>
+
+          {/* Group Details */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Group Details</h3>
+              <p className="text-xs text-gray-500 mt-1">Optional, but it speeds up your enrollments later.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="legalName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Group Legal Name <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="legalName"
+                  type="text"
+                  className={inputClassName}
+                  placeholder="Legal entity name"
+                  value={form.legalName}
+                  onChange={update('legalName')}
+                />
+              </div>
+              <div>
+                <label htmlFor="dba" className="block text-sm font-medium text-gray-700 mb-1">
+                  Doing Business As <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="dba"
+                  type="text"
+                  className={inputClassName}
+                  placeholder="DBA (if different)"
+                  value={form.dba}
+                  onChange={update('dba')}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <SelectWithOther
+                label="Entity Type"
+                value={form.entityType}
+                onChange={updateField('entityType')}
+                options={ENTITY_TYPES}
+                placeholder="Select entity type..."
+              />
+              <SelectWithOther
+                label="Group Specialty"
+                value={form.groupSpecialty}
+                onChange={updateField('groupSpecialty')}
+                options={GROUP_SPECIALTIES}
+                placeholder="Select specialty..."
+              />
+            </div>
+
+            <div>
+              <label htmlFor="groupTin" className="block text-sm font-medium text-gray-700 mb-1">
+                Group TIN <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <input
+                id="groupTin"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                className={inputClassName}
+                placeholder="Tax ID number"
+                value={form.groupTin}
+                onChange={update('groupTin')}
+              />
+              <p className="mt-1 text-xs text-gray-500">Stored encrypted. We never display it back in full.</p>
+            </div>
+
+            <SelectWithOther
+              label="EMR Vendor"
+              value={form.emrVendor}
+              onChange={updateField('emrVendor')}
+              groups={EMR_VENDOR_GROUPS}
+              placeholder="Select EMR vendor..."
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <SelectWithOther
+                label="Billing Vendor"
+                value={form.billingVendor}
+                onChange={updateField('billingVendor')}
+                options={BILLING_VENDORS}
+                placeholder="Select billing vendor..."
+              />
+              <SelectWithOther
+                label="Billing Clearinghouse"
+                value={form.billingClearinghouse}
+                onChange={updateField('billingClearinghouse')}
+                options={CLEARINGHOUSES}
+                placeholder="Select clearinghouse..."
+              />
+            </div>
+          </div>
+
+          {/* Billing Address */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Billing Address</h3>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  checked={sameBilling}
+                  onChange={(e) => {
+                    setSameBilling(e.target.checked);
+                    if (e.target.checked) toast('Billing address set to match your office address', { icon: 'ℹ️' });
+                  }}
+                />
+                Same as office
+              </label>
+            </div>
+            <input
+              type="text"
+              className={inputClassName}
+              placeholder="Street address"
+              value={form.billingAddressLine1}
+              onChange={update('billingAddressLine1')}
+              disabled={sameBilling}
+            />
+            <input
+              type="text"
+              className={inputClassName}
+              placeholder="Suite, unit, etc. (optional)"
+              value={form.billingAddressLine2}
+              onChange={update('billingAddressLine2')}
+              disabled={sameBilling}
+            />
+            <div className="grid grid-cols-6 gap-3">
+              <input
+                type="text"
+                className={`${inputClassName} col-span-3`}
+                placeholder="City"
+                value={form.billingCity}
+                onChange={update('billingCity')}
+                disabled={sameBilling}
+              />
+              <input
+                type="text"
+                maxLength={2}
+                className={`${inputClassName} col-span-1`}
+                placeholder="ST"
+                value={form.billingState}
+                onChange={update('billingState')}
+                disabled={sameBilling}
+              />
+              <input
+                type="text"
+                className={`${inputClassName} col-span-2`}
+                placeholder="ZIP"
+                value={form.billingZipCode}
+                onChange={update('billingZipCode')}
+                disabled={sameBilling}
+              />
+            </div>
+          </div>
+
+          {/* Mailing Address */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Mailing Address</h3>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  checked={sameMailing}
+                  onChange={(e) => {
+                    setSameMailing(e.target.checked);
+                    if (e.target.checked) toast('Mailing address set to match your office address', { icon: 'ℹ️' });
+                  }}
+                />
+                Same as office
+              </label>
+            </div>
+            <input
+              type="text"
+              className={inputClassName}
+              placeholder="Street address"
+              value={form.mailingAddressLine1}
+              onChange={update('mailingAddressLine1')}
+              disabled={sameMailing}
+            />
+            <input
+              type="text"
+              className={inputClassName}
+              placeholder="Suite, unit, etc. (optional)"
+              value={form.mailingAddressLine2}
+              onChange={update('mailingAddressLine2')}
+              disabled={sameMailing}
+            />
+            <div className="grid grid-cols-6 gap-3">
+              <input
+                type="text"
+                className={`${inputClassName} col-span-3`}
+                placeholder="City"
+                value={form.mailingCity}
+                onChange={update('mailingCity')}
+                disabled={sameMailing}
+              />
+              <input
+                type="text"
+                maxLength={2}
+                className={`${inputClassName} col-span-1`}
+                placeholder="ST"
+                value={form.mailingState}
+                onChange={update('mailingState')}
+                disabled={sameMailing}
+              />
+              <input
+                type="text"
+                className={`${inputClassName} col-span-2`}
+                placeholder="ZIP"
+                value={form.mailingZipCode}
+                onChange={update('mailingZipCode')}
+                disabled={sameMailing}
               />
             </div>
           </div>
