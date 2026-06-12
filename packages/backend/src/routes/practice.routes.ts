@@ -19,7 +19,66 @@ function maskPractice(practice: any) {
   };
 }
 
+// Group-intake scalar fields shared by create + update. Empty string clears the column.
+const INTAKE_KEYS = [
+  'legalName', 'dba', 'entityType', 'groupNpi', 'emrVendor', 'billingVendor', 'billingClearinghouse',
+  'addressLine1', 'addressLine2', 'city', 'state', 'zipCode',
+  'billingAddressLine1', 'billingAddressLine2', 'billingCity', 'billingState', 'billingZipCode',
+  'mailingAddressLine1', 'mailingAddressLine2', 'mailingCity', 'mailingState', 'mailingZipCode',
+] as const;
+
+function applyIntakeFields(target: Record<string, unknown>, v: Record<string, any>) {
+  for (const k of INTAKE_KEYS) {
+    if (v[k] !== undefined) target[k] = v[k] === '' ? null : v[k];
+  }
+}
+
+// TIN follows the ProviderBanking convention: encrypted value + last-4 for display.
+function applyTaxId(target: Record<string, unknown>, taxId: string | undefined | null) {
+  if (taxId === undefined) return;
+  if (taxId) {
+    target['taxIdEncrypted'] = encryptSafe(taxId);
+    target['taxIdLast4'] = taxId.replace(/\D/g, '').slice(-4) || null;
+  } else {
+    target['taxIdEncrypted'] = null;
+    target['taxIdLast4'] = null;
+  }
+}
+
 const router = Router();
+
+// Shared optional-string field for the group intake fields. Empty string is
+// treated as "not provided" so a cleared input clears the column.
+const optStr = (max: number) => z.string().max(max).optional().or(z.literal(''));
+
+// Group-profile intake fields shared by create + update (all optional).
+const groupIntakeFields = {
+  legalName: optStr(200),
+  dba: optStr(200),
+  entityType: optStr(100),
+  groupNpi: z.string().regex(/^\d{10}$/, 'Group NPI must be 10 digits').optional().or(z.literal('')),
+  emrVendor: optStr(120),
+  billingVendor: optStr(120),
+  billingClearinghouse: optStr(120),
+  // Office (primary) address
+  addressLine1: optStr(200),
+  addressLine2: optStr(200),
+  city: optStr(100),
+  state: optStr(2),
+  zipCode: optStr(10),
+  // Billing address
+  billingAddressLine1: optStr(200),
+  billingAddressLine2: optStr(200),
+  billingCity: optStr(100),
+  billingState: optStr(2),
+  billingZipCode: optStr(10),
+  // Mailing address
+  mailingAddressLine1: optStr(200),
+  mailingAddressLine2: optStr(200),
+  mailingCity: optStr(100),
+  mailingState: optStr(2),
+  mailingZipCode: optStr(10),
+};
 
 // Validation schemas
 const createPracticeSchema = z.object({
@@ -29,6 +88,7 @@ const createPracticeSchema = z.object({
   website: z.string().max(500).optional().or(z.literal('')),
   notes: z.string().max(2000).optional(),
   taxId: z.string().max(20).optional(),
+  ...groupIntakeFields,
 });
 
 const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
@@ -41,6 +101,7 @@ const updatePracticeSchema = z.object({
   notes: n(z.string().max(2000)),
   taxId: n(z.string().max(20)),
   targetPayerIds: z.array(z.string().uuid()).optional(),
+  ...groupIntakeFields,
 });
 
 const assignUserSchema = z.object({
@@ -236,16 +297,17 @@ router.post(
         action: 'create',
       });
 
-      const practice = await prisma.practice.create({
-        data: {
-          name: validated.name,
-          phone: validated.phone || null,
-          email: validated.email || null,
-          website: validated.website || null,
-          notes: validated.notes || null,
-          ...(validated.taxId ? { taxIdEncrypted: encryptSafe(validated.taxId) } : {}),
-        },
-      });
+      const createData: Record<string, unknown> = {
+        name: validated.name,
+        phone: validated.phone || null,
+        email: validated.email || null,
+        website: validated.website || null,
+        notes: validated.notes || null,
+      };
+      applyIntakeFields(createData, validated);
+      applyTaxId(createData, validated.taxId);
+
+      const practice = await prisma.practice.create({ data: createData as any });
 
       res.status(201).json({ success: true, data: maskPractice(practice) });
     } catch (error) {
@@ -294,7 +356,8 @@ router.patch(
       if (validated.email !== undefined) updateData['email'] = validated.email || null;
       if (validated.website !== undefined) updateData['website'] = validated.website || null;
       if (validated.notes !== undefined) updateData['notes'] = validated.notes || null;
-      if (validated.taxId !== undefined) updateData['taxIdEncrypted'] = validated.taxId ? encryptSafe(validated.taxId) : null;
+      applyTaxId(updateData, validated.taxId);
+      applyIntakeFields(updateData, validated);
       if (validated.targetPayerIds !== undefined) updateData['targetPayerIds'] = validated.targetPayerIds;
 
       const practice = await prisma.practice.update({

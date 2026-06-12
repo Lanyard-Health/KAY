@@ -21,6 +21,11 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../utils/crypto.js', () => ({
+  encryptSafe: (v: string) => `enc:${v}`,
+  decryptSafe: (v: string) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
+}));
+
 import practiceRoutes from './practice.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
@@ -162,6 +167,55 @@ describe('Practice Routes', () => {
           }),
         })
       );
+    });
+
+    it('persists group intake fields and computes the TIN last-4', async () => {
+      prismaMock.practice.create.mockResolvedValue(mockPractice as any);
+
+      const res = await request(app)
+        .post('/')
+        .send({
+          name: 'Group Practice',
+          legalName: 'Group Practice LLC',
+          dba: 'GP Health',
+          entityType: 'Limited Liability Company (LLC)',
+          groupNpi: '1234567890',
+          taxId: '12-3456789',
+          emrVendor: 'Epic',
+          billingClearinghouse: 'Availity',
+          billingAddressLine1: '1 Billing St',
+          billingCity: 'Boston',
+          billingState: 'MA',
+          billingZipCode: '02101',
+        });
+
+      expect(res.status).toBe(201);
+      expect(prismaMock.practice.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            legalName: 'Group Practice LLC',
+            dba: 'GP Health',
+            entityType: 'Limited Liability Company (LLC)',
+            groupNpi: '1234567890',
+            emrVendor: 'Epic',
+            billingClearinghouse: 'Availity',
+            billingAddressLine1: '1 Billing St',
+            billingCity: 'Boston',
+            billingState: 'MA',
+            billingZipCode: '02101',
+            taxIdEncrypted: 'enc:12-3456789',
+            taxIdLast4: '6789',
+          }),
+        })
+      );
+    });
+
+    it('rejects a malformed group NPI', async () => {
+      const res = await request(app)
+        .post('/')
+        .send({ name: 'Bad NPI Practice', groupNpi: '123' });
+
+      expect(res.status).toBe(400);
     });
 
     it('returns 400 when name is missing', async () => {

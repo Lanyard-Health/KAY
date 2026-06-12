@@ -1,6 +1,7 @@
 import { prisma } from '../utils/prisma.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { triggerAutomatedEmail } from './automatedEmail.service.js';
+import { encryptSafe } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import type { PracticeSignupInput } from '@credential-management/shared';
 
@@ -25,6 +26,7 @@ export async function registerPractice(data: PracticeSignupInput) {
 
     // 4. Create Practice + User + UserPractice in a transaction
     const { practice, user } = await prisma.$transaction(async (tx) => {
+      const tin = data.groupTin?.trim();
       const practice = await tx.practice.create({
         data: {
           name: data.practiceName,
@@ -40,6 +42,24 @@ export async function registerPractice(data: PracticeSignupInput) {
           targetPayerIds: data.targetPayerIds,
           isEnterprise: data.isEnterprise ?? false,
           groupNpi: data.groupNpi,
+          // Group profile intake
+          legalName: data.legalName || null,
+          dba: data.dba || null,
+          entityType: data.entityType || null,
+          emrVendor: data.emrVendor || null,
+          billingVendor: data.billingVendor || null,
+          billingClearinghouse: data.billingClearinghouse || null,
+          ...(tin ? { taxIdEncrypted: encryptSafe(tin), taxIdLast4: tin.replace(/\D/g, '').slice(-4) || null } : {}),
+          billingAddressLine1: data.billingAddressLine1 || null,
+          billingAddressLine2: data.billingAddressLine2 || null,
+          billingCity: data.billingCity || null,
+          billingState: data.billingState || null,
+          billingZipCode: data.billingZipCode || null,
+          mailingAddressLine1: data.mailingAddressLine1 || null,
+          mailingAddressLine2: data.mailingAddressLine2 || null,
+          mailingCity: data.mailingCity || null,
+          mailingState: data.mailingState || null,
+          mailingZipCode: data.mailingZipCode || null,
         },
       });
 

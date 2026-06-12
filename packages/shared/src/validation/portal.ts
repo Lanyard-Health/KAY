@@ -53,6 +53,26 @@ export const practiceSignupSchema = z.object({
   targetPayerIds: z.array(z.string().uuid('Invalid payer ID')).min(1, 'At least one target payer is required'),
   isEnterprise: z.boolean().default(false),
   groupNpi: z.string().regex(/^\d{10}$/, 'Must be a 10-digit NPI number').optional(),
+  // Group profile intake (all optional at signup; empty string = not provided)
+  legalName: z.string().max(200).optional(),
+  dba: z.string().max(200).optional(),
+  entityType: z.string().max(100).optional(),
+  groupTin: z.string().max(20).optional(),
+  emrVendor: z.string().max(120).optional(),
+  billingVendor: z.string().max(120).optional(),
+  billingClearinghouse: z.string().max(120).optional(),
+  // Billing address
+  billingAddressLine1: z.string().max(200).optional(),
+  billingAddressLine2: z.string().max(200).optional(),
+  billingCity: z.string().max(100).optional(),
+  billingState: z.string().max(2).optional(),
+  billingZipCode: z.string().max(10).optional(),
+  // Mailing address
+  mailingAddressLine1: z.string().max(200).optional(),
+  mailingAddressLine2: z.string().max(200).optional(),
+  mailingCity: z.string().max(100).optional(),
+  mailingState: z.string().max(2).optional(),
+  mailingZipCode: z.string().max(10).optional(),
 });
 
 export const selfServeSignupSchema = portalRegistrationSchema.extend({
