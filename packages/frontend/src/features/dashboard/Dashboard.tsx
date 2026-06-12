@@ -33,6 +33,7 @@ const GettingStartedChecklist = lazy(() => import('./GettingStartedChecklist'));
 const EnrollmentPipelineChart = lazy(() => import('./EnrollmentPipelineChart'));
 const ExpirationForecastWidget = lazy(() => import('./ExpirationForecastWidget'));
 const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
+const AttestationBoardWidget = lazy(() => import('./AttestationBoardWidget'));
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -421,6 +422,20 @@ export default function Dashboard() {
           </div>
         }>
           <ProviderReadinessTable practiceId={practiceId} />
+        </Suspense>
+      </ErrorBoundary>
+      </div>
+
+      {/* Row 5: CAQH Attestation Board */}
+      <div className="dash-stagger dash-d4">
+      <ErrorBoundary>
+        <Suspense fallback={
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6 animate-pulse">
+            <div className="h-4 w-48 bg-gray-200 rounded mb-4" />
+            <div className="h-32 bg-gray-100 rounded" />
+          </div>
+        }>
+          <AttestationBoardWidget />
         </Suspense>
       </ErrorBoundary>
       </div>

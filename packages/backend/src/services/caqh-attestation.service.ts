@@ -26,6 +26,7 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { Prisma } from '@prisma/client';
+import { notificationService } from './notification.service.js';
 import type { CaqhStatusResponse } from './caqh.service.js';
 
 /** Statuses whose provider_status_date IS the (re-)attestation date. */
@@ -276,4 +277,110 @@ export async function updateAttestationTracker(input: TrackerUpdateInput): Promi
     where: { providerProfileId },
     data: { providerStatus, nextDueDate, diffVerdict: verdict, changedSections },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Admin alerts (B1 PR 3) — in-app notifications at the three moments Kay
+// chose (decision Q1/Q5): expiry, day-7 pre-due heads-up, +14d-overdue
+// escalation. Each fires once per cycle, tracked under admin-prefixed keys
+// in remindersSent (cleared automatically on cycle reset). Provider-facing
+// email keys (PR 4) share the same object under numeric keys.
+// ---------------------------------------------------------------------------
+
+/** Whole-day difference (UTC) from `now` to `date`. Negative = past due. */
+export function daysUntil(date: Date, now: Date = new Date()): number {
+  const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - today) / 86_400_000);
+}
+
+interface AdminAlertRule {
+  key: string;
+  applies: (daysToDue: number, isExpired: boolean) => boolean;
+  title: string;
+  message: (providerName: string, daysToDue: number) => string;
+}
+
+const ADMIN_ALERT_RULES: AdminAlertRule[] = [
+  {
+    key: 'admin7',
+    applies: (d, expired) => !expired && d >= 0 && d <= 7,
+    title: 'CAQH attestation due within 7 days',
+    message: (name, d) =>
+      `${name}'s CAQH attestation is due in ${d} day${d === 1 ? '' : 's'} and is still pending.`,
+  },
+  {
+    key: 'adminExpired',
+    applies: (d, expired) => expired || d < 0,
+    title: 'CAQH attestation expired',
+    message: (name) =>
+      `${name}'s CAQH attestation has expired. Payers may treat a lapsed attestation as a termination — this needs attention.`,
+  },
+  {
+    key: 'adminOverdue14',
+    applies: (d) => d <= -14,
+    title: 'CAQH attestation 2+ weeks overdue',
+    message: (name) =>
+      `${name}'s CAQH attestation has been lapsed for two weeks despite reminders. Automated nudges have not worked — consider a phone call.`,
+  },
+];
+
+export interface AdminAlertInput {
+  providerProfileId: string;
+  providerName: string;
+  practiceId: string | null;
+  /** Injectable for tests. */
+  now?: Date;
+}
+
+/**
+ * Evaluate and send the once-per-cycle admin alerts for one provider.
+ * Respects the practice-level toggle (PracticeSettings.caqhRemindersEnabled).
+ * Best-effort by contract: callers wrap it so failures never break the sync.
+ */
+export async function evaluateAdminAttestationAlerts(input: AdminAlertInput): Promise<void> {
+  const { providerProfileId, providerName, practiceId } = input;
+  const now = input.now ?? new Date();
+
+  const tracker = await prisma.caqhAttestationTracker.findUnique({
+    where: { providerProfileId },
+  });
+  if (!tracker?.nextDueDate) return;
+
+  if (practiceId) {
+    const settings = await prisma.practiceSettings.findUnique({
+      where: { practiceId },
+      select: { caqhRemindersEnabled: true },
+    });
+    if (settings?.caqhRemindersEnabled === false) return;
+  }
+
+  const sent = (tracker.remindersSent ?? {}) as Record<string, string>;
+  const isExpired = tracker.providerStatus === EXPIRED_STATUS;
+  const daysToDue = daysUntil(tracker.nextDueDate, now);
+
+  const fired: Record<string, string> = {};
+  for (const rule of ADMIN_ALERT_RULES) {
+    if (sent[rule.key] || !rule.applies(daysToDue, isExpired)) continue;
+    await notificationService.notifyAdminUsers({
+      type: 'system_announcement',
+      title: rule.title,
+      message: rule.message(providerName, daysToDue),
+      actionUrl: `/providers/${providerProfileId}`,
+    });
+    fired[rule.key] = now.toISOString();
+    logger.info({
+      event: 'caqh_attestation_admin_alert',
+      providerProfileId,
+      alert: rule.key,
+      daysToDue,
+    });
+  }
+
+  if (Object.keys(fired).length > 0) {
+    await prisma.caqhAttestationTracker.update({
+      where: { providerProfileId },
+      data: { remindersSent: { ...sent, ...fired } as Prisma.InputJsonValue },
+    });
+  }
 }

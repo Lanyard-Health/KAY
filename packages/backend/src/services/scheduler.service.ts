@@ -8,7 +8,7 @@ import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { sweepStalledTasks } from './stalled-task.service.js';
-import { updateAttestationTracker } from './caqh-attestation.service.js';
+import { updateAttestationTracker, evaluateAdminAttestationAlerts } from './caqh-attestation.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -321,6 +321,7 @@ class SchedulerService {
           firstName: true,
           lastName: true,
           caqhProviderId: true,
+          practiceId: true,
         },
       });
 
@@ -358,6 +359,11 @@ class SchedulerService {
               providerProfileId: provider.id,
               status,
               rawJson: mirror?.rawJson ?? null,
+            });
+            await evaluateAdminAttestationAlerts({
+              providerProfileId: provider.id,
+              providerName,
+              practiceId: provider.practiceId,
             });
           } catch (trackerError) {
             logger.warn({

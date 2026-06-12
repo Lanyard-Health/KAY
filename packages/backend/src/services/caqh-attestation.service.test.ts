@@ -12,7 +12,12 @@ vi.mock('../utils/prisma.js', async () => {
   return { prisma: prismaMock };
 });
 
+vi.mock('./notification.service.js', () => ({
+  notificationService: { notifyAdminUsers: vi.fn().mockResolvedValue(undefined) },
+}));
+
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
+import { notificationService } from './notification.service.js';
 import {
   parseYyyymmddUTC,
   cycleDaysForState,
@@ -20,6 +25,8 @@ import {
   normalizeForDiff,
   diffSnapshots,
   updateAttestationTracker,
+  daysUntil,
+  evaluateAdminAttestationAlerts,
   ATTESTED_STATUSES,
   EXPIRED_STATUS,
 } from './caqh-attestation.service.js';
@@ -308,5 +315,99 @@ describe('updateAttestationTracker', () => {
     expect(ATTESTED_STATUSES.has('Initial Profile Complete')).toBe(true);
     expect(ATTESTED_STATUSES.has('Profile Data Submitted')).toBe(true);
     expect(ATTESTED_STATUSES.has(EXPIRED_STATUS)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin alerts (PR 3)
+// ---------------------------------------------------------------------------
+describe('daysUntil', () => {
+  it('computes whole UTC days, sign-correct', () => {
+    const now = new Date('2026-06-12T23:59:00Z');
+    expect(daysUntil(new Date('2026-06-19T00:00:00Z'), now)).toBe(7);
+    expect(daysUntil(new Date('2026-06-12T01:00:00Z'), now)).toBe(0);
+    expect(daysUntil(new Date('2026-05-29T00:00:00Z'), now)).toBe(-14);
+  });
+});
+
+describe('evaluateAdminAttestationAlerts', () => {
+  const base = {
+    providerProfileId: 'prov-1',
+    providerName: 'Dr. Jane Doe',
+    practiceId: 'prac-1',
+  };
+  const notifyMock = vi.mocked(notificationService.notifyAdminUsers);
+
+  function trackerWith(overrides: Record<string, unknown>) {
+    prismaMock.caqhAttestationTracker.findUnique.mockResolvedValue({
+      id: 't-1',
+      providerProfileId: 'prov-1',
+      providerStatus: 'Re-Attestation',
+      nextDueDate: new Date('2026-06-19T00:00:00Z'),
+      remindersSent: null,
+      ...overrides,
+    } as never);
+  }
+
+  beforeEach(() => {
+    notifyMock.mockClear();
+    prismaMock.practiceSettings.findUnique.mockResolvedValue({ caqhRemindersEnabled: true } as never);
+  });
+
+  it('fires the day-7 heads-up inside the window, once', async () => {
+    trackerWith({});
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+    expect(notifyMock.mock.calls[0][0].title).toContain('due within 7 days');
+    const write = prismaMock.caqhAttestationTracker.update.mock.calls[0][0];
+    expect(Object.keys(write.data.remindersSent as object)).toEqual(['admin7']);
+  });
+
+  it('does not re-fire an alert already recorded this cycle', async () => {
+    trackerWith({ remindersSent: { admin7: '2026-06-12T08:00:00.000Z' } });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-13T08:00:00Z') });
+    expect(notifyMock).not.toHaveBeenCalled();
+    expect(prismaMock.caqhAttestationTracker.update).not.toHaveBeenCalled();
+  });
+
+  it('fires the expiry alert on Expired Attestation status', async () => {
+    trackerWith({ providerStatus: EXPIRED_STATUS, nextDueDate: new Date('2026-06-10T00:00:00Z') });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+    expect(notifyMock.mock.calls[0][0].title).toBe('CAQH attestation expired');
+  });
+
+  it('fires the +14d escalation (alongside expiry if both unsent)', async () => {
+    trackerWith({ nextDueDate: new Date('2026-05-29T00:00:00Z') });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    const titles = notifyMock.mock.calls.map((c) => c[0].title);
+    expect(titles).toContain('CAQH attestation expired');
+    expect(titles).toContain('CAQH attestation 2+ weeks overdue');
+  });
+
+  it('respects the practice-level toggle (decision Q7)', async () => {
+    prismaMock.practiceSettings.findUnique.mockResolvedValue({ caqhRemindersEnabled: false } as never);
+    trackerWith({ providerStatus: EXPIRED_STATUS });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('defaults to enabled when the practice has no settings row', async () => {
+    prismaMock.practiceSettings.findUnique.mockResolvedValue(null);
+    trackerWith({});
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing without a due date', async () => {
+    trackerWith({ nextDueDate: null });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).not.toHaveBeenCalled();
+  });
+
+  it('quiet zone: nothing fires when due far in the future', async () => {
+    trackerWith({ nextDueDate: new Date('2026-09-01T00:00:00Z') });
+    await evaluateAdminAttestationAlerts({ ...base, now: new Date('2026-06-12T08:00:00Z') });
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 });

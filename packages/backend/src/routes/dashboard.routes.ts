@@ -196,4 +196,80 @@ router.get('/stats', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/v1/dashboard/attestations
+ * CAQH re-attestation board (B1): every tracked provider bucketed by urgency,
+ * with the "nothing changed" diff verdict. Practice-scoped like /stats.
+ */
+router.get('/attestations', async (req: Request, res: Response) => {
+  try {
+    const practiceFilter = getPracticeProviderFilter(req);
+
+    const trackers = await prisma.caqhAttestationTracker.findMany({
+      where: { providerProfile: practiceFilter },
+      select: {
+        providerProfileId: true,
+        providerStatus: true,
+        lastAttestationDate: true,
+        nextDueDate: true,
+        diffVerdict: true,
+        changedSections: true,
+        providerProfile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            practice: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { nextDueDate: 'asc' },
+    });
+
+    const todayUtc = Date.UTC(
+      new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(),
+    );
+
+    const rows = trackers.map((t) => {
+      const daysUntilDue = t.nextDueDate
+        ? Math.round((Date.UTC(
+            t.nextDueDate.getUTCFullYear(), t.nextDueDate.getUTCMonth(), t.nextDueDate.getUTCDate(),
+          ) - todayUtc) / 86_400_000)
+        : null;
+      const isExpired = t.providerStatus === 'Expired Attestation'
+        || (daysUntilDue !== null && daysUntilDue < 0);
+      const bucket = isExpired
+        ? 'overdue'
+        : daysUntilDue === null
+          ? 'untracked'
+          : daysUntilDue <= 21
+            ? 'dueSoon'
+            : 'onTrack';
+      return {
+        providerId: t.providerProfileId,
+        providerName: `${t.providerProfile.firstName} ${t.providerProfile.lastName}`,
+        practice: t.providerProfile.practice,
+        providerStatus: t.providerStatus,
+        lastAttestationDate: t.lastAttestationDate,
+        nextDueDate: t.nextDueDate,
+        daysUntilDue,
+        diffVerdict: t.diffVerdict,
+        changedSections: t.changedSections,
+        bucket,
+      };
+    });
+
+    const counts = {
+      overdue: rows.filter((r) => r.bucket === 'overdue').length,
+      dueSoon: rows.filter((r) => r.bucket === 'dueSoon').length,
+      onTrack: rows.filter((r) => r.bucket === 'onTrack').length,
+      untracked: rows.filter((r) => r.bucket === 'untracked').length,
+    };
+
+    res.json({ success: true, data: { counts, providers: rows } });
+  } catch (error) {
+    logger.error('Error fetching attestation board:', error);
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch attestation board' } });
+  }
+});
+
 export default router;
