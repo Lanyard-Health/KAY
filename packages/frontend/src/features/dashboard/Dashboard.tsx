@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
+import { dashboardGreeting } from './greeting';
 import { useGettingStarted } from '../../hooks/useReporting';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
@@ -151,7 +152,7 @@ export default function Dashboard() {
     return (
       <div className="space-y-6">
         <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
-          <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+          <h1 className="text-2xl font-bold">{dashboardGreeting(user?.firstName)}</h1>
           <p className="mt-1 text-primary-100">
             Let's get your practice set up. Complete the steps below to unlock your full dashboard.
           </p>
@@ -192,7 +193,7 @@ export default function Dashboard() {
         {/* Welcome Header */}
         <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+            <h1 className="text-2xl font-bold">{dashboardGreeting(user?.firstName)}</h1>
             <RefreshIndicator isFetching={isFetching && !isLoading} />
           </div>
           <p className="mt-1 text-primary-100">Your practice overview at a glance.</p>
@@ -283,7 +284,7 @@ export default function Dashboard() {
       {/* Welcome Header */}
       <div className="dash-stagger bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Welcome to Lanyard Health</h1>
+          <h1 className="text-2xl font-bold">{dashboardGreeting(user?.firstName)}</h1>
           <RefreshIndicator isFetching={isFetching && !isLoading} />
         </div>
         <p className="mt-1 text-primary-100">Platform operations overview</p>
