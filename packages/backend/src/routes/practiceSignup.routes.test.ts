@@ -61,6 +61,39 @@ describe('Practice Signup Routes', () => {
       );
     });
 
+    it('passes a valid owners array through to the service', async () => {
+      mockedRegisterPractice.mockResolvedValue({ practiceId: 'p1', userId: 'u1' });
+
+      const res = await request(app).post('/register').send({
+        ...validPayload,
+        owners: [{ name: 'Jane Doe', ssn: '123-45-6789', ownershipPercentage: 100, dateOfBirth: '1985-04-12' }],
+      });
+
+      expect(res.status).toBe(201);
+      expect(mockedRegisterPractice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owners: expect.arrayContaining([expect.objectContaining({ name: 'Jane Doe', ssn: '123-45-6789' })]),
+        })
+      );
+    });
+
+    it('rejects more than 3 owners', async () => {
+      const owners = Array.from({ length: 4 }, (_, i) => ({ name: `Owner ${i + 1}` }));
+      const res = await request(app).post('/register').send({ ...validPayload, owners });
+
+      expect(res.status).toBe(400);
+      expect(mockedRegisterPractice).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed owner SSN', async () => {
+      const res = await request(app)
+        .post('/register')
+        .send({ ...validPayload, owners: [{ name: 'Jane Doe', ssn: '12-3' }] });
+
+      expect(res.status).toBe(400);
+      expect(mockedRegisterPractice).not.toHaveBeenCalled();
+    });
+
     it('returns 400 on validation failure with empty body', async () => {
       const res = await request(app).post('/register').send({});
 

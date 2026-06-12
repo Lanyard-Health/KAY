@@ -23,7 +23,7 @@ const MODELS = [
   'payer', 'payerContact', 'payerForm', 'payerFormField',
   'payerFormFieldMapping', 'payerRequirement', 'payerStateRule',
   'payerSubmissionConfig', 'payerTimeline', 'payerTrack', 'pendingApproval',
-  'practice', 'practiceLocation', 'practicePayer', 'practiceSettings',
+  'practice', 'practiceLocation', 'practiceOwner', 'practicePayer', 'practiceSettings',
   'providerAddress', 'providerApplication', 'providerBanking',
   'providerCaqhMirror', 'providerCertification', 'providerChecklist',
   'providerDemographics', 'providerDisclosure', 'providerIdentifier',

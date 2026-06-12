@@ -116,6 +116,20 @@ export default function PracticeSignupPage() {
   );
   const [sameBilling, setSameBilling] = useState(false);
   const [sameMailing, setSameMailing] = useState(false);
+
+  // Ownership disclosure. SSN/DOB are sensitive, so owners live in component
+  // state only and are NEVER written to localStorage (unlike the persisted form).
+  type OwnerForm = {
+    name: string; ssn: string; ownershipPercentage: string; dateOfBirth: string;
+    homeAddressLine1: string; homeAddressLine2: string; homeCity: string; homeState: string; homeZipCode: string;
+  };
+  const emptyOwner: OwnerForm = {
+    name: '', ssn: '', ownershipPercentage: '', dateOfBirth: '',
+    homeAddressLine1: '', homeAddressLine2: '', homeCity: '', homeState: '', homeZipCode: '',
+  };
+  const [ownerBranch, setOwnerBranch] = useState<'' | 'owner' | 'joining'>('');
+  const [owners, setOwners] = useState<OwnerForm[]>([{ ...emptyOwner }]);
+  const [ownerNameTouched, setOwnerNameTouched] = useState(false);
   const [operatingStates, setOperatingStates, clearPersistedStates] = useFormPersistence<string[]>(
     'practice-signup:operating-states',
     []
@@ -167,6 +181,31 @@ export default function PracticeSignupPage() {
   // Group dropdowns are controlled by SelectWithOther (value/onChange of a string).
   const updateField = (field: string) => (value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
+
+  // Owner repeater helpers (max 3).
+  const MAX_OWNERS = 3;
+  const updateOwner = (index: number, field: keyof OwnerForm) => (value: string) => {
+    if (field === 'name') setOwnerNameTouched(true);
+    setOwners((prev) => prev.map((o, i) => (i === index ? { ...o, [field]: value } : o)));
+  };
+  const addOwner = () =>
+    setOwners((prev) => (prev.length >= MAX_OWNERS ? prev : [...prev, { ...emptyOwner }]));
+  const removeOwner = (index: number) =>
+    setOwners((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+
+  const chooseOwnerBranch = (branch: 'owner' | 'joining') => {
+    setOwnerBranch(branch);
+    if (branch === 'owner') {
+      toast('You are the owner. We will prefill your name below; add your SSN and ownership percentage.', { icon: 'ℹ️' });
+    }
+  };
+
+  // Prefill owner #1's name from the registrant's name until they edit it.
+  useEffect(() => {
+    if (ownerBranch !== 'owner' || ownerNameTouched) return;
+    const full = `${form.firstName} ${form.lastName}`.trim();
+    setOwners((prev) => (prev.length && prev[0].name === full ? prev : prev.map((o, i) => (i === 0 ? { ...o, name: full } : o))));
+  }, [ownerBranch, ownerNameTouched, form.firstName, form.lastName]);
 
   const toggleArrayItem = (arr: string[], item: string) =>
     arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
@@ -225,6 +264,22 @@ export default function PracticeSignupPage() {
       return;
     }
 
+    // Build the owners payload: drop empty rows, normalize to the API shape.
+    const ownersPayload = owners
+      .filter((o) => o.name.trim())
+      .slice(0, MAX_OWNERS)
+      .map((o) => ({
+        name: o.name.trim(),
+        ssn: o.ssn.trim() || undefined,
+        ownershipPercentage: o.ownershipPercentage.trim() ? Number(o.ownershipPercentage) : undefined,
+        dateOfBirth: o.dateOfBirth.trim() || undefined,
+        homeAddressLine1: o.homeAddressLine1.trim() || undefined,
+        homeAddressLine2: o.homeAddressLine2.trim() || undefined,
+        homeCity: o.homeCity.trim() || undefined,
+        homeState: o.homeState.trim() || undefined,
+        homeZipCode: o.homeZipCode.trim() || undefined,
+      }));
+
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/practices/register`, {
@@ -265,6 +320,7 @@ export default function PracticeSignupPage() {
           mailingCity: form.mailingCity || undefined,
           mailingState: form.mailingState || undefined,
           mailingZipCode: form.mailingZipCode || undefined,
+          owners: ownersPayload.length > 0 ? ownersPayload : undefined,
         }),
       });
 
@@ -332,6 +388,56 @@ export default function PracticeSignupPage() {
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
+          {/* Owner vs joining branch */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+              Are you the practice owner, or joining a practice?
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => chooseOwnerBranch('owner')}
+                className={`text-left rounded-xl border p-4 transition-colors ${
+                  ownerBranch === 'owner'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="block text-sm font-semibold text-gray-900">I'm the practice owner</span>
+                <span className="block text-xs text-gray-500 mt-1">Set up a new practice and add ownership details.</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseOwnerBranch('joining')}
+                className={`text-left rounded-xl border p-4 transition-colors ${
+                  ownerBranch === 'joining'
+                    ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <span className="block text-sm font-semibold text-gray-900">I'm joining a practice</span>
+                <span className="block text-xs text-gray-500 mt-1">Use the invitation link from your practice admin.</span>
+              </button>
+            </div>
+          </div>
+
+          {ownerBranch === 'joining' && (
+            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3 text-center">
+              <p className="text-sm text-gray-700">
+                To join an existing practice, open the invitation link your practice admin sent you.
+                It will set up your account and add you to the practice automatically.
+              </p>
+              <p className="text-xs text-gray-500">
+                Don't have an invite yet? Ask your practice admin to send one, then come back here.
+              </p>
+              <Link to="/login" className="inline-block text-sm font-medium text-primary-700 hover:text-primary-800">
+                Already have an account? Sign in
+              </Link>
+            </div>
+          )}
+
+          {ownerBranch === 'owner' && (
+          <>
           <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
             <div>
               <label htmlFor="practiceName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -965,6 +1071,151 @@ export default function PracticeSignupPage() {
             )}
           </div>
 
+          {/* Practice Ownership */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Practice Ownership</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Add the people who own the practice. Used for credentialing and payer enrollment.
+              </p>
+            </div>
+
+            {owners.map((owner, i) => (
+              <div key={i} className="rounded-xl border border-gray-200 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-800">Owner {i + 1}</span>
+                  {owners.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeOwner(i)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    className={inputClassName}
+                    placeholder="Owner full name"
+                    value={owner.name}
+                    onChange={(e) => updateOwner(i, 'name')(e.target.value)}
+                  />
+                  {i === 0 && !ownerNameTouched && owner.name && (
+                    <p className="mt-1 text-xs text-gray-500">Prefilled from your account, edit if needed.</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SSN <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className={inputClassName}
+                      placeholder="123-45-6789"
+                      value={owner.ssn}
+                      onChange={(e) => updateOwner(i, 'ssn')(e.target.value.replace(/[^\d-]/g, '').slice(0, 11))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ownership % <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className={inputClassName}
+                      placeholder="e.g. 100"
+                      value={owner.ownershipPercentage}
+                      onChange={(e) => updateOwner(i, 'ownershipPercentage')(e.target.value.replace(/[^\d.]/g, '').slice(0, 6))}
+                    />
+                  </div>
+                </div>
+
+                <div className="w-1/2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date of Birth <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    className={inputClassName}
+                    value={owner.dateOfBirth}
+                    onChange={(e) => updateOwner(i, 'dateOfBirth')(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <span className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">Home Address (optional)</span>
+                  <input
+                    type="text"
+                    className={inputClassName}
+                    placeholder="Street address"
+                    value={owner.homeAddressLine1}
+                    onChange={(e) => updateOwner(i, 'homeAddressLine1')(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className={inputClassName}
+                    placeholder="Apt, unit, etc. (optional)"
+                    value={owner.homeAddressLine2}
+                    onChange={(e) => updateOwner(i, 'homeAddressLine2')(e.target.value)}
+                  />
+                  <div className="grid grid-cols-6 gap-3">
+                    <input
+                      type="text"
+                      className={`${inputClassName} col-span-3`}
+                      placeholder="City"
+                      value={owner.homeCity}
+                      onChange={(e) => updateOwner(i, 'homeCity')(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      maxLength={2}
+                      className={`${inputClassName} col-span-1`}
+                      placeholder="ST"
+                      value={owner.homeState}
+                      onChange={(e) => updateOwner(i, 'homeState')(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+                    />
+                    <input
+                      type="text"
+                      className={`${inputClassName} col-span-2`}
+                      placeholder="ZIP"
+                      value={owner.homeZipCode}
+                      onChange={(e) => updateOwner(i, 'homeZipCode')(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {owners.length < MAX_OWNERS ? (
+              <button
+                type="button"
+                onClick={addOwner}
+                className="text-sm font-medium text-primary-700 hover:text-primary-800"
+              >
+                + Add another owner
+              </button>
+            ) : (
+              <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3">
+                Have more than three owners? Email{' '}
+                <a href="mailto:credentialing@lanyardhealth.com" className="text-primary-700 font-medium hover:text-primary-800">
+                  credentialing@lanyardhealth.com
+                </a>{' '}
+                and we'll add them.
+              </p>
+            )}
+
+            <p className="text-xs text-gray-400">SSN and date of birth are encrypted and never shown back in full.</p>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
@@ -991,6 +1242,8 @@ export default function PracticeSignupPage() {
               'Create Account'
             )}
           </button>
+          </>
+          )}
         </form>
 
         <p className="text-center text-sm text-white/70">
