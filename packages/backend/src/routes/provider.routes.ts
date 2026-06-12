@@ -112,6 +112,7 @@ providerRoutes.get(
             languages: true,
             status: true,
             practiceId: true,
+            practice: { select: { id: true, name: true } },
             createdAt: true,
             updatedAt: true,
             addresses: true,
