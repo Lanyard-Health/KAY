@@ -347,17 +347,25 @@ export default function EnrollmentsList() {
 
   // Create enrollment mutation
   const createMutation = useMutation({
-    mutationFn: (data: { providerId: string; formData: EnrollmentFormData }) =>
-      api.post(`/enrollments/provider/${data.providerId}`, data.formData),
-    onSuccess: () => {
+    mutationFn: (data: {
+      providerId: string;
+      providerName: string;
+      payerName: string;
+      formData: EnrollmentFormData;
+    }) => api.post(`/enrollments/provider/${data.providerId}`, data.formData),
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
-      notify.success('Enrollment created');
+      notify.success(`Enrollment created for ${variables.providerName}, ${variables.payerName}.`);
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.error?.message || 'Failed to create enrollment';
-      notify.error('Enrollment failed', { description: message });
+    onError: (error: any, variables) => {
+      // Backend returns 409 when this provider already has an enrollment for this payer.
+      if (error?.response?.status === 409) {
+        notify.error(`${variables.providerName} already has a ${variables.payerName} enrollment.`);
+        return;
+      }
+      notify.error("We couldn't create that enrollment. Please try again.");
     },
   });
 
@@ -397,7 +405,13 @@ export default function EnrollmentsList() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProvider) return;
-    createMutation.mutate({ providerId: selectedProvider.id, formData });
+    const providerName = `${selectedProvider.firstName} ${selectedProvider.lastName}`.trim();
+    createMutation.mutate({
+      providerId: selectedProvider.id,
+      providerName,
+      payerName: formData.payerName,
+      formData,
+    });
   };
 
   if (error) {
