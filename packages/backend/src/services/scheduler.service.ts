@@ -8,6 +8,7 @@ import { ExpirationService } from './expiration.service.js';
 import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { sweepStalledTasks } from './stalled-task.service.js';
+import { updateAttestationTracker } from './caqh-attestation.service.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -343,6 +344,28 @@ class SchedulerService {
 
           results.push({ providerId: provider.id, providerName, success: true, changes: result.changes });
           synced++;
+
+          // B1 attestation tracker: best-effort, never fails the sync.
+          // Re-fetches status (syncProvider doesn't expose it) — negligible
+          // volume; fold into syncProvider's return if it ever matters.
+          try {
+            const status = await this.caqhService.checkStatus(provider.caqhProviderId!);
+            const mirror = await prisma.providerCaqhMirror.findUnique({
+              where: { providerProfileId: provider.id },
+              select: { rawJson: true },
+            });
+            await updateAttestationTracker({
+              providerProfileId: provider.id,
+              status,
+              rawJson: mirror?.rawJson ?? null,
+            });
+          } catch (trackerError) {
+            logger.warn({
+              event: 'caqh_attestation_tracker_update_failed',
+              providerId: provider.id,
+              error: trackerError instanceof Error ? trackerError.message : 'Unknown error',
+            });
+          }
 
           if (totalChanges > 0) {
             await notificationService.notifyAdminUsers({
