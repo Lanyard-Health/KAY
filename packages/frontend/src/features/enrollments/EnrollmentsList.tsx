@@ -7,7 +7,7 @@ import { notify } from '../../utils/notify';
 import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import { useAuthStore } from '../../stores/auth.store';
-import { usePractice } from '../../hooks/usePractices';
+import { usePractice, usePractices } from '../../hooks/usePractices';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import {
   MagnifyingGlassIcon,
@@ -42,6 +42,8 @@ interface ProviderProfile {
   npi: string;
   providerType?: string;
   status?: string;
+  practiceId?: string | null;
+  practice?: { id: string; name: string } | null;
 }
 
 interface Enrollment {
@@ -182,6 +184,7 @@ export default function EnrollmentsList() {
   // New enrollment modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
+  const [selectedPracticeId, setSelectedPracticeId] = useState('');
   const [providerSearch, setProviderSearch] = useState('');
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [payerSearch, setPayerSearch] = useState('');
@@ -219,11 +222,16 @@ export default function EnrollmentsList() {
   const providers = (providersData?.data?.data as ProviderProfile[] | undefined) || [];
   const payers = (payersData?.data as Payer[] | undefined) || [];
 
-  // Filter providers based on search
+  // Practices for the "filter by practice" picker in the new-enrollment modal.
+  const { data: practices } = usePractices();
+
+  // Filter providers based on the selected practice (optional) + search.
   const filteredProviders = useMemo(() => {
-    if (!providerSearch.trim()) return providers.slice(0, 20);
+    let list = providers;
+    if (selectedPracticeId) list = list.filter((p) => p.practiceId === selectedPracticeId);
+    if (!providerSearch.trim()) return list.slice(0, 20);
     const searchLower = providerSearch.toLowerCase();
-    return providers
+    return list
       .filter(
         (p) =>
           p.firstName?.toLowerCase().includes(searchLower) ||
@@ -232,7 +240,7 @@ export default function EnrollmentsList() {
           p.npi?.includes(providerSearch)
       )
       .slice(0, 20);
-  }, [providers, providerSearch]);
+  }, [providers, providerSearch, selectedPracticeId]);
 
   // Filter payers based on search, with practice target payers prioritized
   const filteredPayers = useMemo(() => {
@@ -368,6 +376,7 @@ export default function EnrollmentsList() {
 
   const openModal = (provider?: ProviderProfile) => {
     setSelectedProvider(provider || null);
+    setSelectedPracticeId(provider?.practiceId || '');
     setProviderSearch('');
     setShowProviderDropdown(false);
     setPayerSearch('');
@@ -379,6 +388,7 @@ export default function EnrollmentsList() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedProvider(null);
+    setSelectedPracticeId('');
     setProviderSearch('');
     setPayerSearch('');
     setFormData(initialFormData);
@@ -721,6 +731,9 @@ export default function EnrollmentsList() {
                                 <p className="text-xs text-gray-500">
                                   NPI: {enrollment.provider?.npi}
                                 </p>
+                                {enrollment.provider?.practice?.name && (
+                                  <p className="text-xs text-gray-400 truncate">{enrollment.provider.practice.name}</p>
+                                )}
                               </div>
                               {enrollment.isDraft && (
                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -879,6 +892,7 @@ export default function EnrollmentsList() {
                         </div>
                         <div className="text-sm text-gray-500">
                           NPI: {enrollment.provider?.npi}
+                          {enrollment.provider?.practice?.name && ` | ${enrollment.provider.practice.name}`}
                         </div>
                       </Link>
                     </td>
@@ -991,6 +1005,31 @@ export default function EnrollmentsList() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {/* Practice filter (optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Practice <span className="text-gray-400 font-normal">(optional filter)</span>
+                  </label>
+                  <select
+                    value={selectedPracticeId}
+                    onChange={(e) => {
+                      setSelectedPracticeId(e.target.value);
+                      // Re-pick the provider from the newly filtered list.
+                      setSelectedProvider(null);
+                      setProviderSearch('');
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">All practices</option>
+                    {(practices || []).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {selectedPracticeId && (
+                    <p className="mt-1 text-xs text-gray-500">Showing only providers in this practice.</p>
+                  )}
+                </div>
+
                 {/* Provider Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1008,7 +1047,10 @@ export default function EnrollmentsList() {
                         <div className="font-medium text-gray-900">
                           {selectedProvider.firstName} {selectedProvider.lastName}
                         </div>
-                        <div className="text-sm text-gray-500">NPI: {selectedProvider.npi}</div>
+                        <div className="text-sm text-gray-500">
+                          NPI: {selectedProvider.npi}
+                          {selectedProvider.practice?.name && ` | ${selectedProvider.practice.name}`}
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1053,6 +1095,7 @@ export default function EnrollmentsList() {
                                 </div>
                                 <div className="text-sm text-gray-500">
                                   NPI: {provider.npi}
+                                  {provider.practice?.name && ` | ${provider.practice.name}`}
                                   {provider.providerType && ` | ${provider.providerType}`}
                                 </div>
                               </button>

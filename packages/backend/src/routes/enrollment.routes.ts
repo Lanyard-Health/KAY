@@ -206,6 +206,7 @@ router.get(
               firstName: true,
               lastName: true,
               npi: true,
+              practice: { select: { id: true, name: true } },
             },
           },
           workflowSteps: { select: { status: true } },
