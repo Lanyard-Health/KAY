@@ -77,6 +77,18 @@ export interface Practice {
   };
 }
 
+export type PracticeRoleValue = 'SUPER_ADMIN' | 'PRACTICE_ADMIN' | 'PRACTICE_STAFF' | 'PROVIDER';
+
+export interface PracticeInvitation {
+  id: string;
+  email: string;
+  role: PracticeRoleValue;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
 export interface PracticeUserAssignment {
   id: string;
   userId: string;
@@ -197,6 +209,58 @@ export function useUpdatePractice() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['practices'] });
       queryClient.invalidateQueries({ queryKey: ['practice', variables.practiceId] });
+    },
+  });
+}
+
+// ==========================================
+// Invitations
+// ==========================================
+
+export function usePracticeInvitations(practiceId: string) {
+  return useQuery({
+    queryKey: ['practice-invitations', practiceId],
+    queryFn: async () => {
+      const response = await api.get(`/practices/${practiceId}/invitations`);
+      return response.data.data as PracticeInvitation[];
+    },
+    enabled: !!practiceId,
+  });
+}
+
+export function useCreateInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ practiceId, email, role }: { practiceId: string; email: string; role: PracticeRoleValue }) => {
+      const response = await api.post(`/practices/${practiceId}/invitations`, { email, role });
+      return response.data.data as PracticeInvitation;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['practice-invitations', variables.practiceId] });
+    },
+  });
+}
+
+export function useResendInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string; practiceId: string }) => {
+      await api.post(`/practices/invitations/${invitationId}/resend`, {});
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['practice-invitations', variables.practiceId] });
+    },
+  });
+}
+
+export function useRevokeInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ invitationId }: { invitationId: string; practiceId: string }) => {
+      await api.post(`/practices/invitations/${invitationId}/revoke`, {});
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['practice-invitations', variables.practiceId] });
     },
   });
 }

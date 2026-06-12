@@ -26,6 +26,7 @@ const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard
 const PayerIntelligencePage = lazy(() => import('./features/payer-intelligence/PayerIntelligencePage'));
 const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
 const PracticeSignupPage = lazy(() => import('./features/practice/PracticeSignupPage'));
+const AcceptInvitationPage = lazy(() => import('./features/invitations/AcceptInvitationPage'));
 const PendingProviders = lazy(() => import('./features/admin/PendingProviders'));
 const PracticesList = lazy(() => import('./features/practices/PracticesList'));
 const PracticeDetail = lazy(() => import('./features/practices/PracticeDetail'));
@@ -160,6 +161,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/practice-signup" element={<PracticeSignupPage />} />
+        <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
         <Route path="/registration-success" element={<RegistrationSuccess />} />
 
         {/* Portal routes (provider role) */}
