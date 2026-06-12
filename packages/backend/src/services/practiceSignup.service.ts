@@ -83,6 +83,29 @@ export async function registerPractice(data: PracticeSignupInput) {
         },
       });
 
+      // Ownership disclosure (up to 3). SSN + DOB are encrypted at rest; only the
+      // SSN last-4 is kept in clear for display, matching the ProviderBanking pattern.
+      if (data.owners && data.owners.length > 0) {
+        await tx.practiceOwner.createMany({
+          data: data.owners.slice(0, 3).map((o) => {
+            const ssnDigits = o.ssn ? o.ssn.replace(/\D/g, '') : '';
+            return {
+              practiceId: practice.id,
+              name: o.name,
+              ...(ssnDigits ? { ssnEncrypted: encryptSafe(ssnDigits), ssnLast4: ssnDigits.slice(-4) } : {}),
+              ...(o.dateOfBirth ? { dateOfBirthEncrypted: encryptSafe(o.dateOfBirth) } : {}),
+              ...(o.ownershipPercentage !== undefined ? { ownershipPercentage: o.ownershipPercentage } : {}),
+              homeAddressLine1: o.homeAddressLine1 || null,
+              homeAddressLine2: o.homeAddressLine2 || null,
+              homeCity: o.homeCity || null,
+              homeState: o.homeState || null,
+              homeZipCode: o.homeZipCode || null,
+              createdById: user.id,
+            };
+          }),
+        });
+      }
+
       // Create default PracticeSettings
       await tx.practiceSettings.create({
         data: {

@@ -37,6 +37,21 @@ const passwordSchema = z.string()
   .regex(/[0-9]/, 'Password must contain at least one number')
   .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
 
+// Practice ownership disclosure. SSN + DOB are sensitive and encrypted at rest
+// (see practiceSignup.service). Empty optional fields are omitted by the client.
+export const practiceOwnerSchema = z.object({
+  name: z.string().min(1, 'Owner name is required').max(200),
+  // Accept "123-45-6789" or "123456789"; deeper validation happens server-side.
+  ssn: z.string().regex(/^\d{3}-?\d{2}-?\d{4}$/, 'SSN must be 9 digits').optional(),
+  ownershipPercentage: z.number().min(0, 'Cannot be negative').max(100, 'Cannot exceed 100%').optional(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+  homeAddressLine1: z.string().max(200).optional(),
+  homeAddressLine2: z.string().max(200).optional(),
+  homeCity: z.string().max(100).optional(),
+  homeState: z.string().max(2).optional(),
+  homeZipCode: z.string().max(10).optional(),
+});
+
 export const practiceSignupSchema = z.object({
   practiceName: z.string().min(2, 'Practice name must be at least 2 characters').max(200),
   firstName: z.string().min(2, 'First name must be at least 2 characters').max(100),
@@ -74,6 +89,9 @@ export const practiceSignupSchema = z.object({
   mailingCity: z.string().max(100).optional(),
   mailingState: z.string().max(2).optional(),
   mailingZipCode: z.string().max(10).optional(),
+  // Ownership disclosure — up to 3 owners; beyond that the UI directs them to
+  // email credentialing@lanyardhealth.com.
+  owners: z.array(practiceOwnerSchema).max(3, 'Up to 3 owners can be added here').optional(),
 });
 
 export const selfServeSignupSchema = portalRegistrationSchema.extend({
@@ -87,4 +105,5 @@ export const selfServeSignupSchema = portalRegistrationSchema.extend({
 export type PortalRegistrationInput = z.infer<typeof portalRegistrationSchema>;
 export type MarkNotificationsReadInput = z.infer<typeof markNotificationsReadSchema>;
 export type PracticeSignupInput = z.infer<typeof practiceSignupSchema>;
+export type PracticeOwnerInput = z.infer<typeof practiceOwnerSchema>;
 export type SelfServeSignupInput = z.infer<typeof selfServeSignupSchema>;
