@@ -74,6 +74,15 @@ vi.mock('./approval/approval-agent.js', () => ({
   processApprovalJob: vi.fn().mockResolvedValue({ action: 'scheduled_expiry' }),
 }));
 
+// Keep the real Sentry SDK intact (other init-time code depends on it) but spy
+// on captureException so we can assert exactly when an alert is/ isn't fired.
+vi.mock('@sentry/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sentry/node')>();
+  return { ...actual, captureException: vi.fn() };
+});
+
+import * as Sentry from '@sentry/node';
+import { logger } from '../utils/logger.js';
 import { initializeWorkers, closeAllWorkers, isReferencedEntityMissing } from './workers.js';
 
 // ==========================================
@@ -116,6 +125,48 @@ describe('workers', () => {
       expect(isReferencedEntityMissing(null)).toBe(false);
       expect(isReferencedEntityMissing(undefined)).toBe(false);
       expect(isReferencedEntityMissing('a string')).toBe(false);
+    });
+  });
+
+  describe("worker 'failed' handler — Sentry alerting wiring", () => {
+    // Pull the actual 'failed' callback that initializeWorkers() registered on a
+    // worker, so we exercise the real handler (not just the classifier helper).
+    function getFailedHandler(): (job: unknown, err: unknown) => void {
+      initializeWorkers();
+      const call = mockOn.mock.calls.find((c) => c[0] === 'failed');
+      if (!call) throw new Error("no 'failed' handler was registered");
+      return call[1] as (job: unknown, err: unknown) => void;
+    }
+
+    const job = { id: '551', name: 'plan_workflow' };
+
+    it('a deleted-workflow failure logs a warning and does NOT alert Sentry', () => {
+      const handler = getFailedHandler();
+      handler(job, new Error('Workflow wf-1 not found'));
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('the Job-551 case (Prisma P2025 record-not-found) does NOT alert Sentry', () => {
+      const handler = getFailedHandler();
+      handler(job, Object.assign(new Error(''), { code: 'P2025' }));
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('a genuine, actionable failure STILL logs an error and alerts Sentry', () => {
+      const handler = getFailedHandler();
+      const err = new Error('Payer portal returned 500');
+      handler(job, err);
+
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      expect(Sentry.captureException).toHaveBeenCalledWith(err, expect.any(Object));
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 
