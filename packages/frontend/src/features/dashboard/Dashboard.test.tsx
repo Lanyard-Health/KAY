@@ -111,7 +111,7 @@ describe('Dashboard', () => {
     mockApiSuccess();
     render(<Dashboard />, { wrapper: createWrapper() });
 
-    await screen.findByText('Add Provider');
+    await screen.findAllByText('Add Provider');
 
     const addProviderLink = screen.getAllByText('Add Provider')[0]?.closest('a');
     expect(addProviderLink).toHaveAttribute('href', '/providers/new');
