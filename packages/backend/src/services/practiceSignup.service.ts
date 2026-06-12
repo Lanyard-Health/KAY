@@ -46,6 +46,7 @@ export async function registerPractice(data: PracticeSignupInput) {
           legalName: data.legalName || null,
           dba: data.dba || null,
           entityType: data.entityType || null,
+          groupSpecialty: data.groupSpecialty || null,
           emrVendor: data.emrVendor || null,
           billingVendor: data.billingVendor || null,
           billingClearinghouse: data.billingClearinghouse || null,

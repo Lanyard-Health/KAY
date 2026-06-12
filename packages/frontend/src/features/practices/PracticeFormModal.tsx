@@ -11,6 +11,7 @@ import {
   EMR_VENDOR_GROUPS,
   BILLING_VENDORS,
   CLEARINGHOUSES,
+  GROUP_SPECIALTIES,
 } from '../../constants/practiceOptions';
 
 interface PracticeFormData {
@@ -19,6 +20,7 @@ interface PracticeFormData {
   dba: string;
   entityType: string;
   groupNpi: string;
+  groupSpecialty: string;
   taxId: string;
   emrVendor: string;
   billingVendor: string;
@@ -46,7 +48,7 @@ interface PracticeFormData {
 }
 
 const EMPTY: PracticeFormData = {
-  name: '', legalName: '', dba: '', entityType: '', groupNpi: '', taxId: '',
+  name: '', legalName: '', dba: '', entityType: '', groupNpi: '', groupSpecialty: '', taxId: '',
   emrVendor: '', billingVendor: '', billingClearinghouse: '',
   phone: '', email: '', website: '',
   addressLine1: '', addressLine2: '', city: '', state: '', zipCode: '',
@@ -81,6 +83,7 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
         dba: practice.dba || '',
         entityType: practice.entityType || '',
         groupNpi: practice.groupNpi || '',
+        groupSpecialty: practice.groupSpecialty || '',
         // Masked tax id (****1234) is display-only; leave the input blank so an
         // edit only overwrites the TIN when the admin actually types a new one.
         taxId: '',
@@ -211,6 +214,11 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                         <p className="mt-1 text-xs text-gray-500">Stored encrypted. Leave blank to keep the current TIN.</p>
                       </div>
                     </div>
+
+                    {/* Specialty */}
+                    <Controller name="groupSpecialty" control={control} render={({ field }) => (
+                      <SelectWithOther label="Group Specialty" value={field.value} onChange={field.onChange} options={GROUP_SPECIALTIES} placeholder="Select specialty..." />
+                    )} />
 
                     {/* Vendors */}
                     <div className="space-y-4">

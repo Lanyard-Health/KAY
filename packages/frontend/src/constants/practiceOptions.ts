@@ -46,5 +46,13 @@ export const CLEARINGHOUSES = [
   'Office Ally', 'Claim.MD', 'Apex EDI', 'Inovalon',
 ] as const;
 
+// Primary-care + behavioral-health focused. Stored as plain text on the practice
+// (practice.groupSpecialty); the "Other" escape covers anything not listed.
+export const GROUP_SPECIALTIES = [
+  'Family Medicine', 'Internal Medicine', 'Pediatrics', 'Primary Care (general)',
+  'Behavioral Health', 'Psychiatry', 'Psychology, Therapy & Counseling',
+  'Substance Use & Addiction Treatment', 'Multi-specialty',
+] as const;
+
 // Flattened EMR list for "is this value one of the known options?" checks.
 export const EMR_VENDOR_FLAT: string[] = EMR_VENDOR_GROUPS.flatMap((g) => g.options);
