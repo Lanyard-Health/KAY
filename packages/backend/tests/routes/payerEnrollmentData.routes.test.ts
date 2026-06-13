@@ -3,6 +3,7 @@ import { prismaMock } from '../helpers/mock-prisma.js';
 import { createTestApp } from '../helpers/test-app.js';
 import { adminUser } from '../helpers/fixtures.js';
 import { payerEnrollmentDataRoutes } from '../../src/routes/payerEnrollmentData.routes.js';
+import { validateProviderPracticeAccess } from '../../src/middleware/practiceScope.middleware.js';
 import request from 'supertest';
 
 // Mock prisma
@@ -30,7 +31,9 @@ vi.mock('../../src/middleware/auth.middleware.js', () => ({
 // but the real middleware would still query prisma. Mock it as pass-through.
 vi.mock('../../src/middleware/practiceScope.middleware.js', () => ({
   requirePracticeProvider: (_req: any, _res: any, next: any) => next(),
-  validateProviderPracticeAccess: async () => true,
+  // vi.fn (defaults to granting access) so individual tests can simulate a
+  // cross-tenant denial with mockResolvedValueOnce(false).
+  validateProviderPracticeAccess: vi.fn(async () => true),
 }));
 
 const PROVIDER_ID = 'provider-1-id';
@@ -334,6 +337,91 @@ describe('Payer Enrollment Data Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  // ==========================================
+  // SENSITIVE FIELD REVEAL (audited, fail-closed)
+  // ==========================================
+
+  describe('Sensitive field reveal', () => {
+    beforeEach(() => {
+      // Clear call history so per-test "was audit written?" assertions are
+      // isolated (the suite has no global mock reset).
+      (prismaMock.auditLog.create as any).mockReset();
+      (prismaMock.auditLog.create as any).mockResolvedValue({} as any);
+      (validateProviderPracticeAccess as any).mockResolvedValue(true);
+    });
+
+    it('GET /dea-registrations/:id/reveal returns the FULL number and logs the reveal first', async () => {
+      prismaMock.deaRegistration.findUnique.mockResolvedValue({
+        id: RECORD_ID,
+        providerId: PROVIDER_ID,
+        deaNumberEncrypted: 'AB1234563',
+      } as any);
+
+      const res = await request(buildApp()).get(`/dea-registrations/${RECORD_ID}/reveal`);
+
+      expect(res.status).toBe(200);
+      // Full value returned here (this is the deliberate reveal path) — not masked.
+      expect(res.body.data.deaNumber).toBe('AB1234563');
+      // The reveal was recorded in the audit log: who/what/which, never the value.
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1);
+      const auditArg = (prismaMock.auditLog.create as any).mock.calls[0][0];
+      expect(auditArg.data.resourceType).toBe('sensitive_field_reveal');
+      expect(auditArg.data.action).toBe('read');
+      expect(auditArg.data.changes.revealed).toBe('deaNumber');
+      expect(auditArg.data.resourceId).toBe(PROVIDER_ID);
+      // The actual DEA number must never appear anywhere in the audit payload.
+      expect(JSON.stringify(auditArg.data.changes)).not.toContain('AB1234563');
+    });
+
+    it('GET /cds-registrations/:id/reveal returns the FULL number and logs it', async () => {
+      prismaMock.cdsRegistration.findUnique.mockResolvedValue({
+        id: RECORD_ID,
+        providerId: PROVIDER_ID,
+        cdsNumberEncrypted: 'CDS998877',
+      } as any);
+
+      const res = await request(buildApp()).get(`/cds-registrations/${RECORD_ID}/reveal`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.cdsNumber).toBe('CDS998877');
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1);
+      expect((prismaMock.auditLog.create as any).mock.calls[0][0].data.changes.revealed).toBe('cdsNumber');
+    });
+
+    it('denies a cross-tenant reveal (404) and does NOT log or disclose anything', async () => {
+      prismaMock.deaRegistration.findUnique.mockResolvedValue({
+        id: RECORD_ID,
+        providerId: PROVIDER_ID,
+        deaNumberEncrypted: 'AB1234563',
+      } as any);
+      // Simulate the provider belonging to a different practice.
+      (validateProviderPracticeAccess as any).mockResolvedValueOnce(false);
+
+      const res = await request(buildApp()).get(`/dea-registrations/${RECORD_ID}/reveal`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.data).toBeUndefined();
+      // No audit entry for a denied reveal, and the number never left the server.
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+      expect(JSON.stringify(res.body)).not.toContain('AB1234563');
+    });
+
+    it('fails closed: if the audit write throws, the value is NOT returned', async () => {
+      prismaMock.deaRegistration.findUnique.mockResolvedValue({
+        id: RECORD_ID,
+        providerId: PROVIDER_ID,
+        deaNumberEncrypted: 'AB1234563',
+      } as any);
+      (prismaMock.auditLog.create as any).mockRejectedValueOnce(new Error('audit log unavailable'));
+
+      const res = await request(buildApp()).get(`/dea-registrations/${RECORD_ID}/reveal`);
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      // The secret must not be disclosed when it could not be logged.
+      expect(JSON.stringify(res.body)).not.toContain('AB1234563');
     });
   });
 
