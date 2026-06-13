@@ -9,6 +9,9 @@ import { validateEnv } from './utils/validateEnv';
 import { initSentry } from './utils/sentry';
 import { BugReportingErrorBoundary } from './components/BugReportingErrorBoundary';
 import { registerGlobalErrorHandlers } from './utils/global-error-handlers';
+import BugReportWidget from './components/BugReportWidget';
+import StagingBadge from './components/StagingBadge';
+import { isStaging } from './config';
 
 // Initialize Sentry as early as possible so we capture init-time crashes too.
 initSentry();
@@ -82,6 +85,14 @@ const initApp = async () => {
               containerStyle={{ top: 16, right: 16 }}
               gutter={8}
             />
+            {/* Beta-only: TEST marker + one-click bug reporter. Staging build sets
+                VITE_ENVIRONMENT=staging; never renders in production. */}
+            {isStaging && (
+              <>
+                <StagingBadge />
+                <BugReportWidget />
+              </>
+            )}
           </BrowserRouter>
         </QueryClientProvider>
       </BugReportingErrorBoundary>
