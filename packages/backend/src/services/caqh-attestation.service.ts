@@ -23,6 +23,7 @@
  * (harmless — neutral email), never a false "unchanged".
  */
 
+import { createHash } from 'crypto';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { Prisma } from '@prisma/client';
@@ -103,6 +104,50 @@ export function normalizeForDiff(value: unknown): unknown {
 export interface DiffResult {
   verdict: 'unchanged' | 'changed';
   changedSections: string[];
+}
+
+/**
+ * sha256 fingerprint of each normalized top-level Provider section. This is
+ * what we persist as the baseline (P1-8): change detection needs only "is
+ * section X identical to the baseline?", so storing one-way hashes gives the
+ * exact same verdicts as storing the data — with zero PII at rest. Hashing
+ * happens AFTER normalizeForDiff, the same transform the diff applies, so a
+ * hash mismatch is precisely "diffSnapshots would have flagged this section".
+ */
+export function sectionHashes(value: unknown): Record<string, string> {
+  const normalized = (normalizeForDiff(value) ?? {}) as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(normalized)) {
+    out[key] = createHash('sha256').update(JSON.stringify(normalized[key]) ?? 'undefined').digest('hex');
+  }
+  return out;
+}
+
+/** diffSnapshots, against a stored fingerprint baseline instead of stored data. */
+export function diffAgainstHashes(baselineHashes: Record<string, string>, current: unknown): DiffResult {
+  const currentHashes = sectionHashes(current);
+  const keys = new Set([...Object.keys(baselineHashes), ...Object.keys(currentHashes)]);
+  const changedSections: string[] = [];
+  for (const key of keys) {
+    if (baselineHashes[key] !== currentHashes[key]) {
+      changedSections.push(key);
+    }
+  }
+  changedSections.sort();
+  return changedSections.length === 0
+    ? { verdict: 'unchanged', changedSections: [] }
+    : { verdict: 'changed', changedSections };
+}
+
+/** Stored baseline_section_hashes column value, validated to the expected shape. */
+function parseStoredHashes(value: Prisma.JsonValue | null | undefined): Record<string, string> | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const out: Record<string, string> = {};
+  for (const [key, hash] of Object.entries(value)) {
+    if (typeof hash !== 'string') return null;
+    out[key] = hash;
+  }
+  return out;
 }
 
 /**
@@ -211,15 +256,18 @@ export async function updateAttestationTracker(input: TrackerUpdateInput): Promi
   const isFirstObservation = existing?.lastAttestationDate == null;
 
   if (isNewAttestation) {
-    // Observed transition → new cycle: capture baseline, reset reminder state.
-    const baseline = normalizeForDiff(providerSection(rawJson));
+    // Observed transition → new cycle: capture baseline fingerprints, reset
+    // reminder state. Hashes only — no provider data at rest (P1-8); clearing
+    // baselineSnapshot scrubs any legacy plaintext left on this row.
+    const baseline = sectionHashes(providerSection(rawJson));
     await prisma.caqhAttestationTracker.update({
       where: { providerProfileId },
       data: {
         providerStatus,
         lastAttestationDate: statusDate,
         nextDueDate,
-        baselineSnapshot: baseline as Prisma.InputJsonValue,
+        baselineSectionHashes: baseline as Prisma.InputJsonValue,
+        baselineSnapshot: Prisma.DbNull,
         baselineCapturedAt: new Date(),
         diffVerdict: 'unchanged',
         changedSections: [],
@@ -261,7 +309,12 @@ export async function updateAttestationTracker(input: TrackerUpdateInput): Promi
   }
 
   // Same attestation date as before → mid-cycle pull: diff against baseline.
-  if (existing.baselineSnapshot == null) {
+  // Prefer stored fingerprints; a legacy plaintext snapshot (row the backfill
+  // hasn't converted yet) is fingerprinted on the fly — normalizeForDiff is
+  // idempotent, so the verdicts are identical to the old data-vs-data diff.
+  const storedHashes = parseStoredHashes(existing.baselineSectionHashes)
+    ?? (existing.baselineSnapshot != null ? sectionHashes(existing.baselineSnapshot) : null);
+  if (storedHashes == null) {
     await prisma.caqhAttestationTracker.update({
       where: { providerProfileId },
       data: { providerStatus, nextDueDate, diffVerdict: 'no_baseline' },
@@ -269,8 +322,8 @@ export async function updateAttestationTracker(input: TrackerUpdateInput): Promi
     return;
   }
 
-  const { verdict, changedSections } = diffSnapshots(
-    existing.baselineSnapshot,
+  const { verdict, changedSections } = diffAgainstHashes(
+    storedHashes,
     providerSection(rawJson),
   );
   await prisma.caqhAttestationTracker.update({

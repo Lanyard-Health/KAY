@@ -9,6 +9,7 @@ import { CaqhService } from './caqh.service.js';
 import { executeAllDueSteps, ExecutorSummary } from './followUpExecutor.service.js';
 import { sweepStalledTasks } from './stalled-task.service.js';
 import { updateAttestationTracker, evaluateAdminAttestationAlerts } from './caqh-attestation.service.js';
+import { mirrorRawJson } from './caqh-mirror.service.js';
 import { evaluateProviderReminder } from './caqh-reminder.service.js';
 
 /** Advisory lock key for the nightly CAQH sync (arbitrary stable int). */
@@ -370,12 +371,12 @@ class SchedulerService {
             const status = await this.caqhService.checkStatus(provider.caqhProviderId!);
             const mirror = await prisma.providerCaqhMirror.findUnique({
               where: { providerProfileId: provider.id },
-              select: { rawJson: true },
+              select: { rawJson: true, rawJsonEncrypted: true },
             });
             await updateAttestationTracker({
               providerProfileId: provider.id,
               status,
-              rawJson: mirror?.rawJson ?? null,
+              rawJson: mirror ? mirrorRawJson(mirror) : null,
             });
             await evaluateAdminAttestationAlerts({
               providerProfileId: provider.id,

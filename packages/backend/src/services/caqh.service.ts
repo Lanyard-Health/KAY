@@ -1,7 +1,9 @@
 import { prisma } from '../utils/prisma.js';
+import { Prisma } from '@prisma/client';
 import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, IdentifierType, AddressType, CredentialStatus, ProviderType, EducationType, ProviderCertificationType, DisclosureCategory, ClaimStatus, PrivilegeType, AffiliationStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { encryptSafe, decryptSafe } from '../utils/crypto.js';
+import { encryptMirrorPayload } from './caqh-mirror.service.js';
 import { z } from 'zod';
 
 export interface CaqhRosterResponse {
@@ -3254,16 +3256,20 @@ export class CaqhService {
 
       // Persist raw response immediately — survives downstream mapper errors
       // so failed syncs can still be debugged against the actual CAQH payload.
+      // Stored encrypted only; updates also clear any legacy plaintext so every
+      // sync scrubs the old column even before the backfill runs.
+      const rawJsonEncrypted = encryptMirrorPayload(rawCaqhData);
       await prisma.providerCaqhMirror.upsert({
         where: { providerProfileId: providerId },
         create: {
           providerProfileId: providerId,
-          rawJson: rawCaqhData as never,
+          rawJsonEncrypted,
           lastPulledAt: new Date(),
           syncStatus: 'pending',
         },
         update: {
-          rawJson: rawCaqhData as never,
+          rawJsonEncrypted,
+          rawJson: Prisma.DbNull,
           lastPulledAt: new Date(),
           syncStatus: 'pending',
         },
