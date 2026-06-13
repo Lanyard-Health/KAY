@@ -268,11 +268,36 @@ describe('Payer Enrollment Data Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].deaNumber).toBe('AB1234563');
+      // DEA number is masked to last-4 in the response (never the full value).
+      expect(res.body.data[0].deaNumber).toBe('****4563');
+      expect(res.body.data[0].deaNumber).not.toBe('AB1234563');
+      expect(res.body.data[0].deaNumberEncrypted).toBeUndefined();
       expect(prismaMock.deaRegistration.findMany).toHaveBeenCalledWith({
         where: { providerId: PROVIDER_ID },
         orderBy: { expirationDate: 'asc' },
       });
+    });
+
+    it('PUT ignores a masked deaNumber (does not re-encrypt the placeholder)', async () => {
+      prismaMock.deaRegistration.findUnique.mockResolvedValue({ providerId: PROVIDER_ID } as any);
+      prismaMock.deaRegistration.update.mockResolvedValue({
+        id: RECORD_ID,
+        providerId: PROVIDER_ID,
+        deaNumberEncrypted: 'AB1234563',
+        issueDate: new Date('2023-01-01'),
+        expirationDate: new Date('2026-01-01'),
+        status: 'active',
+      } as any);
+
+      const res = await request(buildApp())
+        .put(`/dea-registrations/${RECORD_ID}`)
+        .send({ deaNumber: '****4563', status: 'active' });
+
+      expect(res.status).toBe(200);
+      // The update payload must NOT include deaNumberEncrypted — the masked
+      // value was treated as "unchanged", so the stored secret is preserved.
+      const updateArg = prismaMock.deaRegistration.update.mock.calls[0][0];
+      expect(updateArg.data.deaNumberEncrypted).toBeUndefined();
     });
 
     it('POST creates a DEA registration and returns 201', async () => {

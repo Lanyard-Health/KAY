@@ -74,7 +74,9 @@ export default function DeaRegistrationModal({
   useEffect(() => {
     if (registration) {
       reset({
-        deaNumber: registration.deaNumber,
+        // Left blank on edit: the API returns the DEA number masked (****1234),
+        // so we don't pre-fill it. Blank = keep the existing number unchanged.
+        deaNumber: '',
         deaState: registration.deaState || '',
         deaSchedules: registration.deaSchedules || [],
         issueDate: formatDate(registration.issueDate),
@@ -112,6 +114,9 @@ export default function DeaRegistrationModal({
   const onSubmit = (data: DeaRegistrationFormData) => {
     const payload = {
       ...data,
+      // On edit, only send the DEA number if the user typed a new one; blank
+      // means keep the stored value (the displayed value is masked).
+      deaNumber: data.deaNumber && data.deaNumber.trim() !== '' ? data.deaNumber.trim() : undefined,
       deaState: data.deaState || undefined,
       notes: data.notes || undefined,
     };
@@ -186,11 +191,11 @@ export default function DeaRegistrationModal({
                     {/* DEA Number + State */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">DEA Number *</label>
+                        <label className="label">DEA Number {isEditing ? '' : '*'}</label>
                         <input
-                          {...register('deaNumber', { required: 'Required' })}
+                          {...register('deaNumber', { required: isEditing ? false : 'Required' })}
                           className="input"
-                          placeholder="e.g. AB1234567"
+                          placeholder={isEditing ? `Current: ${registration?.deaNumber ?? ''} — leave blank to keep` : 'e.g. AB1234567'}
                         />
                         {errors.deaNumber && (
                           <p className="mt-1 text-sm text-red-600">{errors.deaNumber.message}</p>
