@@ -21,7 +21,9 @@ import { apiLimiter } from './middleware/rate-limit.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
 import { attachPracticeScope } from './middleware/practiceScope.middleware.js';
+import { requestId } from './middleware/request-id.middleware.js';
 import { logger } from './utils/logger.js';
+import { sendSlackAlert } from './utils/slack-alert.js';
 
 // Routes
 import { authRoutes } from './routes/auth.routes.js';
@@ -99,6 +101,10 @@ let serverReady = false;
 // Trust first proxy (Render) so rate limiter sees real client IPs, not proxy IP
 app.set('trust proxy', 1);
 
+// Correlation id for every request — must run first so all downstream logs
+// (morgan, audit, routes, error handler) share the same requestId.
+app.use(requestId);
+
 // Mock portals — local fake-portal static sites for browser-automation demos.
 // Mounted BEFORE helmet so the inline styles in the static HTML aren't blocked
 // by the global CSP. Gated on NODE_ENV !== 'production' so they're never
@@ -172,8 +178,11 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 
-// Logging
-app.use(morgan('combined', {
+// Logging — append the correlation id to the access line. Read from req (set
+// by the request-id middleware) so it's present even if the finish event fires
+// outside the request's async context.
+morgan.token('request-id', (req) => (req as { requestId?: string }).requestId ?? '-');
+app.use(morgan(':remote-addr :method :url :status :res[content-length] - :response-time ms reqId=:request-id', {
   stream: {
     write: (message: string) => logger.info(message.trim()),
   },
@@ -567,5 +576,19 @@ function shutdown(signal: string) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// A rejected promise nobody handled is almost always a real bug — log it and
+// alert (don't crash; an unhandled rejection shouldn't take the server down).
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+  });
+  void sendSlackAlert({
+    title: 'Unhandled promise rejection',
+    level: 'fatal',
+    error: reason,
+    source: 'unhandledRejection',
+  });
+});
 
 export default app;

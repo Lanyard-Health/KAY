@@ -3,6 +3,7 @@ import type { Job } from 'bullmq';
 import * as Sentry from '@sentry/node';
 import { getRedisConfig } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
+import { sendSlackAlert } from '../utils/slack-alert.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitWorkflowEvent } from './websocket.js';
 import { QUEUE_NAMES, QUEUE_LOCK_DURATIONS } from './queues.js';
@@ -245,6 +246,13 @@ export function initializeWorkers(): void {
           jobName: job?.name ?? 'unknown',
         },
         extra: { jobId: job?.id, attempts: job?.attemptsMade },
+      });
+      void sendSlackAlert({
+        title: `Background worker failed: ${config.agentName}`,
+        level: 'error',
+        error: err,
+        source: 'agent-worker',
+        context: { queue: config.queueName, jobName: job?.name, jobId: job?.id },
       });
     });
 
