@@ -2,7 +2,7 @@ name: Security Lint
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [master, main, develop]
 
 jobs:
   security-lint:
