@@ -81,7 +81,17 @@ class LinearClient {
     return json.data;
   }
 
-  async createIssue(report: SanitizedBugReport, triage: TriageResult): Promise<{ id: string; url: string } | null> {
+  /**
+   * Create a Linear issue. `opts` lets the user-feedback path override the
+   * label (a distinct "Beta feedback" label), supply a pre-built description
+   * (the AI-written ticket), and set a custom title prefix — without disturbing
+   * the auto-crash path, which calls this with no opts.
+   */
+  async createIssue(
+    report: SanitizedBugReport,
+    triage: TriageResult,
+    opts?: { labelIds?: string[]; descriptionMarkdown?: string; titlePrefix?: string },
+  ): Promise<{ id: string; url: string } | null> {
     const teamId = process.env['LINEAR_TEAM_ID'];
     if (!teamId) {
       structuredLog({ action: 'linearSkipped', reason: 'LINEAR_TEAM_ID not set' });
@@ -90,13 +100,15 @@ class LinearClient {
 
     return this.executeWithRetry(
       async (apiKey) => {
-        let title = `[${report.source}] ${report.title}`;
-        if (triage.severity === 'urgent') {
+        let title = opts?.titlePrefix
+          ? `${opts.titlePrefix} ${report.title}`
+          : `[${report.source}] ${report.title}`;
+        if (triage.severity === 'urgent' && !opts?.titlePrefix) {
           title = `[URGENT] ${title}`;
         }
         title = title.substring(0, 200);
 
-        const description = [
+        const description = opts?.descriptionMarkdown ?? [
           '**Auto-detected Bug**',
           `**Source:** ${report.source} | **Severity:** ${triage.severity} | **Environment:** ${report.environment}`,
           `**First seen:** ${report.occurredAt.toISOString()}`,
@@ -125,7 +137,7 @@ class LinearClient {
           }
         `;
 
-        const labelIds = process.env['LINEAR_BUG_LABEL_ID'] ? [process.env['LINEAR_BUG_LABEL_ID']] : [];
+        const labelIds = opts?.labelIds ?? (process.env['LINEAR_BUG_LABEL_ID'] ? [process.env['LINEAR_BUG_LABEL_ID']] : []);
 
         const data = await this.graphql(apiKey, query, {
           title,

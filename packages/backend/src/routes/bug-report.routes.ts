@@ -110,6 +110,60 @@ function handleBugReport(req: Request, res: Response): void {
   res.status(201).json({ status: 'accepted' });
 }
 
+// --- POST /api/v1/bugs/user-report ---
+// Beta-tester bug submission from the in-app widget. Unlike the crash endpoint,
+// this REQUIRES a real logged-in user (no BUG_MONITOR_SECRET path) and carries
+// the tester's plain-English description + captured context. The pipeline runs
+// the PII sanitizer, has an AI writer structure it, files to Linear under the
+// "Beta feedback" label, and pings Slack. Severity is the tester's own read.
+
+const userReportSchema = z.object({
+  description: z.string().min(1).max(5000),
+  severity: z.enum(['fyi', 'annoying', 'blocked']).optional().default('annoying'),
+  // Free-form captured context (route, userAgent, appCommit, recentErrors, …).
+  context: z.record(z.string()).optional().default({}),
+  // R2 object key for an uploaded screenshot (upload handled separately).
+  screenshotKey: z.string().max(300).optional(),
+});
+
+router.post('/user-report', async (req: Request, res: Response) => {
+  const isUserAuthed = await tryAuthenticate(req, res);
+  if (!isUserAuthed) {
+    res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+    return;
+  }
+
+  const parsed = userReportSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: { message: 'Invalid report', details: parsed.error.issues } });
+    return;
+  }
+
+  const { description, severity, context, screenshotKey } = parsed.data;
+  const metadata: Record<string, string> = {
+    ...context,
+    userSeverity: severity,
+    reporterUserId: req.user?.id ?? 'unknown',
+    reporterEmail: req.user?.email ?? '',
+    ...(req.practiceScope?.practiceIds?.[0] ? { practiceId: req.practiceScope.practiceIds[0] } : {}),
+    ...(screenshotKey ? { screenshotKey } : {}),
+  };
+
+  const bugReport: BugReport = {
+    source: 'user-report',
+    title: description.slice(0, 120),
+    errorMessage: description,
+    metadata,
+    occurredAt: new Date(),
+    environment: process.env['NODE_ENV'] === 'production' ? 'production' : 'development',
+  };
+
+  // Fire-and-forget — the tester just needs a fast "thanks".
+  bugMonitor.reportUserFeedback(bugReport);
+
+  res.status(201).json({ status: 'accepted' });
+});
+
 // --- POST /api/v1/bugs/maintenance ---
 // NOTE: retryPendingSyncs was removed from BugMonitorService.
 // This endpoint is kept as a no-op placeholder for future maintenance tasks.
