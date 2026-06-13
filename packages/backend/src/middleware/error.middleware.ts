@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../utils/logger.js';
+import { sendSlackAlert } from '../utils/slack-alert.js';
 
 export class AppError extends Error {
   statusCode: number;
@@ -152,6 +153,12 @@ export function errorHandler(
   if ((err as any).$metadata?.httpStatusCode) {
     const awsCode = (err as any).name || 'UnknownAwsError';
     logger.error(`AWS service error [${awsCode}]: ${err.message}`);
+    void sendSlackAlert({
+      title: `Upstream service error (${awsCode})`,
+      level: 'error',
+      error: err,
+      source: 'http-502',
+    });
     res.status(502).json({
       success: false,
       error: { code: 'UPSTREAM_ERROR', message: 'Upstream service unavailable' },
@@ -186,7 +193,15 @@ export function errorHandler(
     }
   }
 
-  // Default error
+  // Default error — an unexpected fault we didn't classify above. Highest-signal
+  // case to alert on (4xx, vendor-503, and mapped auth errors are handled and
+  // returned before reaching here).
+  void sendSlackAlert({
+    title: 'Unhandled server error (500)',
+    level: 'error',
+    error: err,
+    source: 'http-500',
+  });
   res.status(500).json({
     success: false,
     error: {

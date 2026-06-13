@@ -104,6 +104,10 @@ const envSchema = z.object({
 
   // Sentry (optional)
   SENTRY_DSN: z.string().optional(),
+
+  // Slack operational alerts (optional). Incoming-webhook URL; when unset the
+  // alerter is a no-op. See utils/slack-alert.ts.
+  SLACK_ALERT_WEBHOOK_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
