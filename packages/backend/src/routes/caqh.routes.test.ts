@@ -22,7 +22,7 @@ vi.mock('../middleware/practiceScope.middleware.js', () => ({
   requirePracticeProvider: vi.fn((_req: any, _res: any, next: any) => next()),
   attachPracticeScope: vi.fn((_req: any, _res: any, next: any) => next()),
   initPracticeScope: vi.fn(),
-  validateProviderPracticeAccess: vi.fn(),
+  validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
   getPracticeProviderFilter: vi.fn(() => ({})),
   getPracticeRelationFilter: vi.fn(() => ({})),
 }));
