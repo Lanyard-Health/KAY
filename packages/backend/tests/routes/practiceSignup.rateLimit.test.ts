@@ -50,15 +50,25 @@ describe('POST /register — rate limiting', () => {
     app.use(practiceSignupRoutes);
     app.use(errorHandler);
 
-    // First 5 requests should succeed (NODE_ENV=test → max=5)
+    // The centralized limiter (src/middleware/rate-limit.ts) bypasses in test
+    // mode unless the request opts in with X-RateLimit-Test: 1 — so all other
+    // tests aren't tripped by limits, but this one can exercise the real path.
+    // First 5 requests should succeed (signupLimiter max = 5 / 15min).
     for (let i = 0; i < 5; i++) {
-      const res = await request(app).post('/register').send(validBody);
+      const res = await request(app)
+        .post('/register')
+        .set('X-RateLimit-Test', '1')
+        .send(validBody);
       expect(res.status).toBe(201);
     }
 
     // 6th request should be rate limited
-    const res = await request(app).post('/register').send(validBody);
+    const res = await request(app)
+      .post('/register')
+      .set('X-RateLimit-Test', '1')
+      .send(validBody);
     expect(res.status).toBe(429);
-    expect(res.body.error.message).toContain('Too many signup attempts');
+    expect(res.body.error.message).toContain('Too many requests');
+    expect(res.body.error.code).toBe('RATE_LIMITED');
   });
 });
