@@ -343,6 +343,19 @@ describe('Practice Scope Middleware', () => {
       expect(result).toBe(false);
     });
 
+    it('fails closed (returns false) when the provider row is missing', async () => {
+      const req = createMockRequest({
+        practiceScope: { isSuperAdmin: false, practiceIds: ['practice-A'] },
+        user: { id: 'staff-id', role: 'credentialing_staff' } as any,
+      } as any);
+
+      prismaMock.providerProfile.findUnique.mockResolvedValue(null);
+
+      const result = await validateProviderPracticeAccess(req, 'ghost-provider');
+
+      expect(result).toBe(false);
+    });
+
     it('returns true for provider accessing their own unassigned record', async () => {
       const req = createMockRequest({
         practiceScope: { isSuperAdmin: false, practiceIds: [] },
