@@ -3264,6 +3264,7 @@ export class CaqhService {
         create: {
           providerProfileId: providerId,
           rawJsonEncrypted,
+          rawJson: Prisma.DbNull,
           lastPulledAt: new Date(),
           syncStatus: 'pending',
         },
