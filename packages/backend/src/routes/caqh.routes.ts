@@ -20,6 +20,7 @@ import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
 import { importCaqhDocuments } from '../services/caqh-document-import.service.js';
 import { getCaqhImportSummary } from '../services/caqh-import-summary.service.js';
 import { scrubPii, buildCsv, buildPdf, slugifyForFilename, type ExportContext } from '../utils/caqh-export.js';
+import { mirrorRawJson } from '../services/caqh-mirror.service.js';
 import rateLimit from 'express-rate-limit';
 
 export const caqhRoutes = Router();
@@ -592,7 +593,7 @@ caqhRoutes.get(
       const filenameBase = `${slugifyForFilename(provider.lastName)}-caqh-${new Date().toISOString().slice(0, 10)}`;
 
       if (format === 'json') {
-        const scrubbed = scrubPii(mirror.rawJson);
+        const scrubbed = scrubPii(mirrorRawJson(mirror));
         const body = JSON.stringify(scrubbed, null, 2);
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('X-Content-Type-Options', 'nosniff');

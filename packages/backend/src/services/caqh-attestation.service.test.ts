@@ -29,6 +29,8 @@ import {
   evaluateAdminAttestationAlerts,
   ATTESTED_STATUSES,
   EXPIRED_STATUS,
+  sectionHashes,
+  diffAgainstHashes,
 } from './caqh-attestation.service.js';
 
 // ---------------------------------------------------------------------------
@@ -165,6 +167,72 @@ describe('diffSnapshots', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Fingerprint baseline (P1-8) — must reproduce diffSnapshots verdicts exactly,
+// while storing no provider data.
+// ---------------------------------------------------------------------------
+describe('sectionHashes / diffAgainstHashes', () => {
+  const baseline = {
+    ProviderLicense: [{ State: 'AZ', Number: 'L-1' }, { State: 'CA', Number: 'L-2' }],
+    Education: [{ School: 'ASU' }],
+    NPI: '1234567890',
+    SSN: '123-45-6789',
+  };
+
+  it('hashes contain no source values (PII-free by construction)', () => {
+    const hashes = sectionHashes(baseline);
+    const serialized = JSON.stringify(hashes);
+    expect(serialized).not.toContain('123-45-6789');
+    expect(serialized).not.toContain('1234567890');
+    expect(serialized).not.toContain('ASU');
+    for (const h of Object.values(hashes)) {
+      expect(h).toMatch(/^[0-9a-f]{64}$/); // sha256 hex
+    }
+  });
+
+  it('is stable across key order, list order, and volatile keys', () => {
+    const reordered = {
+      SSN: '123-45-6789',
+      NPI: '1234567890',
+      Education: [{ School: 'ASU' }],
+      ProviderLicense: [{ State: 'CA', Number: 'L-2' }, { State: 'AZ', Number: 'L-1' }],
+      RequestDate: '20260612', // volatile — stripped by normalizeForDiff
+    };
+    const a = sectionHashes(baseline);
+    const b = sectionHashes(reordered);
+    expect(b['ProviderLicense']).toBe(a['ProviderLicense']);
+    expect(b['Education']).toBe(a['Education']);
+    expect(b['RequestDate']).toBeUndefined();
+  });
+
+  it.each([
+    ['identical content', (b: typeof baseline) => structuredClone(b)],
+    ['reordered lists', (b: typeof baseline) => ({
+      ...structuredClone(b),
+      ProviderLicense: [...structuredClone(b.ProviderLicense)].reverse(),
+    })],
+    ['one license number changed', (b: typeof baseline) => {
+      const c = structuredClone(b);
+      c.ProviderLicense[0].Number = 'L-99';
+      return c;
+    }],
+    ['section added + removed', (b: typeof baseline) => {
+      const { Education: _dropped, ...rest } = structuredClone(b);
+      return { ...rest, WorkHistory: [{ Employer: 'X' }] };
+    }],
+  ])('matches diffSnapshots verdict exactly: %s', (_label, mutate) => {
+    const current = mutate(baseline);
+    const expected = diffSnapshots(baseline, current);
+    const actual = diffAgainstHashes(sectionHashes(baseline), current);
+    expect(actual).toEqual(expected);
+  });
+
+  it('null/empty baselines hash to an empty fingerprint set', () => {
+    expect(sectionHashes(null)).toEqual({});
+    expect(diffAgainstHashes({}, null)).toEqual({ verdict: 'unchanged', changedSections: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // State machine
 // ---------------------------------------------------------------------------
 describe('updateAttestationTracker', () => {
@@ -223,18 +291,43 @@ describe('updateAttestationTracker', () => {
 
     const call = prismaMock.caqhAttestationTracker.update.mock.calls[0][0];
     expect(call.data.lastAttestationDate?.toISOString()).toBe('2026-08-18T00:00:00.000Z');
-    expect(call.data.baselineSnapshot).toBeDefined();
+    // Baseline is stored as fingerprints only; any legacy plaintext snapshot is scrubbed.
+    expect(call.data.baselineSectionHashes).toBeDefined();
+    expect(call.data.baselineSnapshot).toBe(Prisma.DbNull);
     expect(call.data.remindersSent).toBe(Prisma.DbNull);
     expect(call.data.diffVerdict).toBe('unchanged');
     expect(call.data.cycleAnchor?.toISOString()).toBe('2026-08-18T00:00:00.000Z');
   });
 
-  it('mid-cycle pull with baseline → diffs and stores the verdict', async () => {
+  it('mid-cycle pull with legacy plaintext baseline (pre-backfill row) → fallback diffs and stores the verdict', async () => {
     prismaMock.caqhAttestationTracker.findUnique.mockResolvedValue({
       id: 't-1',
       providerProfileId,
       lastAttestationDate: parseYyyymmddUTC('20260422'),
       baselineSnapshot: normalizeForDiff(rawJson.Provider),
+    } as never);
+
+    const changedRaw = structuredClone(rawJson);
+    changedRaw.Provider.ProviderLicense[0].State = 'CA';
+
+    await updateAttestationTracker({
+      providerProfileId,
+      status: { ...statusBase, provider_status: 'Re-Attestation', provider_status_date: '20260422' },
+      rawJson: changedRaw,
+    });
+
+    const call = prismaMock.caqhAttestationTracker.update.mock.calls[0][0];
+    expect(call.data.diffVerdict).toBe('changed');
+    expect(call.data.changedSections).toEqual(['ProviderLicense']);
+  });
+
+  it('mid-cycle pull with fingerprint baseline (post-backfill row) → same verdict, hashes preferred', async () => {
+    prismaMock.caqhAttestationTracker.findUnique.mockResolvedValue({
+      id: 't-1',
+      providerProfileId,
+      lastAttestationDate: parseYyyymmddUTC('20260422'),
+      baselineSnapshot: null,
+      baselineSectionHashes: sectionHashes(rawJson.Provider),
     } as never);
 
     const changedRaw = structuredClone(rawJson);

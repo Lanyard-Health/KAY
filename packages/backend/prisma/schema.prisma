@@ -225,8 +225,8 @@ model Practice {
   practicePayers       PracticePayer[]
 
   // Phase 1 — submission engine relations
-  portalCredentials    PortalCredential[]
-  agentWorkflows       AgentWorkflow[]
+  portalCredentials PortalCredential[]
+  agentWorkflows    AgentWorkflow[]
 
   // Clinical profile
   organizationTypeId  String?           @map("organization_type_id")
@@ -771,19 +771,19 @@ model License {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  licenseType        LicenseType      @map("license_type")
-  licenseNumber      String           @map("license_number")
-  state              String?
-  issueDate          DateTime?        @map("issue_date") // Made optional — CAQH may not return
-  expirationDate     DateTime         @map("expiration_date")
-  status             CredentialStatus @default(active)
-  verificationDate   DateTime?        @map("verification_date")
-  verificationSource String?          @map("verification_source")
-  caqhLicenseId      String?          @map("caqh_license_id") // Stable CAQH ID for dedupe
-  isPrimary          Boolean?         @map("is_primary")
-  currentlyPracticing Boolean?        @map("currently_practicing")
-  notes              String?
-  source             CredentialSource @default(manual_entry)
+  licenseType         LicenseType      @map("license_type")
+  licenseNumber       String           @map("license_number")
+  state               String?
+  issueDate           DateTime?        @map("issue_date") // Made optional — CAQH may not return
+  expirationDate      DateTime         @map("expiration_date")
+  status              CredentialStatus @default(active)
+  verificationDate    DateTime?        @map("verification_date")
+  verificationSource  String?          @map("verification_source")
+  caqhLicenseId       String?          @map("caqh_license_id") // Stable CAQH ID for dedupe
+  isPrimary           Boolean?         @map("is_primary")
+  currentlyPracticing Boolean?         @map("currently_practicing")
+  notes               String?
+  source              CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -894,9 +894,9 @@ model MalpracticeInsurance {
   gapExplanation   String?   @map("gap_explanation")
 
   // CAQH extended fields
-  isSelfInsured        Boolean? @map("is_self_insured")
-  hasUnlimitedCoverage Boolean? @map("has_unlimited_coverage")
-  isIndividualCoverage Boolean? @map("is_individual_coverage")
+  isSelfInsured        Boolean?         @map("is_self_insured")
+  hasUnlimitedCoverage Boolean?         @map("has_unlimited_coverage")
+  isIndividualCoverage Boolean?         @map("is_individual_coverage")
   source               CredentialSource @default(manual_entry)
 
   // Audit
@@ -977,31 +977,31 @@ model WorkHistory {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  organizationName String    @map("organization_name")
-  organizationType String    @default("") @map("organization_type") // CAQH may not return — default empty
-  position         String    @default("") // CAQH may not return — default empty
-  department       String?
-  addressLine1     String?   @map("address_line_1")
-  city             String?
-  state            String?
-  zipCode          String?   @map("zip_code")
-  country          String?   @default("US")
-  phone            String?
-  fax              String?
-  email            String?
-  startDate        DateTime? @map("start_date") // Optional — CAQH WorkHistoryType may not include
-  endDate          DateTime? @map("end_date")
-  isCurrent        Boolean   @default(false) @map("is_current")
+  organizationName    String           @map("organization_name")
+  organizationType    String           @default("") @map("organization_type") // CAQH may not return — default empty
+  position            String           @default("") // CAQH may not return — default empty
+  department          String?
+  addressLine1        String?          @map("address_line_1")
+  city                String?
+  state               String?
+  zipCode             String?          @map("zip_code")
+  country             String?          @default("US")
+  phone               String?
+  fax                 String?
+  email               String?
+  startDate           DateTime?        @map("start_date") // Optional — CAQH WorkHistoryType may not include
+  endDate             DateTime?        @map("end_date")
+  isCurrent           Boolean          @default(false) @map("is_current")
   // CAQH-side flag, kept alongside the derived `isCurrent` so we can spot drift.
-  currentEmployerFlag Boolean? @map("current_employer_flag")
-  reasonForLeaving String?   @map("reason_for_leaving")
-  supervisorName   String?   @map("supervisor_name")
-  supervisorPhone  String?   @map("supervisor_phone")
-  statusDescription String?  @map("status_description")
-  workHistoryType  String?   @map("work_history_type")
-  source           CredentialSource @default(manual_entry)
-  caqhWorkHistoryId String?  @map("caqh_work_history_id") // CAQH record ID for dedup
-  notes            String?
+  currentEmployerFlag Boolean?         @map("current_employer_flag")
+  reasonForLeaving    String?          @map("reason_for_leaving")
+  supervisorName      String?          @map("supervisor_name")
+  supervisorPhone     String?          @map("supervisor_phone")
+  statusDescription   String?          @map("status_description")
+  workHistoryType     String?          @map("work_history_type")
+  source              CredentialSource @default(manual_entry)
+  caqhWorkHistoryId   String?          @map("caqh_work_history_id") // CAQH record ID for dedup
+  notes               String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1023,11 +1023,11 @@ model WorkHistoryGap {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  startDate       DateTime @map("start_date")
-  endDate         DateTime @map("end_date")
-  gapExplanation  String?  @map("gap_explanation") @db.Text
-  gapDescription  String?  @map("gap_description") // CAQH-side label, e.g. "Work History"
-  caqhGapId       String?  @map("caqh_gap_id") // CAQH record ID for dedup
+  startDate      DateTime @map("start_date")
+  endDate        DateTime @map("end_date")
+  gapExplanation String?  @map("gap_explanation") @db.Text
+  gapDescription String?  @map("gap_description") // CAQH-side label, e.g. "Work History"
+  caqhGapId      String?  @map("caqh_gap_id") // CAQH record ID for dedup
 
   source CredentialSource @default(manual_entry)
 
@@ -1090,36 +1090,36 @@ model HospitalAffiliation {
   facilityZipCode      String? @map("facility_zip_code")
 
   // CAQH extended fields
-  hasTemporaryPrivileges    Boolean? @map("has_temporary_privileges")
-  hasUnrestrictedPrivileges Boolean? @map("has_unrestricted_privileges")
-  nonAhaHospitalName        String?  @map("non_aha_hospital_name")
-  hospitalAffiliationType   String?  @map("hospital_affiliation_type")
-  hospitalRecordType        String?  @map("hospital_record_type")
-  privilegeDescription      String?  @map("privilege_description")
+  hasTemporaryPrivileges    Boolean?         @map("has_temporary_privileges")
+  hasUnrestrictedPrivileges Boolean?         @map("has_unrestricted_privileges")
+  nonAhaHospitalName        String?          @map("non_aha_hospital_name")
+  hospitalAffiliationType   String?          @map("hospital_affiliation_type")
+  hospitalRecordType        String?          @map("hospital_record_type")
+  privilegeDescription      String?          @map("privilege_description")
   country                   String?
-  zipCode                   String?  @map("zip_code")
-  addressLine1              String?  @map("address_line_1")
-  startDate                 DateTime? @map("start_date")
+  zipCode                   String?          @map("zip_code")
+  addressLine1              String?          @map("address_line_1")
+  startDate                 DateTime?        @map("start_date")
   source                    CredentialSource @default(manual_entry)
 
   // CAQH v9 extended fields
-  caqhAhaId               String?   @map("caqh_aha_id") // AHAHospitalID for dedup
-  department              String?
-  endDate                 DateTime? @map("end_date")
-  admissionPercent        Int?      @map("admission_percent") // estimated % of admissions at this facility
-  reasonForDiscontinuance String?   @map("reason_for_discontinuance")
-  exitExplanation         String?   @map("exit_explanation") @db.Text
-  staffCategory           String?   @map("staff_category") // Active / Inactive (raw CAQH value)
-  phoneNumber             String?   @map("phone_number") // separate from facilityPhone (Aetna-era field)
-  faxNumber               String?   @map("fax_number")
-  description             String?   @db.Text // free-form arrangement description
+  caqhAhaId                  String?   @map("caqh_aha_id") // AHAHospitalID for dedup
+  department                 String?
+  endDate                    DateTime? @map("end_date")
+  admissionPercent           Int?      @map("admission_percent") // estimated % of admissions at this facility
+  reasonForDiscontinuance    String?   @map("reason_for_discontinuance")
+  exitExplanation            String?   @map("exit_explanation") @db.Text
+  staffCategory              String?   @map("staff_category") // Active / Inactive (raw CAQH value)
+  phoneNumber                String?   @map("phone_number") // separate from facilityPhone (Aetna-era field)
+  faxNumber                  String?   @map("fax_number")
+  description                String?   @db.Text // free-form arrangement description
   // Admitting-relationship sub-fields (populated when WhoAdmitsForYou is set)
-  whoAdmitsForYou             String?  @map("who_admits_for_you")
-  admittingProviderFirstName  String?  @map("admitting_provider_first_name")
-  admittingProviderLastName   String?  @map("admitting_provider_last_name")
-  admittingContactPhone       String?  @map("admitting_contact_phone")
-  admittingContactEmail       String?  @map("admitting_contact_email")
-  isAdmitterSameSpecialty     Boolean? @map("is_admitter_same_specialty")
+  whoAdmitsForYou            String?   @map("who_admits_for_you")
+  admittingProviderFirstName String?   @map("admitting_provider_first_name")
+  admittingProviderLastName  String?   @map("admitting_provider_last_name")
+  admittingContactPhone      String?   @map("admitting_contact_phone")
+  admittingContactEmail      String?   @map("admitting_contact_email")
+  isAdmitterSameSpecialty    Boolean?  @map("is_admitter_same_specialty")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1142,18 +1142,18 @@ model ProfessionalReference {
   providerId String @map("provider_id")
 
   name         String
-  title        String   @default("") // CAQH may not return
-  organization String   @default("") // CAQH may not return
-  relationship String   @default("") // CAQH may not return
-  email        String   @default("") // CAQH demo may not include
-  phone        String   @default("") // CAQH demo may not include
-  yearsKnown   Int?     @map("years_known") // Made optional — CAQH may not return
-  canContact   Boolean  @default(true) @map("can_contact")
-  addressLine1 String?  @map("address_line_1")
+  title        String           @default("") // CAQH may not return
+  organization String           @default("") // CAQH may not return
+  relationship String           @default("") // CAQH may not return
+  email        String           @default("") // CAQH demo may not include
+  phone        String           @default("") // CAQH demo may not include
+  yearsKnown   Int?             @map("years_known") // Made optional — CAQH may not return
+  canContact   Boolean          @default(true) @map("can_contact")
+  addressLine1 String?          @map("address_line_1")
   city         String?
   state        String?
-  country      String?  @default("US")
-  postalCode   String?  @map("postal_code")
+  country      String?          @default("US")
+  postalCode   String?          @map("postal_code")
   source       CredentialSource @default(manual_entry)
   notes        String?
 
@@ -1181,18 +1181,18 @@ model CoveringColleague {
   id         String @id @default(uuid())
   providerId String @map("provider_id")
 
-  name          String
-  npi           String?
-  specialty     String?
-  relationship  String? // e.g. 'peer', 'partner', 'on-call'
-  phone         String?
-  email         String?
-  startDate     DateTime? @map("start_date")
-  endDate       DateTime? @map("end_date")
-  isCurrent     Boolean   @default(true) @map("is_current")
-  caqhAssociateId String? @map("caqh_associate_id") // Stable CAQH ID for dedupe
-  source        CredentialSource @default(manual_entry)
-  notes         String?
+  name            String
+  npi             String?
+  specialty       String?
+  relationship    String? // e.g. 'peer', 'partner', 'on-call'
+  phone           String?
+  email           String?
+  startDate       DateTime?        @map("start_date")
+  endDate         DateTime?        @map("end_date")
+  isCurrent       Boolean          @default(true) @map("is_current")
+  caqhAssociateId String?          @map("caqh_associate_id") // Stable CAQH ID for dedupe
+  source          CredentialSource @default(manual_entry)
+  notes           String?
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1232,11 +1232,11 @@ model DisciplinaryAction {
   notes          String?
 
   // CAQH extended fields — allows capturing CAQH's AdverseAction / CriminalAction / LiabilityAction detail
-  category          String?          // 'adverse' | 'criminal' | 'liability' | 'board' — denormalized for simple queries
-  effectiveDate     DateTime?        @map("effective_date")
-  appealStatus      String?          @map("appeal_status")
-  narrative         String?          @db.Text
-  source            CredentialSource @default(manual_entry)
+  category      String? // 'adverse' | 'criminal' | 'liability' | 'board' — denormalized for simple queries
+  effectiveDate DateTime?        @map("effective_date")
+  appealStatus  String?          @map("appeal_status")
+  narrative     String?          @db.Text
+  source        CredentialSource @default(manual_entry)
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1433,12 +1433,12 @@ model MalpracticeClaim {
   patientInjuryDescription String?          @map("patient_injury_description") @db.Text
   settlementAmountPaid     Decimal?         @map("settlement_amount_paid") @db.Decimal(15, 2)
   // Court/litigation address (separate from courtName)
-  courtAddressLine1 String? @map("court_address_line_1")
-  courtCity         String? @map("court_city")
-  courtState        String? @map("court_state")
-  courtZipCode      String? @map("court_zip_code")
-  courtPhone        String? @map("court_phone")
-  courtCountry      String? @map("court_country")
+  courtAddressLine1        String?          @map("court_address_line_1")
+  courtCity                String?          @map("court_city")
+  courtState               String?          @map("court_state")
+  courtZipCode             String?          @map("court_zip_code")
+  courtPhone               String?          @map("court_phone")
+  courtCountry             String?          @map("court_country")
 
   // Audit
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1723,11 +1723,11 @@ model Document {
   description  String?
 
   // Linked credential
-  linkedLicenseId              String? @map("linked_license_id")
-  linkedBoardCertificationId   String? @map("linked_board_certification_id")
-  linkedMalpracticeInsuranceId String? @map("linked_malpractice_insurance_id")
-  linkedEducationId            String? @map("linked_education_id")
-  linkedContinuingEducationId  String? @map("linked_continuing_education_id")
+  linkedLicenseId               String? @map("linked_license_id")
+  linkedBoardCertificationId    String? @map("linked_board_certification_id")
+  linkedMalpracticeInsuranceId  String? @map("linked_malpractice_insurance_id")
+  linkedEducationId             String? @map("linked_education_id")
+  linkedContinuingEducationId   String? @map("linked_continuing_education_id")
   linkedProviderCertificationId String? @map("linked_provider_certification_id")
 
   // Expiration
@@ -1758,17 +1758,17 @@ model Document {
   createdById String?  @map("created_by_id")
 
   // Relations
-  provider             ProviderProfile?      @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  practice             Practice?             @relation(fields: [practiceId], references: [id], onDelete: Cascade)
-  license              License?              @relation(fields: [linkedLicenseId], references: [id])
-  boardCertification   BoardCertification?   @relation(fields: [linkedBoardCertificationId], references: [id])
-  malpracticeInsurance MalpracticeInsurance? @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
-  education            Education?            @relation(fields: [linkedEducationId], references: [id])
-  continuingEducation  ContinuingEducation?  @relation(fields: [linkedContinuingEducationId], references: [id])
+  provider              ProviderProfile?       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice              Practice?              @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  license               License?               @relation(fields: [linkedLicenseId], references: [id])
+  boardCertification    BoardCertification?    @relation(fields: [linkedBoardCertificationId], references: [id])
+  malpracticeInsurance  MalpracticeInsurance?  @relation(fields: [linkedMalpracticeInsuranceId], references: [id])
+  education             Education?             @relation(fields: [linkedEducationId], references: [id])
+  continuingEducation   ContinuingEducation?   @relation(fields: [linkedContinuingEducationId], references: [id])
   providerCertification ProviderCertification? @relation(fields: [linkedProviderCertificationId], references: [id])
-  createdBy            User?                 @relation("DocumentCreatedBy", fields: [createdById], references: [id])
-  ocrReviewer          User?                 @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
-  documentReviewer     User?                 @relation("DocumentReviewer", fields: [reviewedById], references: [id])
+  createdBy             User?                  @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  ocrReviewer           User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
+  documentReviewer      User?                  @relation("DocumentReviewer", fields: [reviewedById], references: [id])
 
   @@index([providerId])
   @@index([practiceId])
@@ -2082,22 +2082,22 @@ enum AuditAction {
   import
 
   // Submission engine — added Phase 1
-  SUBMISSION_QUEUED             // Job enqueued in BullMQ: enrollmentRunId, payerId, adapterType
-  SUBMISSION_STARTED            // Worker picked up job: enrollmentRunId, attemptNumber
+  SUBMISSION_QUEUED // Job enqueued in BullMQ: enrollmentRunId, payerId, adapterType
+  SUBMISSION_STARTED // Worker picked up job: enrollmentRunId, attemptNumber
   SUBMISSION_SKIPPED_IDEMPOTENT // Pre-flight guard fired: enrollmentRunId, currentStatus
-  SUBMISSION_FORM_FILLED        // Adapter finished filling fields: enrollmentRunId, fieldCount
-  SUBMISSION_SUBMITTED          // Submit button clicked: enrollmentRunId, preScreenshotKey
-  SUBMISSION_CONFIRMED          // Portal confirmed receipt: enrollmentRunId, confirmationNumber, postScreenshotKey
-  SUBMISSION_ATTEMPT_FAILED     // One attempt failed, retrying: enrollmentRunId, attemptNumber, errorMessage
-  SUBMISSION_DEAD_LETTERED      // All attempts exhausted: enrollmentRunId, finalErrorMessage
+  SUBMISSION_FORM_FILLED // Adapter finished filling fields: enrollmentRunId, fieldCount
+  SUBMISSION_SUBMITTED // Submit button clicked: enrollmentRunId, preScreenshotKey
+  SUBMISSION_CONFIRMED // Portal confirmed receipt: enrollmentRunId, confirmationNumber, postScreenshotKey
+  SUBMISSION_ATTEMPT_FAILED // One attempt failed, retrying: enrollmentRunId, attemptNumber, errorMessage
+  SUBMISSION_DEAD_LETTERED // All attempts exhausted: enrollmentRunId, finalErrorMessage
 
   // Provider lifecycle — soft-delete + restore (admin-only, ≥7y retention)
-  PROVIDER_SOFT_DELETE          // Admin soft-deleted a provider: providerId, deletionReason, deletedBy
-  PROVIDER_RESTORE              // Admin restored a provider: providerId, restoredBy
+  PROVIDER_SOFT_DELETE // Admin soft-deleted a provider: providerId, deletionReason, deletedBy
+  PROVIDER_RESTORE // Admin restored a provider: providerId, restoredBy
 
   // Practice lifecycle — soft-delete + restore (admin/practice_admin, ≥7y retention)
-  PRACTICE_SOFT_DELETE          // Soft-deleted a practice: practiceId, deletionReason, deletedBy
-  PRACTICE_RESTORE              // Restored a practice: practiceId, restoredBy
+  PRACTICE_SOFT_DELETE // Soft-deleted a practice: practiceId, deletionReason, deletedBy
+  PRACTICE_RESTORE // Restored a practice: practiceId, restoredBy
 }
 
 model AuditLog {
@@ -2703,7 +2703,7 @@ model AgentAction {
   provider   ProviderProfile? @relation(fields: [providerId], references: [id], onDelete: SetNull)
 
   // Dimensions
-  agentName  String @map("agent_name")  // e.g. "orchestrator", "document_parser"
+  agentName  String @map("agent_name") // e.g. "orchestrator", "document_parser"
   actionType String @map("action_type") // e.g. "process_job"
 
   // Outcome
@@ -2793,11 +2793,11 @@ model WebhookDelivery {
   subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   eventType String  @map("event_type") // e.g. "agent_event.created"
-  eventId   String? @map("event_id")   // optional reference to source row id (free-form, no FK)
+  eventId   String? @map("event_id") // optional reference to source row id (free-form, no FK)
   payload   Json
 
-  status       String   @default("pending") // pending | delivered | failed | dead
-  attemptCount Int      @default(0) @map("attempt_count")
+  status       String @default("pending") // pending | delivered | failed | dead
+  attemptCount Int    @default(0) @map("attempt_count")
 
   // Latest-attempt fields — overwritten on each retry. Forensics on the
   // full attempt sequence live in BullMQ job logs; this column captures
@@ -2860,8 +2860,8 @@ model PayerSubmissionConfig {
   adapterType          AdapterType      @map("adapter_type")
   submissionMethod     SubmissionMethod @map("submission_method")
   config               Json
-  credentialsEncrypted String? @map("credentials_encrypted")
-  requiredFields       Json    @map("required_fields")
+  credentialsEncrypted String?          @map("credentials_encrypted")
+  requiredFields       Json             @map("required_fields")
 
   isActive       Boolean   @default(true) @map("is_active")
   lastTestedAt   DateTime? @map("last_tested_at")
@@ -2934,7 +2934,11 @@ model ProviderCaqhMirror {
   id                   String          @id @default(cuid())
   providerProfileId    String          @unique @map("provider_profile_id")
   providerProfile      ProviderProfile @relation(fields: [providerProfileId], references: [id], onDelete: Cascade)
-  rawJson              Json            @map("raw_json")
+  // Plaintext column is legacy — being emptied by the encryption backfill and the
+  // nightly sync; dropped in a follow-up migration once staging+prod are verified clean.
+  rawJson              Json?           @map("raw_json")
+  // AES-256-GCM ciphertext of the full CAQH payload (encryptSafe of JSON.stringify).
+  rawJsonEncrypted     String?         @map("raw_json_encrypted")
   licenses             Json?
   deaRegistrations     Json?           @map("dea_registrations")
   education            Json?
@@ -2961,8 +2965,13 @@ model CaqhAttestationTracker {
   nextDueDate         DateTime? @map("next_due_date")
   providerStatus      String?   @map("provider_status") // raw DataSpring status, e.g. "Re-Attestation" | "Expired Attestation"
 
-  baselineSnapshot   Json?     @map("baseline_snapshot")
-  baselineCapturedAt DateTime? @map("baseline_captured_at")
+  // Legacy plaintext baseline — superseded by baselineSectionHashes; emptied by the
+  // encryption backfill, dropped in a follow-up migration.
+  baselineSnapshot      Json?     @map("baseline_snapshot")
+  // sha256 fingerprint per normalized top-level Provider section. Detects change
+  // without storing any provider data (PII-free by construction).
+  baselineSectionHashes Json?     @map("baseline_section_hashes")
+  baselineCapturedAt    DateTime? @map("baseline_captured_at")
 
   diffVerdict     String   @default("no_baseline") @map("diff_verdict") // no_baseline | unchanged | changed
   changedSections String[] @default([]) @map("changed_sections")
@@ -3061,22 +3070,22 @@ model PayerStateRule {
 }
 
 model PayerForm {
-  id           String     @id @default(cuid())
-  payerTrackId String     @map("payer_track_id")
-  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  formName     String     @map("form_name")
+  id           String          @id @default(cuid())
+  payerTrackId String          @map("payer_track_id")
+  payerTrack   PayerTrack      @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  formName     String          @map("form_name")
   format       PayerFormFormat
   url          String?
   destination  String? // fax or email if not a URL
-  isRequired   Boolean    @default(true) @map("is_required")
+  isRequired   Boolean         @default(true) @map("is_required")
   notes        String?
-  createdAt    DateTime   @default(now()) @map("created_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
 
   // Form-fill framework (Phase 3)
   // deliveryEngine drives the dispatcher: which adapter runs this form.
   // assetUrl points to the PDF template (pdf engine) or entry URL (browser).
   deliveryEngine DeliveryEngine? @map("delivery_engine")
-  assetUrl       String? @map("asset_url")
+  assetUrl       String?         @map("asset_url")
 
   embeddings KnowledgeBaseEmbedding[]
   fields     PayerFormField[]
@@ -3090,9 +3099,9 @@ model PayerForm {
 // the flat { fieldKey → value } dictionary that a channel adapter
 // (browser / pdf / email) consumes.
 model PayerFormField {
-  id              String    @id @default(cuid())
-  payerFormId     String    @map("payer_form_id")
-  payerForm       PayerForm @relation(fields: [payerFormId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  payerFormId String    @map("payer_form_id")
+  payerForm   PayerForm @relation(fields: [payerFormId], references: [id], onDelete: Cascade)
 
   // Selector used by the adapter to find the box. For browser this is a
   // CSS selector or Angular formcontrolname; for PDF it's the field name
@@ -3173,9 +3182,9 @@ model EnrollmentRun {
   triggeredBy String? @map("triggered_by") // User ID
 
   // Phase 1 — submission lifecycle additions
-  externalReference  String?   @map("external_reference")  // payer-assigned tracking number
+  externalReference  String?   @map("external_reference") // payer-assigned tracking number
   confirmationNumber String?   @map("confirmation_number") // payer confirmation on receipt
-  failedAt           DateTime? @map("failed_at")           // timestamp of terminal failure
+  failedAt           DateTime? @map("failed_at") // timestamp of terminal failure
 
   // Phase 1 — submission engine relations
   submissionJob SubmissionJob?
@@ -3706,15 +3715,15 @@ model PracticeSpecialPopulation {
 // ==========================================
 
 model ProviderSpecialty {
-  id               String   @id @default(uuid())
-  providerId       String   @map("provider_id")
-  specialtyId      String   @map("specialty_id")
-  isPrimary        Boolean  @default(false) @map("is_primary")
-  nuccTaxonomyCode String?  @map("nucc_taxonomy_code")
-  caqhSpecialtyId  String?  @map("caqh_specialty_id")
+  id               String           @id @default(uuid())
+  providerId       String           @map("provider_id")
+  specialtyId      String           @map("specialty_id")
+  isPrimary        Boolean          @default(false) @map("is_primary")
+  nuccTaxonomyCode String?          @map("nucc_taxonomy_code")
+  caqhSpecialtyId  String?          @map("caqh_specialty_id")
   source           CredentialSource @default(manual_entry)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
   specialty Specialty       @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
@@ -3825,17 +3834,17 @@ enum EmailSendStatus {
 }
 
 model EmailTemplate {
-  id           String            @id @default(uuid())
-  name         String
-  subject      String
-  body         String
-  type         EmailTemplateType
-  triggerEvent String?           @map("trigger_event")
-  isActive     Boolean           @default(true) @map("is_active")
-  createdBy    String            @map("created_by")
-  createdByUser User             @relation("EmailTemplateCreator", fields: [createdBy], references: [id])
-  updatedAt    DateTime          @updatedAt @map("updated_at")
-  createdAt    DateTime          @default(now()) @map("created_at")
+  id            String            @id @default(uuid())
+  name          String
+  subject       String
+  body          String
+  type          EmailTemplateType
+  triggerEvent  String?           @map("trigger_event")
+  isActive      Boolean           @default(true) @map("is_active")
+  createdBy     String            @map("created_by")
+  createdByUser User              @relation("EmailTemplateCreator", fields: [createdBy], references: [id])
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
 
   emailLogs EmailLog[]
 
@@ -3912,18 +3921,18 @@ enum PayerFormFormat {
 // Terminal states (APPROVED, DENIED, FAILED, CANCELLED) are guarded by
 // validateRunStatusTransition() in enrollment.service.ts.
 enum EnrollmentRunStatus {
-  PENDING          // created, not yet queued
-  QUEUED           // job enqueued in BullMQ
-  FILLING          // adapter is filling the form
-  AWAITING_REVIEW  // needs coordinator approval before submit
-  SUBMITTING       // adapter has clicked submit
-  SUBMITTED        // payer portal confirmed receipt
-  ACKNOWLEDGED     // payer confirmed processing (if async)
-  APPROVED         // payer approved enrollment
-  DENIED           // payer denied enrollment
-  FAILED           // all retry attempts exhausted
-  CANCELLED        // coordinator cancelled before execution
-  NEEDS_REVIEW     // adapter completed but confirmation ambiguous — human check required
+  PENDING // created, not yet queued
+  QUEUED // job enqueued in BullMQ
+  FILLING // adapter is filling the form
+  AWAITING_REVIEW // needs coordinator approval before submit
+  SUBMITTING // adapter has clicked submit
+  SUBMITTED // payer portal confirmed receipt
+  ACKNOWLEDGED // payer confirmed processing (if async)
+  APPROVED // payer approved enrollment
+  DENIED // payer denied enrollment
+  FAILED // all retry attempts exhausted
+  CANCELLED // coordinator cancelled before execution
+  NEEDS_REVIEW // adapter completed but confirmation ambiguous — human check required
 }
 
 // PortalCredentialType — disambiguates credential ownership. CAQH and some payer
@@ -3931,8 +3940,8 @@ enum EnrollmentRunStatus {
 // per-practice logins (GROUP). resolveCredential() in credential.service.ts
 // dispatches lookup based on this value on the parent Payer.
 enum PortalCredentialType {
-  GROUP       // practice owns this login
-  INDIVIDUAL  // provider owns this login
+  GROUP // practice owns this login
+  INDIVIDUAL // provider owns this login
 }
 
 // SubmissionJobStatus — lifecycle of a BullMQ submission job record.
@@ -3946,11 +3955,11 @@ enum SubmissionJobStatus {
 
 // FaxJobStatus — lifecycle of a fax channel run.
 enum FaxJobStatus {
-  PENDING        // created, not yet dispatched
-  SENDING        // dispatched to vendor, awaiting delivery
-  SENT           // vendor confirmed delivery via webhook
-  FAILED         // one attempt failed, will retry
-  DEAD_LETTERED  // all attempts exhausted
+  PENDING // created, not yet dispatched
+  SENDING // dispatched to vendor, awaiting delivery
+  SENT // vendor confirmed delivery via webhook
+  FAILED // one attempt failed, will retry
+  DEAD_LETTERED // all attempts exhausted
 }
 
 // PortalCredential — per-tenant credential vault for payer portal logins.
@@ -3963,15 +3972,15 @@ model PortalCredential {
   payer   Payer  @relation(fields: [payerId], references: [id])
 
   // Credential ownership — exactly one of these must be set
-  practiceId String?          @map("practice_id")  // GROUP credentials
+  practiceId String?          @map("practice_id") // GROUP credentials
   practice   Practice?        @relation(fields: [practiceId], references: [id])
-  providerId String?          @map("provider_id")  // INDIVIDUAL credentials
+  providerId String?          @map("provider_id") // INDIVIDUAL credentials
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
 
   // Encrypted payload — encryptForTenant(practiceId, plaintext)
   usernameEncrypted    String  @map("username_encrypted")
   passwordEncrypted    String  @map("password_encrypted")
-  mfaSeedEncrypted     String? @map("mfa_seed_encrypted")     // TOTP seed if payer requires MFA
+  mfaSeedEncrypted     String? @map("mfa_seed_encrypted") // TOTP seed if payer requires MFA
   extraConfigEncrypted String? @map("extra_config_encrypted") // security questions, PIN, etc.
 
   credentialType PortalCredentialType @map("credential_type")
@@ -3983,8 +3992,8 @@ model PortalCredential {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([payerId, practiceId])   // one GROUP cred per (payer, practice)
-  @@unique([payerId, providerId])   // one INDIVIDUAL cred per (payer, provider)
+  @@unique([payerId, practiceId]) // one GROUP cred per (payer, practice)
+  @@unique([payerId, providerId]) // one INDIVIDUAL cred per (payer, provider)
   @@index([practiceId])
   @@index([providerId])
   @@map("portal_credentials")
@@ -3998,7 +4007,7 @@ model SubmissionJob {
   enrollmentRunId String        @unique @map("enrollment_run_id")
   enrollmentRun   EnrollmentRun @relation(fields: [enrollmentRunId], references: [id])
 
-  bullmqJobId  String              @unique @map("bullmq_job_id")  // = enrollmentRunId
+  bullmqJobId  String              @unique @map("bullmq_job_id") // = enrollmentRunId
   status       SubmissionJobStatus
   attemptCount Int                 @default(0) @map("attempt_count")
   maxAttempts  Int                 @default(3) @map("max_attempts")
@@ -4009,8 +4018,8 @@ model SubmissionJob {
 
   // Submission artifacts
   confirmationNumber String? @map("confirmation_number")
-  preScreenshotKey   String? @map("pre_screenshot_key")   // S3 key
-  postScreenshotKey  String? @map("post_screenshot_key")  // S3 key
+  preScreenshotKey   String? @map("pre_screenshot_key") // S3 key
+  postScreenshotKey  String? @map("post_screenshot_key") // S3 key
   rawResponseText    String? @map("raw_response_text")
 
   // Relations
@@ -4044,8 +4053,8 @@ model FaxJob {
   coverSheetKey String? @map("cover_sheet_key")
 
   // Vendor tracking
-  vendor      String           // 'phaxio' — or future vendor if swapped
-  vendorFaxId String?          @map("vendor_fax_id")
+  vendor      String // 'phaxio' — or future vendor if swapped
+  vendorFaxId String? @map("vendor_fax_id")
 
   // Lifecycle
   status        FaxJobStatus @default(PENDING)
@@ -4070,7 +4079,7 @@ model FaxJob {
 // reference the table without a follow-up migration churn.
 model PecosSubmission {
   id        String   @id @default(cuid())
-  status    String   // stub — will become PecosSubmissionStatus enum when implemented
+  status    String // stub — will become PecosSubmissionStatus enum when implemented
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -4082,7 +4091,7 @@ model PecosSubmission {
 // will populate this table when their adapters land.
 model StateMedicaidEnrollment {
   id        String   @id @default(cuid())
-  status    String   // stub — will become StateMedicaidStatus enum when implemented
+  status    String // stub — will become StateMedicaidStatus enum when implemented
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
