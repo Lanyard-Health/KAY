@@ -23,6 +23,22 @@ export const payerEnrollmentDataRoutes = Router();
 
 payerEnrollmentDataRoutes.use(authenticate);
 
+// Mask a sensitive registration number to its last 4 chars for API responses
+// (matches the SSN / tax-id / bank-account treatment below). The full value
+// never leaves the server via REST — server-side form-fill decrypts straight
+// from the DB through the internal credentialing packet, not these responses.
+function maskLast4(plain: string | null | undefined): string | null {
+  if (!plain) return null;
+  return '****' + String(plain).slice(-4);
+}
+
+// On update, a value that's absent, null, or itself a mask ("****1234") means
+// "leave the stored secret unchanged" — so we never re-encrypt a masked value
+// the client echoed back from a previous masked response.
+function isRealSecretUpdate(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0 && !v.startsWith('****');
+}
+
 // ==========================================
 // SUPERVISING PHYSICIANS
 // ==========================================
@@ -329,8 +345,8 @@ payerEnrollmentDataRoutes.get(
         where: { providerId: req.params['providerId'] },
         orderBy: { expirationDate: 'asc' },
       });
-      const decrypted = records.map((r) => ({ ...r, deaNumberEncrypted: undefined, deaNumber: decryptSafe(r.deaNumberEncrypted) }));
-      res.json({ success: true, data: decrypted });
+      const masked = records.map((r) => ({ ...r, deaNumberEncrypted: undefined, deaNumber: maskLast4(decryptSafe(r.deaNumberEncrypted)) }));
+      res.json({ success: true, data: masked });
     } catch (error) {
       next(error);
     }
@@ -359,7 +375,7 @@ payerEnrollmentDataRoutes.post(
           createdById: req.user?.id,
         },
       });
-      res.status(201).json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
+      res.status(201).json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: maskLast4(decryptSafe(record.deaNumberEncrypted)) } });
     } catch (error) {
       next(error);
     }
@@ -385,14 +401,14 @@ payerEnrollmentDataRoutes.put(
         where: { id: req.params['id'] },
         data: {
           ...rest,
-          ...(deaNumber !== undefined && { deaNumberEncrypted: encryptSafe(deaNumber) }),
+          ...(isRealSecretUpdate(deaNumber) && { deaNumberEncrypted: encryptSafe(deaNumber) }),
           ...(data.issueDate && { issueDate: new Date(data.issueDate) }),
           ...(data.expirationDate && { expirationDate: new Date(data.expirationDate) }),
           ...(buprenorphineWaiver !== undefined && { buprenorphineWaiver }),
           updatedById: req.user?.id,
         },
       });
-      res.json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
+      res.json({ success: true, data: { ...record, deaNumberEncrypted: undefined, deaNumber: maskLast4(decryptSafe(record.deaNumberEncrypted)) } });
     } catch (error) {
       next(error);
     }
@@ -434,8 +450,8 @@ payerEnrollmentDataRoutes.get(
         where: { providerId: req.params['providerId'] },
         orderBy: { state: 'asc' },
       });
-      const decrypted = records.map((r) => ({ ...r, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(r.cdsNumberEncrypted) }));
-      res.json({ success: true, data: decrypted });
+      const masked = records.map((r) => ({ ...r, cdsNumberEncrypted: undefined, cdsNumber: maskLast4(decryptSafe(r.cdsNumberEncrypted)) }));
+      res.json({ success: true, data: masked });
     } catch (error) {
       next(error);
     }
@@ -463,7 +479,7 @@ payerEnrollmentDataRoutes.post(
           createdById: req.user?.id,
         },
       });
-      res.status(201).json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(record.cdsNumberEncrypted) } });
+      res.status(201).json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: maskLast4(decryptSafe(record.cdsNumberEncrypted)) } });
     } catch (error) {
       next(error);
     }
@@ -489,13 +505,13 @@ payerEnrollmentDataRoutes.put(
         where: { id: req.params['id'] },
         data: {
           ...rest,
-          ...(cdsNumber !== undefined && { cdsNumberEncrypted: encryptSafe(cdsNumber) }),
+          ...(isRealSecretUpdate(cdsNumber) && { cdsNumberEncrypted: encryptSafe(cdsNumber) }),
           ...(rest.issueDate && { issueDate: new Date(rest.issueDate) }),
           ...(rest.expirationDate && { expirationDate: new Date(rest.expirationDate) }),
           updatedById: req.user?.id,
         },
       });
-      res.json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: decryptSafe(record.cdsNumberEncrypted) } });
+      res.json({ success: true, data: { ...record, cdsNumberEncrypted: undefined, cdsNumber: maskLast4(decryptSafe(record.cdsNumberEncrypted)) } });
     } catch (error) {
       next(error);
     }

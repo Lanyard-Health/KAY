@@ -64,7 +64,9 @@ export default function CdsRegistrationModal({
   useEffect(() => {
     if (registration) {
       reset({
-        cdsNumber: registration.cdsNumber || '',
+        // Left blank on edit: the API returns the CDS number masked (****1234),
+        // so we don't pre-fill it. Blank = keep the existing number unchanged.
+        cdsNumber: '',
         state: registration.state || '',
         issueDate: formatDate(registration.issueDate),
         expirationDate: formatDate(registration.expirationDate),
@@ -90,6 +92,9 @@ export default function CdsRegistrationModal({
   const onSubmit = (data: CdsRegistrationFormData) => {
     const payload = {
       ...data,
+      // On edit, only send the CDS number if the user typed a new one; blank
+      // means keep the stored value (the displayed value is masked).
+      cdsNumber: data.cdsNumber && data.cdsNumber.trim() !== '' ? data.cdsNumber.trim() : undefined,
       issueDate: data.issueDate || undefined,
       expirationDate: data.expirationDate || undefined,
       notes: data.notes || undefined,
@@ -165,11 +170,11 @@ export default function CdsRegistrationModal({
                     {/* CDS Number + State */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="label">CDS Number *</label>
+                        <label className="label">CDS Number {isEditing ? '' : '*'}</label>
                         <input
-                          {...register('cdsNumber', { required: 'Required' })}
+                          {...register('cdsNumber', { required: isEditing ? false : 'Required' })}
                           className="input"
-                          placeholder="State CDS number"
+                          placeholder={isEditing ? `Current: ${registration?.cdsNumber ?? ''} — leave blank to keep` : 'State CDS number'}
                         />
                         {errors.cdsNumber && (
                           <p className="mt-1 text-sm text-red-600">{errors.cdsNumber.message}</p>
