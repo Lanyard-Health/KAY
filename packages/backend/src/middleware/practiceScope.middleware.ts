@@ -150,7 +150,11 @@ export async function validateProviderPracticeAccess(
     select: { practiceId: true },
   });
 
-  if (!provider) return true; // Let route handler deal with 404
+  // Fail closed: a missing provider row means we cannot prove the caller's
+  // practice owns it, so deny. Every caller passes a providerId taken from an
+  // already-fetched resource row, so in practice this only fires on a dangling
+  // reference — denying (caller sees the route's 403/404) is the safe default.
+  if (!provider) return false;
 
   // No practice assigned → only admins and the provider themselves can access
   if (!provider.practiceId) {
