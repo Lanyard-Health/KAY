@@ -6,7 +6,7 @@ import { NotFoundError } from '../middleware/error.middleware.js';
 import { STAFF_ROLES, ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
-import { setAuditContext } from '../middleware/audit.middleware.js';
+import { setAuditContext, logSensitiveFieldReveal } from '../middleware/audit.middleware.js';
 import {
   createSupervisingPhysicianSchema,
   createMalpracticeClaimSchema,
@@ -435,6 +435,32 @@ payerEnrollmentDataRoutes.delete(
   }
 );
 
+// Reveal the FULL DEA number for one registration. Lists/details only ever
+// return the masked last-4 (see GET above); this is the deliberate, audited
+// path for staff who genuinely need the full number to file an application.
+// The reveal is logged BEFORE the value is returned — if the audit write
+// fails, the request errors and nothing is disclosed (fail-closed).
+payerEnrollmentDataRoutes.get(
+  '/dea-registrations/:id/reveal',
+  authorize(...ALL_AUTHENTICATED_ROLES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const record = await prisma.deaRegistration.findUnique({
+        where: { id: req.params['id'] },
+        select: { id: true, providerId: true, deaNumberEncrypted: true },
+      });
+      if (!record) throw new NotFoundError('DEA registration');
+      if (!(await validateProviderPracticeAccess(req, record.providerId))) throw new NotFoundError('DEA registration');
+
+      await logSensitiveFieldReveal(req, { field: 'deaNumber', providerId: record.providerId, recordId: record.id });
+
+      res.json({ success: true, data: { id: record.id, deaNumber: decryptSafe(record.deaNumberEncrypted) } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ==========================================
 // CDS REGISTRATIONS (state-issued, separate from federal DEA)
 // HIPAA: cdsNumber is encrypted via encryptSafe() before persistence.
@@ -532,6 +558,29 @@ payerEnrollmentDataRoutes.delete(
 
       await prisma.cdsRegistration.delete({ where: { id: req.params['id'] } });
       res.json({ success: true, message: 'CDS registration deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Reveal the FULL CDS number for one registration — audited, fail-closed.
+// Mirrors the DEA reveal above (see comment there).
+payerEnrollmentDataRoutes.get(
+  '/cds-registrations/:id/reveal',
+  authorize(...ALL_AUTHENTICATED_ROLES),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const record = await prisma.cdsRegistration.findUnique({
+        where: { id: req.params['id'] },
+        select: { id: true, providerId: true, cdsNumberEncrypted: true },
+      });
+      if (!record) throw new NotFoundError('CDS registration');
+      if (!(await validateProviderPracticeAccess(req, record.providerId))) throw new NotFoundError('CDS registration');
+
+      await logSensitiveFieldReveal(req, { field: 'cdsNumber', providerId: record.providerId, recordId: record.id });
+
+      res.json({ success: true, data: { id: record.id, cdsNumber: decryptSafe(record.cdsNumberEncrypted) } });
     } catch (error) {
       next(error);
     }

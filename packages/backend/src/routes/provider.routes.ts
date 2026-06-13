@@ -5,7 +5,8 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { requirePracticeProvider, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { NotFoundError, ValidationError } from '../middleware/error.middleware.js';
-import { setAuditContext } from '../middleware/audit.middleware.js';
+import { setAuditContext, logSensitiveFieldReveal } from '../middleware/audit.middleware.js';
+import { decryptSafe } from '../utils/crypto.js';
 import { createProviderSchema, updateProviderSchema } from '@credential-management/shared';
 import { providerListQuerySchema, parseQuery } from '../utils/queryValidation.js';
 import { invalidateCache } from '../utils/cache.js';
@@ -184,6 +185,11 @@ providerRoutes.get(
 
       const cleaned = stripSensitiveFields(provider);
 
+      // Non-sensitive signal so the UI can show a "Reveal SSN" control only when
+      // an SSN is actually on file. The encrypted value + last-4 are never sent;
+      // staff fetch the full number via the dedicated audited reveal endpoint.
+      cleaned.hasSsn = !!provider.ssnEncrypted;
+
       // Only include dateOfBirth for admin/staff or the provider themselves
       const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'credentialing_staff' || req.user?.role === 'practice_admin';
       const isSelf = req.user?.providerId === provider.id;
@@ -192,6 +198,36 @@ providerRoutes.get(
       }
 
       res.json({ success: true, data: cleaned });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/providers/:providerId/ssn/reveal — return the FULL SSN.
+// SSN is otherwise stripped from every provider response (see SENSITIVE_FIELDS).
+// This is the only path that returns it, and only to staff scoped to the
+// provider's practice. The reveal is logged BEFORE the value is returned — if
+// the audit write fails, the request errors and nothing is disclosed
+// (fail-closed). requirePracticeProvider enforces tenant isolation on :providerId.
+providerRoutes.get(
+  '/:providerId/ssn/reveal',
+  authorize('admin', 'credentialing_staff', 'practice_admin'), requireProviderAccess, requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const providerId = req.params['providerId']!;
+      const provider = await prisma.providerProfile.findUnique({
+        where: { id: providerId },
+        select: { id: true, ssnEncrypted: true },
+      });
+      if (!provider) throw new NotFoundError('Provider');
+      if (!provider.ssnEncrypted) {
+        throw new NotFoundError('SSN');
+      }
+
+      await logSensitiveFieldReveal(req, { field: 'ssn', providerId });
+
+      res.json({ success: true, data: { ssn: decryptSafe(provider.ssnEncrypted) } });
     } catch (error) {
       next(error);
     }

@@ -53,7 +53,9 @@ import {
   useListCoveringColleagues,
   useListCdsRegistrations, useDeleteCdsRegistration,
   useListProviderCertifications, useDeleteProviderCertification,
+  revealDeaRegistration, revealCdsRegistration, revealProviderSsn,
 } from '../../hooks/usePayerEnrollmentData';
+import RevealableSecret from '../../components/RevealableSecret';
 import ProviderChecklist from './ProviderChecklist';
 import ProviderEnrollments from './ProviderEnrollments';
 import ProviderTasks from './ProviderTasks';
@@ -1063,6 +1065,15 @@ export default function ProviderDetail() {
                           <dd className="mt-1 text-sm text-gray-900 capitalize">{field.value}</dd>
                         </div>
                       ))}
+                      {/* SSN — hidden by default; revealing it is logged (SOC 2). */}
+                      {provider.hasSsn && (
+                        <div>
+                          <dt className="text-xs font-medium text-gray-400 uppercase tracking-wider">SSN</dt>
+                          <dd className="mt-1 text-sm text-gray-900">
+                            <RevealableSecret masked="•••-••-••••" reveal={() => revealProviderSsn(provider.id)} label="SSN" />
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                   </div>
                 </div>
@@ -2064,7 +2075,7 @@ export default function ProviderDetail() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm text-gray-900">DEA #{dea.deaNumber}</p>
+                                <p className="font-medium text-sm text-gray-900 inline-flex items-center gap-1">DEA #<RevealableSecret masked={dea.deaNumber} reveal={() => revealDeaRegistration(dea.id)} label="DEA number" /></p>
                                 <span className={clsx(
                                   'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
                                   dea.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
@@ -2126,7 +2137,7 @@ export default function ProviderDetail() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-medium text-sm text-gray-900">CDS #{cds.cdsNumber}</p>
+                                <p className="font-medium text-sm text-gray-900 inline-flex items-center gap-1">CDS #<RevealableSecret masked={cds.cdsNumber} reveal={() => revealCdsRegistration(cds.id)} label="CDS number" /></p>
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200/80 text-gray-600">
                                   {cds.state}
                                 </span>

@@ -216,3 +216,44 @@ export function setAuditContext(
     ...context,
   } as Request['auditContext'];
 }
+
+// Single resourceType for every "staff member viewed an unmasked sensitive
+// field" event, so the full PII-access trail is one query:
+//   SELECT * FROM audit_logs WHERE resource_type = 'sensitive_field_reveal'
+export const SENSITIVE_REVEAL_RESOURCE = 'sensitive_field_reveal';
+
+/**
+ * Record that a user revealed (decrypted to plaintext) a sensitive field —
+ * SSN, DEA number, CDS number, etc. SOC 2 (and breach forensics) require an
+ * access trail for *reads* of regulated PII, not just edits, and masking alone
+ * leaves no record of who looked at the real value.
+ *
+ * This AWAITS the write and re-throws on failure. Callers MUST treat a thrown
+ * error as a hard stop and NOT return the decrypted value — no audit record,
+ * no disclosure (fail-closed).
+ *
+ * We deliberately reuse action `read` + a distinctive resourceType instead of
+ * adding a new AuditAction enum value: adding an enum value would require an
+ * `ALTER TYPE` migration against the production audit table (and a coordinated
+ * client redeploy), which is unnecessary risk for what is semantically a read.
+ *
+ * NEVER pass the revealed value itself — only the field name and identifiers.
+ */
+export async function logSensitiveFieldReveal(
+  req: Request,
+  opts: { field: string; providerId?: string; recordId?: string }
+): Promise<void> {
+  await createAuditLog({
+    userId: req.user?.id,
+    action: 'read',
+    resourceType: SENSITIVE_REVEAL_RESOURCE,
+    resourceId: opts.providerId ?? opts.recordId,
+    changes: {
+      revealed: opts.field,
+      ...(opts.providerId ? { providerId: opts.providerId } : {}),
+      ...(opts.recordId ? { recordId: opts.recordId } : {}),
+    },
+    ipAddress: req.ip || req.socket.remoteAddress,
+    userAgent: req.get('user-agent'),
+  });
+}

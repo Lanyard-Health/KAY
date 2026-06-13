@@ -46,6 +46,7 @@ vi.mock('../../src/middleware/practiceScope.middleware.js', () => ({
 
 vi.mock('../../src/middleware/audit.middleware.js', () => ({
   setAuditContext: vi.fn(),
+  logSensitiveFieldReveal: vi.fn(),
 }));
 
 vi.mock('../../src/utils/cache.js', () => ({
@@ -72,6 +73,7 @@ vi.mock('../../src/utils/logger.js', () => ({
 }));
 
 import { providerRoutes } from '../../src/routes/provider.routes.js';
+import { logSensitiveFieldReveal } from '../../src/middleware/audit.middleware.js';
 
 // ==========================================
 // Fixtures
@@ -257,6 +259,73 @@ describe('Provider Routes — GET /:providerId', () => {
       const res = await request(app).get(`/providers/nonexistent-id`);
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  // ------------------------------------------
+  // hasSsn flag on the detail response
+  // ------------------------------------------
+
+  describe('hasSsn flag', () => {
+    it('exposes hasSsn: true when an SSN is on file, without leaking the value', async () => {
+      const app = createApp(adminUser);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.hasSsn).toBe(true);
+      // The encrypted value is still stripped — only the boolean signal is sent.
+      expect(res.body.data.ssnEncrypted).toBeUndefined();
+    });
+
+    it('exposes hasSsn: false when no SSN is stored', async () => {
+      mockFindUnique.mockResolvedValueOnce({ ...fullProvider, ssnEncrypted: null });
+      const app = createApp(adminUser);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.hasSsn).toBe(false);
+    });
+  });
+
+  // ------------------------------------------
+  // SSN reveal — the only path that returns the full SSN (audited, fail-closed)
+  // ------------------------------------------
+
+  describe('GET /:providerId/ssn/reveal', () => {
+    it('returns the full SSN for staff and logs the reveal', async () => {
+      const app = createApp(adminUser);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}/ssn/reveal`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.ssn).toBe('encrypted-ssn-value'); // decrypted (test mode passes through)
+      expect(logSensitiveFieldReveal).toHaveBeenCalledTimes(1);
+      const [, opts] = (logSensitiveFieldReveal as any).mock.calls[0];
+      expect(opts).toMatchObject({ field: 'ssn', providerId: PROVIDER_ID });
+    });
+
+    it('returns 404 when the provider has no SSN on file', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: PROVIDER_ID, ssnEncrypted: null });
+      const app = createApp(adminUser);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}/ssn/reveal`);
+
+      expect(res.status).toBe(404);
+      expect(logSensitiveFieldReveal).not.toHaveBeenCalled();
+    });
+
+    it('forbids the provider role from using the staff reveal endpoint', async () => {
+      const app = createApp(providerUserSelf);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}/ssn/reveal`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('fails closed: if the audit write throws, the SSN is NOT returned', async () => {
+      (logSensitiveFieldReveal as any).mockRejectedValueOnce(new Error('audit log unavailable'));
+      const app = createApp(adminUser);
+      const res = await request(app).get(`/providers/${PROVIDER_ID}/ssn/reveal`);
+
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(JSON.stringify(res.body)).not.toContain('encrypted-ssn-value');
     });
   });
 });

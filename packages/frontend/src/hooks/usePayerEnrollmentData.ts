@@ -2,6 +2,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 
 // ==========================================
+// Sensitive-field reveal (audited, on-demand)
+//
+// These are deliberate one-shot reads, NOT cached server state — the full
+// value is fetched only when a user clicks "reveal" and is never stored in the
+// query cache. Each call hits an endpoint that records an audit-log entry.
+// ==========================================
+
+export async function revealDeaRegistration(id: string): Promise<string> {
+  const response = await api.get(`/credentials/dea-registrations/${id}/reveal`);
+  return response.data.data.deaNumber as string;
+}
+
+export async function revealCdsRegistration(id: string): Promise<string> {
+  const response = await api.get(`/credentials/cds-registrations/${id}/reveal`);
+  return response.data.data.cdsNumber as string;
+}
+
+export async function revealProviderSsn(providerId: string): Promise<string> {
+  const response = await api.get(`/providers/${providerId}/ssn/reveal`);
+  return response.data.data.ssn as string;
+}
+
+// ==========================================
 // Education
 // ==========================================
 
