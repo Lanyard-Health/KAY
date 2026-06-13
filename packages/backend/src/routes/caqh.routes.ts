@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
-import { requirePracticeProvider } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
 import {
   CaqhService,
   ProviderNotReadyForCaqhError,
@@ -27,7 +27,17 @@ export const caqhRoutes = Router();
 
 caqhRoutes.use(authenticate);
 caqhRoutes.use(authorize('admin', 'credentialing_staff'));
-caqhRoutes.use(requirePracticeProvider);
+
+// Tenant isolation — enforce that the caller's practice owns the :providerId on
+// EVERY route that has one. This MUST be a router.param callback, NOT router.use:
+// a path-less router-level `use` runs BEFORE Express parses the :providerId path
+// segment, so req.params.providerId is empty there and requirePracticeProvider
+// silently no-ops — which previously let any authenticated staffer read another
+// practice's provider by ID (cross-tenant IDOR). As a param callback it fires
+// only once the segment is populated, and it covers every current and future
+// `/:providerId` route by construction. Body-only routes (POST /roster) carry
+// their own validateProviderPracticeAccess check inline.
+caqhRoutes.param('providerId', requirePracticeProvider);
 
 const caqhService = new CaqhService();
 
@@ -282,6 +292,12 @@ caqhRoutes.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { providerId } = addToRosterSchema.parse(req.body);
+
+      // providerId arrives in the body (no :providerId path param), so the
+      // router.param tenant guard does not fire here — enforce it explicitly.
+      if (!(await validateProviderPracticeAccess(req, providerId))) {
+        return caqhError(res, 'FORBIDDEN', 'Access denied — provider not in your practice', 403);
+      }
 
       const result = await caqhService.addToRoster(providerId);
 
