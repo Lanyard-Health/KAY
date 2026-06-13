@@ -205,7 +205,6 @@ model Practice {
   mailingState        String? @map("mailing_state")
   mailingZipCode      String? @map("mailing_zip_code")
 
-  organizationType String? @map("organization_type")
   maxProviderSlots Int?    @map("max_provider_slots")
   maxUserSeats     Int?    @map("max_user_seats")
 

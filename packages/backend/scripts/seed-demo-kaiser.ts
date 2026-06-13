@@ -396,7 +396,6 @@ async function main() {
       city: PRACTICE.city,
       state: PRACTICE.state,
       zipCode: PRACTICE.zipCode,
-      organizationType: PRACTICE.organizationType,
       states: PRACTICE.states,
       setupComplete: true,
     },
