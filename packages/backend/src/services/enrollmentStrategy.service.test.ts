@@ -11,7 +11,7 @@ vi.mock('./ai.service.js', () => ({
   sanitizeUserInput: vi.fn((s: string) => s),
 }));
 
-// payerIntelligence now calls callLLM directly (post Phase 3 step 2 migration).
+// enrollmentStrategy now calls callLLM directly (post Phase 3 step 2 migration).
 // Mock the wrapper module so tests can inject a stubbed AI response without
 // touching the real Anthropic SDK.
 vi.mock('../utils/llm.js', () => ({
@@ -30,7 +30,7 @@ import {
   getPayerLeaderboard,
   analyzePayerWithAI,
   getPayerInsights,
-} from './payerIntelligence.service.js';
+} from './enrollmentStrategy.service.js';
 import { invalidateCache } from '../utils/cache.js';
 
 const mockPayers = [
@@ -42,7 +42,7 @@ const mockPayers = [
 const now = new Date();
 const daysAgo = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
 
-describe('PayerIntelligence Service', () => {
+describe('EnrollmentStrategy Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     invalidateCache(''); // clear all cached data between tests

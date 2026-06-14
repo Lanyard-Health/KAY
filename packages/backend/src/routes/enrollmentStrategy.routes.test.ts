@@ -17,23 +17,23 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('../services/payerIntelligence.service.js', () => ({
+vi.mock('../services/enrollmentStrategy.service.js', () => ({
   getPayerAnalytics: vi.fn(),
   getPayerLeaderboard: vi.fn(),
   analyzePayerWithAI: vi.fn(),
   getPayerInsights: vi.fn(),
 }));
 
-import { payerIntelligenceRoutes } from './payerIntelligence.routes.js';
+import { enrollmentStrategyRoutes } from './enrollmentStrategy.routes.js';
 import {
   getPayerAnalytics,
   getPayerLeaderboard,
   analyzePayerWithAI,
   getPayerInsights,
-} from '../services/payerIntelligence.service.js';
+} from '../services/enrollmentStrategy.service.js';
 
-describe('Payer Intelligence Routes', () => {
-  const app = createTestApp(payerIntelligenceRoutes, adminUser);
+describe('Enrollment Strategy Routes', () => {
+  const app = createTestApp(enrollmentStrategyRoutes, adminUser);
   app.set('trust proxy', 1);
 
   let testIpCounter = 0;

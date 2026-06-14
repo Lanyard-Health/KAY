@@ -72,7 +72,7 @@ export function usePayerAnalytics(payerId?: string) {
     queryFn: async () => {
       const params = payerId ? `?payerId=${payerId}` : '';
       const { data } = await api.get<{ success: boolean; data: PayerAnalytics[] }>(
-        `/payer-intelligence/analytics${params}`
+        `/enrollment-strategy/analytics${params}`
       );
       return data;
     },
@@ -85,7 +85,7 @@ export function usePayerLeaderboard() {
     queryKey: ['payer-leaderboard'],
     queryFn: async () => {
       const { data } = await api.get<{ success: boolean; data: PayerLeaderboardItem[] }>(
-        '/payer-intelligence/leaderboard'
+        '/enrollment-strategy/leaderboard'
       );
       return data;
     },
@@ -101,7 +101,7 @@ export function useAnalyzePayer() {
       const { data } = await api.post<{
         success: boolean;
         data: { insight: PayerAIInsight; recommendation: { id: string } };
-      }>(`/payer-intelligence/${payerId}/analyze`);
+      }>(`/enrollment-strategy/${payerId}/analyze`);
       return data;
     },
     onSuccess: (_data, payerId) => {
@@ -121,7 +121,7 @@ export function usePayerInsights(payerId: string | null) {
     queryKey: ['payer-insights', payerId],
     queryFn: async () => {
       const { data } = await api.get<{ success: boolean; data: PayerInsightRecord[] }>(
-        `/payer-intelligence/${payerId}/insights`
+        `/enrollment-strategy/${payerId}/insights`
       );
       return data;
     },
