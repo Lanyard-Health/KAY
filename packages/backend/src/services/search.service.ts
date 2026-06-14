@@ -143,7 +143,7 @@ export async function globalSearch(
         type: 'payer',
         title: p.name,
         subtitle: p.state ?? undefined,
-        url: `/payer-intelligence`,
+        url: `/enrollment-strategy`,
       });
     }
 

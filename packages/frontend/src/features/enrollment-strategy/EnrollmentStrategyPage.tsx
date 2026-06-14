@@ -7,8 +7,8 @@ import {
   usePayerLeaderboard,
   useAnalyzePayer,
   usePayerInsights,
-} from '../../hooks/usePayerIntelligence';
-import type { PayerLeaderboardItem } from '../../hooks/usePayerIntelligence';
+} from '../../hooks/useEnrollmentStrategy';
+import type { PayerLeaderboardItem } from '../../hooks/useEnrollmentStrategy';
 import PayerAnalyticsCards from './PayerAnalyticsCards';
 import { PayerAIInsightCard, PastInsightItem } from './PayerAIInsightCard';
 import EmptyState from '../../components/ui/EmptyState';
@@ -20,7 +20,7 @@ function difficultyBadgeColor(score: number): string {
   return 'bg-green-100 text-green-800';
 }
 
-export default function PayerIntelligencePage() {
+export default function EnrollmentStrategyPage() {
   const [selectedPayerId, setSelectedPayerId] = useState<string | null>(null);
 
   const { data: analyticsResp, isLoading: analyticsLoading } = usePayerAnalytics();
@@ -57,7 +57,7 @@ export default function PayerIntelligencePage() {
       <div className="mb-8">
         <div className="flex items-center gap-2">
           <ChartBarSquareIcon className="h-7 w-7 text-primary-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Payer Intelligence</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Enrollment Strategy</h1>
         </div>
         <p className="mt-1 text-sm text-gray-500">
           Data-driven enrollment analytics and AI-powered strategic insights

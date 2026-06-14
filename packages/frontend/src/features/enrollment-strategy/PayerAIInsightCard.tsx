@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { SparklesIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useUpdateRecommendation } from '../../hooks/useAi';
 import { useQueryClient } from '@tanstack/react-query';
-import type { PayerAIInsight, PayerInsightRecord } from '../../hooks/usePayerIntelligence';
+import type { PayerAIInsight, PayerInsightRecord } from '../../hooks/useEnrollmentStrategy';
 
 function riskBadgeColor(level: string): string {
   switch (level) {

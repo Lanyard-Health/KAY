@@ -1,4 +1,4 @@
-import type { PayerAnalytics } from '../../hooks/usePayerIntelligence';
+import type { PayerAnalytics } from '../../hooks/useEnrollmentStrategy';
 
 function daysColor(days: number | null): string {
   if (days === null) return 'text-gray-400';

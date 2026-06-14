@@ -22,7 +22,7 @@ export function sanitizeUserInput(input: string, maxLength = 500): string {
 
 /**
  * @deprecated Use `callLLM` from `utils/llm.js` directly. This stub exists
- * only so legacy test imports (`payerIntelligence.service.test.ts` mocks it
+ * only so legacy test imports (`enrollmentStrategy.service.test.ts` mocks it
  * via `vi.mock`) keep compiling. Remove once those tests migrate to
  * mocking `utils/llm.js`.
  */
