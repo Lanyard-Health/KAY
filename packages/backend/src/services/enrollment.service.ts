@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from '../middleware/error.middleware.j
 import { triggerDenialTriage } from './denial-triage.service.js';
 import { triggerTerminationWorkflow } from './terminationWorkflow.service.js';
 import { instantiateFollowUp } from './followup-instantiation.service.js';
+import { recordEnrollmentOutcome } from './enrollment-outcome.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { emitWebhookEvent } from '../agents/webhook-emitter.js';
@@ -73,6 +74,12 @@ export async function updateEnrollmentStatus(
   });
 
   // --- Side effects (fire-and-forget) ---
+
+  // Outcome recorder (the moat). Idempotent on (enrollment, outcome); demo/seed
+  // tenants are excluded inside the recorder; never throws.
+  if (oldStatus !== newStatus) {
+    void recordEnrollmentOutcome({ enrollmentId, status: newStatus, transitionAt: new Date() });
+  }
 
   // Denial triage
   if (newStatus === 'denied' && oldStatus !== 'denied' && options?.triggerDenialTriage) {
