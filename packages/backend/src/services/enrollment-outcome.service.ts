@@ -57,7 +57,7 @@ const outcomeInclude = Prisma.validator<Prisma.EnrollmentInclude>()({
   provider: {
     select: {
       providerType: true,
-      practice: { select: { id: true, isDemo: true, state: true } },
+      practice: { select: { id: true, isDemo: true, state: true, deletedAt: true } },
     },
   },
   createdBy: { select: { email: true } },
@@ -81,6 +81,7 @@ function isExcluded(e: LoadedEnrollment): boolean {
   const practice = e.provider?.practice ?? null;
   if (!practice) return true; // no practice → not a real tenant outcome
   if (practice.isDemo) return true;
+  if (practice.deletedAt) return true; // soft-deleted tenant → not a real outcome
   if (excludedPracticeIds().has(practice.id)) return true;
   const email = e.createdBy?.email?.toLowerCase() ?? '';
   if (email.endsWith('@dev.local')) return true;
