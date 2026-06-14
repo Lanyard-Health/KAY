@@ -166,6 +166,12 @@ model Practice {
   groupNpi          String?   @map("group_npi")
   setupComplete     Boolean   @default(false) @map("setup_complete")
 
+  // Demo/seed tenants. When true, this practice's enrollments are EXCLUDED
+  // from the production outcomes record (EnrollmentOutcome). Tenant-level, not
+  // env-level: staging runs NODE_ENV=production, so env can't distinguish
+  // synthetic-but-real beta data from seeded demo data — this flag can.
+  isDemo Boolean @default(false) @map("is_demo")
+
   // Intake — group profile
   legalName            String? @map("legal_name")
   dba                  String? @map("dba")
@@ -205,8 +211,8 @@ model Practice {
   mailingState        String? @map("mailing_state")
   mailingZipCode      String? @map("mailing_zip_code")
 
-  maxProviderSlots Int?    @map("max_provider_slots")
-  maxUserSeats     Int?    @map("max_user_seats")
+  maxProviderSlots Int? @map("max_provider_slots")
+  maxUserSeats     Int? @map("max_user_seats")
 
   // Soft delete
   deletedAt      DateTime? @map("deleted_at")
@@ -1980,6 +1986,7 @@ model Enrollment {
   enrollmentRuns    EnrollmentRun[]
   followUpRuns      FollowUpRun[]
   denialTriages     DenialTriage[]
+  outcomes          EnrollmentOutcome[]
 
   @@unique([providerId, payerId])
   @@index([status])
@@ -3013,6 +3020,10 @@ model PayerTrack {
   followUpTemplates FollowUpTemplate[]
   embeddings        KnowledgeBaseEmbedding[]
 
+  // Payer-brain: change-detection sources + detected changes for this track
+  crawlSources       CrawlSource[]
+  requirementChanges PayerRequirementChange[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -3037,34 +3048,48 @@ model PayerContact {
 }
 
 model PayerTimeline {
-  id             String     @id @default(cuid())
-  payerTrackId   String     @map("payer_track_id")
-  payerTrack     PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
-  processType    String     @map("process_type") // Initial | Recredential | Contract Loading
-  minDays        Int?       @map("min_days")
-  maxDays        Int?       @map("max_days")
-  stateOverrides Json?      @map("state_overrides") // { "MD": 15, "OH": 15 }
+  id             String          @id @default(cuid())
+  payerTrackId   String          @map("payer_track_id")
+  payerTrack     PayerTrack      @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  processType    String          @map("process_type") // Initial | Recredential | Contract Loading
+  minDays        Int?            @map("min_days")
+  maxDays        Int?            @map("max_days")
+  stateOverrides Json?           @map("state_overrides") // { "MD": 15, "OH": 15 }
   notes          String?
-  createdAt      DateTime   @default(now()) @map("created_at")
+  // Provenance + change-detection (payer brain)
+  origin         PayerDataOrigin @default(human_curated) @map("origin")
+  sourceUrl      String?         @map("source_url")
+  capturedAt     DateTime?       @map("captured_at")
+  contentHash    String?         @map("content_hash")
+  verified       Boolean         @default(false) @map("verified")
+  createdAt      DateTime        @default(now()) @map("created_at")
 
   embeddings KnowledgeBaseEmbedding[]
 
+  @@unique([payerTrackId, processType])
   @@map("payer_timelines")
 }
 
 model PayerStateRule {
-  id             String     @id @default(cuid())
-  payerTrackId   String     @map("payer_track_id")
-  payerTrack     PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  id             String          @id @default(cuid())
+  payerTrackId   String          @map("payer_track_id")
+  payerTrack     PayerTrack      @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
   state          String
-  ruleType       String     @map("rule_type") // open_enrollment_window | alternate_application | insurance_minimum | caqh_override | network_alliance
+  ruleType       String          @map("rule_type") // open_enrollment_window | alternate_application | insurance_minimum | caqh_override | network_alliance
   description    String
-  effectiveDate  DateTime?  @map("effective_date")
-  expirationDate DateTime?  @map("expiration_date")
-  createdAt      DateTime   @default(now()) @map("created_at")
+  effectiveDate  DateTime?       @map("effective_date")
+  expirationDate DateTime?       @map("expiration_date")
+  // Provenance + change-detection (payer brain)
+  origin         PayerDataOrigin @default(human_curated) @map("origin")
+  sourceUrl      String?         @map("source_url")
+  capturedAt     DateTime?       @map("captured_at")
+  contentHash    String?         @map("content_hash")
+  verified       Boolean         @default(false) @map("verified")
+  createdAt      DateTime        @default(now()) @map("created_at")
 
   embeddings KnowledgeBaseEmbedding[]
 
+  @@unique([payerTrackId, state, ruleType])
   @@map("payer_state_rules")
 }
 
@@ -3086,9 +3111,17 @@ model PayerForm {
   deliveryEngine DeliveryEngine? @map("delivery_engine")
   assetUrl       String?         @map("asset_url")
 
+  // Provenance + change-detection (payer brain)
+  origin      PayerDataOrigin @default(human_curated) @map("origin")
+  sourceUrl   String?         @map("source_url")
+  capturedAt  DateTime?       @map("captured_at")
+  contentHash String?         @map("content_hash")
+  verified    Boolean         @default(false) @map("verified")
+
   embeddings KnowledgeBaseEmbedding[]
   fields     PayerFormField[]
 
+  @@unique([payerTrackId, formName])
   @@map("payer_forms")
 }
 
@@ -3214,19 +3247,26 @@ model RequirementUniversal {
 }
 
 model PayerRequirement {
-  id           String     @id @default(cuid())
-  payerTrackId String     @map("payer_track_id")
-  payerTrack   PayerTrack @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
+  id           String          @id @default(cuid())
+  payerTrackId String          @map("payer_track_id")
+  payerTrack   PayerTrack      @relation(fields: [payerTrackId], references: [id], onDelete: Cascade)
   name         String
-  overrideType String     @map("override_type") // ADDITIONAL | STRICTER | ALTERNATE_PROCESS | EXCEPTION | STATE_MINIMUM
+  overrideType String          @map("override_type") // ADDITIONAL | STRICTER | ALTERNATE_PROCESS | EXCEPTION | STATE_MINIMUM
   rule         String
-  appliesTo    String?    @map("applies_to")
-  isBlocking   Boolean    @map("is_blocking")
+  appliesTo    String?         @map("applies_to")
+  isBlocking   Boolean         @map("is_blocking")
   source       String?
-  createdAt    DateTime   @default(now()) @map("created_at")
+  // Provenance + change-detection (payer brain). `source` (free text) kept as-is.
+  origin       PayerDataOrigin @default(human_curated) @map("origin")
+  sourceUrl    String?         @map("source_url")
+  capturedAt   DateTime?       @map("captured_at")
+  contentHash  String?         @map("content_hash")
+  verified     Boolean         @default(false) @map("verified")
+  createdAt    DateTime        @default(now()) @map("created_at")
 
   embeddings KnowledgeBaseEmbedding[]
 
+  @@unique([payerTrackId, name, overrideType])
   @@map("payer_requirements")
 }
 
@@ -4095,4 +4135,119 @@ model StateMedicaidEnrollment {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("state_medicaid_enrollments")
+}
+
+// ==========================================
+// PAYER BRAIN — provenance, outcomes, change-detection
+// ==========================================
+
+// Where a curated payer-knowledge row came from. Human-curated rows are the
+// system of record; crawler-promoted rows arrive via verified change-detection.
+enum PayerDataOrigin {
+  human_curated
+  crawler_promoted
+}
+
+// The recordable outcome of an enrollment. approved/denied/terminated are
+// captured at status-change; stuck is derived (>60d in a non-terminal status)
+// and captured by an idempotent sweep.
+enum EnrollmentOutcomeType {
+  approved
+  denied
+  terminated
+  stuck
+}
+
+// EnrollmentOutcome — the MOAT. One row per (enrollment, outcome). Auto-captured
+// fact from real production enrollments; demo/seed tenants are excluded by the
+// recorder (Practice.isDemo). Dimensions are DENORMALIZED so each row is a
+// self-contained analytical record that survives upstream edits/deletes.
+model EnrollmentOutcome {
+  id           String                @id @default(cuid())
+  enrollmentId String                @map("enrollment_id")
+  enrollment   Enrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  outcome      EnrollmentOutcomeType
+
+  // Denormalized dimensions: payer × state × provider_type × process_type
+  payerId      String  @map("payer_id")
+  payerName    String  @map("payer_name")
+  payerTrackId String? @map("payer_track_id")
+  state        String // payerTrack.stateRegion ?? practice location ?? 'unknown'
+  providerId   String  @map("provider_id")
+  providerType String  @map("provider_type")
+  processType  String  @map("process_type") // 'initial' | 'recred' (derived from recredentialingDate)
+  practiceId   String  @map("practice_id")
+
+  // Timeline
+  transitionAt    DateTime  @map("transition_at")
+  applicationDate DateTime? @map("application_date")
+  effectiveDate   DateTime? @map("effective_date")
+  daysToOutcome   Int?      @map("days_to_outcome")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([enrollmentId, outcome]) // idempotency: one terminal outcome per enrollment
+  @@index([payerId])
+  @@index([state])
+  @@index([outcome])
+  @@map("enrollment_outcomes")
+}
+
+// CrawlSource — a payer/Medicaid page the watcher monitors. Phase C writes here.
+model CrawlSource {
+  id             String      @id @default(cuid())
+  payerTrackId   String?     @map("payer_track_id")
+  payerTrack     PayerTrack? @relation(fields: [payerTrackId], references: [id], onDelete: SetNull)
+  state          String?
+  url            String
+  pageType       String      @map("page_type") // requirements | forms | timeline | contacts
+  crawlFrequency String      @default("weekly") @map("crawl_frequency")
+  lastCrawledAt  DateTime?   @map("last_crawled_at")
+  enabled        Boolean     @default(true)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  snapshots CrawlSnapshot[]
+
+  @@unique([url])
+  @@map("crawl_sources")
+}
+
+// CrawlSnapshot — one stored fetch of a CrawlSource, kept for diffing.
+model CrawlSnapshot {
+  id            String      @id @default(cuid())
+  crawlSourceId String      @map("crawl_source_id")
+  crawlSource   CrawlSource @relation(fields: [crawlSourceId], references: [id], onDelete: Cascade)
+  capturedAt    DateTime    @default(now()) @map("captured_at")
+  contentHash   String      @map("content_hash")
+  rawRef        String?     @map("raw_ref") // R2 object key for the raw fetch
+  status        String      @default("fetched") // fetched | failed
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([crawlSourceId])
+  @@map("crawl_snapshots")
+}
+
+// PayerRequirementChange — a detected change awaiting verification/promotion.
+// The ONLY curated-side table the crawler role may write to (besides snapshots).
+// Promotion into the curated tables (Phase 3) is gated on verified + source.
+model PayerRequirementChange {
+  id              String      @id @default(cuid())
+  payerTrackId    String?     @map("payer_track_id")
+  payerTrack      PayerTrack? @relation(fields: [payerTrackId], references: [id], onDelete: SetNull)
+  state           String?
+  sourceUrl       String      @map("source_url")
+  capturedAt      DateTime    @map("captured_at")
+  changedSection  String      @map("changed_section")
+  previousValue   String?     @map("previous_value")
+  newValue        String?     @map("new_value")
+  changeSummary   String      @map("change_summary")
+  detectedByRunId String?     @map("detected_by_run_id")
+  verified        Boolean     @default(false)
+  promotedAt      DateTime?   @map("promoted_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@index([payerTrackId])
+  @@index([verified])
+  @@map("payer_requirement_changes")
 }
