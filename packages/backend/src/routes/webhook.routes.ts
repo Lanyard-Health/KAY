@@ -34,6 +34,7 @@ import {
   timestampWithinTolerance,
 } from '../services/webhookAuth.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
+import { recordEnrollmentOutcome } from '../services/enrollment-outcome.service.js';
 import { logAgentEvent } from '../agents/event-logger.js';
 import { emitWorkflowEvent } from '../agents/websocket.js';
 
@@ -217,6 +218,9 @@ router.post(
         data: updatePayload,
         select: { id: true, status: true, providerId: true, payerId: true },
       });
+
+      // Outcome recorder (the moat) — fire-and-forget, idempotent, demo-excluded.
+      void recordEnrollmentOutcome({ enrollmentId, status: dbStatus, transitionAt: new Date() });
 
       // 6. Side effects.
       let triageCreated = false;

@@ -23,7 +23,7 @@ const EnrollmentsList = lazy(() => import('./features/enrollments/EnrollmentsLis
 const EnrollmentDetail = lazy(() => import('./features/enrollments/EnrollmentDetail'));
 const RosterPage = lazy(() => import('./features/roster/RosterPage'));
 const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard'));
-const PayerIntelligencePage = lazy(() => import('./features/payer-intelligence/PayerIntelligencePage'));
+const EnrollmentStrategyPage = lazy(() => import('./features/enrollment-strategy/EnrollmentStrategyPage'));
 const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
 const PracticeSignupPage = lazy(() => import('./features/practice/PracticeSignupPage'));
 const AcceptInvitationPage = lazy(() => import('./features/invitations/AcceptInvitationPage'));
@@ -212,7 +212,8 @@ export default function App() {
           <Route path="expirations" element={<ExpirationDashboard />} />
           <Route path="roster" element={<AdminOnlyRoute><RosterPage /></AdminOnlyRoute>} />
           <Route path="ai-agent" element={<AdminOnlyRoute><AiAgentDashboard /></AdminOnlyRoute>} />
-          <Route path="payer-intelligence" element={<AdminOnlyRoute><PayerIntelligencePage /></AdminOnlyRoute>} />
+          <Route path="enrollment-strategy" element={<AdminOnlyRoute><EnrollmentStrategyPage /></AdminOnlyRoute>} />
+          <Route path="payer-intelligence" element={<Navigate to="/enrollment-strategy" replace />} />
           <Route path="practices" element={<AdminOnlyRoute><PracticesList /></AdminOnlyRoute>} />
           <Route path="practices/:practiceId" element={<AdminOnlyRoute><PracticeDetail /></AdminOnlyRoute>} />
           <Route path="users" element={<AdminOnlyRoute><UsersList /></AdminOnlyRoute>} />

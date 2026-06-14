@@ -1,4 +1,4 @@
-export type BugSource = 'backend-runtime' | 'frontend-crash' | 'ci-failure' | 'security';
+export type BugSource = 'backend-runtime' | 'frontend-crash' | 'ci-failure' | 'security' | 'user-report';
 export type BugSeverity = 'urgent' | 'high' | 'medium' | 'low';
 
 export interface BugReport {
@@ -19,6 +19,18 @@ export interface SanitizedBugReport extends BugReport {
 export interface TriageResult {
   severity: BugSeverity;
   rootCause: string;
+}
+
+// Structured output of the AI "bug writer" for user-submitted (beta) reports:
+// turns a tester's informal description + captured context into an actionable
+// engineering ticket.
+export interface BugWriteup {
+  title: string;
+  stepsToReproduce: string[];
+  expected: string;
+  actual: string;
+  area: string;
+  severity: BugSeverity;
 }
 
 export interface NoiseFilterResult {

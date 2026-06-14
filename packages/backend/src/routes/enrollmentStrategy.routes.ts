@@ -9,7 +9,7 @@ import {
   getPayerLeaderboard,
   analyzePayerWithAI,
   getPayerInsights,
-} from '../services/payerIntelligence.service.js';
+} from '../services/enrollmentStrategy.service.js';
 
 const aiMutationLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -24,7 +24,7 @@ router.use(authenticate);
 router.use(authorize('admin', 'credentialing_staff'));
 
 /**
- * GET /api/v1/payer-intelligence/analytics
+ * GET /api/v1/enrollment-strategy/analytics
  * Query: ?payerId=uuid (optional)
  */
 router.get('/analytics', async (req: Request, res: Response, next: NextFunction) => {
@@ -38,7 +38,7 @@ router.get('/analytics', async (req: Request, res: Response, next: NextFunction)
 });
 
 /**
- * GET /api/v1/payer-intelligence/leaderboard
+ * GET /api/v1/enrollment-strategy/leaderboard
  */
 router.get('/leaderboard', async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -50,7 +50,7 @@ router.get('/leaderboard', async (_req: Request, res: Response, next: NextFuncti
 });
 
 /**
- * POST /api/v1/payer-intelligence/:payerId/analyze
+ * POST /api/v1/enrollment-strategy/:payerId/analyze
  */
 router.post('/:payerId/analyze', aiMutationLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -67,7 +67,7 @@ router.post('/:payerId/analyze', aiMutationLimit, async (req: Request, res: Resp
 });
 
 /**
- * GET /api/v1/payer-intelligence/:payerId/insights
+ * GET /api/v1/enrollment-strategy/:payerId/insights
  */
 router.get('/:payerId/insights', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -83,4 +83,4 @@ router.get('/:payerId/insights', async (req: Request, res: Response, next: NextF
   }
 });
 
-export { router as payerIntelligenceRoutes };
+export { router as enrollmentStrategyRoutes };

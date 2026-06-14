@@ -91,7 +91,7 @@ const adminNavGroups: NavGroup[] = [
     label: 'Platform',
     items: [
       { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
-      { name: 'Payer Intelligence', href: '/payer-intelligence', icon: ChartBarSquareIcon },
+      { name: 'Enrollment Strategy', href: '/enrollment-strategy', icon: ChartBarSquareIcon },
       { name: 'Users', href: '/users', icon: UserGroupIcon },
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Customer Communications', href: '/admin/communications', icon: ChatBubbleLeftRightIcon },
