@@ -31,7 +31,7 @@ function makeEnrollment(overrides: Record<string, any> = {}): any {
     payerTrack: { stateRegion: 'CA' },
     provider: {
       providerType: 'psychiatrist',
-      practice: { id: 'practice-1', isDemo: false, state: 'NY' },
+      practice: { id: 'practice-1', isDemo: false, state: 'NY', deletedAt: null },
     },
     createdBy: { email: 'owner@realpractice.com' },
     ...overrides,
@@ -102,6 +102,14 @@ describe('recordEnrollmentOutcome', () => {
 
   it('EXCLUDES @dev.local creators — writes nothing', async () => {
     prismaMock.enrollment.findUnique.mockResolvedValue(makeEnrollment({ createdBy: { email: 'admin@dev.local' } }));
+    await recordEnrollmentOutcome({ enrollmentId: 'enr-1', status: 'approved' });
+    expect(prismaMock.enrollmentOutcome.upsert).not.toHaveBeenCalled();
+  });
+
+  it('EXCLUDES soft-deleted practices (deletedAt set) — writes nothing', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue(
+      makeEnrollment({ provider: { providerType: 'psychiatrist', practice: { id: 'p', isDemo: false, state: 'NY', deletedAt: new Date('2026-06-01') } } }),
+    );
     await recordEnrollmentOutcome({ enrollmentId: 'enr-1', status: 'approved' });
     expect(prismaMock.enrollmentOutcome.upsert).not.toHaveBeenCalled();
   });
