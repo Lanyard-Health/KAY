@@ -78,9 +78,19 @@ psql "$DATABASE_URL_ADMIN" -c "GRANT CONNECT ON DATABASE <staging_db_name> TO la
   (`is_demo=true`) to `approved` → ZERO outcomes rows.
 - **Backfill:** `SELECT count(*) FROM payer_requirements WHERE verified=true AND captured_at IS NOT NULL;` equals the curated row count; `origin` all `human_curated`.
 
-## 6. Re-enable BOTH triggers (only after staging is green)
-- Render autoDeploy → on for `kay-backend-staging`.
-- `gh workflow enable "Render Deploy Watchdog"`.
+## 6. Re-enable BOTH triggers, verify the no-op, THEN merge (in that order)
+Order matters: re-enable is NOT the same motion as merging #391. Re-enabling
+auto-deploy on `develop` means the moment #391 merges, staging rebuilds and runs
+`prisma migrate deploy` under the plain `DATABASE_URL` against the DB we just
+migrated by hand. It MUST no-op (Prisma finds the migration already applied) — but
+that only holds if the migration is recorded as applied first. So:
+1. Re-enable Render autoDeploy → on for `kay-backend-staging`.
+2. `gh workflow enable "Render Deploy Watchdog"`.
+3. **Verify the no-op precondition:** confirm `20260613120000_payer_brain_outcomes_provenance`
+   is in `_prisma_migrations` with `finished_at` set and `rolled_back_at` NULL, so
+   any develop auto-deploy genuinely no-ops rather than retries the failing
+   `lanyard_app` path.
+4. **Only then merge #391.** Never re-enable-and-merge in one motion.
 
 ## 7. Prod (later, same recipe)
 Re-run step 0 dup-check against prod, then steps 1–6 with the **prod** admin URL
