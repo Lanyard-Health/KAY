@@ -145,12 +145,11 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
   ): Promise<void> {
     const { page } = ctx;
 
+    // The Request ID is captured synchronously via waitForResponse in
+    // fillNetworkCheck (single source of truth). Here we only listen for the
+    // final submit confirmation.
     page.on('response', (res: Response) => {
-      const url = res.url();
-      if (url.includes('/api/provider/update/npcheck')) {
-        void this.captureRequestIdFromResponse(res);
-      }
-      if (url.includes('/api/provider/update/submitrequest')) {
+      if (res.url().includes('/api/provider/update/submitrequest')) {
         void this.captureConfirmationFromResponse(res);
       }
     });
@@ -170,6 +169,13 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
     const data = ctx.input.providerData;
     if (!isAetnaRfpData(data)) {
       throw new Error('AetnaRfpAdapter: providerData is not in AetnaRfpProviderData shape');
+    }
+
+    // Guard the telehealth=Yes path: it reveals a conditional virtual-care field
+    // this adapter never fills, so it would break mid-run AFTER a footprint is
+    // already created. Block it up front until that branch is walked live.
+    if (data.telehealth) {
+      throw new Error('telehealth=Yes path not implemented');
     }
 
     if (data.lineOfBusiness !== 'BEHAVIORAL_HEALTH') {
@@ -310,23 +316,35 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
       .locator('input[type=checkbox][id="None of the above apply"]')
       .check({ force: true });
     await page.locator('#checkboxSelect').check({ force: true });
-    await page
-      .locator('.cdk-overlay-pane button:visible:has-text("Continue")')
-      .first()
-      .click();
-    await page.waitForTimeout(8000);
+    // Clicking the interstitial's Continue fires the npcheck POST that commits
+    // the application and returns the Request ID. Await the response together
+    // with the click; that response is the SINGLE source of truth for the
+    // Request ID (Aetna is slow, so allow 30s).
+    const [npResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          r.url().includes('/api/provider/update/npcheck') &&
+          r.url().includes('sendEmail=YES'),
+        { timeout: 30_000 }
+      ),
+      page
+        .locator('.cdk-overlay-pane button:visible:has-text("Continue")')
+        .first()
+        .click(),
+    ]);
 
-    // Request ID also appears in a dialog — DOM fallback if the response listener
-    // missed it.
-    if (!this.capturedRequestId) {
-      this.capturedRequestId = await this.readNumberFromDom(
-        page,
-        /Request ID[^0-9]*([0-9]{6,})/i
+    // Passing the network check creates a real saved application at Aetna. If we
+    // cannot read the Request ID off this response, that application is orphaned
+    // (we can't resume against it), so fail loudly the moment it is created.
+    const requestId = await this.extractRequestId(npResponse);
+    if (!requestId) {
+      throw new Error(
+        'AetnaRfpAdapter: npcheck succeeded but no Request ID in the response — a saved application may now be orphaned at Aetna (cannot resume without the Request ID)'
       );
     }
-    logger.info('AetnaRfpAdapter: captured Aetna Request ID', {
-      requestId: this.capturedRequestId,
-    });
+    this.capturedRequestId = requestId;
+    logger.info('AetnaRfpAdapter: captured Aetna Request ID', { requestId });
 
     // The Request-ID dialog offers "Continue session" to proceed.
     await page.locator('button:visible:has-text("Continue session")').first().click();
@@ -481,12 +499,13 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
     return match?.[1] ?? null;
   }
 
-  private async captureRequestIdFromResponse(res: Response): Promise<void> {
+  /** Parse the payer Request ID out of an npcheck API response (null if absent). */
+  private async extractRequestId(res: Response): Promise<string | null> {
     try {
       const json = (await res.json()) as { data?: { requestId?: string } };
-      if (json?.data?.requestId) this.capturedRequestId = json.data.requestId;
+      return json?.data?.requestId ?? null;
     } catch {
-      // non-JSON or read failure — DOM fallback covers it.
+      return null;
     }
   }
 
