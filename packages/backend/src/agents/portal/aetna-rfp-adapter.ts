@@ -115,11 +115,17 @@ export interface AetnaRfpProviderData {
   behavioralHealth?: {
     ageGroup: string; // e.g. "Adults (Ages 18-64)"
     practiceFocus: string; // e.g. "Anxiety Disorders"
-    medicareCertified: boolean;
-    medicaidCertified: boolean;
-    eapParticipation: boolean;
-    americanSignLanguage: boolean;
   };
+
+  // Attestation radios. Optional; an omitted value is treated as false == "No",
+  // which is the original hardcoded behavior — so nothing changes until a value
+  // is passed. (medicaid drives Aetna's misspelled "medicad" control.)
+  medicareCertified?: boolean;
+  medicaidCertified?: boolean;
+  hospitalist?: boolean;
+  aslOffered?: boolean;
+  ePrescribing?: boolean;
+  aetnaEapParticipation?: boolean;
 
   telehealth: boolean;
 
@@ -396,14 +402,16 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
     await page.locator('#caqhID').click();
     await page.locator('#caqhID').pressSequentially(d.provider.caqhId, { delay: 50 });
     await page.locator('#caqhID').blur();
-    // Hospitalist? -> No ; Electronic prescribing? -> No
+    // Hospitalist / electronic-prescribing attestations — pick Yes/No by text
+    // within the radio group (default No). Hospitalist is the group containing
+    // #Yes-input; e-prescribing the one containing #electronicPrescribingYes-input.
     await page
       .locator('mat-radio-group:has(#Yes-input)')
-      .getByText('No', { exact: true })
+      .getByText(d.hospitalist ? 'Yes' : 'No', { exact: true })
       .click({ force: true });
     await page
       .locator('mat-radio-group:has(#electronicPrescribingYes-input)')
-      .getByText('No', { exact: true })
+      .getByText(d.ePrescribing ? 'Yes' : 'No', { exact: true })
       .click({ force: true });
     await page.locator('button:visible:has-text("Continue")').first().click();
     await page.waitForTimeout(3500);
@@ -452,10 +460,14 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
       throw new Error('AetnaRfpAdapter: behavioralHealth data required for BH line of business');
     }
     await this.pickFromMultiSelect(page, 'ageGroupsDropdown', bh.ageGroup);
-    await this.checkRadioInput(page, bh.medicareCertified ? 'medicareCertifiedYes-input' : 'medicareCertifiedNo-input');
-    await this.checkRadioInput(page, bh.medicaidCertified ? 'medicadCertifiedYes-input' : 'medicadCertifiedNo-input'); // Aetna's spelling
-    await this.checkRadioInput(page, bh.eapParticipation ? 'aetnaEAPProgramYes-input' : 'aetnaEAPProgramNo-input');
-    await this.checkRadioInput(page, bh.americanSignLanguage ? 'americanSignLangYes-input' : 'americanSignLangNo-input');
+    // Attestation radios — driven by the top-level inputs, default No. Selected
+    // by visible Yes/No text within each radio group (keyed off the known
+    // formcontrolnames) rather than guessed input ids. (Aetna misspells the
+    // medicaid control's formcontrolname as "medicad".)
+    await this.pickYesNo(page, 'medicareCertified', d.medicareCertified);
+    await this.pickYesNo(page, 'medicadCertified', d.medicaidCertified);
+    await this.pickYesNo(page, 'aetnaEAPProgram', d.aetnaEapParticipation);
+    await this.pickYesNo(page, 'americanSignLang', d.aslOffered);
     await this.pickFromMultiSelect(page, 'practiceFocusDropdown', bh.practiceFocus);
     await page.locator('button:visible:has-text("Continue")').first().click();
     await page.waitForTimeout(4000);
@@ -473,6 +485,22 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
   /** Reliable mat-radio toggle: click the underlying <input> by id with force. */
   private async checkRadioInput(page: Page, inputId: string): Promise<void> {
     await page.locator(`input[id="${inputId}"]`).click({ force: true });
+    await page.waitForTimeout(150);
+  }
+
+  /**
+   * Pick Yes/No in a mat-radio-group by its formcontrolname, selecting the
+   * option by visible text (no guessed input ids). `value` true -> "Yes".
+   */
+  private async pickYesNo(
+    page: Page,
+    formControlName: string,
+    value: boolean | undefined
+  ): Promise<void> {
+    await page
+      .locator(`mat-radio-group[formcontrolname="${formControlName}"]`)
+      .getByText(value ? 'Yes' : 'No', { exact: true })
+      .click({ force: true });
     await page.waitForTimeout(150);
   }
 

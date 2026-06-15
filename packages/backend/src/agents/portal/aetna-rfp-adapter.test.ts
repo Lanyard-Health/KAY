@@ -53,10 +53,6 @@ const validData: AetnaRfpProviderData = {
   behavioralHealth: {
     ageGroup: 'Adults (Ages 18-64)',
     practiceFocus: 'Anxiety Disorders',
-    medicareCertified: false,
-    medicaidCertified: false,
-    eapParticipation: false,
-    americanSignLanguage: false,
   },
   telehealth: false,
 };
