@@ -3914,19 +3914,22 @@ model EmailLog {
 // =====================
 
 // AdapterType — which adapter handles a given payer's portal/API submission.
-// Phase 1 registers CAQH + MANUAL only. PLAYWRIGHT_GENERIC, AETNA_BH, AVAILITY
-// are placeholders for next-quarter payer adapters. FAX is schema-ready for Phase 4.
+// Phase 1 registers CAQH + MANUAL only. AETNA_RFP is the first real Playwright
+// adapter (covers the public Aetna "Request for Participation" wizard across all
+// lines of business — Medical/Behavioral Health/Dental/Facility/Pharmacy — branch
+// chosen by provider type). PLAYWRIGHT_GENERIC + AVAILITY remain placeholders.
+// FAX is schema-ready for Phase 4.
 enum AdapterType {
   CAQH
   PLAYWRIGHT_GENERIC
-  AETNA_BH
+  AETNA_RFP
   AVAILITY
   MANUAL
   FAX
 }
 
 // SubmissionMethod — coarse-grained channel category. Independent of AdapterType
-// because one method can have multiple adapter implementations (e.g., AETNA_BH and
+// because one method can have multiple adapter implementations (e.g., AETNA_RFP and
 // AVAILITY both use WEB_PORTAL).
 enum SubmissionMethod {
   WEB_PORTAL
