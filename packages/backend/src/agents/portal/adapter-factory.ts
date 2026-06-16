@@ -10,9 +10,9 @@ import {
  * adapter directly. Callers must go through `getSubmissionAdapter(type)`.
  *
  * Phase 3: real CAQH (REST/XML via CaqhService) + MANUAL (creates
- * PendingApproval) are registered. Real Playwright-based adapters
- * (PLAYWRIGHT_GENERIC, AETNA_BH, AVAILITY) land in later phases. FAX is
- * registered in Phase 4 (vendor DPA must clear first).
+ * PendingApproval) are registered. AETNA_RFP (Playwright, public Aetna RFP
+ * wizard) is the first real portal adapter. PLAYWRIGHT_GENERIC + AVAILITY land
+ * in later phases. FAX is registered in Phase 4 (vendor DPA must clear first).
  *
  * Tests can override registrations via `registerSubmissionAdapter()` and
  * reset via `clearSubmissionAdapters()`.
@@ -46,6 +46,7 @@ export function clearSubmissionAdapters(): void {
 
 import { CaqhSubmissionAdapter } from './caqh-submission-adapter.js';
 import { ManualSubmissionAdapter } from './manual-submission-adapter.js';
+import { AetnaRfpAdapter } from './aetna-rfp-adapter.js';
 
 /**
  * Registers the production adapter set. Idempotent — safe to call multiple
@@ -55,4 +56,5 @@ import { ManualSubmissionAdapter } from './manual-submission-adapter.js';
 export function registerSubmissionAdapters(): void {
   registerSubmissionAdapter('CAQH', new CaqhSubmissionAdapter());
   registerSubmissionAdapter('MANUAL', new ManualSubmissionAdapter());
+  registerSubmissionAdapter('AETNA_RFP', new AetnaRfpAdapter());
 }
