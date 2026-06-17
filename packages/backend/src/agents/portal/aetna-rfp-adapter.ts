@@ -112,9 +112,11 @@ export interface AetnaRfpProviderData {
   };
 
   // Behavioral-health step (Step 6) — required when lineOfBusiness is BEHAVIORAL_HEALTH.
+  // Both are multiselects on Aetna's form, so each carries one-or-more values;
+  // the adapter selects every element.
   behavioralHealth?: {
-    ageGroup: string; // e.g. "Adults (Ages 18-64)"
-    practiceFocus: string; // e.g. "Anxiety Disorders"
+    ageGroup: string[]; // e.g. ["Adults (Ages 18-64)", "Geriatric (Ages 65+)"]
+    practiceFocus: string[]; // e.g. ["Anxiety Disorders", "Depression"]
   };
 
   // Attestation radios. Optional; an omitted value is treated as false == "No",
@@ -459,7 +461,18 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
     if (!bh) {
       throw new Error('AetnaRfpAdapter: behavioralHealth data required for BH line of business');
     }
-    await this.pickFromMultiSelect(page, 'ageGroupsDropdown', bh.ageGroup);
+    // Fail before touching the form: a BH packet with no age group or no focus
+    // would otherwise select nothing in the multiselect and submit incomplete.
+    if (bh.ageGroup.length === 0 || bh.practiceFocus.length === 0) {
+      throw new Error(
+        'AetnaRfpAdapter: behavioralHealth.ageGroup and practiceFocus must each have at least one value'
+      );
+    }
+    // Age groups — multiselect; select EVERY value (one open/pick/close per
+    // element, the interaction verified live on 2026-06-15).
+    for (const ageGroup of bh.ageGroup) {
+      await this.pickFromMultiSelect(page, 'ageGroupsDropdown', ageGroup);
+    }
     // Attestation radios — driven by the top-level inputs, default No. Selected
     // by visible Yes/No text within each radio group (keyed off the known
     // formcontrolnames) rather than guessed input ids. (Aetna misspells the
@@ -468,7 +481,10 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
     await this.pickYesNo(page, 'medicadCertified', d.medicaidCertified);
     await this.pickYesNo(page, 'aetnaEAPProgram', d.aetnaEapParticipation);
     await this.pickYesNo(page, 'americanSignLang', d.aslOffered);
-    await this.pickFromMultiSelect(page, 'practiceFocusDropdown', bh.practiceFocus);
+    // Practice focus — multiselect; select EVERY value.
+    for (const focus of bh.practiceFocus) {
+      await this.pickFromMultiSelect(page, 'practiceFocusDropdown', focus);
+    }
     await page.locator('button:visible:has-text("Continue")').first().click();
     await page.waitForTimeout(4000);
   }

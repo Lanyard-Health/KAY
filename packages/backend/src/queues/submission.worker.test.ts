@@ -30,6 +30,11 @@ vi.mock('../agents/portal/adapter-factory.js', () => ({
   getSubmissionAdapter: (...args: unknown[]) => getSubmissionAdapterMock(...args),
 }));
 
+const buildAetnaRfpProviderDataMock = vi.fn();
+vi.mock('../agents/portal/aetna-rfp-resolver.js', () => ({
+  buildAetnaRfpProviderData: (...args: unknown[]) => buildAetnaRfpProviderDataMock(...args),
+}));
+
 import { processSubmissionJob } from './submission.worker.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import type { Job } from 'bullmq';
@@ -74,6 +79,7 @@ describe('processSubmissionJob', () => {
     resolveCredentialMock.mockReset();
     logSubmissionEventMock.mockReset();
     getSubmissionAdapterMock.mockReset();
+    buildAetnaRfpProviderDataMock.mockReset();
   });
 
   it('success path: PENDING → SUBMITTING → SUBMITTED with CONFIRMED audit event', async () => {
@@ -127,6 +133,106 @@ describe('processSubmissionJob', () => {
 
     // Credential was wiped after use
     expect(wipe).toHaveBeenCalled();
+  });
+
+  it('AETNA_RFP: builds providerData via the resolver and passes it to the adapter', async () => {
+    prismaMock.enrollmentRun.findUnique.mockResolvedValue({
+      id: 'run-1',
+      status: 'PENDING',
+      enrollmentId: 'enr-1',
+      enrollment: { providerId: 'provider-1', provider: { practiceId: 'practice-1' } },
+    } as never);
+    prismaMock.agentWorkflow.findFirst.mockResolvedValue({ id: 'wf-1' } as never);
+    prismaMock.payer.findUnique.mockResolvedValue({
+      id: 'payer-1',
+      name: 'Aetna',
+      submissionConfig: { adapterType: 'AETNA_RFP' },
+    } as never);
+    prismaMock.enrollmentRun.update.mockResolvedValue({} as never);
+    resolveCredentialMock.mockResolvedValue(makeWipeableCred());
+
+    const fakePacket = { payer: 'Aetna', lineOfBusiness: 'BEHAVIORAL_HEALTH' };
+    buildAetnaRfpProviderDataMock.mockResolvedValue(fakePacket);
+
+    const adapterSubmit = vi.fn().mockResolvedValue({ success: true, confirmationNumber: 'C-1' });
+    getSubmissionAdapterMock.mockReturnValue({ adapterType: 'AETNA_RFP', submit: adapterSubmit });
+
+    const result = await processSubmissionJob(makeJob());
+
+    expect(result.status).toBe('completed');
+    // Resolver called once with the job's IDs (+ prisma), and its result handed
+    // to the adapter as providerData.
+    expect(buildAetnaRfpProviderDataMock).toHaveBeenCalledTimes(1);
+    expect(buildAetnaRfpProviderDataMock).toHaveBeenCalledWith(
+      { providerId: 'provider-1', practiceId: 'practice-1', payerId: 'payer-1' },
+      expect.anything()
+    );
+    expect(adapterSubmit).toHaveBeenCalledTimes(1);
+    expect((adapterSubmit.mock.calls[0][0] as { providerData: unknown }).providerData).toBe(
+      fakePacket
+    );
+  });
+
+  it('non-AETNA_RFP: resolver is NOT called and providerData stays undefined', async () => {
+    prismaMock.enrollmentRun.findUnique.mockResolvedValue({
+      id: 'run-1',
+      status: 'PENDING',
+      enrollmentId: 'enr-1',
+      enrollment: { providerId: 'provider-1', provider: { practiceId: 'practice-1' } },
+    } as never);
+    prismaMock.agentWorkflow.findFirst.mockResolvedValue({ id: 'wf-1' } as never);
+    prismaMock.payer.findUnique.mockResolvedValue({
+      id: 'payer-1',
+      name: 'Test',
+      submissionConfig: { adapterType: 'CAQH' },
+    } as never);
+    prismaMock.enrollmentRun.update.mockResolvedValue({} as never);
+    resolveCredentialMock.mockResolvedValue(makeWipeableCred());
+
+    const adapterSubmit = vi.fn().mockResolvedValue({ success: true, confirmationNumber: 'C-2' });
+    getSubmissionAdapterMock.mockReturnValue({ adapterType: 'CAQH', submit: adapterSubmit });
+
+    await processSubmissionJob(makeJob());
+
+    expect(buildAetnaRfpProviderDataMock).not.toHaveBeenCalled();
+    expect((adapterSubmit.mock.calls[0][0] as { providerData: unknown }).providerData).toBeUndefined();
+  });
+
+  it('AETNA_RFP: a resolver throw fails the run loudly (not swallowed / not submitted)', async () => {
+    prismaMock.enrollmentRun.findUnique.mockResolvedValue({
+      id: 'run-1',
+      status: 'PENDING',
+      enrollmentId: 'enr-1',
+      enrollment: { providerId: 'provider-1', provider: { practiceId: 'practice-1' } },
+    } as never);
+    prismaMock.agentWorkflow.findFirst.mockResolvedValue({ id: 'wf-1' } as never);
+    prismaMock.payer.findUnique.mockResolvedValue({
+      id: 'payer-1',
+      name: 'Aetna',
+      submissionConfig: { adapterType: 'AETNA_RFP' },
+    } as never);
+    prismaMock.enrollmentRun.update.mockResolvedValue({} as never);
+    resolveCredentialMock.mockResolvedValue(makeWipeableCred());
+
+    buildAetnaRfpProviderDataMock.mockRejectedValue(
+      new Error("unmapped AETNA_DEGREE_MAP value 'lmft' — add to AETNA_DEGREE_MAP in aetna-rfp-resolver.ts")
+    );
+
+    const adapterSubmit = vi.fn();
+    getSubmissionAdapterMock.mockReturnValue({ adapterType: 'AETNA_RFP', submit: adapterSubmit });
+
+    // Terminal attempt (3 of 3) so failRun resolves to FAILED rather than
+    // re-throwing for a BullMQ retry — lets us assert the loud failure directly.
+    const result = await processSubmissionJob(makeJob({}, 2, 3));
+
+    // Run failed; the adapter NEVER ran (no blank application submitted).
+    expect(result.status).toBe('failed');
+    expect(adapterSubmit).not.toHaveBeenCalled();
+    // The run was transitioned to FAILED carrying the resolver's error message.
+    const failUpdate = prismaMock.enrollmentRun.update.mock.calls
+      .map((c) => c[0].data as { status?: string; errorDetails?: { errorMessage?: string } })
+      .find((d) => d.status === 'FAILED');
+    expect(failUpdate?.errorDetails?.errorMessage).toContain('unmapped AETNA_DEGREE_MAP');
   });
 
   it('idempotency: status already SUBMITTED → SUBMISSION_SKIPPED_IDEMPOTENT, no transitions', async () => {
