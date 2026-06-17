@@ -1,0 +1,116 @@
+name: Develop Drift Guard
+
+# Detects when `master` moves ahead of `develop` — the inversion that caused
+# PR #394's drift (a feature was merged straight to master, bypassing develop,
+# so staging silently fell behind prod).
+#
+# This runs AFTER a push to master, so it NEVER blocks the push. Hotfix-to-prod
+# stays fully possible — the guard only reacts, it does not gate.
+#
+# When drift is detected it opens (or, if one already exists, comments on) a
+# sync PR from master -> develop so the reconciliation can't be forgotten.
+
+on:
+  push:
+    branches:
+      - master
+
+# Serialize runs so two rapid master pushes can't race to open duplicate PRs.
+concurrency:
+  group: develop-drift-guard
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  # Applying a label goes through the issues API; without this the label
+  # silently won't attach to the PR.
+  issues: write
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch master and develop refs
+        run: |
+          git fetch origin \
+            "+refs/heads/master:refs/remotes/origin/master" \
+            "+refs/heads/develop:refs/remotes/origin/develop"
+
+      - name: Measure how far master is ahead of develop
+        id: drift
+        run: |
+          count=$(git rev-list --count origin/develop..origin/master)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "master is ahead of develop by $count commit(s)"
+
+      - name: No drift — nothing to do
+        if: steps.drift.outputs.count == '0'
+        run: echo "develop is up to date with master. Exiting cleanly."
+
+      - name: Open or update the sync PR
+        if: steps.drift.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFT_COUNT: ${{ steps.drift.outputs.count }}
+        run: |
+          set -euo pipefail
+
+          # Commits master has that develop lacks (the drift we're reconciling).
+          git log --oneline origin/develop..origin/master > /tmp/commits.txt
+
+          # Build the PR body (body file avoids quoting/heredoc pitfalls).
+          # The CI warning leads, unconditionally — CI never auto-runs on a
+          # GITHUB_TOKEN-opened PR, so the merger must re-run it by hand.
+          {
+            echo "> [!WARNING]"
+            echo "> CI did NOT auto-run on this PR — GitHub suppresses workflow runs on PRs opened by"
+            echo "> GITHUB_TOKEN. Re-run Backend Tests + Schema Drift and confirm green, then mark"
+            echo "> ready before merging. Do not merge on trust."
+            echo
+            echo "Automated drift detection: \`master\` is ahead of \`develop\` by ${DRIFT_COUNT} commit(s)."
+            echo
+            echo "This usually means something was merged or pushed straight to \`master\` (e.g. a hotfix, or a PR that bypassed \`develop\`). Merging this keeps \`develop\` / staging from silently falling behind production."
+            echo
+            echo "Commits on master not yet on develop:"
+            echo
+            echo '```'
+            cat /tmp/commits.txt
+            echo '```'
+            echo
+            echo "_Opened automatically by \`.github/workflows/develop-drift-guard.yml\`._"
+          } > /tmp/pr-body.md
+
+          # Avoid duplicates: is there already an open master -> develop PR?
+          existing=$(gh pr list --base develop --head master --state open --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            echo "Existing open sync PR #$existing — commenting instead of opening a duplicate."
+            {
+              echo "Drift re-detected: \`master\` is now ahead of \`develop\` by ${DRIFT_COUNT} commit(s). This PR still needs to be merged to reconcile."
+              echo
+              echo '```'
+              cat /tmp/commits.txt
+              echo '```'
+            } > /tmp/pr-comment.md
+            gh pr comment "$existing" --body-file /tmp/pr-comment.md
+          else
+            echo "No open sync PR — opening one."
+            # Idempotent: create the label if missing, ignore "already exists".
+            gh label create needs-ci \
+              --color B60205 \
+              --description "Auto-opened sync PR; verify CI before merge" \
+              2>/dev/null || true
+            gh pr create \
+              --base develop \
+              --head master \
+              --draft \
+              --label needs-ci \
+              --title "chore: sync develop with master (auto-detected drift)" \
+              --body-file /tmp/pr-body.md
+          fi
