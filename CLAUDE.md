@@ -300,9 +300,10 @@ npm run lint
 
 ### Git Workflow
 
-- **NEVER push directly to `master`** — branch protection requires PRs + Security Gate CI
+- **NEVER push directly to `master`** — always branch → push → PR → merge via the PR button.
+- **Server-side branch protection is ENABLED** on `master` (GitHub Pro, set 2026-06-17): requires a PR before merge, requires the **Security Gate** CI check to pass, applies to admins (`enforce_admins`), and blocks force-pushes/deletions. Required approvals = 0, so a solo founder can self-merge. Because it enforces on admins, even the autofix agent (which runs with admin creds) cannot push to master. A **local pre-push hook** at `.git/hooks/pre-push` is a redundant second layer. If a PR ever won't merge because Security Gate didn't run, the protection config needs adjusting (`gh api ... /branches/master/protection`).
 - When user says "push it": create branch → push → `gh pr create`
-- Always warn before any push to a protected branch
+- Always warn before any push to `master`
 
 ### Debugging Playbook
 
