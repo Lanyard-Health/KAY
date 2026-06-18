@@ -68,3 +68,15 @@ packages/backend/fixtures/caqh/*
 !packages/backend/fixtures/caqh/spec-samples
 .claude/
 .libretto/
+
+# Founder-ops agent runtime outputs (regenerated on every run; not product code)
+.qa-reports/
+.triage-reports/
+.support-reports/
+.content-drafts/
+.playwright-mcp/
+.autofix-reports/
+
+# Local personal tooling + planning scratch (kept on-machine, not in repo)
+ask-all.sh
+docs/plans/
