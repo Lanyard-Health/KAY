@@ -9,8 +9,6 @@ vi.mock('../../utils/crypto.js', () => ({
 
 import {
   buildAetnaRfpProviderData,
-  AETNA_DEGREE_MAP,
-  AETNA_SPECIALTY_MAP,
   AETNA_AGE_GROUP_MAP,
   AETNA_PRACTICE_FOCUS_MAP,
 } from './aetna-rfp-resolver.js';
@@ -41,9 +39,10 @@ function fakeRecords() {
     npi: '1234567890',
     dateOfBirth: new Date('1985-01-01T00:00:00Z'),
     caqhProviderId: '10000000',
-    providerType: 'lmft',
+    providerType: 'psychiatrist',
     entityType: 'individual',
-    specialties: ['Marriage and Family Therapy'],
+    taxonomy: '2084P0800X', // NUCC Psychiatry -> Aetna "Psychiatry"
+    educations: [{ degree: 'md' }], // -> Aetna degree "MD"
     languages: ['English'],
     ageGroup: ['adults', 'geriatric'],
     practiceFocus: ['anxiety', 'depression'],
@@ -112,19 +111,16 @@ function clearMap(m: Record<string, string>) {
 }
 
 describe('buildAetnaRfpProviderData', () => {
-  // Maps are module-level; populate the single entries each test needs and wipe
-  // them afterward so tests don't leak label mappings into one another.
+  // Degree/specialty come from populated module constants (AETNA_DEGREE_MAP +
+  // AETNA_SPECIALTY_CROSSWALK) and need no per-test setup. The ageGroup/
+  // practiceFocus maps are still empty-by-default, so populate + wipe just those.
   beforeEach(() => {
-    AETNA_DEGREE_MAP['lmft'] = 'MFT';
-    AETNA_SPECIALTY_MAP['Marriage and Family Therapy'] = 'Marriage and Family Therapist';
     AETNA_AGE_GROUP_MAP['adults'] = 'Adults (Ages 18-64)';
     AETNA_AGE_GROUP_MAP['geriatric'] = 'Geriatric (Ages 65+)';
     AETNA_PRACTICE_FOCUS_MAP['anxiety'] = 'Anxiety Disorders';
     AETNA_PRACTICE_FOCUS_MAP['depression'] = 'Depression';
   });
   afterEach(() => {
-    clearMap(AETNA_DEGREE_MAP);
-    clearMap(AETNA_SPECIALTY_MAP);
     clearMap(AETNA_AGE_GROUP_MAP);
     clearMap(AETNA_PRACTICE_FOCUS_MAP);
   });
@@ -149,9 +145,9 @@ describe('buildAetnaRfpProviderData', () => {
     expect(packet.provider.taxIdName).toBe('Gray Therapy LLC');
     expect(packet.provider.caqhId).toBe('10000000');
 
-    // label-mapped fields
-    expect(packet.provider.degree).toBe('MFT');
-    expect(packet.provider.primarySpecialty).toBe('Marriage and Family Therapist');
+    // degree from Education, specialty from NPI taxonomy crosswalk
+    expect(packet.provider.degree).toBe('MD');
+    expect(packet.provider.primarySpecialty).toBe('Psychiatry');
     // ALL mapped values carried through, not just the first.
     expect(packet.behavioralHealth?.ageGroup).toEqual([
       'Adults (Ages 18-64)',
@@ -188,10 +184,36 @@ describe('buildAetnaRfpProviderData', () => {
     );
   });
 
-  it('throws naming the offending map + value on an unmapped label', async () => {
-    clearMap(AETNA_DEGREE_MAP); // remove the 'lmft' -> 'MFT' entry only
-    await expect(buildAetnaRfpProviderData(IDS, fakePrisma(fakeRecords()))).rejects.toThrow(
-      "unmapped AETNA_DEGREE_MAP value 'lmft' — add to AETNA_DEGREE_MAP in aetna-rfp-resolver.ts"
+  it('throws on an unmapped education degree', async () => {
+    const records = fakeRecords();
+    records.provider.educations = [{ degree: 'ba' }]; // 'ba' not in AETNA_DEGREE_MAP
+    await expect(buildAetnaRfpProviderData(IDS, fakePrisma(records))).rejects.toThrow(
+      "unmapped AETNA_DEGREE_MAP value 'ba'"
+    );
+  });
+
+  it('falls back to providerType for degree when no education is on file', async () => {
+    const records = fakeRecords();
+    records.provider.educations = [];
+    const packet = await buildAetnaRfpProviderData(IDS, fakePrisma(records));
+    expect(packet.provider.degree).toBe('MD'); // psychiatrist -> MD fallback
+  });
+
+  it('fails closed on a taxonomy with no specialty crosswalk (non-BH code)', async () => {
+    const records = fakeRecords();
+    records.provider.taxonomy = '207RC0000X'; // cardiology — no BH crosswalk
+    await expect(buildAetnaRfpProviderData(IDS, fakePrisma(records))).rejects.toThrow(
+      /no specialty crosswalk for taxonomy '207RC0000X'/
+    );
+  });
+
+  it('fails closed on a degree/specialty pair Aetna would not allow', async () => {
+    const records = fakeRecords();
+    // MD (from md education) + Clinical Social Worker (from 1041 taxonomy) is not
+    // a combination Aetna's form offers.
+    records.provider.taxonomy = '1041C0700X';
+    await expect(buildAetnaRfpProviderData(IDS, fakePrisma(records))).rejects.toThrow(
+      /is not a valid Aetna combination/
     );
   });
 
