@@ -71,12 +71,14 @@ async function main() {
     create: {
       payerId: payer.id,
       adapterType: 'AETNA_RFP',
+      submissionMethod: 'WEB_PORTAL',
       config,
       requiredFields: REQUIRED_FIELDS,
       isActive: true,
     },
     update: {
       adapterType: 'AETNA_RFP',
+      submissionMethod: 'WEB_PORTAL',
       config,
       requiredFields: REQUIRED_FIELDS,
       isActive: true,
