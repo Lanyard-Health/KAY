@@ -38,9 +38,16 @@ import type {
 // Leaving these empty means every provider hard-fails on degree/specialty until
 // we fill them in; that is intended. Do NOT add speculative entries.
 
-/** ProviderProfile.providerType -> Aetna "#degreeType" <select> label. */
+/** ProviderProfile.providerType -> Aetna "#degreeType" <select> label.
+ * Labels verified against a live wizard walk 2026-06-18 (see
+ * docs/plans/aetna-rfp-dropdown-options.md). Only `psychiatrist` is mapped
+ * because it is the only providerType present in our data; the other BH types
+ * stay unmapped on purpose (fail-closed) until a provider of that type appears. */
 export const AETNA_DEGREE_MAP: Record<string, string> = {
-  // e.g. lmft: 'MFT',
+  // ponytail: psychiatrist -> MD covers the common case; a DO psychiatrist would
+  // need provider-level degree data the providerType enum can't express. Add a
+  // per-provider degree source before onboarding DOs.
+  psychiatrist: 'MD',
 };
 
 /** ProviderProfile.specialties[0] -> Aetna "#specialty" <select> label. */
