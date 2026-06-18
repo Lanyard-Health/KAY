@@ -5,6 +5,7 @@ import type {
   PracticePayer,
   PayerSubmissionConfig,
   License,
+  Education,
   ProviderType,
 } from '@prisma/client';
 import { decryptSafe } from '../../utils/crypto.js';
@@ -25,34 +26,83 @@ import type {
  *     here throws BEFORE we return a packet — i.e. before the worker ever hands
  *     it to the adapter, long before any Aetna footprint. A half-built packet
  *     must never reach the browser.
- *  2. NO GUESSED LABELS. The four AETNA_*_MAP tables below translate our
- *     internal values into the exact <select>/multiselect option strings Aetna
- *     renders. They start EMPTY on purpose — each entry must come from a live
- *     walk of the wizard, not from a guess. Until populated, mapOrThrow() hard-
- *     fails and names exactly which value to add where.
+ *  2. NO GUESSED LABELS. The maps/crosswalks below translate our internal
+ *     values into the exact <select>/multiselect option strings Aetna renders.
+ *     Every entry comes from a live walk of the wizard (2026-06-18), never a
+ *     guess; an unmapped value hard-fails and names exactly what to add where.
  */
 
-// ─── Aetna label maps (EMPTY ON PURPOSE — populate from a live wizard walk) ───
+// ─── Aetna label maps & crosswalks ───────────────────────────────────────────
 //
-// Keyed by our internal source value -> the literal Aetna option label.
-// Leaving these empty means every provider hard-fails on degree/specialty until
-// we fill them in; that is intended. Do NOT add speculative entries.
+// Translate our stored values into the exact Aetna option strings, all verified
+// against a live wizard walk 2026-06-18 (see docs/plans/aetna-rfp-dropdown-
+// options.md). Per rule #2, entries come from that walk, never a guess; anything
+// unmapped fails closed.
 
-/** ProviderProfile.providerType -> Aetna "#degreeType" <select> label.
- * Labels verified against a live wizard walk 2026-06-18 (see
- * docs/plans/aetna-rfp-dropdown-options.md). Only `psychiatrist` is mapped
- * because it is the only providerType present in our data; the other BH types
- * stay unmapped on purpose (fail-closed) until a provider of that type appears. */
+/** Academic degree (ProviderProfile.educations[].degree, a DegreeType) -> Aetna
+ * "#degreeType" label. `ba`/`other` have no clean Aetna degree and fall through
+ * to fail-closed. */
 export const AETNA_DEGREE_MAP: Record<string, string> = {
-  // ponytail: psychiatrist -> MD covers the common case; a DO psychiatrist would
-  // need provider-level degree data the providerType enum can't express. Add a
-  // per-provider degree source before onboarding DOs.
+  md: 'MD',
+  do: 'DO',
+  phd: 'PhD',
+  psyd: 'PsyD',
+  msw: 'MSW',
+  ma: 'MA',
+  ms: 'MS',
+  med: 'MED',
+  dnp: 'DNP',
+  msn: 'MSN',
+  bs: 'BS',
+};
+
+/** Fallback when a provider has no Education on file: ProviderType -> Aetna
+ * "#degreeType" label. Coarser than the academic degree (a psychiatrist could be
+ * a DO), so used only when educations is empty. */
+export const PROVIDER_TYPE_DEGREE_FALLBACK: Record<string, string> = {
   psychiatrist: 'MD',
 };
 
-/** ProviderProfile.specialties[0] -> Aetna "#specialty" <select> label. */
-export const AETNA_SPECIALTY_MAP: Record<string, string> = {
-  // e.g. 'Marriage and Family Therapy': 'Marriage and Family Therapist',
+/** NUCC taxonomy code -> Aetna "#specialty" label, longest-prefix-match (mirrors
+ * resolveCaqhTypeFromTaxonomy in caqh.service.ts). Covers the behavioral-health
+ * families we can map with confidence; a code matching no prefix fails closed —
+ * correct, since a non-BH taxonomy has no Aetna BH specialty. Longer (subtype)
+ * prefixes win over shorter (family) prefixes. */
+export const AETNA_SPECIALTY_CROSSWALK: ReadonlyArray<{ prefix: string; label: string }> = [
+  { prefix: '2084P0802X', label: 'Addiction Psychiatry' },
+  { prefix: '2084P0804X', label: 'Child and Adolescent Psychiatry' },
+  { prefix: '2084P0805X', label: 'Psychiatry Geriatric' },
+  { prefix: '2084F0202X', label: 'Forensic Psychiatry' },
+  { prefix: '2084P', label: 'Psychiatry' },
+  { prefix: '103T', label: 'Clinical Psychology' },
+  { prefix: '1041', label: 'Clinical Social Worker' },
+  { prefix: '101YA', label: 'Drug and Alcohol Counselor' },
+  { prefix: '101YP1600X', label: 'Pastoral Counselor' },
+  { prefix: '101Y', label: 'Licensed Professional Counselor' },
+  { prefix: '106H', label: 'Marriage and Family Therapist' },
+  { prefix: '103K', label: 'Applied Behavioral Analyst' },
+  { prefix: '102L', label: 'Psychoanalyst' },
+  { prefix: '363LP0808X', label: 'Psychiatric Nurse' },
+  { prefix: '364SP0808X', label: 'Psychiatric Nurse' },
+  { prefix: '363A', label: 'Physician Assistant' },
+];
+
+/** Valid (Aetna degree -> allowed Aetna specialties) from the live walk's degree
+ * filter. The form only offers certain specialties per degree; an out-of-set
+ * pair means the provider's degree and taxonomy disagree -> fail closed. Only
+ * the degrees AETNA_DEGREE_MAP can produce are listed. */
+export const AETNA_VALID_PAIRS: Record<string, ReadonlySet<string>> = {
+  MD: new Set(['Addiction Psychiatry', 'Art Therapist', 'Child and Adolescent Psychiatry', 'Child Psychiatry', 'Forensic Psychiatry', 'Psychiatry', 'Psychiatry Geriatric']),
+  DO: new Set(['Addiction Psychiatry', 'Child and Adolescent Psychiatry', 'Child Psychiatry', 'Forensic Psychiatry', 'Marriage and Family Therapist', 'Pastoral Counselor', 'Psychiatry', 'Psychiatry Geriatric']),
+  PhD: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Psychology', 'Clinical Social Worker', 'Drug and Alcohol Counselor', 'Licensed Professional Counselor', 'Marriage and Family Therapist', 'Pastoral Counselor', 'Psychiatric Nurse', 'Physician Assistant']),
+  PsyD: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Psychology', 'Clinical Social Worker', 'Licensed Professional Counselor', 'Marriage and Family Therapist', 'Pastoral Counselor', 'Psychoanalyst']),
+  MSW: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Social Worker', 'Drug and Alcohol Counselor', 'Licensed Professional Counselor', 'Marriage and Family Therapist']),
+  MA: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Psychology', 'Clinical Social Worker', 'Drug and Alcohol Counselor', 'Licensed Professional Counselor', 'Marriage and Family Therapist', 'Pastoral Counselor', 'Psychiatric Nurse', 'Psychological Examiner', 'Nurse Practitioner']),
+  MS: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Psychology', 'Clinical Social Worker', 'Drug and Alcohol Counselor', 'Licensed Professional Counselor', 'Marriage and Family Therapist', 'Pastoral Counselor', 'Psychiatric Nurse', 'Psychological Examiner', 'Nurse Practitioner', 'Physician Assistant']),
+  MED: new Set(['Applied Behavioral Analyst', 'Art Therapist', 'Clinical Psychology', 'Clinical Social Worker', 'Drug and Alcohol Counselor', 'Licensed Professional Counselor', 'Marriage and Family Therapist', 'Psychological Examiner']),
+  MSN: new Set(['Psychiatric Nurse', 'Nurse Practitioner']),
+  DNP: new Set(['Drug and Alcohol Counselor', 'Psychiatric Nurse', 'Nurse Practitioner']),
+  BS: new Set(['Physician Assistant']),
 };
 
 /** ProviderProfile.ageGroup[] element -> Aetna "ageGroupsDropdown" option. */
@@ -83,6 +133,59 @@ export function mapOrThrow(
     );
   }
   return mapped;
+}
+
+// Rank for picking the most relevant Education when a provider has several —
+// terminal clinical degree wins over a prior bachelors.
+const DEGREE_RANK: Record<string, number> = {
+  md: 5, do: 5, phd: 5, psyd: 5, dnp: 5,
+  msn: 4,
+  msw: 3, ma: 3, ms: 3, med: 3,
+  bs: 1, ba: 1, other: 0,
+};
+
+/** Aetna "#degreeType" label from the provider's highest-ranked Education,
+ * falling back to a coarse ProviderType map when no education is on file. */
+export function resolveDegree(
+  educations: ReadonlyArray<{ degree: string }> | undefined,
+  providerType: string
+): string {
+  const top = [...(educations ?? [])].sort(
+    (a, b) => (DEGREE_RANK[b.degree] ?? 0) - (DEGREE_RANK[a.degree] ?? 0)
+  )[0];
+  if (top) return mapOrThrow(AETNA_DEGREE_MAP, top.degree, 'AETNA_DEGREE_MAP');
+  return mapOrThrow(PROVIDER_TYPE_DEGREE_FALLBACK, providerType, 'PROVIDER_TYPE_DEGREE_FALLBACK');
+}
+
+/** Aetna "#specialty" label from a NUCC taxonomy code via longest-prefix-match. */
+export function resolveSpecialty(nuccCode: string | null | undefined): string {
+  const code = (nuccCode ?? '').toString();
+  let best: { prefix: string; label: string } | null = null;
+  if (code) {
+    for (const entry of AETNA_SPECIALTY_CROSSWALK) {
+      if (code.startsWith(entry.prefix) && (!best || entry.prefix.length > best.prefix.length)) {
+        best = entry;
+      }
+    }
+  }
+  if (!best) {
+    throw new Error(
+      `Aetna RFP: no specialty crosswalk for taxonomy '${code || '(missing)'}' — add its NUCC ` +
+        `prefix to AETNA_SPECIALTY_CROSSWALK (or this provider isn't behavioral-health).`
+    );
+  }
+  return best.label;
+}
+
+/** Reject a (degree, specialty) pair Aetna's form wouldn't allow — catches
+ * provider data where the academic degree and the taxonomy disagree. */
+export function assertValidPair(degree: string, specialty: string): void {
+  if (!AETNA_VALID_PAIRS[degree]?.has(specialty)) {
+    throw new Error(
+      `Aetna RFP: degree '${degree}' + specialty '${specialty}' is not a valid Aetna ` +
+        `combination — check the provider's degree and taxonomy.`
+    );
+  }
 }
 
 // ─── Behavioral-health provider types (all current ProviderType values) ───────
@@ -225,7 +328,7 @@ const REQUIRED_FIELD_ACCESSORS: Record<string, (r: LoadedRecords) => unknown> = 
   'provider.caqhProviderId': (r) => r.provider.caqhProviderId,
   'provider.providerType': (r) => r.provider.providerType,
   'provider.entityType': (r) => r.provider.entityType,
-  'provider.specialties': (r) => r.provider.specialties,
+  'provider.taxonomy': (r) => r.provider.taxonomy,
   'provider.languages': (r) => r.provider.languages,
   'provider.ageGroup': (r) => r.provider.ageGroup,
   'provider.practiceFocus': (r) => r.provider.practiceFocus,
@@ -310,8 +413,8 @@ export async function buildAetnaRfpProviderData(
   //    record throws an error naming exactly which one.
   const provider = (await prisma.providerProfile.findUnique({
     where: { id: providerId },
-    include: { licenses: true },
-  })) as (ProviderProfile & { licenses: License[] }) | null;
+    include: { licenses: true, educations: true },
+  })) as (ProviderProfile & { licenses: License[]; educations: Education[] }) | null;
   if (!provider) {
     throw new Error(`Aetna RFP: ProviderProfile not found for providerId '${providerId}'`);
   }
@@ -404,6 +507,13 @@ export async function buildAetnaRfpProviderData(
 
   const aslOffered = (provider.languages ?? []).some((l) => SIGN_LANGUAGE_RE.test(l));
 
+  // Degree and specialty come from independent sources (Education vs the NPI
+  // taxonomy CAQH mirrors onto ProviderProfile.taxonomy), so derive both and
+  // reject any pair Aetna's form wouldn't allow — fail-closed before footprint.
+  const degree = resolveDegree(provider.educations, provider.providerType);
+  const primarySpecialty = resolveSpecialty(provider.taxonomy);
+  assertValidPair(degree, primarySpecialty);
+
   // Behavioral-health step — only when the line of business is BH. Every array
   // element goes through mapOrThrow (so ANY unmapped value hard-fails here,
   // before footprint), and ALL mapped values are carried through — the adapter
@@ -446,12 +556,8 @@ export async function buildAetnaRfpProviderData(
       dob: formatMMDDYYYY(provider.dateOfBirth),
       licenseNumber: primaryLicense.licenseNumber,
       licenseExp: formatMMDDYYYY(primaryLicense.expirationDate),
-      degree: mapOrThrow(AETNA_DEGREE_MAP, provider.providerType, 'AETNA_DEGREE_MAP'),
-      primarySpecialty: mapOrThrow(
-        AETNA_SPECIALTY_MAP,
-        provider.specialties?.[0],
-        'AETNA_SPECIALTY_MAP'
-      ),
+      degree,
+      primarySpecialty,
     },
 
     location: {

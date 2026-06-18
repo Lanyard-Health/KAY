@@ -37,7 +37,7 @@ const REQUIRED_FIELDS = [
   'provider.caqhProviderId',
   'provider.providerType',
   'provider.entityType',
-  'provider.specialties',
+  'provider.taxonomy',
   'license.licenseNumber',
   'license.expirationDate',
   'practice.taxIdEncrypted',
