@@ -22,7 +22,7 @@ const SUBMITTER = {
   lastName: 'Ward',
   role: 'Credentialing / Enrollment (Director, Manager, Coordinator)',
   email: 'credentialing@lanyardhealth.com',
-  phone: '__SET_REAL_PHONE__', // ← replace before running; seed refuses otherwise
+  phone: '3024404147',
 };
 
 // Dotted keys map to REQUIRED_FIELD_ACCESSORS in aetna-rfp-resolver.ts. Only
