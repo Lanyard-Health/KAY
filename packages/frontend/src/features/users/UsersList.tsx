@@ -20,7 +20,8 @@ export default function UsersList() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  // ponytail: default to Active so deactivated users are hidden; "Inactive"/"All Statuses" still in the filter dropdown
+  const [statusFilter, setStatusFilter] = useState('active');
 
   // Debounce search
   const [debouncedSearch, setDebouncedSearch] = useState('');
