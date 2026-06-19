@@ -165,7 +165,7 @@ describe('globalSearch', () => {
       type: 'payer',
       title: 'Aetna',
       subtitle: 'CA',
-      url: '/payer-intelligence',
+      url: '/enrollment-strategy',
     });
   });
 
