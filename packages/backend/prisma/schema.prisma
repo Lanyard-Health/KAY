@@ -501,6 +501,10 @@ model ProviderProfile {
   // Professional
   providerType ProviderType @map("provider_type")
   taxonomy     String?
+  // Provider's primary professional degree, mirrored from CAQH's top-level
+  // <Degree> element (DegreeAbbreviation). Authoritative source for payer
+  // adapters (e.g. Aetna) — survives even when per-school Education rows are absent.
+  degree       DegreeType?
   specialties  String[]     @default([])
   languages    String[]     @default([])
 
