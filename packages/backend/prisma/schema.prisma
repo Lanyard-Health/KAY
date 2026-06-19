@@ -505,9 +505,12 @@ model ProviderProfile {
   languages    String[]     @default([])
 
   // Aetna enrollment automation
-  acceptingMedicare Boolean @default(false) @map("accepting_medicare")
-  acceptingMedicaid Boolean @default(false) @map("accepting_medicaid")
-  ePrescribing      Boolean @default(false) @map("e_prescribing")
+  acceptingMedicare Boolean  @default(false) @map("accepting_medicare")
+  acceptingMedicaid Boolean  @default(false) @map("accepting_medicaid")
+  ePrescribing      Boolean  @default(false) @map("e_prescribing")
+  hospitalist       Boolean  @default(false)
+  practiceFocus     String[] @default([]) @map("practice_focus")
+  ageGroup          String[] @default([]) @map("age_group")
 
   // CAQH Integration
   caqhProviderId             String?     @map("caqh_provider_id")

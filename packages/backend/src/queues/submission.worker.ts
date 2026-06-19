@@ -2,6 +2,7 @@ import type { Job } from 'bullmq';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { getSubmissionAdapter } from '../agents/portal/adapter-factory.js';
+import { buildAetnaRfpProviderData } from '../agents/portal/aetna-rfp-resolver.js';
 import { resolveCredential, CredentialMissingError } from '../services/credential.service.js';
 import { logSubmissionEvent } from '../services/form-fill/audit.service.js';
 import type { SubmissionJobData } from './submission.queue.js';
@@ -144,7 +145,19 @@ export async function processSubmissionJob(
   try {
     credential = await resolveCredential(payerId, practiceId, providerId);
 
-    const adapter = getSubmissionAdapter(payer.submissionConfig.adapterType);
+    const adapterType = payer.submissionConfig.adapterType;
+    const adapter = getSubmissionAdapter(adapterType);
+
+    // Build the provider data packet. Only Aetna RFP has a resolver today; every
+    // other adapter keeps the Phase 1 `undefined` stub, unchanged. A resolver
+    // throw (missing records, failed completeness gate, unmapped degree/specialty/
+    // age/focus, missing/bad state) is intentionally NOT caught here — it
+    // propagates to the catch below and fails the run loudly, rather than letting
+    // a blank/partial application be submitted.
+    let providerData: unknown = undefined;
+    if (adapterType === 'AETNA_RFP') {
+      providerData = await buildAetnaRfpProviderData({ providerId, practiceId, payerId }, prisma);
+    }
 
     const result = await adapter.submit(
       {
@@ -152,7 +165,7 @@ export async function processSubmissionJob(
         payerId,
         practiceId,
         providerId,
-        providerData: undefined, // Phase 1 stub — real adapters will build a packet
+        providerData,
       },
       credential
     );
