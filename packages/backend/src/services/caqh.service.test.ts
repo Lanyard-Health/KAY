@@ -922,6 +922,39 @@ describe('CaqhService', () => {
       }
     });
 
+    it('extracts degree from v8 nested DegreeAbbreviation + top-level <Degree>', () => {
+      // CAQH puts degree in DegreeAbbreviation — nested in each Education AND in a
+      // separate top-level <Degree> element (the provider's primary credential).
+      const v8 = {
+        Provider: {
+          NPI: 1234567890,
+          ProviderFirstName: 'Sam',
+          ProviderLastName: 'Worker',
+          Degree: { ID: '1000', Degree: { DegreeAbbreviation: 'SW' } },
+          Education: [
+            { InstitutionName: 'State University', Degree: { DegreeAbbreviation: 'MSSW' }, EducationTypeName: 'Professional School' },
+          ],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8, 'p1');
+      expect(result.provider.degree).toBe('msw');     // top-level SW -> msw
+      expect(result.education[0]!.degree).toBe('msw'); // nested MSSW -> msw
+    });
+
+    it('leaves provider.degree undefined when no top-level <Degree>, and maps unknown codes to other', () => {
+      const v8 = {
+        Provider: {
+          NPI: 1,
+          ProviderFirstName: 'A',
+          ProviderLastName: 'B',
+          Education: [{ InstitutionName: 'X', Degree: { DegreeAbbreviation: 'XYZ' } }],
+        },
+      };
+      const result = service.mapCaqhToInternal(v8);
+      expect(result.provider.degree).toBeUndefined();
+      expect(result.education[0]!.degree).toBe('other');
+    });
+
     // ------- Phase 1: v8 PascalCase shape -------
 
     it('detects v8 PascalCase shape via Provider wrapper', () => {

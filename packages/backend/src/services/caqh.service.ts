@@ -489,6 +489,8 @@ export interface MappedProviderCore {
   lastName: string;
   middleName?: string;
   suffix?: string;
+  // Primary professional degree, from CAQH's top-level <Degree> element.
+  degree?: DegreeType;
   npi: string;
   ssn?: string;               // plaintext — caller encrypts before persist
   dateOfBirth?: Date;
@@ -773,9 +775,39 @@ function toOptString(v: unknown): string | undefined {
       // eslint-disable-next-line security/detect-object-injection -- key is from object's own keys
       return toOptString(obj[descKey]);
     }
+    // CAQH also codes some lookups as `{<Field>Abbreviation: <value>}`
+    // (DegreeAbbreviation, ProviderTypeAbbreviation, …). Prefer Description above.
+    const abbrKey = keys.find(k => k.endsWith('Abbreviation'));
+    if (abbrKey) {
+      // eslint-disable-next-line security/detect-object-injection -- key is from object's own keys
+      return toOptString(obj[abbrKey]);
+    }
   }
   return undefined;
 }
+
+/**
+ * CAQH "Degree (Extract)" code → internal DegreeType. Verified against
+ * Domain_Table_Effective_07142025.xlsx (sheet "Degree"). Only codes with a
+ * clean DegreeType equivalent are listed; everything else → 'other'. Keyed by
+ * UPPERCASE code (mapDegreeType uppercases its input).
+ */
+const CAQH_DEGREE_CODE_TO_TYPE = new Map<string, DegreeType>([
+  ['MD', 'md'],
+  ['DO', 'do'],
+  ['PHD', 'phd'],
+  ['PSYD', 'psyd'],
+  ['MSW', 'msw'],
+  ['MSSW', 'msw'], // Master of Science in Social Work
+  ['SW', 'msw'],   // generic "Social Worker" → master's-level social work
+  ['MA', 'ma'],
+  ['MS', 'ms'],
+  ['MED', 'med'],
+  ['MSN', 'msn'],
+  ['DNP', 'dnp'],
+  ['BS', 'bs'],
+  ['BA', 'ba'],
+]);
 
 /**
  * Coerce CAQH flag values to boolean.
@@ -2225,12 +2257,18 @@ export class CaqhService {
 
     const npiStr = toOptString(p.NPI);
     const ssnStr = toOptString(p.SSN);
+    // Top-level <Degree> = provider's primary credential. Shape:
+    // `{ ID, Degree: { DegreeAbbreviation } }`; take the first if multiple.
+    const topDegreeEl = this.asArray(p['Degree'])[0] as { Degree?: unknown } | undefined;
+    const topDegreeRaw = toOptString(topDegreeEl?.Degree);
+    const providerDegree = topDegreeRaw ? this.mapDegreeType(topDegreeRaw, providerId) : undefined;
     return {
       provider: {
         firstName: toOptString(p.ProviderFirstName ?? p.FirstName) ?? '',
         lastName: toOptString(p.ProviderLastName ?? p.LastName) ?? '',
         middleName: toOptString(p.ProviderMiddleName ?? p.MiddleName),
         suffix: toOptString(p.ProviderSuffix),
+        degree: providerDegree,
         npi: npiStr ?? '',
         ssn: ssnStr ? this.normalizeSsn(ssnStr) : undefined,
         dateOfBirth: parseCaqhDate(p.ProviderDateOfBirth ?? p.DateOfBirth ?? p.BirthDate),
@@ -3202,23 +3240,25 @@ export class CaqhService {
   }
 
   private mapDegreeType(caqhDegree: string, providerId?: string): DegreeType {
-    const degreeLower = caqhDegree.toLowerCase();
+    // Exact match on the CAQH "Degree (Extract)" code, verified against
+    // Domain_Table_Effective_07142025.xlsx. Substring matching is wrong here
+    // (e.g. optometry "OD" must not match osteopathic "DO"). Unmapped codes →
+    // 'other' (fail-closed; payer adapters then require human confirmation).
+    // SW = generic "Social Worker" → master's-level MSW, what a credentialed
+    // clinical SW holds (flagged assumption).
+    const code = caqhDegree.trim().toUpperCase();
+    const mapped = CAQH_DEGREE_CODE_TO_TYPE.get(code);
+    if (mapped) return mapped;
 
-    if (degreeLower.includes('md')) return 'md';
-    if (degreeLower.includes('do')) return 'do';
-    if (degreeLower.includes('phd')) return 'phd';
-    if (degreeLower.includes('psyd')) return 'psyd';
-    if (degreeLower.includes('msw')) return 'msw';
-    if (degreeLower.includes('dnp')) return 'dnp';
-    if (degreeLower.includes('msn')) return 'msn';
-
-    logger.warn({
-      event: 'caqh_unknown_mapping',
-      field: 'degreeType',
-      rawValue: caqhDegree,
-      defaultedTo: 'other',
-      providerId,
-    });
+    if (code) {
+      logger.warn({
+        event: 'caqh_unknown_mapping',
+        field: 'degreeType',
+        rawValue: caqhDegree,
+        defaultedTo: 'other',
+        providerId,
+      });
+    }
     return 'other';
   }
 
@@ -3357,6 +3397,7 @@ export class CaqhService {
     if (core.lastName) updateData['lastName'] = core.lastName;
     if (core.middleName !== undefined) updateData['middleName'] = core.middleName;
     if (core.suffix !== undefined) updateData['suffix'] = core.suffix;
+    if (core.degree !== undefined) updateData['degree'] = core.degree;
     if (core.dateOfBirth) updateData['dateOfBirth'] = core.dateOfBirth;
     if (core.gender) updateData['gender'] = core.gender;
     if (core.ssn) updateData['ssnEncrypted'] = encryptSafe(core.ssn);
@@ -3689,14 +3730,18 @@ export class CaqhService {
     if (caqhData.education?.length > 0) {
       for (const edu of caqhData.education) {
         try {
+          // Dedup on (provider, institution) only — NOT degree. Keying on degree
+          // meant a corrected degree (was the 'other' bug) created a duplicate row
+          // instead of updating the existing one.
           const existing = await prisma.education.findFirst({
-            where: { providerId, institutionName: edu.institutionName, degree: edu.degree },
+            where: { providerId, institutionName: edu.institutionName },
           });
 
           if (existing) {
             await prisma.education.update({
               where: { id: existing.id },
               data: {
+                degree: edu.degree,
                 graduationDate: edu.graduationDate ?? existing.graduationDate,
                 startDate: edu.startDate ?? existing.startDate,
                 endDate: edu.endDate ?? existing.endDate,
