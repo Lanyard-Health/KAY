@@ -38,6 +38,12 @@ vi.mock('./websocket.js', () => ({
   emitWorkflowEvent: vi.fn(),
 }));
 
+// coordinator.service reaches into BullMQ/Redis via notifyTaskCompletion; without
+// this mock the pipeline tests hang to the 10s timeout under test (no Redis).
+vi.mock('./coordinator.service.js', () => ({
+  notifyTaskCompletion: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('./extractors/textract-extractor.js', () => ({
   extractWithTextract: mockExtractTextract,
 }));
