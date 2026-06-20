@@ -1680,6 +1680,11 @@ export class CaqhService {
       organization_id: this.orgId,
     };
 
+    // Hard CAQH requirement for IL providers (spec Table 3), independent of the
+    // extended-payload flag. resolved.applicationType is '1' for IL, undefined
+    // otherwise, so non-IL providers never carry this field.
+    if (resolved.applicationType) envelope['application_type'] = resolved.applicationType;
+
     if (isExtendedCaqhPayloadEnabled()) {
       // Only include keys with present values — empty strings sometimes trip
       // CAQH validators that are stricter than the spec sample suggests.
@@ -1705,7 +1710,7 @@ export class CaqhService {
       if (resolved.lastRecredentialDate) envelope['last_recredential_date'] = resolved.lastRecredentialDate;
       if (resolved.nextRecredentialDate) envelope['next_recredential_date'] = resolved.nextRecredentialDate;
       if (resolved.delegationFlag) envelope['delegation_flag'] = resolved.delegationFlag;
-      if (resolved.applicationType) envelope['application_type'] = resolved.applicationType;
+      // application_type handled above (IL-only, flag-independent) — not re-sent here.
       if (resolved.affiliationFlag) envelope['affiliation_flag'] = resolved.affiliationFlag;
       if (resolved.regionId) envelope['region_id'] = resolved.regionId;
     }
@@ -2007,6 +2012,15 @@ export class CaqhService {
       city: city!,
       state: state!,
       zip: zip!,
+      // CAQH Roster Individual v2.0 (Table 3): application_type is REQUIRED when
+      // practice_state = 'IL' (valid values 1 = "Initial Credentialing",
+      // 2 = "Re-credentialing"; spec scopes the field to IL practitioners only).
+      // A roster ADD is always an initial credentialing -> '1'. Lives on the base
+      // payload, NOT behind CAQH_EXTENDED_PAYLOAD, because it's a hard CAQH
+      // requirement for IL, not optional enrichment. Provider_Short_SSN is the
+      // only other IL-conditional field and applies solely to type '2', so it's
+      // not needed for an initial add.
+      applicationType: practiceState === 'IL' ? '1' : undefined,
     };
 
     if (!extended) {
@@ -2058,7 +2072,8 @@ export class CaqhService {
         : undefined,
       // No DB column for next_recredential_date — omitted intentionally.
       delegationFlag: 'N',
-      applicationType: 'I',
+      // applicationType is set on `base` above (IL-only, value '1') and inherited
+      // via ...base — do not re-set here (the old 'I' value was invalid per spec).
       affiliationFlag: 'N',
       // region_id intentionally omitted; CAQH falls back to organization_id
       // mapping when absent per spec section 3.1.2.
