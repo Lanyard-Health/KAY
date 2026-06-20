@@ -959,6 +959,7 @@ const NUCC_TAXONOMY_PREFIX_TO_CAQH_TYPE: ReadonlyArray<{ prefix: string; type: s
   { prefix: '208M',  type: 'HOS' },  // Hospitalist (Table 37: HOS, not MD)
   { prefix: '1041',  type: 'CSW' },  // Social Worker family (Table 37: CSW)
   { prefix: '101Y',  type: 'PC' },   // Counselor (Table 37: PC, not LPC)
+  { prefix: '363A',  type: 'PA' },   // Physician Assistant (Roster spec v2.0 Table 37: PA, Allied)
 ];
 
 /**
@@ -1311,9 +1312,10 @@ export interface ResolvedRosterData {
 }
 
 /**
- * Longest-prefix-wins NUCC taxonomy → CAQH Type lookup. Currently unused —
- * `provider_type=other` always fails readiness until the fallback ships in
- * a later phase. Kept here so the activation diff is small.
+ * Longest-prefix-wins NUCC taxonomy → CAQH Type lookup. Used as the readiness
+ * fallback when a provider's `providerType` has no direct CAQH Type mapping
+ * (e.g. providerType=other for a Physician Assistant). Returns null when no
+ * prefix matches, in which case readiness fails with a clear reason.
  */
 function resolveCaqhTypeFromTaxonomy(taxonomy: string): string | null {
   let best: { prefix: string; type: string } | null = null;
@@ -1324,8 +1326,6 @@ function resolveCaqhTypeFromTaxonomy(taxonomy: string): string | null {
   }
   return best?.type ?? null;
 }
-// Suppress "unused" diagnostics until the deferred phase calls this.
-void resolveCaqhTypeFromTaxonomy;
 
 export class CaqhService {
   private baseUrl: string;
@@ -1929,13 +1929,27 @@ export class CaqhService {
         reason: 'No DO/PhD disambiguation rule yet — default chosen for psychiatrist/psychologist',
       });
     }
+    if (!caqhType && provider.taxonomy) {
+      // providerType=other (or any unmapped type): fall back to the provider's
+      // NUCC taxonomy → CAQH Type (Roster spec v2.0 Table 37). Covers PAs, etc.
+      caqhType = resolveCaqhTypeFromTaxonomy(provider.taxonomy);
+      if (caqhType) {
+        logger.info({
+          event: 'caqh_type_from_taxonomy',
+          providerId,
+          taxonomy: provider.taxonomy,
+          resolvedTo: caqhType,
+        });
+      }
+    }
     if (!caqhType) {
-      // providerType=other: NUCC taxonomy fallback is deferred. Always fail
-      // readiness with a clear reason so the UI can surface this. The lookup
-      // function is kept for future activation; corrected entries in
-      // NUCC_TAXONOMY_PREFIX_TO_CAQH_TYPE will produce valid Type codes once
-      // the deferred phase ships.
-      missing.push('provider_type_other_deferred (NUCC taxonomy fallback not yet shipped)');
+      // No direct map AND no taxonomy match (or no taxonomy on file) — we
+      // genuinely can't determine a CAQH Type. Fail with a clear, specific reason.
+      missing.push(
+        provider.taxonomy
+          ? `provider_type_unmapped (no CAQH Type for taxonomy ${provider.taxonomy})`
+          : 'provider_type_other_missing_taxonomy (set providerType or add the NPI taxonomy)'
+      );
     }
 
     // Resolve practice location fields — practiceLocations is canonical

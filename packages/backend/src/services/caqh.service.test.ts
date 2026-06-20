@@ -660,14 +660,30 @@ describe('CaqhService', () => {
       expect(body.provider.type).toBe('CP');
     });
 
-    it('fails readiness when providerType=other (NUCC taxonomy fallback deferred)', async () => {
+    it('resolves CAQH Type from NUCC taxonomy when providerType=other (Physician Assistant → PA)', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
         providerType: 'other',
-        taxonomy: '2084P0800X', // valid prefix but fallback is parked
+        taxonomy: '363A00000X', // Physician Assistant → Table 37 PA
       }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
 
-      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
-      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('PA');
+    });
+
+    it('resolves providerType=other psychiatry taxonomy → MD via fallback', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: '2084P0800X',
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('MD');
     });
 
     it('fails readiness when providerType=other and taxonomy is null', async () => {
@@ -677,7 +693,16 @@ describe('CaqhService', () => {
       }) as any);
 
       await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
-      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_missing_taxonomy/);
+    });
+
+    it('fails readiness when providerType=other and taxonomy has no CAQH Type match', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: '9999X9999X', // no prefix match
+      }) as any);
+
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_unmapped/);
     });
   });
 
@@ -768,7 +793,7 @@ describe('CaqhService', () => {
       const ready = await service.checkRosterReadiness('p1');
       expect(ready.ready).toBe(false);
       expect(ready.missingFields).toEqual(expect.arrayContaining([
-        expect.stringMatching(/provider_type_other_deferred/),
+        expect.stringMatching(/provider_type_other_missing_taxonomy/),
         'practice_location_missing',
       ]));
     });
