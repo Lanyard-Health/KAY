@@ -320,6 +320,12 @@ providerRoutes.put(
     try {
       const validatedData = updateProviderSchema.parse(req.body);
 
+      // groupNpi and taxId belong on PracticeLocation, not ProviderProfile
+      // (mirror the create handler). Strip them before the update — passing
+      // them to providerProfile.update throws PrismaClientValidationError — and
+      // echo them back so the frontend forwards them to the practice-location call.
+      const { groupNpi, taxId, ...providerData } = validatedData;
+
       const existing = await prisma.providerProfile.findUnique({
         where: { id: req.params['providerId'] },
       });
@@ -331,8 +337,8 @@ providerRoutes.put(
       const provider = await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
-          ...validatedData,
-          ...(validatedData.dateOfBirth && { dateOfBirth: new Date(validatedData.dateOfBirth) }),
+          ...providerData,
+          ...(providerData.dateOfBirth && { dateOfBirth: new Date(providerData.dateOfBirth) }),
           updatedById: req.user?.id,
         },
       });
@@ -345,7 +351,10 @@ providerRoutes.put(
       });
 
       invalidateCache('dashboard');
-      res.json({ success: true, data: stripSensitiveFields(provider) });
+      const responseData: Record<string, unknown> = { ...stripSensitiveFields(provider) };
+      if (groupNpi) responseData['groupNpi'] = groupNpi;
+      if (taxId) responseData['taxId'] = taxId;
+      res.json({ success: true, data: responseData });
     } catch (error) {
       next(error);
     }
