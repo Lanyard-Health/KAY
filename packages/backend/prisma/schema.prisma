@@ -64,6 +64,8 @@ model User {
   role        UserRole
   isActive    Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at")
+  // Which "never logged in" reminder stages were sent, e.g. {"2":"<iso>"}. At-most-once.
+  signupRemindersSent Json? @map("signup_reminders_sent")
 
   // Link to provider if role is 'provider'
   providerId String?          @unique @map("provider_id")
@@ -353,6 +355,8 @@ model PracticeInvitation {
   acceptedAt  DateTime?                @map("accepted_at")
   invitedById String?                  @map("invited_by_id")
   invitedBy   User?                    @relation("PracticeInvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  // Which signup-reminder stages were sent, e.g. {"2":"<iso>","5":"<iso>"}. At-most-once, mirrors CAQH remindersSent.
+  remindersSent Json?                  @map("reminders_sent")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -501,6 +505,10 @@ model ProviderProfile {
   // Professional
   providerType ProviderType @map("provider_type")
   taxonomy     String?
+  // Provider's primary professional degree, mirrored from CAQH's top-level
+  // <Degree> element (DegreeAbbreviation). Authoritative source for payer
+  // adapters (e.g. Aetna) — survives even when per-school Education rows are absent.
+  degree       DegreeType?
   specialties  String[]     @default([])
   languages    String[]     @default([])
 

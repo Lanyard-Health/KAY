@@ -118,6 +118,22 @@ export async function resendInvitation(id: string) {
   return { id };
 }
 
+/**
+ * Rotate a pending invite's token for a reminder email WITHOUT extending the
+ * expiry (unlike resendInvitation). Only the hash is stored, so a reminder
+ * needs a fresh raw token to produce a working accept link; the 7-day deadline
+ * stays anchored to the original createdAt so the nudge cadence holds.
+ * ponytail: rotating kills the prior link; the latest email always has the live one.
+ */
+export async function rotateInvitationTokenForReminder(id: string): Promise<string> {
+  const rawToken = randomBytes(32).toString('hex');
+  await prisma.practiceInvitation.update({
+    where: { id },
+    data: { tokenHash: hashToken(rawToken) },
+  });
+  return acceptUrl(rawToken);
+}
+
 export async function revokeInvitation(id: string) {
   const inv = await prisma.practiceInvitation.findUnique({ where: { id }, select: { id: true, status: true } });
   if (!inv) throw new Error('INVITATION_NOT_FOUND');

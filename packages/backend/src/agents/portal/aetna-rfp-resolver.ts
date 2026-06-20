@@ -144,12 +144,16 @@ const DEGREE_RANK: Record<string, number> = {
   bs: 1, ba: 1, other: 0,
 };
 
-/** Aetna "#degreeType" label from the provider's highest-ranked Education,
- * falling back to a coarse ProviderType map when no education is on file. */
+/** Aetna "#degreeType" label. Prefers the provider's authoritative CAQH degree
+ * (`ProviderProfile.degree`, present even when per-school Education rows are
+ * absent); else the highest-ranked Education; else a coarse ProviderType map. */
 export function resolveDegree(
+  providerDegree: string | null | undefined,
   educations: ReadonlyArray<{ degree: string }> | undefined,
   providerType: string
 ): string {
+  const fromProvider = providerDegree ? AETNA_DEGREE_MAP[providerDegree] : undefined;
+  if (fromProvider) return fromProvider;
   const top = [...(educations ?? [])].sort(
     (a, b) => (DEGREE_RANK[b.degree] ?? 0) - (DEGREE_RANK[a.degree] ?? 0)
   )[0];
@@ -510,7 +514,7 @@ export async function buildAetnaRfpProviderData(
   // Degree and specialty come from independent sources (Education vs the NPI
   // taxonomy CAQH mirrors onto ProviderProfile.taxonomy), so derive both and
   // reject any pair Aetna's form wouldn't allow — fail-closed before footprint.
-  const degree = resolveDegree(provider.educations, provider.providerType);
+  const degree = resolveDegree(provider.degree, provider.educations, provider.providerType);
   const primarySpecialty = resolveSpecialty(provider.taxonomy);
   assertValidPair(degree, primarySpecialty);
 

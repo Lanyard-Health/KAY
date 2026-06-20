@@ -199,6 +199,23 @@ describe('buildAetnaRfpProviderData', () => {
     expect(packet.provider.degree).toBe('MD'); // psychiatrist -> MD fallback
   });
 
+  it('uses ProviderProfile.degree (CAQH top-level) even with no Education rows', async () => {
+    const records = fakeRecords();
+    (records.provider as { degree?: string }).degree = 'msw';
+    records.provider.educations = [];
+    records.provider.taxonomy = '1041C0700X'; // Clinical Social Worker -> valid with MSW
+    const packet = await buildAetnaRfpProviderData(IDS, fakePrisma(records));
+    expect(packet.provider.degree).toBe('MSW');
+  });
+
+  it('prefers ProviderProfile.degree over Education degree', async () => {
+    const records = fakeRecords();
+    (records.provider as { degree?: string }).degree = 'md'; // authoritative
+    records.provider.educations = [{ degree: 'ba' }]; // unmappable on its own
+    const packet = await buildAetnaRfpProviderData(IDS, fakePrisma(records));
+    expect(packet.provider.degree).toBe('MD');
+  });
+
   it('fails closed on a taxonomy with no specialty crosswalk (non-BH code)', async () => {
     const records = fakeRecords();
     records.provider.taxonomy = '207RC0000X'; // cardiology — no BH crosswalk

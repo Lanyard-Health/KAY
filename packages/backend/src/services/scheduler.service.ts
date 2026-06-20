@@ -11,6 +11,7 @@ import { sweepStalledTasks } from './stalled-task.service.js';
 import { updateAttestationTracker, evaluateAdminAttestationAlerts } from './caqh-attestation.service.js';
 import { mirrorRawJson } from './caqh-mirror.service.js';
 import { evaluateProviderReminder } from './caqh-reminder.service.js';
+import { runSignupReminders } from './signup-reminder.service.js';
 
 /** Advisory lock key for the nightly CAQH sync (arbitrary stable int). */
 const CAQH_SYNC_LOCK_KEY = 73411001;
@@ -43,12 +44,14 @@ class SchedulerService {
   private notificationCleanupJob: cron.ScheduledTask | null = null;
   private caqhSyncJob: cron.ScheduledTask | null = null;
   private stalledTaskJob: cron.ScheduledTask | null = null;
+  private signupReminderJob: cron.ScheduledTask | null = null;
   private isRunning = false;
   private isFollowUpExecutorRunning = false;
   private isExpirationJobRunning = false;
   private isExpirationEmailJobRunning = false;
   private isCaqhSyncJobRunning = false;
   private isStalledTaskJobRunning = false;
+  private isSignupReminderJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -109,6 +112,19 @@ class SchedulerService {
       logger.info('[Scheduler] CAQH not configured, sync job not scheduled.');
     }
 
+    // Schedule daily signup / first-login reminders (8:30am). The service has
+    // its own SIGNUP_REMINDER_EMAILS_ENABLED dry-run gate, so it's safe to
+    // schedule whenever email is configured.
+    if (emailService.isConfigured()) {
+      const signupSchedule = process.env['SIGNUP_REMINDER_SCHEDULE'] || '30 8 * * *';
+      this.signupReminderJob = cron.schedule(signupSchedule, () => {
+        this.runSignupReminderJob();
+      });
+      logger.info(`[Scheduler] Signup reminder job scheduled: ${signupSchedule}`);
+    } else {
+      logger.info('[Scheduler] Email not configured, signup reminder job not scheduled.');
+    }
+
     // Schedule weekly notification cleanup (Sundays at 4am)
     this.notificationCleanupJob = cron.schedule('0 4 * * 0', () => {
       notificationService.cleanupOldNotifications(90)
@@ -156,6 +172,26 @@ class SchedulerService {
       Sentry.captureException(err, { tags: { job: 'stalled-task-watchdog' } });
     } finally {
       this.isStalledTaskJobRunning = false;
+    }
+  }
+
+  /** Run one sweep of signup / first-login reminders. Re-entrancy guarded. */
+  async runSignupReminderJob(): Promise<void> {
+    if (this.isSignupReminderJobRunning) {
+      logger.info('[Scheduler] Signup reminder job already running, skipping...');
+      return;
+    }
+    this.isSignupReminderJobRunning = true;
+    try {
+      const s = await runSignupReminders();
+      logger.info(
+        `[Scheduler] Signup reminders: dryRun=${s.dryRun} inviteSent=${s.inviteSent} inviteClosed=${s.inviteClosed} loginSent=${s.loginSent} loginClosed=${s.loginClosed}`,
+      );
+    } catch (err) {
+      logger.error('[Scheduler] Signup reminder job error:', err);
+      Sentry.captureException(err, { tags: { job: 'signup-reminder' } });
+    } finally {
+      this.isSignupReminderJobRunning = false;
     }
   }
 
@@ -595,6 +631,11 @@ class SchedulerService {
       this.notificationCleanupJob.stop();
       this.notificationCleanupJob = null;
       logger.info('[Scheduler] Notification cleanup job stopped');
+    }
+    if (this.signupReminderJob) {
+      this.signupReminderJob.stop();
+      this.signupReminderJob = null;
+      logger.info('[Scheduler] Signup reminder job stopped');
     }
   }
 
