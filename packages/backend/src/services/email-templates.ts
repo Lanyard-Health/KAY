@@ -18,6 +18,9 @@ const LOGO_URL = 'https://portal.lanyardhealth.com/email/logo-wordmark-light.png
 const FONT_STACK =
   "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
+// Footer "Click here for support" button target (all branded emails).
+const SUPPORT_EMAIL = 'operations+support@lanyardhealth.com';
+
 const COLOR = {
   brand: '#0A3D2E',
   paper: '#F4F7F5', // page background, green-tinted
@@ -135,6 +138,11 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
       <!-- Footer, outside the card -->
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%;">
         <tr><td style="padding: 20px 32px 0 32px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 14px 0;">
+            <tr><td style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px;">
+              <a href="mailto:${SUPPORT_EMAIL}?subject=Lanyard%20Health%20support%20request" style="display: inline-block; padding: 9px 18px; font-family: ${FONT_STACK}; font-size: 13px; font-weight: 600; color: ${COLOR.brand}; text-decoration: none;">Click here for support</a>
+            </td></tr>
+          </table>
           <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">This is an automated notification from Lanyard Health about your credentialing. Please do not reply to this email.</p>
         </td></tr>
       </table>
