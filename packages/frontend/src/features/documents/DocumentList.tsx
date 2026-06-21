@@ -120,15 +120,22 @@ export default function DocumentList() {
   };
 
   const handlePreview = async (doc: any) => {
+    // Open the doc in a NEW TAB, not an in-app iframe: the site's CSP
+    // (default-src 'self', no frame-src for storage) blocks embedding the
+    // cross-origin Cloudflare file, which is why the in-pane preview showed
+    // "This content is blocked". A top-level tab isn't subject to frame-src and
+    // renders the PDF/image natively (the view-url uses Content-Disposition:
+    // inline). Open the tab synchronously in the click gesture so it isn't
+    // popup-blocked, then point it at the signed URL once we have it.
+    const tab = window.open('', '_blank');
     try {
-      // Inline URL (Content-Disposition: inline) so the browser renders the PDF/
-      // image in the preview pane. The download-url forces attachment, which
-      // browsers refuse to render inline — that's why preview was blank.
       const response = await api.get(`/documents/${doc.id}/view-url`);
       const { viewUrl } = response.data.data;
-      setPreviewDoc({ doc, url: viewUrl });
+      if (tab) tab.location.href = viewUrl;
+      else window.location.assign(viewUrl); // popup blocked → use current tab
     } catch (error) {
-      toast.error('Failed to load document preview');
+      tab?.close();
+      toast.error('Failed to open document');
     }
   };
 
