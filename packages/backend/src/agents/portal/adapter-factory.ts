@@ -47,14 +47,25 @@ export function clearSubmissionAdapters(): void {
 import { CaqhSubmissionAdapter } from './caqh-submission-adapter.js';
 import { ManualSubmissionAdapter } from './manual-submission-adapter.js';
 import { AetnaRfpAdapter } from './aetna-rfp-adapter.js';
+import { LibrettoCloudAetnaAdapter } from './libretto-cloud-adapter.js';
 
 /**
  * Registers the production adapter set. Idempotent — safe to call multiple
  * times. Called once at server startup from workers.ts (alongside the legacy
  * registerPortalAdapters from index.ts, which still owns the legacy pipeline).
+ *
+ * The AETNA_RFP slot is served by EITHER the in-process Playwright adapter or
+ * the Libretto Cloud adapter, chosen by LIBRETTO_AETNA_RFP_ENABLED. Both consume
+ * the same AetnaRfpProviderData packet the worker builds, so the swap needs no
+ * enum/schema/payer-config change and reverses by flipping the env var.
  */
 export function registerSubmissionAdapters(): void {
   registerSubmissionAdapter('CAQH', new CaqhSubmissionAdapter());
   registerSubmissionAdapter('MANUAL', new ManualSubmissionAdapter());
-  registerSubmissionAdapter('AETNA_RFP', new AetnaRfpAdapter());
+
+  const aetnaViaLibretto = process.env['LIBRETTO_AETNA_RFP_ENABLED'] === 'true';
+  registerSubmissionAdapter(
+    'AETNA_RFP',
+    aetnaViaLibretto ? new LibrettoCloudAetnaAdapter() : new AetnaRfpAdapter()
+  );
 }

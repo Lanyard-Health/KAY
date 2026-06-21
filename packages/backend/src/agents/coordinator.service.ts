@@ -330,7 +330,7 @@ export async function dispatchSubmissionRun(input: DispatchSubmissionRunInput): 
   jobId: string;
   deduplicated: boolean;
 }> {
-  const { workflowId, providerId, payerId, enrollmentId, triggeredBy } = input;
+  const { providerId, payerId, enrollmentId, triggeredBy } = input;
 
   // 1. Resolve practiceId from the provider — this is the tenant boundary.
   const provider = await prisma.providerProfile.findUnique({
@@ -358,6 +358,18 @@ export async function dispatchSubmissionRun(input: DispatchSubmissionRunInput): 
     select: { id: true },
   });
 
+  // Anchor audit events to a REAL AgentWorkflow for this enrollment — agent_events
+  // .workflowId is a hard FK, so a bogus id would silently drop the hash-chained
+  // event. Mirrors the submission worker's resolution; falls back to the run id
+  // when the enrollment has no workflow yet (same tolerance the worker uses). This
+  // lets callers pass any :id in the route — the v2 pipeline owns its own anchor.
+  const anchorWorkflow = await prisma.agentWorkflow.findFirst({
+    where: { enrollmentId },
+    orderBy: { startedAt: 'desc' },
+    select: { id: true },
+  });
+  const auditWorkflowId = anchorWorkflow?.id ?? run.id;
+
   // 3. Enqueue. enqueueSubmission handles BullMQ dedupe by jobId == runId.
   const { jobId, deduplicated } = await enqueueSubmission({
     enrollmentRunId: run.id,
@@ -368,7 +380,7 @@ export async function dispatchSubmissionRun(input: DispatchSubmissionRunInput): 
 
   // 4. SUBMISSION_QUEUED audit event (audit_logs + agent_events)
   await logSubmissionEvent({
-    workflowId,
+    workflowId: auditWorkflowId,
     runId: run.id,
     action: 'SUBMISSION_QUEUED',
     userId: triggeredBy ?? null,
@@ -383,7 +395,7 @@ export async function dispatchSubmissionRun(input: DispatchSubmissionRunInput): 
   });
 
   logger.info('Submission run dispatched', {
-    workflowId,
+    workflowId: auditWorkflowId,
     enrollmentRunId: run.id,
     jobId,
     payerId,
