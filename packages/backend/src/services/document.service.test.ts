@@ -240,6 +240,28 @@ describe('DocumentService', () => {
     });
   });
 
+  describe('getViewUrl', () => {
+    it('uses inline disposition for pdf so the browser renders it in-pane', async () => {
+      await service.getViewUrl('documents/p1/doc-1.pdf', 'application/pdf');
+      const command = mockGetSignedUrl.mock.calls[0]![1] as { input: Record<string, string> };
+      expect(command.input.ResponseContentDisposition).toBe('inline');
+      expect(command.input.ResponseContentType).toBe('application/pdf');
+    });
+
+    it('uses inline disposition for images', async () => {
+      await service.getViewUrl('documents/p1/scan.png', 'image/png');
+      const command = mockGetSignedUrl.mock.calls[0]![1] as { input: Record<string, string> };
+      expect(command.input.ResponseContentDisposition).toBe('inline');
+    });
+
+    it('falls back to attachment for non-inline-safe types (XSS guard)', async () => {
+      await service.getViewUrl('documents/p1/page.html', 'text/html');
+      const command = mockGetSignedUrl.mock.calls[0]![1] as { input: Record<string, string> };
+      expect(command.input.ResponseContentDisposition).toMatch(/^attachment/);
+      expect(command.input.ResponseContentType).toBeUndefined();
+    });
+  });
+
   describe('handleOcrNotification', () => {
     it('processes completed OCR job', async () => {
       prismaMock.document.findMany.mockResolvedValue([{ id: 'doc-1' }] as any);

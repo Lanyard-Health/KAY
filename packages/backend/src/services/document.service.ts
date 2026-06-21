@@ -388,6 +388,37 @@ export class DocumentService {
     return getSignedUrl(this.s3, command, { expiresIn: 3600 });
   }
 
+  // Inline rendering is XSS-safe only for these types. Anything else (HTML, SVG,
+  // etc.) must NOT render inline in the browser, so it falls back to attachment.
+  private static readonly INLINE_SAFE_MIME_TYPES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/tiff',
+  ]);
+
+  /**
+   * Presigned URL for INLINE preview (the eye/"View" button). For pdf/image
+   * types it sets Content-Disposition: inline so the browser renders it in the
+   * preview pane instead of downloading it. For any other type it falls back to
+   * attachment — never render untrusted HTML/SVG inline. Distinct from
+   * getDownloadUrl, which always forces a download.
+   */
+  async getViewUrl(s3Key: string, mimeType: string): Promise<string> {
+    const fileName = s3Key.split('/').pop() || 'document';
+    const inlineSafe = DocumentService.INLINE_SAFE_MIME_TYPES.has(mimeType);
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: s3Key,
+      ResponseContentDisposition: inlineSafe ? 'inline' : `attachment; filename="${fileName}"`,
+      ...(inlineSafe && { ResponseContentType: mimeType }),
+    });
+
+    return getSignedUrl(this.s3, command, { expiresIn: 3600 });
+  }
+
   async deleteDocument(s3Key: string): Promise<void> {
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
