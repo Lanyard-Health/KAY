@@ -11,32 +11,20 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 const mockDocumentUpdate = vi.fn();
+const mockDocumentFindUnique = vi.fn();
 
 vi.mock('../utils/prisma.js', () => ({
   prisma: {
     document: {
       update: mockDocumentUpdate,
       create: vi.fn(),
-      findUnique: vi.fn(),
+      findUnique: mockDocumentFindUnique,
     },
   },
 }));
 
-// Mock AWS SDK clients — Textract.send needs to throw to exercise the failure path
-const mockTextractSend = vi.fn();
 const mockS3Send = vi.fn();
-
-vi.mock('@aws-sdk/client-textract', () => ({
-  TextractClient: vi.fn().mockImplementation(function (this: { send: typeof mockTextractSend }) {
-    this.send = mockTextractSend;
-  }),
-  StartDocumentAnalysisCommand: vi.fn().mockImplementation(function (this: { input: unknown }, input: unknown) {
-    this.input = input;
-  }),
-  GetDocumentAnalysisCommand: vi.fn().mockImplementation(function (this: { input: unknown }, input: unknown) {
-    this.input = input;
-  }),
-}));
+const mockExtractWithVision = vi.fn();
 
 // All S3 commands need function-expression constructors so `new XxxCommand(...)` works.
 function makeCommandMock() {
@@ -65,47 +53,63 @@ vi.mock('../agents/document-classifier.js', () => ({
   classifyDocumentType: vi.fn(),
 }));
 
+vi.mock('../agents/extractors/vision-extractor.js', () => ({
+  extractWithVision: mockExtractWithVision,
+}));
+
+function s3StreamBody(buf: Buffer) {
+  return {
+    Body: (async function* () {
+      yield new Uint8Array(buf);
+    })(),
+  };
+}
+
 const { DocumentService } = await import('./document.service.js');
 
-describe('DocumentService.startOcrProcessing — Textract failure path', () => {
+describe('DocumentService.runOcr — Claude vision failure path', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Service constructor calls ensureBucketExists() which calls s3.send().
-    // Make HeadBucket succeed so init doesn't crash.
-    mockS3Send.mockResolvedValue({});
+    // Every s3.send returns a fresh readable body. Covers both the constructor's
+    // ensureBucketExists() probes (which ignore the body) and downloadObject()
+    // during runOcr — and dodges the ordering race a one-shot mock would create.
+    mockS3Send.mockImplementation(async () => s3StreamBody(Buffer.from('PDF')));
+    mockDocumentUpdate.mockResolvedValue({});
+    mockDocumentFindUnique.mockResolvedValue({
+      id: 'doc-id-123',
+      s3Key: 's3-key-456',
+      mimeType: 'application/pdf',
+      documentType: 'license',
+      providerId: 'p1',
+    });
   });
 
-  it('writes failureReason into ocrData when Textract throws', async () => {
+  it('writes failureReason into ocrData when extraction throws', async () => {
     const service = new DocumentService();
-    mockTextractSend.mockRejectedValue(new Error('Textract: invalid PDF format'));
+    // GetObject during downloadObject succeeds; the vision call is what fails.
+    mockExtractWithVision.mockRejectedValue(new Error('Vision: invalid PDF format'));
 
-    await service.startOcrProcessing('doc-id-123', 's3-key-456');
+    await service.runOcr('doc-id-123');
 
-    // Expect TWO update calls:
-    //   1. ocrStatus = 'processing' (start of try block)
-    //   2. ocrStatus = 'failed' WITH failureReason populated (catch block)
+    // Expect TWO update calls: processing (start) then failed (catch).
     expect(mockDocumentUpdate).toHaveBeenCalledTimes(2);
-
     const failureCall = mockDocumentUpdate.mock.calls[1]![0];
     expect(failureCall).toMatchObject({
       where: { id: 'doc-id-123' },
       data: {
         ocrStatus: 'failed',
-        ocrData: expect.objectContaining({
-          failureReason: 'Textract: invalid PDF format',
-          failedAt: expect.any(String),
-        }),
+        ocrData: { failureReason: 'Vision: invalid PDF format' },
       },
     });
   });
 
-  it('failureReason defaults when the thrown error is not an Error instance', async () => {
+  it('failureReason defaults when the thrown value is not an Error instance', async () => {
     const service = new DocumentService();
-    mockTextractSend.mockRejectedValue('string-error-not-Error-instance');
+    mockExtractWithVision.mockRejectedValue('string-error-not-Error-instance');
 
-    await service.startOcrProcessing('doc-id-456', 's3-key-789');
+    await service.runOcr('doc-id-456');
 
     const failureCall = mockDocumentUpdate.mock.calls[1]![0];
-    expect(failureCall.data.ocrData.failureReason).toBe('OCR processing failed');
+    expect(failureCall.data.ocrData.failureReason).toBe('OCR failed');
   });
 });

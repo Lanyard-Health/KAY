@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  mockExtractTextract,
   mockExtractVision,
   mockClassify,
   mockMapToCredential,
@@ -11,7 +10,6 @@ const {
   const mockS3Send = vi.fn();
   const MockS3Client = vi.fn();
   return {
-    mockExtractTextract: vi.fn(),
     mockExtractVision: vi.fn(),
     mockClassify: vi.fn(),
     mockMapToCredential: vi.fn(),
@@ -42,10 +40,6 @@ vi.mock('./websocket.js', () => ({
 // this mock the pipeline tests hang to the 10s timeout under test (no Redis).
 vi.mock('./coordinator.service.js', () => ({
   notifyTaskCompletion: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./extractors/textract-extractor.js', () => ({
-  extractWithTextract: mockExtractTextract,
 }));
 
 vi.mock('./extractors/vision-extractor.js', () => ({
@@ -99,7 +93,7 @@ describe('document-agent', () => {
     providerId: 'prov-1',
   };
 
-  it('processes a PDF document through Textract pipeline', async () => {
+  it('processes a PDF document through the Vision pipeline', async () => {
     prismaMock.document.findUnique.mockResolvedValueOnce({
       id: 'doc-1',
       s3Key: 'documents/prov-1/doc-1.pdf',
@@ -111,12 +105,11 @@ describe('document-agent', () => {
 
     mockS3Download('fake-pdf');
 
-    mockExtractTextract.mockResolvedValueOnce({
+    mockExtractVision.mockResolvedValueOnce({
       fields: {
         'License Number': { value: 'MD12345', confidence: 0.95 },
         State: { value: 'California', confidence: 0.98 },
       },
-      rawLines: ['State Medical License'],
       averageConfidence: 0.965,
     });
 
@@ -133,11 +126,14 @@ describe('document-agent', () => {
     const result = await processDocumentJob(baseJobData);
 
     expect(result.status).toBe('completed');
-    expect(result.extractionMethod).toBe('textract');
+    expect(result.extractionMethod).toBe('vision');
     expect(result.documentType).toBe('license');
     expect(result.credentialId).toBe('lic-1');
     expect(logAgentEvent).toHaveBeenCalled();
-    expect(mockExtractTextract).toHaveBeenCalled();
+    // PDF sent as a base64 document block to Claude vision (Textract retired).
+    expect(mockExtractVision).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: 'application/pdf', documentType: 'license' })
+    );
   });
 
   it('processes an image document through Vision pipeline', async () => {
@@ -194,9 +190,8 @@ describe('document-agent', () => {
 
     mockS3Download('fake-pdf');
 
-    mockExtractTextract.mockResolvedValueOnce({
+    mockExtractVision.mockResolvedValueOnce({
       fields: { 'License Number': { value: 'MD???', confidence: 0.60 } },
-      rawLines: [],
       averageConfidence: 0.60,
     });
 
@@ -230,9 +225,8 @@ describe('document-agent', () => {
 
     mockS3Download('fake-pdf');
 
-    mockExtractTextract.mockResolvedValueOnce({
+    mockExtractVision.mockResolvedValueOnce({
       fields: { 'License Number': { value: 'MD12345', confidence: 0.95 } },
-      rawLines: [],
       averageConfidence: 0.95,
     });
 
@@ -264,9 +258,8 @@ describe('document-agent', () => {
 
     mockS3Download('fake-pdf');
 
-    mockExtractTextract.mockResolvedValueOnce({
+    mockExtractVision.mockResolvedValueOnce({
       fields: {},
-      rawLines: [],
       averageConfidence: 0,
     });
 
