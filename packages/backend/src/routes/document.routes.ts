@@ -281,6 +281,33 @@ documentRoutes.get(
   }
 );
 
+// GET /api/v1/documents/:id/view-url - Get pre-signed INLINE URL for preview
+// (pdf/images render in-browser; other types fall back to attachment).
+documentRoutes.get(
+  '/:id/view-url',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const document = await prisma.document.findUnique({
+        where: { id: req.params['id'] },
+      });
+
+      if (!document) {
+        throw new NotFoundError('Document');
+      }
+
+      // Provider-scoped route: practice-scoped docs have their own endpoints under /practices/:id/documents
+      if (!document.providerId) throw new ForbiddenError('Access denied to this document');
+      await assertDocumentAccess(req, { providerId: document.providerId });
+
+      const viewUrl = await (await getDocumentService()).getViewUrl(document.s3Key, document.mimeType);
+
+      res.json({ success: true, data: { viewUrl, expiresIn: 3600 } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // GET /api/v1/documents/:id/ocr-results - Get OCR extraction results
 documentRoutes.get(
   '/:id/ocr-results',

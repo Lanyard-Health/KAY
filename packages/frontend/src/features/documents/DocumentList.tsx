@@ -121,9 +121,12 @@ export default function DocumentList() {
 
   const handlePreview = async (doc: any) => {
     try {
-      const response = await api.get(`/documents/${doc.id}/download-url`);
-      const { downloadUrl } = response.data.data;
-      setPreviewDoc({ doc, url: downloadUrl });
+      // Inline URL (Content-Disposition: inline) so the browser renders the PDF/
+      // image in the preview pane. The download-url forces attachment, which
+      // browsers refuse to render inline — that's why preview was blank.
+      const response = await api.get(`/documents/${doc.id}/view-url`);
+      const { viewUrl } = response.data.data;
+      setPreviewDoc({ doc, url: viewUrl });
     } catch (error) {
       toast.error('Failed to load document preview');
     }

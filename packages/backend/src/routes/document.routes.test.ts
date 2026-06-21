@@ -26,6 +26,7 @@ vi.mock('../utils/logger.js', () => ({
 const mockGetUploadUrl = vi.fn();
 const mockConfirmUpload = vi.fn();
 const mockGetDownloadUrl = vi.fn();
+const mockGetViewUrl = vi.fn();
 const mockDeleteDocument = vi.fn();
 
 vi.mock('../services/document.service.js', () => ({
@@ -33,6 +34,7 @@ vi.mock('../services/document.service.js', () => ({
     getUploadUrl: mockGetUploadUrl,
     confirmUpload: mockConfirmUpload,
     getDownloadUrl: mockGetDownloadUrl,
+    getViewUrl: mockGetViewUrl,
     deleteDocument: mockDeleteDocument,
   }; }),
 }));
@@ -398,6 +400,27 @@ describe('Document Routes', () => {
       prismaMock.document.findUnique.mockResolvedValue(null);
 
       const res = await request(app).get('/d0000000-0000-4000-a000-000000000099/download-url');
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('GET /:id/view-url', () => {
+    it('returns inline view URL', async () => {
+      prismaMock.document.findUnique.mockResolvedValue(mockDocument as any);
+      mockGetViewUrl.mockResolvedValue('https://s3.example.com/view-url');
+
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000001/view-url');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.viewUrl).toBe('https://s3.example.com/view-url');
+      expect(mockGetViewUrl).toHaveBeenCalledWith(mockDocument.s3Key, mockDocument.mimeType);
+    });
+
+    it('returns 404 when document not found', async () => {
+      prismaMock.document.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).get('/d0000000-0000-4000-a000-000000000099/view-url');
 
       expect(res.status).toBe(404);
     });
