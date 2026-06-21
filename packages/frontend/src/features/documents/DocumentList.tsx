@@ -355,10 +355,10 @@ export default function DocumentList() {
             <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Document
+                  Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  Document
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Uploaded
@@ -379,19 +379,19 @@ export default function DocumentList() {
                 const ocrBadge = getOcrStatusBadge(doc.ocrStatus);
                 return (
                 <AnimatedListItem itemKey={doc.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {getDocumentTypeLabel(doc.documentType)}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <DocumentIcon className="h-8 w-8 text-gray-400" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">{doc.originalFileName}</p>
+                        <p className="text-sm text-gray-700">{doc.originalFileName}</p>
                         <p className="text-sm text-gray-500">
                           {(doc.fileSize / 1024).toFixed(1)} KB
                         </p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {getDocumentTypeLabel(doc.documentType)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {format(new Date(doc.createdAt), 'MMM d, yyyy')}
