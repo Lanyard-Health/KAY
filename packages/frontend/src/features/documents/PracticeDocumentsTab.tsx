@@ -25,10 +25,10 @@ import { format } from 'date-fns';
 import {
   CloudArrowUpIcon,
   DocumentIcon,
-  ArrowPathIcon,
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../stores/auth.store';
@@ -37,12 +37,11 @@ import {
   usePracticeDocuments,
   useUploadPracticeDocument,
   useUpdatePracticeDocumentType,
+  useDeletePracticeDocument,
   type PracticeDocument,
-  type PracticeDocumentOcrStatus,
 } from '../../hooks/usePracticeDocuments';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
-import StatusBadge from '../../components/ui/StatusBadge';
 
 // Practice-relevant types first (matches what a practice admin actually
 // uploads — W-9, COI, CP575, business license). The full enum follows so
@@ -79,25 +78,6 @@ const ALLOWED_MIME_TYPES = [
   'image/webp',
 ];
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
-
-function ocrBadge(status: PracticeDocumentOcrStatus | null) {
-  switch (status) {
-    case 'completed':
-      return { variant: 'success' as const, label: 'Completed' };
-    case 'needs_review':
-      return { variant: 'warning' as const, label: 'Needs Review' };
-    case 'failed':
-      return { variant: 'danger' as const, label: 'Failed' };
-    case 'not_applicable':
-      return { variant: 'neutral' as const, label: 'Not Applicable' };
-    case 'processing':
-      return { variant: 'info' as const, label: 'Processing' };
-    case 'pending':
-      return { variant: 'info' as const, label: 'Pending' };
-    default:
-      return null;
-  }
-}
 
 function typeLabel(value: string) {
   return ALL_DOCUMENT_TYPES.find((t) => t.value === value)?.label ?? value;
@@ -364,10 +344,10 @@ function DocumentsList({ practiceId }: { practiceId: string }) {
               Type
             </th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              OCR status
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Uploaded
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
             </th>
           </tr>
         </thead>
@@ -383,12 +363,20 @@ function DocumentsList({ practiceId }: { practiceId: string }) {
 
 function DocumentRow({ doc, practiceId }: { doc: PracticeDocument; practiceId: string }) {
   const update = useUpdatePracticeDocumentType(practiceId);
+  const del = useDeletePracticeDocument(practiceId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string>(doc.documentType);
 
-  const inFlight =
-    doc.ocrStatus === 'pending' || doc.ocrStatus === 'processing';
-  const badge = ocrBadge(doc.ocrStatus);
+  const handleDelete = () => {
+    if (!window.confirm(`Delete "${doc.originalFileName}"? This can't be undone.`)) return;
+    del.mutate(doc.id, {
+      onSuccess: () => toast.success('Document deleted.'),
+      onError: (err: unknown) => {
+        const e = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+        toast.error(e.response?.data?.error?.message ?? e.message ?? 'Delete failed');
+      },
+    });
+  };
 
   const save = () => {
     if (draft === doc.documentType) {
@@ -472,17 +460,23 @@ function DocumentRow({ doc, practiceId }: { doc: PracticeDocument; practiceId: s
           </button>
         )}
       </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          {inFlight && <ArrowPathIcon className="h-4 w-4 text-primary-500 animate-spin" />}
-          {badge ? <StatusBadge variant={badge.variant} label={badge.label} /> : null}
-        </div>
-      </td>
       <td className="px-4 py-3 text-sm text-gray-500">
         {(() => {
           const d = doc.createdAt ? new Date(doc.createdAt) : null;
           return d && !isNaN(d.getTime()) ? format(d, 'MMM d, yyyy') : '—';
         })()}
+      </td>
+      <td className="px-4 py-3 text-right">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={del.isPending}
+          className="text-gray-400 hover:text-red-600 disabled:opacity-50"
+          aria-label={`Delete ${doc.originalFileName}`}
+          title="Delete document"
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
       </td>
     </tr>
   );

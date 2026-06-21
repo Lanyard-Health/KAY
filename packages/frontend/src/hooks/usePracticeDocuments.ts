@@ -178,3 +178,16 @@ export function useUpdatePracticeDocumentType(practiceId: string) {
     },
   });
 }
+
+export function useDeletePracticeDocument(practiceId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      await api.delete(`/practices/${practiceId}/documents/${documentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['practice-documents', practiceId] });
+    },
+  });
+}
