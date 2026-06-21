@@ -216,6 +216,67 @@ export class DocumentService {
   }
 
   /**
+   * Server-side practice-document upload. The browser POSTs the file to our API
+   * and the backend PUTs it to storage — so the browser never talks to R2
+   * directly, sidestepping the R2-CORS / CSP-connect-src wall that made the
+   * presigned-PUT flow spin forever. One round trip, file is in storage and the
+   * row exists when this resolves.
+   */
+  async uploadPracticeDocument(
+    practiceId: string,
+    params: { buffer: Buffer; fileName: string; contentType: string; documentType?: string },
+    userId: string
+  ) {
+    const practice = await prisma.practice.findUnique({
+      where: { id: practiceId },
+      select: { id: true },
+    });
+    if (!practice) {
+      throw new Error('Practice not found');
+    }
+
+    const documentId = uuid();
+    const fileExtension = (params.fileName.split('.').pop() || '').replace(/[^a-zA-Z0-9]/g, '');
+    const s3Key = `${this.documentsPrefix}practices/${practiceId}/${documentId}.${fileExtension}`;
+    // Route validates documentType against the DocumentType enum before calling.
+    const documentType = (params.documentType ?? 'other') as DocumentType;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        Body: params.buffer,
+        ContentType: params.contentType,
+        Metadata: {
+          'document-id': documentId,
+          'practice-id': practiceId,
+          'document-type': documentType,
+        },
+      })
+    );
+
+    return prisma.document.create({
+      data: {
+        id: documentId,
+        practiceId,
+        providerId: null,
+        fileName: `${documentId}.${fileExtension}`,
+        originalFileName: params.fileName,
+        fileSize: params.buffer.length,
+        mimeType: params.contentType,
+        s3Key,
+        documentType,
+        // OCR is not wired yet — Textract can't read R2, and the Claude-based
+        // engine is a separate build. Mark not_applicable so the list doesn't
+        // poll forever waiting on a status that never moves. ponytail: the OCR
+        // rebuild will reprocess these.
+        ocrStatus: 'not_applicable',
+        createdById: userId,
+      },
+    });
+  }
+
+  /**
    * Server-side ingestion path (CAQH document import): PUT a buffer we already
    * hold straight to storage and create the Document row in one step — no
    * presigned URL round-trip, no confirmUpload. The caller supplies a

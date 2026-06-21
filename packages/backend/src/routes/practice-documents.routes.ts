@@ -21,6 +21,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
@@ -32,6 +33,21 @@ import {
 import { setAuditContext } from '../middleware/audit.middleware.js';
 
 export const practiceDocumentRoutes = Router({ mergeParams: true });
+
+// In-memory multipart parsing for the server-side upload path. 25 MB matches
+// the frontend cap; the buffer is handed straight to storage, never written to
+// disk.
+const ALLOWED_UPLOAD_MIME = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/tiff',
+  'image/webp',
+]);
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+}).single('file');
 
 practiceDocumentRoutes.use(authenticate);
 practiceDocumentRoutes.use(
@@ -107,6 +123,81 @@ practiceDocumentRoutes.post(
       });
 
       res.json({ success: true, data: result });
+    } catch (error) {
+      if ((error as Error).message === 'Practice not found') {
+        return next(new NotFoundError('Practice'));
+      }
+      next(error);
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
+// POST /upload — server-side upload (browser → API → storage). Avoids the
+// browser→R2 presigned PUT, which is blocked by R2 CORS / the frontend CSP.
+// ──────────────────────────────────────────────
+function runUpload(req: Request, res: Response, next: NextFunction) {
+  uploadMiddleware(req, res, (err: unknown) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, error: { message: 'File too large. Max 25 MB.' } });
+      }
+      return next(err);
+    }
+    next();
+  });
+}
+
+practiceDocumentRoutes.post(
+  '/upload',
+  runUpload,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practiceId = req.params['practiceId'];
+      if (!practiceId || !UUID_RE.test(practiceId)) {
+        return res.status(400).json({ success: false, error: { message: 'Invalid practiceId' } });
+      }
+      await assertPracticeDocumentAccess(req, practiceId);
+
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ success: false, error: { message: 'No file uploaded' } });
+      }
+      if (!ALLOWED_UPLOAD_MIME.has(file.mimetype)) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Invalid file type. Upload PDF, JPEG, PNG, TIFF, or WebP.' },
+        });
+      }
+
+      // documentType is an optional form field; validate it against the enum
+      // (same schema the PATCH route uses) when present.
+      let documentType: string | undefined;
+      const rawType = (req.body as { documentType?: unknown })?.documentType;
+      if (typeof rawType === 'string' && rawType) {
+        documentType = updatePracticeDocumentSchema.parse({ documentType: rawType }).documentType;
+      }
+
+      setAuditContext(req, { resourceType: 'practice_document', action: 'create' });
+
+      const document = await (await getDocumentService()).uploadPracticeDocument(
+        practiceId,
+        {
+          buffer: file.buffer,
+          fileName: file.originalname,
+          contentType: file.mimetype,
+          documentType,
+        },
+        req.user!.id
+      );
+
+      logger.info('Practice document uploaded (server-side)', {
+        practiceId,
+        documentId: document.id,
+        userId: req.user?.id,
+      });
+
+      res.status(201).json({ success: true, data: document });
     } catch (error) {
       if ((error as Error).message === 'Practice not found') {
         return next(new NotFoundError('Practice'));
