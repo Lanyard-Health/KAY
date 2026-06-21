@@ -77,6 +77,37 @@ describe('vision-extractor', () => {
     );
   });
 
+  it('sends a PDF as a document block, not an image block', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: '{"fields":{}}' }],
+    });
+
+    await extractWithVision({
+      imageBase64: 'pdfbytes',
+      mimeType: 'application/pdf',
+      documentType: 'license',
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                type: 'document',
+                source: expect.objectContaining({
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: 'pdfbytes',
+                }),
+              }),
+            ]),
+          }),
+        ]),
+      })
+    );
+  });
+
   it('handles invalid JSON response gracefully', async () => {
     mockCreate.mockResolvedValueOnce({
       content: [{ type: 'text', text: 'not valid json' }],

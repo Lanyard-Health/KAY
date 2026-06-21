@@ -33,9 +33,10 @@ const envSchema = z.object({
   // bug-monitor triage read this. Default Haiku 4.5 — ~3× cheaper than Sonnet
   // on input tokens, faster latency, sufficient quality for routine labels.
   AI_MODEL_CLASSIFIER: z.string().default('claude-haiku-4-5-20251001'),
-  // Vision/OCR extraction tier. Defaults to Sonnet for now; flip to Haiku in
-  // staging only after A/B verifying scanned-PDF extraction quality holds.
-  AI_MODEL_VISION: z.string().default('claude-sonnet-4-20250514'),
+  // Vision/OCR extraction tier. Defaults to Haiku 4.5 — cheapest vision model,
+  // sufficient for reading credential PDFs/images. Bump a deploy to Sonnet via
+  // this env var if scanned-PDF extraction quality ever proves insufficient.
+  AI_MODEL_VISION: z.string().default('claude-haiku-4-5-20251001'),
   AI_DAILY_TOKEN_BUDGET: z.coerce.number().default(100000),
   MAX_REPLANS_PER_WORKFLOW: z.coerce.number().int().min(0).max(50).default(5),
 

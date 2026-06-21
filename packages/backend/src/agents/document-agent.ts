@@ -4,7 +4,6 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { logAgentEvent } from './event-logger.js';
 import { emitWorkflowEvent } from './websocket.js';
-import { extractWithTextract } from './extractors/textract-extractor.js';
 import { extractWithVision } from './extractors/vision-extractor.js';
 import { classifyDocumentType } from './document-classifier.js';
 import { mapToCredential } from './credential-mapper.js';
@@ -274,16 +273,13 @@ export async function processDocumentJob(data: DocumentJobData): Promise<Documen
     let extractedFields: Record<string, { value: string; confidence: number }> = {};
     let averageConfidence = 0;
 
-    if (PDF_MIME_TYPES.includes(document.mimeType)) {
-      extractionMethod = 'textract';
-      const result = await extractWithTextract(buffer);
-      extractedFields = result.fields;
-      averageConfidence = result.averageConfidence;
-    } else if (IMAGE_MIME_TYPES.includes(document.mimeType)) {
+    // PDFs and images both go through Claude vision now — Textract can't read
+    // R2 (the bucket lives in Cloudflare, Textract is AWS-only). extractWithVision
+    // picks a PDF `document` block or an `image` block from the mimeType.
+    if (PDF_MIME_TYPES.includes(document.mimeType) || IMAGE_MIME_TYPES.includes(document.mimeType)) {
       extractionMethod = 'vision';
-      const imageBase64 = buffer.toString('base64');
       const result = await extractWithVision({
-        imageBase64,
+        imageBase64: buffer.toString('base64'),
         mimeType: document.mimeType,
         documentType,
         extractionHints: data.extractionHints,
