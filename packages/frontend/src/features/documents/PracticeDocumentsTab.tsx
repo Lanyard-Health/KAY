@@ -193,7 +193,7 @@ function UploadCard({ practiceId }: { practiceId: string }) {
       },
       {
         onSuccess: () => {
-          toast.success('Uploaded — OCR processing has started.');
+          toast.success('Document uploaded.');
           reset();
         },
         onError: (err: unknown) => {
@@ -210,7 +210,7 @@ function UploadCard({ practiceId }: { practiceId: string }) {
     if (!phase) return null;
     if (phase === 'requesting_url') return 'Requesting upload URL…';
     if (phase === 'uploading') return 'Uploading file…';
-    if (phase === 'confirming') return 'Confirming and starting OCR…';
+    if (phase === 'confirming') return 'Finishing up…';
     return phase;
   })();
 
@@ -218,8 +218,8 @@ function UploadCard({ practiceId }: { practiceId: string }) {
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
       <h2 className="text-base font-semibold text-gray-900">Upload practice document</h2>
       <p className="mt-1 text-xs text-gray-500">
-        PDF, JPEG, PNG, TIFF, or WebP. Up to 25 MB. Leave document type as <em>Auto-detect</em> to
-        let OCR classify after upload.
+        PDF, JPEG, PNG, TIFF, or WebP. Up to 25 MB. Pick a document type, or leave it as
+        <em> Other</em> and set it later.
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_240px_auto] items-end">
@@ -259,7 +259,7 @@ function UploadCard({ practiceId }: { practiceId: string }) {
             onChange={(e) => setDocumentType(e.target.value)}
             disabled={upload.isPending}
           >
-            <option value="">Auto-detect (OCR will classify)</option>
+            <option value="">Other (set type later)</option>
             {ALL_DOCUMENT_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}

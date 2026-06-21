@@ -12,10 +12,7 @@
  * (services/api with `/documents/provider/{providerId}`) and are not affected.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  practiceDocumentResponseSchema,
-  practiceUploadUrlResponseSchema,
-} from '@credential-management/shared';
+import { practiceDocumentResponseSchema } from '@credential-management/shared';
 import { api } from '../services/api';
 
 export type PracticeDocumentOcrStatus =
@@ -90,12 +87,12 @@ interface UploadInput {
 }
 
 /**
- * Three-phase upload mirroring DocumentUploadModal:
- *   1. POST /upload-url to get the presigned S3 URL + new documentId
- *   2. PUT the file directly to S3 using the presigned URL
- *   3. POST /:documentId/confirm to record the file and trigger OCR
+ * Single-request server-side upload: POST the file (multipart) to our API,
+ * which streams it to storage and creates the row. The browser never PUTs to
+ * R2 directly, so this isn't subject to R2 CORS or the frontend CSP — the
+ * cause of the old presigned-PUT flow spinning forever.
  *
- * Throws on any phase failure with a message suitable for the UI.
+ * Throws on failure with a message suitable for the UI.
  */
 export function useUploadPracticeDocument(practiceId: string) {
   const queryClient = useQueryClient();
@@ -104,47 +101,22 @@ export function useUploadPracticeDocument(practiceId: string) {
     mutationFn: async (input: UploadInput): Promise<PracticeDocument> => {
       const { file, documentType, onProgress } = input;
 
-      onProgress?.('requesting_url', 10);
-      const uploadUrlBody: { fileName: string; contentType: string; documentType?: string } = {
-        fileName: file.name,
-        contentType: file.type,
-      };
+      const form = new FormData();
+      form.append('file', file);
       if (documentType) {
-        uploadUrlBody.documentType = documentType;
-      }
-      const uploadUrlResp = await api.post(
-        `/practices/${practiceId}/documents/upload-url`,
-        uploadUrlBody
-      );
-      const parsedUploadUrl = practiceUploadUrlResponseSchema.safeParse(uploadUrlResp.data?.data);
-      if (!parsedUploadUrl.success) {
-        console.error('Invalid upload URL response shape:', parsedUploadUrl.error);
-        throw new Error('Upload service returned an unexpected response. Please try again.');
-      }
-      const { uploadUrl, documentId } = parsedUploadUrl.data;
-
-      onProgress?.('uploading', 30);
-      const s3Resp = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
-      if (!s3Resp.ok) {
-        throw new Error('Failed to upload file to storage');
+        form.append('documentType', documentType);
       }
 
-      onProgress?.('confirming', 70);
-      const confirmResp = await api.post(
-        `/practices/${practiceId}/documents/${documentId}/confirm`
-      );
+      onProgress?.('uploading', 40);
+      const resp = await api.upload(`/practices/${practiceId}/documents/upload`, form);
 
       onProgress?.('confirming', 100);
-      const parsedConfirm = practiceDocumentResponseSchema.safeParse(confirmResp.data?.data);
-      if (!parsedConfirm.success) {
-        console.error('Invalid confirm response shape:', parsedConfirm.error);
-        throw new Error('Document confirmation returned an unexpected response. Please refresh and try again.');
+      const parsed = practiceDocumentResponseSchema.safeParse(resp.data?.data);
+      if (!parsed.success) {
+        console.error('Invalid upload response shape:', parsed.error);
+        throw new Error('Upload returned an unexpected response. Please refresh and try again.');
       }
-      return parsedConfirm.data;
+      return parsed.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['practice-documents', practiceId] });

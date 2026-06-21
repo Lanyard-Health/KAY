@@ -240,6 +240,42 @@ describe('DocumentService', () => {
     });
   });
 
+  describe('uploadPracticeDocument', () => {
+    it('PUTs the buffer server-side and creates a not_applicable practice doc', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue({ id: 'prac-1' } as any);
+      prismaMock.document.create.mockResolvedValue({ id: 'doc-uuid-123' } as any);
+
+      const result = await service.uploadPracticeDocument(
+        'prac-1',
+        { buffer: Buffer.from('PDFDATA'), fileName: 'w9.pdf', contentType: 'application/pdf', documentType: 'w9' },
+        'user-1'
+      );
+
+      expect(result).toEqual({ id: 'doc-uuid-123' });
+      expect(mockS3Send).toHaveBeenCalled(); // uploaded server-side, no presigned PUT
+      const createArg = (prismaMock.document.create as any).mock.calls[0][0].data;
+      expect(createArg).toMatchObject({
+        practiceId: 'prac-1',
+        providerId: null,
+        fileSize: Buffer.from('PDFDATA').length,
+        documentType: 'w9',
+        ocrStatus: 'not_applicable',
+        createdById: 'user-1',
+      });
+    });
+
+    it('throws when the practice does not exist', async () => {
+      prismaMock.practice.findUnique.mockResolvedValue(null);
+      await expect(
+        service.uploadPracticeDocument(
+          'missing',
+          { buffer: Buffer.from('x'), fileName: 'a.pdf', contentType: 'application/pdf' },
+          'u1'
+        )
+      ).rejects.toThrow('Practice not found');
+    });
+  });
+
   describe('getViewUrl', () => {
     it('uses inline disposition for pdf so the browser renders it in-pane', async () => {
       await service.getViewUrl('documents/p1/doc-1.pdf', 'application/pdf');
