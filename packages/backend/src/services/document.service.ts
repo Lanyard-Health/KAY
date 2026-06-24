@@ -8,16 +8,12 @@ import {
   PutBucketCorsCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import {
-  TextractClient,
-  StartDocumentAnalysisCommand,
-  GetDocumentAnalysisCommand,
-} from '@aws-sdk/client-textract';
 import { v4 as uuid } from 'uuid';
-import type { DocumentType } from '@prisma/client';
+import type { DocumentType, Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { classifyDocumentType } from '../agents/document-classifier.js';
+import { extractWithVision } from '../agents/extractors/vision-extractor.js';
 import type {
   UploadUrlRequestInput,
   PracticeUploadUrlRequestInput,
@@ -25,12 +21,10 @@ import type {
 
 export class DocumentService {
   private s3: S3Client;
-  private textract: TextractClient;
   private bucket: string;
   private documentsPrefix: string;
 
   constructor() {
-    const isLocalStack = process.env['USE_LOCALSTACK'] === 'true';
     const s3Endpoint = process.env['S3_ENDPOINT'];
 
     this.s3 = new S3Client({
@@ -43,16 +37,6 @@ export class DocumentService {
         credentials: {
           accessKeyId: process.env['AWS_ACCESS_KEY_ID'],
           secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || '',
-        },
-      }),
-    });
-    this.textract = new TextractClient({
-      region: process.env['AWS_REGION'] || 'us-east-1',
-      ...(isLocalStack && s3Endpoint && {
-        endpoint: s3Endpoint,
-        credentials: {
-          accessKeyId: process.env['AWS_ACCESS_KEY_ID'] || 'test',
-          secretAccessKey: process.env['AWS_SECRET_ACCESS_KEY'] || 'test',
         },
       }),
     });
@@ -216,6 +200,70 @@ export class DocumentService {
   }
 
   /**
+   * Server-side practice-document upload. The browser POSTs the file to our API
+   * and the backend PUTs it to storage — so the browser never talks to R2
+   * directly, sidestepping the R2-CORS / CSP-connect-src wall that made the
+   * presigned-PUT flow spin forever. One round trip, file is in storage and the
+   * row exists when this resolves.
+   */
+  async uploadPracticeDocument(
+    practiceId: string,
+    params: { buffer: Buffer; fileName: string; contentType: string; documentType?: string },
+    userId: string
+  ) {
+    const practice = await prisma.practice.findUnique({
+      where: { id: practiceId },
+      select: { id: true },
+    });
+    if (!practice) {
+      throw new Error('Practice not found');
+    }
+
+    const documentId = uuid();
+    const fileExtension = (params.fileName.split('.').pop() || '').replace(/[^a-zA-Z0-9]/g, '');
+    const s3Key = `${this.documentsPrefix}practices/${practiceId}/${documentId}.${fileExtension}`;
+    // Route validates documentType against the DocumentType enum before calling.
+    const documentType = (params.documentType ?? 'other') as DocumentType;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        Body: params.buffer,
+        ContentType: params.contentType,
+        Metadata: {
+          'document-id': documentId,
+          'practice-id': practiceId,
+          'document-type': documentType,
+        },
+      })
+    );
+
+    const willOcr = this.shouldRunOcr(params.contentType) && process.env['USE_LOCALSTACK'] !== 'true';
+
+    const document = await prisma.document.create({
+      data: {
+        id: documentId,
+        practiceId,
+        providerId: null,
+        fileName: `${documentId}.${fileExtension}`,
+        originalFileName: params.fileName,
+        fileSize: params.buffer.length,
+        mimeType: params.contentType,
+        s3Key,
+        documentType,
+        // 'pending' if we're about to OCR (the list polls until it settles);
+        // 'not_applicable' for unsupported types so the list doesn't poll forever.
+        ocrStatus: willOcr ? 'pending' : 'not_applicable',
+        createdById: userId,
+      },
+    });
+
+    if (willOcr) void this.runOcr(documentId);
+    return document;
+  }
+
+  /**
    * Server-side ingestion path (CAQH document import): PUT a buffer we already
    * hold straight to storage and create the Document row in one step — no
    * presigned URL round-trip, no confirmUpload. The caller supplies a
@@ -255,6 +303,8 @@ export class DocumentService {
       })
     );
 
+    const willOcr = this.shouldRunOcr(params.contentType) && process.env['USE_LOCALSTACK'] !== 'true';
+
     const document = await prisma.document.create({
       data: {
         id: documentId,
@@ -267,13 +317,17 @@ export class DocumentService {
         documentType: params.documentType,
         description: params.description,
         expirationDate: params.expirationDate ?? undefined,
-        ocrStatus: 'not_applicable',
+        ocrStatus: willOcr ? 'pending' : 'not_applicable',
         reviewStatus: params.reviewStatus ?? 'pending',
         ...(params.links ?? {}),
       },
       select: { id: true, s3Key: true },
     });
 
+    // CAQH imports a batch of docs in a loop; each kicks an independent Haiku
+    // read. ponytail: fire-and-forget burst — fine at import volumes (callLLM
+    // already retries on 429). Add a queue if a single import ever exceeds ~50 docs.
+    if (willOcr) void this.runOcr(document.id);
     return document;
   }
 
@@ -317,7 +371,10 @@ export class DocumentService {
           data: { ocrStatus: 'not_applicable' },
         });
       } else if (this.shouldRunOcr(document.mimeType)) {
-        await this.startOcrProcessing(documentId, document.s3Key);
+        // Fire-and-forget: don't block the upload-confirm response on OCR.
+        // runOcr flips the status pending → processing → completed itself; the
+        // document list polls while it's in flight.
+        void this.runOcr(documentId);
       } else {
         await prisma.document.update({
           where: { id: documentId },
@@ -388,6 +445,37 @@ export class DocumentService {
     return getSignedUrl(this.s3, command, { expiresIn: 3600 });
   }
 
+  // Inline rendering is XSS-safe only for these types. Anything else (HTML, SVG,
+  // etc.) must NOT render inline in the browser, so it falls back to attachment.
+  private static readonly INLINE_SAFE_MIME_TYPES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/tiff',
+  ]);
+
+  /**
+   * Presigned URL for INLINE preview (the eye/"View" button). For pdf/image
+   * types it sets Content-Disposition: inline so the browser renders it in the
+   * preview pane instead of downloading it. For any other type it falls back to
+   * attachment — never render untrusted HTML/SVG inline. Distinct from
+   * getDownloadUrl, which always forces a download.
+   */
+  async getViewUrl(s3Key: string, mimeType: string): Promise<string> {
+    const fileName = s3Key.split('/').pop() || 'document';
+    const inlineSafe = DocumentService.INLINE_SAFE_MIME_TYPES.has(mimeType);
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: s3Key,
+      ResponseContentDisposition: inlineSafe ? 'inline' : `attachment; filename="${fileName}"`,
+      ...(inlineSafe && { ResponseContentType: mimeType }),
+    });
+
+    return getSignedUrl(this.s3, command, { expiresIn: 3600 });
+  }
+
   async deleteDocument(s3Key: string): Promise<void> {
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
@@ -397,227 +485,102 @@ export class DocumentService {
     await this.s3.send(command);
   }
 
+  // Claude vision can read these directly. Textract's old list included tiff,
+  // which Claude vision doesn't accept — dropped.
+  private static readonly OCR_SUPPORTED_TYPES = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+  ]);
+
   private shouldRunOcr(mimeType: string): boolean {
-    const ocrSupportedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/tiff',
-    ];
-    return ocrSupportedTypes.includes(mimeType);
+    return DocumentService.OCR_SUPPORTED_TYPES.has(mimeType);
   }
 
-  async startOcrProcessing(documentId: string, s3Key: string): Promise<void> {
+  private async downloadObject(s3Key: string): Promise<Buffer> {
+    const response = await this.s3.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: s3Key })
+    );
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Claude-based OCR. Reads the file straight from R2 and extracts credential
+   * fields with Claude vision (Haiku by default — cheapest vision tier, set via
+   * AI_MODEL_VISION). Replaces the old Textract path, which couldn't read R2 at
+   * all (R2 lives in Cloudflare; Textract is AWS-only).
+   *
+   * Never throws — marks the document `failed` on any error — so every caller
+   * can fire-and-forget it without an unhandled rejection.
+   */
+  async runOcr(documentId: string): Promise<void> {
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, s3Key: true, mimeType: true, documentType: true, providerId: true },
+    });
+    if (!document) {
+      logger.warn(`runOcr: document ${documentId} not found`);
+      return;
+    }
+    if (!this.shouldRunOcr(document.mimeType)) {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { ocrStatus: 'not_applicable' },
+      });
+      return;
+    }
+
     try {
-      // Update status to processing
       await prisma.document.update({
         where: { id: documentId },
         data: { ocrStatus: 'processing' },
       });
 
-      // Start Textract analysis
-      const command = new StartDocumentAnalysisCommand({
-        DocumentLocation: {
-          S3Object: {
-            Bucket: this.bucket,
-            Name: s3Key,
-          },
-        },
-        FeatureTypes: ['FORMS', 'TABLES'],
-        NotificationChannel: process.env['TEXTRACT_SNS_TOPIC_ARN']
-          ? {
-              SNSTopicArn: process.env['TEXTRACT_SNS_TOPIC_ARN'],
-              RoleArn: process.env['TEXTRACT_SNS_ROLE_ARN']!,
-            }
-          : undefined,
+      const buffer = await this.downloadObject(document.s3Key);
+      const { fields, averageConfidence } = await extractWithVision({
+        imageBase64: buffer.toString('base64'),
+        mimeType: document.mimeType,
+        documentType: document.documentType,
       });
+      const fieldCount = Object.keys(fields).length;
 
-      const response = await this.textract.send(command);
-
-      if (response.JobId) {
-        // Store job ID for tracking
-        await prisma.document.update({
-          where: { id: documentId },
-          data: {
-            ocrData: { jobId: response.JobId, startedAt: new Date().toISOString() },
-          },
-        });
-
-        // If not using SNS notifications, poll for results
-        if (!process.env['TEXTRACT_SNS_TOPIC_ARN']) {
-          this.pollOcrResults(documentId, response.JobId);
-        }
+      // Auto-classify practice-scoped docs still tagged 'other' (provider docs
+      // upload with an explicit type). Reuses the text we just extracted, so no
+      // extra image tokens. classifyDocumentType never throws — returns 'other'
+      // on any failure — so OCR completion is unaffected on classifier error.
+      let classifiedType: DocumentType | undefined;
+      if (!document.providerId && document.documentType === 'other' && fieldCount > 0) {
+        const textContent = Object.entries(fields)
+          .map(([k, v]) => `${k}: ${v.value}`)
+          .join('\n');
+        classifiedType = await classifyDocumentType({ textContent, mimeType: 'text/plain' });
       }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'OCR processing failed';
-      logger.error('Failed to start OCR processing', { documentId, reason });
+
       await prisma.document.update({
         where: { id: documentId },
         data: {
-          ocrStatus: 'failed',
-          ocrData: { failureReason: reason, failedAt: new Date().toISOString() },
+          // No fields read → leave it for a human rather than claim 'completed'.
+          ocrStatus: fieldCount > 0 ? 'completed' : 'needs_review',
+          ocrData: fields as unknown as Prisma.InputJsonValue,
+          ocrConfidence: averageConfidence,
+          ...(classifiedType && classifiedType !== 'other' && { documentType: classifiedType }),
         },
       });
-    }
-  }
-
-  private async pollOcrResults(documentId: string, jobId: string): Promise<void> {
-    let attempts = 0;
-    const maxAttempts = 60; // 5 minutes with 5 second intervals
-
-    const poll = async () => {
-      attempts++;
-
-      try {
-        const command = new GetDocumentAnalysisCommand({ JobId: jobId });
-        const response = await this.textract.send(command);
-
-        if (response.JobStatus === 'SUCCEEDED') {
-          await this.processOcrResults(documentId, response);
-        } else if (response.JobStatus === 'FAILED') {
-          await prisma.document.update({
-            where: { id: documentId },
-            data: { ocrStatus: 'failed' },
-          });
-        } else if (attempts < maxAttempts) {
-          // Still processing, poll again
-          setTimeout(poll, 5000);
-        } else {
-          // Timeout
-          await prisma.document.update({
-            where: { id: documentId },
-            data: { ocrStatus: 'failed' },
-          });
-        }
-      } catch (error) {
-        logger.error('OCR polling error', error);
-        await prisma.document.update({
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'OCR failed';
+      logger.error('Claude OCR failed', { documentId, reason });
+      await prisma.document
+        .update({
           where: { id: documentId },
-          data: { ocrStatus: 'failed' },
-        });
-      }
-    };
-
-    // Start polling after initial delay
-    setTimeout(poll, 5000);
-  }
-
-  private async processOcrResults(documentId: string, response: any): Promise<void> {
-    const extractedFields: Record<string, { value: string; confidence: number }> = {};
-    let totalConfidence = 0;
-    let fieldCount = 0;
-
-    // Process Textract blocks
-    for (const block of response.Blocks || []) {
-      if (block.BlockType === 'KEY_VALUE_SET' && block.EntityTypes?.includes('KEY')) {
-        const keyText = this.getTextFromBlock(block, response.Blocks);
-        const valueBlock = this.getValueBlock(block, response.Blocks);
-
-        if (valueBlock) {
-          const valueText = this.getTextFromBlock(valueBlock, response.Blocks);
-          const confidence = (block.Confidence || 0) / 100;
-
-          if (keyText && valueText) {
-            // eslint-disable-next-line security/detect-object-injection -- keyText is a Textract OCR label, stored as JSON blob
-            extractedFields[keyText] = {
-              value: valueText,
-              confidence,
-            };
-            totalConfidence += confidence;
-            fieldCount++;
-          }
-        }
-      }
-    }
-
-    const avgConfidence = fieldCount > 0 ? totalConfidence / fieldCount : 0;
-
-    // Auto-classify practice-scoped documents whose type is still 'other'.
-    // Provider-doc behavior is unchanged: provider docs already pass an
-    // explicit documentType at upload time. We only run the classifier when
-    // (a) the doc is practice-scoped and (b) it's still tagged 'other' and
-    // (c) Textract gave us at least one field to work with. The classifier
-    // never throws — it returns 'other' on any failure (network, timeout,
-    // missing API key) — so OCR completion is unaffected on classifier error.
-    let classifiedType: DocumentType | undefined;
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
-      select: { providerId: true, documentType: true },
-    });
-    if (
-      document &&
-      !document.providerId &&
-      document.documentType === 'other' &&
-      fieldCount > 0
-    ) {
-      const textContent = Object.entries(extractedFields)
-        .map(([k, v]) => `${k}: ${v.value}`)
-        .join('\n');
-      classifiedType = await classifyDocumentType({
-        textContent,
-        mimeType: 'text/plain',
-      });
-    }
-
-    await prisma.document.update({
-      where: { id: documentId },
-      data: {
-        ocrStatus: 'completed',
-        ocrData: extractedFields,
-        ocrConfidence: avgConfidence,
-        ...(classifiedType && classifiedType !== 'other' && { documentType: classifiedType }),
-      },
-    });
-  }
-
-  private getTextFromBlock(block: any, allBlocks: any[]): string {
-    if (block.Text) return block.Text;
-
-    const childIds = block.Relationships?.find((r: any) => r.Type === 'CHILD')?.Ids || [];
-    const childBlocks = allBlocks.filter((b: any) => childIds.includes(b.Id));
-
-    return childBlocks
-      .filter((b: any) => b.BlockType === 'WORD')
-      .map((b: any) => b.Text)
-      .join(' ');
-  }
-
-  private getValueBlock(keyBlock: any, allBlocks: any[]): any {
-    const valueRelation = keyBlock.Relationships?.find((r: any) => r.Type === 'VALUE');
-    if (!valueRelation) return null;
-
-    return allBlocks.find((b: any) => valueRelation.Ids.includes(b.Id));
-  }
-
-  // Handle SNS notification for completed OCR job
-  async handleOcrNotification(jobId: string): Promise<void> {
-    // Find document by job ID
-    const documents = await prisma.document.findMany({
-      where: {
-        ocrData: {
-          path: ['jobId'],
-          equals: jobId,
-        },
-      },
-    });
-
-    if (documents.length === 0) {
-      logger.warn(`No document found for OCR job ${jobId}`);
-      return;
-    }
-
-    const document = documents[0]!;
-
-    const command = new GetDocumentAnalysisCommand({ JobId: jobId });
-    const response = await this.textract.send(command);
-
-    if (response.JobStatus === 'SUCCEEDED') {
-      await this.processOcrResults(document.id, response);
-    } else {
-      await prisma.document.update({
-        where: { id: document.id },
-        data: { ocrStatus: 'failed' },
-      });
+          data: { ocrStatus: 'failed', ocrData: { failureReason: reason } },
+        })
+        .catch(() => {/* swallow — fire-and-forget, already logged */});
     }
   }
 }

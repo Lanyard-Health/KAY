@@ -21,7 +21,7 @@ import PracticeDocumentsTab from './PracticeDocumentsTab';
 // 'provider' role (Phase 4 — practice-level docs are staff-managed only).
 const ALL_TABS = [
   { key: 'provider', label: 'Provider Documents', icon: UserCircleIcon, restrictedTo: null },
-  { key: 'practice', label: 'Practice Documents', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'credentialing_staff', 'practice_admin'] },
+  { key: 'practice', label: 'Practice Documents', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'lanyard_staff', 'credentialing_staff', 'practice_admin'] },
 ] as const;
 
 const DOCUMENT_TYPES = [
@@ -120,12 +120,22 @@ export default function DocumentList() {
   };
 
   const handlePreview = async (doc: any) => {
+    // Open the doc in a NEW TAB, not an in-app iframe: the site's CSP
+    // (default-src 'self', no frame-src for storage) blocks embedding the
+    // cross-origin Cloudflare file, which is why the in-pane preview showed
+    // "This content is blocked". A top-level tab isn't subject to frame-src and
+    // renders the PDF/image natively (the view-url uses Content-Disposition:
+    // inline). Open the tab synchronously in the click gesture so it isn't
+    // popup-blocked, then point it at the signed URL once we have it.
+    const tab = window.open('', '_blank');
     try {
-      const response = await api.get(`/documents/${doc.id}/download-url`);
-      const { downloadUrl } = response.data.data;
-      setPreviewDoc({ doc, url: downloadUrl });
+      const response = await api.get(`/documents/${doc.id}/view-url`);
+      const { viewUrl } = response.data.data;
+      if (tab) tab.location.href = viewUrl;
+      else window.location.assign(viewUrl); // popup blocked → use current tab
     } catch (error) {
-      toast.error('Failed to load document preview');
+      tab?.close();
+      toast.error('Failed to open document');
     }
   };
 
@@ -345,10 +355,10 @@ export default function DocumentList() {
             <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Document
+                  Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  Document
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Uploaded
@@ -369,19 +379,19 @@ export default function DocumentList() {
                 const ocrBadge = getOcrStatusBadge(doc.ocrStatus);
                 return (
                 <AnimatedListItem itemKey={doc.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {getDocumentTypeLabel(doc.documentType)}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <DocumentIcon className="h-8 w-8 text-gray-400" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">{doc.originalFileName}</p>
+                        <p className="text-sm text-gray-700">{doc.originalFileName}</p>
                         <p className="text-sm text-gray-500">
                           {(doc.fileSize / 1024).toFixed(1)} KB
                         </p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {getDocumentTypeLabel(doc.documentType)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {format(new Date(doc.createdAt), 'MMM d, yyyy')}

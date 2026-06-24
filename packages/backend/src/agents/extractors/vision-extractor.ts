@@ -12,6 +12,8 @@ export interface VisionExtractionResult {
 }
 
 export interface VisionExtractionInput {
+  /** Base64-encoded file bytes — an image OR a PDF. The content block type is
+   *  chosen from mimeType. (Field name kept for backward compat with callers.) */
   imageBase64: string;
   mimeType: string;
   documentType: string;
@@ -56,21 +58,31 @@ Rules:
  */
 export async function extractWithVision(input: VisionExtractionInput): Promise<VisionExtractionResult> {
   try {
-    const mediaType = input.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    // PDFs go in a `document` block; images in an `image` block. Most credential
+    // docs are PDFs, so this branch is the common path post-Textract.
+    const fileBlock = input.mimeType === 'application/pdf'
+      ? {
+          type: 'document' as const,
+          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: input.imageBase64 },
+        }
+      : {
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: input.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: input.imageBase64,
+          },
+        };
 
     const response = await callLLM({
-      // AI_MODEL_VISION lets vision/OCR be A/B-tested independently of the
-      // orchestrator's reasoning model. Falls back to AI_MODEL (Sonnet by
-      // default) so existing deploys with only AI_MODEL set keep working.
-      model: process.env['AI_MODEL_VISION'] || process.env['AI_MODEL'] || 'claude-sonnet-4-20250514',
+      // AI_MODEL_VISION lets vision/OCR be tuned independently of the
+      // orchestrator's reasoning model. Defaults to Haiku (cheapest vision tier).
+      model: process.env['AI_MODEL_VISION'] || process.env['AI_MODEL'] || 'claude-haiku-4-5-20251001',
       maxTokens: 2000,
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: input.imageBase64 },
-          },
+          fileBlock,
           {
             type: 'text',
             text: buildPrompt(input.documentType, input.extractionHints),

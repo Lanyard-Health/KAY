@@ -17,18 +17,28 @@ export async function initPracticeScope(req: Request): Promise<void> {
   }
 
   try {
-    const assignments = await prisma.userPractice.findMany({
-      where: { userId: req.user.id },
-      select: { practiceId: true },
-    });
-    req.practiceScope = {
-      isSuperAdmin: false,
-      practiceIds: assignments.map((a) => a.practiceId),
-    };
+    // lanyard_staff (Lanyard's own employees) deliver services across ALL practices.
+    // We give them every practiceId so the existing practiceIds-based read filters
+    // surface all practices — WITHOUT setting isSuperAdmin, which gates founder-only
+    // write/escalation checks (e.g. minting admin logins). See project_lanyard_staff_role.
+    const practiceIds = req.user.role === 'lanyard_staff'
+      ? await loadAllPracticeIds()
+      : (await prisma.userPractice.findMany({
+          where: { userId: req.user.id },
+          select: { practiceId: true },
+        })).map((a) => a.practiceId);
+    req.practiceScope = { isSuperAdmin: false, practiceIds };
   } catch (err) {
     logger.error('Failed to load practice scope:', err);
     req.practiceScope = { isSuperAdmin: false, practiceIds: [] };
   }
+}
+
+// ponytail: queries all practice ids per lanyard_staff request. Practice count is small
+// (small/mid practices). Wrap in utils/cache with a short TTL if this ever shows up hot.
+async function loadAllPracticeIds(): Promise<string[]> {
+  const practices = await prisma.practice.findMany({ select: { id: true } });
+  return practices.map((p) => p.id);
 }
 
 /**
@@ -51,12 +61,14 @@ export async function attachPracticeScope(
   }
 
   try {
-    const assignments = await prisma.userPractice.findMany({
-      where: { userId: req.user.id },
-      select: { practiceId: true },
-    });
-
-    const practiceIds = assignments.map((a) => a.practiceId);
+    // lanyard_staff see every practice (cross-practice services) without isSuperAdmin —
+    // see initPracticeScope above.
+    const practiceIds = req.user.role === 'lanyard_staff'
+      ? await loadAllPracticeIds()
+      : (await prisma.userPractice.findMany({
+          where: { userId: req.user.id },
+          select: { practiceId: true },
+        })).map((a) => a.practiceId);
     req.practiceScope = { isSuperAdmin: false, practiceIds };
 
     logger.debug(

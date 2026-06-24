@@ -29,7 +29,7 @@ const createUserSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().max(20).optional(),
-  role: z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin']).default('credentialing_staff'),
+  role: z.enum(['admin', 'lanyard_staff', 'credentialing_staff', 'provider', 'practice_admin']).default('credentialing_staff'),
   providerId: z.string().uuid().optional(),
 });
 
@@ -39,7 +39,7 @@ const updateUserSchema = z.object({
   lastName: n(z.string().min(1)),
   email: n(z.string().email()),
   phone: n(z.string().max(20)),
-  role: n(z.enum(['admin', 'credentialing_staff', 'provider', 'practice_admin'])),
+  role: n(z.enum(['admin', 'lanyard_staff', 'credentialing_staff', 'provider', 'practice_admin'])),
 });
 
 // GET /api/v1/users - List all users
@@ -49,7 +49,7 @@ userRoutes.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const search = typeof req.query['search'] === 'string' ? req.query['search'] : undefined;
-      const VALID_ROLES = ['admin', 'credentialing_staff', 'provider', 'practice_admin'] as const;
+      const VALID_ROLES = ['admin', 'lanyard_staff', 'credentialing_staff', 'provider', 'practice_admin'] as const;
       type Role = typeof VALID_ROLES[number];
       const rawRole = typeof req.query['role'] === 'string' ? req.query['role'] : undefined;
       const roleFilter: Role | undefined = rawRole && (VALID_ROLES as readonly string[]).includes(rawRole) ? rawRole as Role : undefined;
@@ -214,9 +214,11 @@ userRoutes.post(
     try {
       const data = createUserSchema.parse(req.body);
 
-      // Non-admins cannot create admin users
-      if (!req.practiceScope?.isSuperAdmin && data.role === 'admin') {
-        throw new ForbiddenError('Only admins can create admin users');
+      // Escalation firewall: only the founder (admin / isSuperAdmin) can mint
+      // Lanyard-internal logins (admin or lanyard_staff). Everyone else — including
+      // lanyard_staff themselves — may only create practice-level roles.
+      if (!req.practiceScope?.isSuperAdmin && (data.role === 'admin' || data.role === 'lanyard_staff')) {
+        throw new ForbiddenError('Only the founder can create Lanyard-internal logins');
       }
 
       // Provision user in Cognito (dev mode auto-generates a fake ID)
@@ -245,8 +247,15 @@ userRoutes.post(
         },
       });
 
-      // Non-admins: auto-assign new user to caller's practice(s)
-      if (!req.practiceScope?.isSuperAdmin && req.practiceScope?.practiceIds.length) {
+      // Non-admins: auto-assign new user to caller's practice(s).
+      // Skip lanyard_staff: their practiceIds is the ENTIRE practice list (cross-practice
+      // scope), so auto-assigning would attach every new user to every practice. They
+      // assign practice membership explicitly via the per-practice add-user flow instead.
+      if (
+        !req.practiceScope?.isSuperAdmin &&
+        req.user?.role !== 'lanyard_staff' &&
+        req.practiceScope?.practiceIds.length
+      ) {
         await Promise.all(
           req.practiceScope.practiceIds.map((practiceId) =>
             prisma.userPractice.create({

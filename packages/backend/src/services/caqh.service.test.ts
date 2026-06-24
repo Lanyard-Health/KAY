@@ -448,6 +448,34 @@ describe('CaqhService', () => {
       });
     });
 
+    it('includes application_type="1" (Initial) when practice_state is IL — spec Table 3 conditional', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        practiceLocations: [{
+          addressLine1: '1 Wacker Dr', city: 'Chicago', state: 'IL', zipCode: '60601',
+          isPrimary: true, createdAt: new Date('2024-01-01'),
+        }],
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.practice_state).toBe('IL');
+      // Spec: Integer 1|2, REQUIRED when Primary Practice State = 'IL'. Roster ADD
+      // is always Initial Credentialing → '1' (the old hardcoded 'I' was invalid).
+      expect(body.application_type).toBe('1');
+    });
+
+    it('omits application_type for non-IL providers (field is IL-only per spec)', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider() as any); // CA
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.application_type).toBeUndefined();
+    });
+
     it('formats birthdate as YYYYMMDD (8 digits, no separators)', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
         dateOfBirth: new Date('1980-01-05'),
@@ -660,14 +688,30 @@ describe('CaqhService', () => {
       expect(body.provider.type).toBe('CP');
     });
 
-    it('fails readiness when providerType=other (NUCC taxonomy fallback deferred)', async () => {
+    it('resolves CAQH Type from NUCC taxonomy when providerType=other (Physician Assistant → PA)', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
         providerType: 'other',
-        taxonomy: '2084P0800X', // valid prefix but fallback is parked
+        taxonomy: '363A00000X', // Physician Assistant → Table 37 PA
       }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
 
-      await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
-      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('PA');
+    });
+
+    it('resolves providerType=other psychiatry taxonomy → MD via fallback', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: '2084P0800X',
+      }) as any);
+      const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
+
+      await service.addToRoster('p1');
+
+      const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+      expect(body.provider.type).toBe('MD');
     });
 
     it('fails readiness when providerType=other and taxonomy is null', async () => {
@@ -677,7 +721,16 @@ describe('CaqhService', () => {
       }) as any);
 
       await expect(service.addToRoster('p1')).rejects.toBeInstanceOf(ProviderNotReadyForCaqhError);
-      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_deferred/);
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_other_missing_taxonomy/);
+    });
+
+    it('fails readiness when providerType=other and taxonomy has no CAQH Type match', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
+        providerType: 'other',
+        taxonomy: '9999X9999X', // no prefix match
+      }) as any);
+
+      await expect(service.addToRoster('p1')).rejects.toThrow(/provider_type_unmapped/);
     });
   });
 
@@ -768,7 +821,7 @@ describe('CaqhService', () => {
       const ready = await service.checkRosterReadiness('p1');
       expect(ready.ready).toBe(false);
       expect(ready.missingFields).toEqual(expect.arrayContaining([
-        expect.stringMatching(/provider_type_other_deferred/),
+        expect.stringMatching(/provider_type_other_missing_taxonomy/),
         'practice_location_missing',
       ]));
     });
@@ -3546,9 +3599,10 @@ describe('CaqhService', () => {
         po_provider_id: 'p1',
         last_recredential_date: '20260115',
         delegation_flag: 'N',
-        application_type: 'I',
         affiliation_flag: 'N',
       });
+      // application_type is IL-only (spec Table 3); this provider is CA → absent.
+      expect(body).not.toHaveProperty('application_type');
     });
 
     it('with flag ON and minimal data, only emits keys for fields that are populated', async () => {
@@ -3581,10 +3635,11 @@ describe('CaqhService', () => {
       // But defaults are always emitted under extended mode.
       expect(body).toMatchObject({
         delegation_flag: 'N',
-        application_type: 'I',
         affiliation_flag: 'N',
         po_provider_id: 'p1',
       });
+      // application_type is IL-only (spec Table 3); this provider is CA → absent.
+      expect(body).not.toHaveProperty('application_type');
     });
 
     it('with flag ON and missing SSN column, omits the field but still submits', async () => {

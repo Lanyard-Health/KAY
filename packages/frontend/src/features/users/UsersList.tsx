@@ -11,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState';
 
 const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   admin: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Admin' },
+  lanyard_staff: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Lanyard Health Staff' },
   credentialing_staff: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Credentialing Staff' },
   provider: { bg: 'bg-green-100', text: 'text-green-800', label: 'Provider' },
 };
@@ -107,6 +108,7 @@ export default function UsersList() {
         >
           <option value="">All Roles</option>
           <option value="admin">Admin</option>
+          <option value="lanyard_staff">Lanyard Health Staff</option>
           <option value="credentialing_staff">Credentialing Staff</option>
           <option value="provider">Provider</option>
         </select>

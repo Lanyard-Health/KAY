@@ -38,6 +38,7 @@ vi.mock('../utils/logger.js', () => ({
 const mockGetPracticeUploadUrl = vi.fn();
 const mockConfirmUpload = vi.fn();
 const mockDeleteDocument = vi.fn();
+const mockUploadPracticeDocument = vi.fn();
 
 vi.mock('../services/document.service.js', () => ({
   DocumentService: vi.fn().mockImplementation(function () {
@@ -45,6 +46,7 @@ vi.mock('../services/document.service.js', () => ({
       getPracticeUploadUrl: mockGetPracticeUploadUrl,
       confirmUpload: mockConfirmUpload,
       deleteDocument: mockDeleteDocument,
+      uploadPracticeDocument: mockUploadPracticeDocument,
     };
   }),
 }));
@@ -220,6 +222,62 @@ describe('Practice Document Routes', () => {
   // ──────────────────────────────────────────────
   // POST /:documentId/confirm
   // ──────────────────────────────────────────────
+  // ──────────────────────────────────────────────
+  // POST /upload — server-side multipart upload
+  // ──────────────────────────────────────────────
+  describe('POST /upload (server-side)', () => {
+    const pdf = Buffer.from('%PDF-1.4 test');
+
+    it('uploads a file server-side and returns 201 with the created document', async () => {
+      const app = makeApp({ user: adminUser, isSuperAdmin: true });
+      mockUploadPracticeDocument.mockResolvedValue(mockPracticeDocument);
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/upload`)
+        .attach('file', pdf, { filename: 'w9.pdf', contentType: 'application/pdf' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id).toBe(DOC_ID);
+      expect(mockUploadPracticeDocument).toHaveBeenCalledWith(
+        PRACTICE_A,
+        expect.objectContaining({ fileName: 'w9.pdf', contentType: 'application/pdf' }),
+        adminUser.id
+      );
+    });
+
+    it('rejects a disallowed mime type with 400', async () => {
+      const app = makeApp({ user: adminUser, isSuperAdmin: true });
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/upload`)
+        .attach('file', Buffer.from('<svg/>'), { filename: 'x.svg', contentType: 'image/svg+xml' });
+
+      expect(res.status).toBe(400);
+      expect(mockUploadPracticeDocument).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when no file is attached', async () => {
+      const app = makeApp({ user: adminUser, isSuperAdmin: true });
+
+      const res = await request(app).post(`/api/v1/practices/${PRACTICE_A}/documents/upload`);
+
+      expect(res.status).toBe(400);
+      expect(mockUploadPracticeDocument).not.toHaveBeenCalled();
+    });
+
+    it('forbids uploading to a practice outside the user scope', async () => {
+      const app = makeApp({ user: practiceAdminUser, practiceIds: [PRACTICE_B] });
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/upload`)
+        .attach('file', pdf, { filename: 'w9.pdf', contentType: 'application/pdf' });
+
+      expect(res.status).toBe(403);
+      expect(mockUploadPracticeDocument).not.toHaveBeenCalled();
+    });
+  });
+
   describe('POST /:documentId/confirm', () => {
     it('confirms an in-scope practice document', async () => {
       const app = makeApp({ user: practiceAdminUser, practiceIds: [PRACTICE_A] });

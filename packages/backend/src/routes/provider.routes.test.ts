@@ -258,6 +258,24 @@ describe('Provider Routes', () => {
       );
     });
 
+    it('strips groupNpi/taxId before update (not ProviderProfile fields) and echoes them back', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
+      prismaMock.providerProfile.update.mockResolvedValue(mockProvider as any);
+
+      const res = await request(app)
+        .put('/provider-1-id')
+        .send({ firstName: 'Updated', groupNpi: '1234567890', taxId: '12-3456789' });
+
+      expect(res.status).toBe(200);
+      // Prisma must NOT receive groupNpi/taxId (would throw PrismaClientValidationError)
+      const dataArg = prismaMock.providerProfile.update.mock.calls[0]![0].data;
+      expect(dataArg).not.toHaveProperty('groupNpi');
+      expect(dataArg).not.toHaveProperty('taxId');
+      // ...but they're echoed back for the frontend's practice-location call
+      expect(res.body.data.groupNpi).toBe('1234567890');
+      expect(res.body.data.taxId).toBe('12-3456789');
+    });
+
     it('assigns provider to a practice via practiceId', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(mockProvider as any);
       prismaMock.providerProfile.update.mockResolvedValue({

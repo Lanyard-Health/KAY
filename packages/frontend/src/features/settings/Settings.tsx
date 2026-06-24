@@ -25,7 +25,7 @@ const ALL_TABS = [
   { key: 'clinical-profile', label: 'Clinical Profile', icon: ClipboardDocumentListIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'permissions', label: 'Permissions', icon: UsersIcon, restrictedTo: ['admin', 'practice_admin'] },
   { key: 'integrations', label: 'Integrations', icon: PuzzlePieceIcon, restrictedTo: ['admin'] },
-  { key: 'communications', label: 'Communications', icon: EnvelopeIcon, restrictedTo: ['admin', 'credentialing_staff', 'practice_admin'] },
+  { key: 'communications', label: 'Communications', icon: EnvelopeIcon, restrictedTo: ['admin', 'lanyard_staff', 'credentialing_staff', 'practice_admin'] },
   { key: 'notifications', label: 'Notifications', icon: BellIcon, restrictedTo: null },
 ] as const;
 

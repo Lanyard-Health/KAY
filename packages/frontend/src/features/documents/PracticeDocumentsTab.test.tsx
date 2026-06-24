@@ -17,6 +17,7 @@ const mockUsePractices = vi.fn();
 const mockUsePracticeDocuments = vi.fn();
 const mockUseUploadPracticeDocument = vi.fn();
 const mockUseUpdatePracticeDocumentType = vi.fn();
+const mockUseDeletePracticeDocument = vi.fn();
 
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
@@ -33,6 +34,7 @@ vi.mock('../../hooks/usePracticeDocuments', () => ({
   usePracticeDocuments: (...args: any[]) => mockUsePracticeDocuments(...args),
   useUploadPracticeDocument: (...args: any[]) => mockUseUploadPracticeDocument(...args),
   useUpdatePracticeDocumentType: (...args: any[]) => mockUseUpdatePracticeDocumentType(...args),
+  useDeletePracticeDocument: (...args: any[]) => mockUseDeletePracticeDocument(...args),
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -90,6 +92,15 @@ function setUpdateHookDefaults(overrides: Partial<{ mutate: ReturnType<typeof vi
   return mutate;
 }
 
+function setDeleteHookDefaults(overrides: Partial<{ mutate: ReturnType<typeof vi.fn>; isPending: boolean }> = {}) {
+  const mutate = overrides.mutate ?? vi.fn();
+  mockUseDeletePracticeDocument.mockReturnValue({
+    mutate,
+    isPending: overrides.isPending ?? false,
+  });
+  return mutate;
+}
+
 describe('PracticeDocumentsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -97,6 +108,7 @@ describe('PracticeDocumentsTab', () => {
     mockUsePracticeDocuments.mockReturnValue({ data: [], isLoading: false, error: null });
     setUploadHookDefaults();
     setUpdateHookDefaults();
+    setDeleteHookDefaults();
   });
 
   describe('practice context resolution', () => {
@@ -245,7 +257,7 @@ describe('PracticeDocumentsTab', () => {
       createdById: 'u1',
     };
 
-    it('renders the row with humanized type and Completed status', () => {
+    it('renders the row with humanized type and a delete button', () => {
       mockUseAuthStore.mockReturnValue({ user: practiceAdminWithOnePractice });
       mockUsePracticeDocuments.mockReturnValue({ data: [baseDoc], isLoading: false, error: null });
 
@@ -253,22 +265,36 @@ describe('PracticeDocumentsTab', () => {
 
       expect(screen.getByText('w9.pdf')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /w-9 form/i })).toBeInTheDocument();
-      expect(screen.getByText(/completed/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /delete w9\.pdf/i })).toBeInTheDocument();
     });
 
-    it('shows a processing spinner while OCR is in flight', () => {
+    it('clicking delete (after confirm) fires the delete mutation with the doc id', () => {
       mockUseAuthStore.mockReturnValue({ user: practiceAdminWithOnePractice });
-      mockUsePracticeDocuments.mockReturnValue({
-        data: [{ ...baseDoc, ocrStatus: 'processing' }],
-        isLoading: false,
-        error: null,
-      });
+      mockUsePracticeDocuments.mockReturnValue({ data: [baseDoc], isLoading: false, error: null });
+      const del = setDeleteHookDefaults();
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-      const { container } = render(<PracticeDocumentsTab />, { wrapper: wrapper() });
+      render(<PracticeDocumentsTab />, { wrapper: wrapper() });
 
-      // Spinner uses .animate-spin
-      expect(container.querySelector('.animate-spin')).not.toBeNull();
-      expect(screen.getByText(/processing/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /delete w9\.pdf/i }));
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(del).toHaveBeenCalledWith(baseDoc.id, expect.any(Object));
+      confirmSpy.mockRestore();
+    });
+
+    it('does not delete when the confirm dialog is cancelled', () => {
+      mockUseAuthStore.mockReturnValue({ user: practiceAdminWithOnePractice });
+      mockUsePracticeDocuments.mockReturnValue({ data: [baseDoc], isLoading: false, error: null });
+      const del = setDeleteHookDefaults();
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+      render(<PracticeDocumentsTab />, { wrapper: wrapper() });
+
+      fireEvent.click(screen.getByRole('button', { name: /delete w9\.pdf/i }));
+
+      expect(del).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
     });
 
     it('happy path: clicking the type, picking a new value, and clicking save fires the PATCH mutation', () => {

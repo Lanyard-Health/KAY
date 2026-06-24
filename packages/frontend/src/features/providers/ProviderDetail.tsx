@@ -141,7 +141,7 @@ export default function ProviderDetail() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const canSoftDelete = user?.role === 'admin' || user?.role === 'practice_admin';
+  const canSoftDelete = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'practice_admin';
   const deleteProvider = useDeleteProvider();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 

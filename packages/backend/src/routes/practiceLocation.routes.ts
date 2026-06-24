@@ -29,7 +29,7 @@ async function assertLocationAccess(req: Request, locationId: string): Promise<{
   });
   if (!location) return null;
   if (role === 'admin') return location;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     if (!(await validateProviderPracticeAccess(req, location.providerId))) throw new ForbiddenError('Access denied to this practice location');
     return location;
   }

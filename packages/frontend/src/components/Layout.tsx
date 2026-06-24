@@ -173,10 +173,11 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
-  const practiceName = user?.role !== 'admin' ? user?.practices?.[0]?.practice?.name : null;
-  // admin + credentialing_staff are internal Lanyard users with full nav.
-  // practice_admin is a customer-side role with a trimmed customer-facing nav.
-  const isInternalStaff = role === 'admin' || role === 'credentialing_staff';
+  const isInternal = user?.role === 'admin' || user?.role === 'lanyard_staff';
+  const practiceName = !isInternal ? user?.practices?.[0]?.practice?.name : null;
+  // admin + lanyard_staff (cross-practice Lanyard employees) and credentialing_staff
+  // get the full internal nav. practice_admin is customer-side with a trimmed nav.
+  const isInternalStaff = role === 'admin' || role === 'lanyard_staff' || role === 'credentialing_staff';
   const baseGroups = isInternalStaff ? adminNavGroups : customerNavGroups;
 
   // Inject OCR review count badge into OCR Review nav item

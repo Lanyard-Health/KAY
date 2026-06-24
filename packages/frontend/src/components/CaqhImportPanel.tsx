@@ -45,6 +45,23 @@ const SECTION_LABELS: Record<string, string> = {
   workHistory: 'Work history',
 };
 
+// Friendly labels for the document types the CAQH importer assigns. Humanize
+// anything unmapped (e.g. a future type) rather than show the raw enum value.
+const DOC_TYPE_LABELS: Record<string, string> = {
+  malpractice_certificate: 'Malpractice Insurance',
+  dea_certificate: 'DEA Certificate',
+  cds_certificate: 'CDS Certificate',
+  license: 'License',
+  board_certification: 'Board Certification',
+  diploma: 'Diploma',
+  cv_resume: 'CV / Resume',
+  w9: 'W-9',
+  cme_certificate: 'CME Certificate',
+  other: 'Other',
+};
+const docTypeLabel = (t: string) =>
+  DOC_TYPE_LABELS[t] ?? t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
 export function CaqhImportPanel({ providerId }: CaqhImportPanelProps) {
   const { data, isLoading } = useQuery({
     queryKey: ['caqh-import-summary', providerId],
@@ -116,25 +133,33 @@ export function CaqhImportPanel({ providerId }: CaqhImportPanelProps) {
           </div>
         )}
 
-        {/* Documents that arrived */}
-        {data.documents.length > 0 && (
-          <div>
-            <p className="font-medium text-gray-700 mb-1">Documents imported ({data.documents.length}):</p>
-            <ul className="space-y-1 text-gray-600">
-              {data.documents.map((d) => (
-                <li key={d.id} className="flex items-center gap-2">
-                  <span className="truncate">{d.originalFileName}</span>
-                  {d.linkedTo && (
-                    <span className="text-xs text-gray-400">→ attached to {d.linkedTo.replace(/_/g, ' ')}</span>
-                  )}
-                  {d.reviewStatus === 'pending' && (
-                    <span className="px-1.5 py-0.5 rounded text-xs bg-amber-50 text-amber-700">needs review</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Documents that arrived — grouped by type. The raw CAQH filenames
+            (e.g. 12561743_100000001_20180627042951.pdf) are noise; a per-type
+            count plus a single "needs review" flag is the useful signal. */}
+        {data.documents.length > 0 && (() => {
+          const byType = data.documents.reduce<Record<string, number>>((acc, d) => {
+            acc[d.documentType] = (acc[d.documentType] ?? 0) + 1;
+            return acc;
+          }, {});
+          const needsReview = data.documents.filter((d) => d.reviewStatus === 'pending').length;
+          return (
+            <div>
+              <p className="font-medium text-gray-700 mb-1">Documents imported ({data.documents.length}):</p>
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-gray-600">
+                {Object.entries(byType)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([type, count]) => (
+                    <li key={type}>{docTypeLabel(type)}: {count}</li>
+                  ))}
+              </ul>
+              {needsReview > 0 && (
+                <span className="inline-block mt-2 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">
+                  {needsReview} need{needsReview === 1 ? 's' : ''} review
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {data.importStatus === 'completed' && filledSections.length === 0 && data.documents.length === 0 && (
           <p className="text-gray-500">Import completed but CAQH returned no new data for this provider.</p>

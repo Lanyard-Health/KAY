@@ -15,6 +15,7 @@ import {
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 import AiSidebar from '../../components/AiSidebar';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
+import { SubmitToPortalPanel } from '../../components/enrollments/SubmitToPortalPanel';
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 
 // Dev-only demo payer lookup. The endpoint returns 404 in production, so the
@@ -246,6 +247,14 @@ export default function EnrollmentDetail() {
 
       {/* Populate Forms — generic recipe-driven PDF fill */}
       <PopulateFormsPanel enrollmentId={enrollment.id} />
+
+      {/* Submit to payer portal — v2 submission pipeline (Aetna via Libretto Cloud) */}
+      <SubmitToPortalPanel
+        enrollmentId={enrollment.id}
+        providerId={enrollment.providerId}
+        payerId={enrollment.payer?.id}
+        payerName={enrollment.payer?.name ?? 'payer'}
+      />
 
       {/* Agent Workflow */}
       <AgentWorkflowPanel
