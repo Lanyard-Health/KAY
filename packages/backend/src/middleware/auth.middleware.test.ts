@@ -174,6 +174,25 @@ describe('auth.middleware', () => {
       middleware(req, res, next);
       expect(next).toHaveBeenCalledWith();
     });
+
+    it('lanyard_staff inherits credentialing_staff route access', () => {
+      // Anywhere a practice credentialing worker is allowed, a Lanyard staffer is too.
+      req.user = { id: staffUser.id, cognitoId: staffUser.cognitoId, email: staffUser.email, role: 'lanyard_staff' };
+      const middleware = authorize('admin', 'credentialing_staff', 'practice_admin');
+      middleware(req, res, next);
+      expect(next).toHaveBeenCalledWith();
+    });
+
+    it('lanyard_staff is denied founder-only routes (no credentialing_staff in list)', () => {
+      // Founder-only routes (templates/KB/insights) never list credentialing_staff,
+      // so lanyard_staff must NOT inherit access to them.
+      req.user = { id: staffUser.id, cognitoId: staffUser.cognitoId, email: staffUser.email, role: 'lanyard_staff' };
+      const middleware = authorize('admin');
+      middleware(req, res, next);
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Insufficient permissions' })
+      );
+    });
   });
 
   describe('requireProviderAccess()', () => {

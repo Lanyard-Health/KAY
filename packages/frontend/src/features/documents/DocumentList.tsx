@@ -21,7 +21,7 @@ import PracticeDocumentsTab from './PracticeDocumentsTab';
 // 'provider' role (Phase 4 — practice-level docs are staff-managed only).
 const ALL_TABS = [
   { key: 'provider', label: 'Provider Documents', icon: UserCircleIcon, restrictedTo: null },
-  { key: 'practice', label: 'Practice Documents', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'credentialing_staff', 'practice_admin'] },
+  { key: 'practice', label: 'Practice Documents', icon: BuildingOffice2Icon, restrictedTo: ['admin', 'lanyard_staff', 'credentialing_staff', 'practice_admin'] },
 ] as const;
 
 const DOCUMENT_TYPES = [

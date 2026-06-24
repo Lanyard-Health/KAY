@@ -1,6 +1,6 @@
 import type { UUID, AuditInfo } from './common.js';
 
-export type UserRole = 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
+export type UserRole = 'admin' | 'lanyard_staff' | 'credentialing_staff' | 'provider' | 'practice_admin';
 
 export interface User extends AuditInfo {
   id: UUID;
@@ -57,6 +57,18 @@ export const RolePermissions: Record<UserRole, string[]> = {
     'settings:read',
     'settings:write',
     'reports:read',
+  ],
+  // Lanyard's own staff: same operational permissions as a practice's credentialing
+  // worker, but cross-practice visibility is granted via practice scope (all practiceIds),
+  // not here. Note: NOT 'users:delete' / 'settings:write' — that stays founder (admin) only.
+  lanyard_staff: [
+    'providers:read',
+    'providers:write',
+    'documents:read',
+    'documents:write',
+    'reports:read',
+    'users:read',
+    'users:write',
   ],
   credentialing_staff: [
     'providers:read',

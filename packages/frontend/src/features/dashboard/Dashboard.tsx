@@ -39,7 +39,7 @@ export default function Dashboard() {
   const { user } = useAuthStore();
   const practiceId = user?.practices?.[0]?.practiceId ?? '';
   const isPracticeAdmin = user?.role === 'practice_admin';
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'lanyard_staff';
 
   // Getting Started check — only for practice_admin with a practiceId
   const {

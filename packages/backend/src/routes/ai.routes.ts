@@ -36,7 +36,7 @@ import {
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
     if (!enrollment) return;
     if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) throw new ForbiddenError('Access denied to this enrollment');
