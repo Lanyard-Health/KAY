@@ -30,6 +30,7 @@ interface UserFormModalProps {
 // PracticeUsersTab when the form returns.
 const ALL_ROLES = [
   { value: 'admin', label: 'System Admin (all practices)' },
+  { value: 'lanyard_staff', label: 'Lanyard Health Staff (all practices)' },
   { value: 'practice_admin', label: 'Practice Admin' },
   { value: 'credentialing_staff', label: 'Credentialing Staff' },
   { value: 'provider', label: 'Provider' },

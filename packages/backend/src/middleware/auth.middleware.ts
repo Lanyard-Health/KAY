@@ -81,6 +81,41 @@ export async function authenticate(
         return;
       }
 
+      if (devRole === 'lanyard_staff') {
+        // Dev Lanyard-staff login — find or create the test lanyard_staff user.
+        // No practice assignment: cross-practice visibility comes from initPracticeScope.
+        const DEV_LANYARD_STAFF_COGNITO_ID = 'dev-lanyard-staff-cognito-id';
+        const DEV_LANYARD_STAFF_EMAIL = 'lanyardstaff@dev.local';
+
+        let user = await prisma.user.findUnique({
+          where: { cognitoId: DEV_LANYARD_STAFF_COGNITO_ID },
+        });
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              cognitoId: DEV_LANYARD_STAFF_COGNITO_ID,
+              email: DEV_LANYARD_STAFF_EMAIL,
+              firstName: 'Dev',
+              lastName: 'LanyardStaff',
+              role: 'lanyard_staff',
+              isActive: true,
+            },
+          });
+          logger.info('Created development lanyard_staff user');
+        }
+
+        req.user = {
+          id: user.id,
+          cognitoId: user.cognitoId,
+          email: user.email,
+          role: user.role,
+          providerId: user.providerId ?? undefined,
+        };
+        await initPracticeScope(req);
+        next();
+        return;
+      }
+
       if (devRole === 'provider') {
         // Dev provider login
         const DEV_PROVIDER_COGNITO_ID = 'dev-provider-cognito-id';
@@ -364,7 +399,17 @@ export function authorize(...allowedRoles: UserRole[]) {
       return;
     }
 
-    if (!allowedRoles.includes(req.user.role as UserRole)) {
+    // lanyard_staff inherits credentialing_staff's route access: anything a practice's
+    // own credentialing worker may do, a Lanyard staffer may do too (they're a more
+    // trusted internal role, just cross-practice). Founder-only routes never list
+    // credentialing_staff, so they stay closed to lanyard_staff automatically.
+    // To deny a specific route to lanyard_staff in future, gate it inside the handler.
+    const role = req.user.role as UserRole;
+    const allowed =
+      allowedRoles.includes(role) ||
+      (role === 'lanyard_staff' && allowedRoles.includes('credentialing_staff'));
+
+    if (!allowed) {
       next(new ForbiddenError('Insufficient permissions'));
       return;
     }
@@ -467,8 +512,8 @@ export function requireProviderAccess(
   const { role, providerId: userProviderId } = req.user;
   const requestedProviderId = req.params['providerId'] || req.body?.providerId;
 
-  // Admins, credentialing staff, practice admins, and lanyard admins can access providers (scoped by practice middleware)
-  if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') {
+  // Admins, lanyard staff, credentialing staff, and practice admins can access providers (scoped by practice middleware)
+  if (role === 'admin' || role === 'lanyard_staff' || role === 'credentialing_staff' || role === 'practice_admin') {
     next();
     return;
   }

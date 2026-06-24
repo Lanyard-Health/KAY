@@ -22,7 +22,7 @@ export interface UserDetail {
   firstName: string;
   lastName: string;
   phone: string | null;
-  role: 'admin' | 'credentialing_staff' | 'provider';
+  role: 'admin' | 'lanyard_staff' | 'credentialing_staff' | 'provider';
   isActive: boolean;
   lastLoginAt: string | null;
   createdAt: string;

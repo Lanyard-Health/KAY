@@ -11,7 +11,7 @@ import { logger } from '../utils/logger.js';
 async function assertLetterAccess(req: Request, letterId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const l = await prisma.terminationLetter.findUnique({ where: { id: letterId }, select: { providerId: true } });
     if (!l) return;
     if (!(await validateProviderPracticeAccess(req, l.providerId))) throw new ForbiddenError('Access denied to this letter');

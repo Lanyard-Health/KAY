@@ -175,7 +175,7 @@ export function initializeWebSocket(httpServer: HttpServer): SocketServer {
 
     socket.on('subscribe:approvals', () => {
       const user = (socket as any).user as SocketUser;
-      const allowedRoles = ['admin', 'credentialing_staff', 'practice_admin'];
+      const allowedRoles = ['admin', 'lanyard_staff', 'credentialing_staff', 'practice_admin'];
       if (!allowedRoles.includes(user.role)) {
         socket.emit('error', { message: 'Access denied' });
         return;

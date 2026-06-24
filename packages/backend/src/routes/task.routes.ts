@@ -10,7 +10,7 @@ import { createTask } from '../services/task.service.js';
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff') {
+  if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { providerId: true } });
     if (!t) return;
     if (!(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');

@@ -17,6 +17,7 @@ datasource db {
 
 enum UserRole {
   admin
+  lanyard_staff
   credentialing_staff
   provider
   practice_admin

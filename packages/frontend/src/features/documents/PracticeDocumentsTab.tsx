@@ -85,7 +85,7 @@ function typeLabel(value: string) {
 
 export default function PracticeDocumentsTab() {
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'lanyard_staff';
 
   const userPractices = user?.practices ?? [];
   const defaultPracticeId = userPractices[0]?.practiceId ?? '';

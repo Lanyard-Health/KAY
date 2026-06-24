@@ -28,7 +28,7 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
   const deleteProvider = useDeleteProvider();
   const user = useAuthStore((s) => s.user);
   // Admin-only soft-delete affordance. The API enforces 403 too — this is cosmetic.
-  const canSoftDelete = user?.role === 'admin' || user?.role === 'practice_admin';
+  const canSoftDelete = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'practice_admin';
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState<{ isOpen: boolean; provider: any }>({ isOpen: false, provider: null });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);

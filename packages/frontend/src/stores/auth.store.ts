@@ -45,7 +45,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'credentialing_staff' | 'provider' | 'practice_admin';
+  role: 'admin' | 'lanyard_staff' | 'credentialing_staff' | 'provider' | 'practice_admin';
   providerId?: string;
   practices?: UserPractice[];
 }
