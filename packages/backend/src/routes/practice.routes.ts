@@ -114,7 +114,8 @@ const assignUserSchema = z.object({
 router.get(
   '/',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  // lanyard_staff (cross-practice Lanyard employees) view all practices
+  authorize(...ADMIN_ROLES, 'lanyard_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const includeDeleted = req.query['includeDeleted'] === 'true' && req.practiceScope?.isSuperAdmin;
@@ -168,7 +169,7 @@ router.get(
 router.get(
   '/onboarding-pipeline',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'lanyard_staff'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const practices = await prisma.practice.findMany({
@@ -244,7 +245,7 @@ router.get(
 router.get(
   '/:practiceId',
   authenticate,
-  authorize(...ADMIN_ROLES, 'practice_admin'),
+  authorize(...ADMIN_ROLES, 'lanyard_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -321,7 +322,7 @@ router.post(
 router.patch(
   '/:practiceId',
   authenticate,
-  authorize(...ADMIN_ROLES, 'practice_admin'),
+  authorize(...ADMIN_ROLES, 'lanyard_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -408,7 +409,7 @@ router.patch(
 router.get(
   '/:practiceId/users',
   authenticate,
-  authorize(...ADMIN_ROLES, 'practice_admin'),
+  authorize(...ADMIN_ROLES, 'lanyard_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -458,7 +459,7 @@ router.get(
 router.post(
   '/:practiceId/users',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'lanyard_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
@@ -538,7 +539,7 @@ router.post(
 router.delete(
   '/:practiceId/users/:userId',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  authorize(...ADMIN_ROLES, 'lanyard_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const practiceId = req.params['practiceId']!;
