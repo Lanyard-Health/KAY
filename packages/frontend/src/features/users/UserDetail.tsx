@@ -51,7 +51,7 @@ export default function UserDetail() {
     setConfirmState({
       isOpen: true,
       title: 'Deactivate User',
-      message: `Deactivate ${user!.firstName} ${user!.lastName}? They will no longer be able to log in.`,
+      message: `Are you sure you want to deactivate ${user!.firstName} ${user!.lastName}? They will immediately lose access and won't be able to log in. You can reactivate them later if needed.`,
       variant: 'danger',
       confirmLabel: 'Deactivate',
       onConfirm: () => {
