@@ -39,6 +39,7 @@ const mockGetPracticeUploadUrl = vi.fn();
 const mockConfirmUpload = vi.fn();
 const mockDeleteDocument = vi.fn();
 const mockUploadPracticeDocument = vi.fn();
+const mockRunOcr = vi.fn();
 
 vi.mock('../services/document.service.js', () => ({
   DocumentService: vi.fn().mockImplementation(function () {
@@ -47,6 +48,7 @@ vi.mock('../services/document.service.js', () => ({
       confirmUpload: mockConfirmUpload,
       deleteDocument: mockDeleteDocument,
       uploadPracticeDocument: mockUploadPracticeDocument,
+      runOcr: mockRunOcr,
     };
   }),
 }));
@@ -321,6 +323,72 @@ describe('Practice Document Routes', () => {
         .send({});
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('POST /:documentId/reocr', () => {
+    it('re-OCRs an in-scope practice document: marks pending and fires runOcr', async () => {
+      const app = makeApp({ user: practiceAdminUser, practiceIds: [PRACTICE_A] });
+      prismaMock.document.findUnique.mockResolvedValue({
+        id: DOC_ID,
+        practiceId: PRACTICE_A,
+      } as any);
+      prismaMock.document.update.mockResolvedValue({
+        ...mockPracticeDocument,
+        ocrStatus: 'pending',
+      } as any);
+      mockRunOcr.mockResolvedValue(undefined);
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/${DOC_ID}/reocr`)
+        .send({});
+
+      expect(res.status).toBe(202);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.ocrStatus).toBe('pending');
+      expect(prismaMock.document.update).toHaveBeenCalledWith({
+        where: { id: DOC_ID },
+        data: { ocrStatus: 'pending' },
+      });
+      expect(mockRunOcr).toHaveBeenCalledWith(DOC_ID);
+    });
+
+    it('returns 404 when document belongs to a different practice (no existence leak)', async () => {
+      const app = makeApp({ user: practiceAdminUser, practiceIds: [PRACTICE_A] });
+      prismaMock.document.findUnique.mockResolvedValue({
+        id: DOC_ID,
+        practiceId: PRACTICE_B,
+      } as any);
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/${DOC_ID}/reocr`)
+        .send({});
+
+      expect(res.status).toBe(404);
+      expect(prismaMock.document.update).not.toHaveBeenCalled();
+      expect(mockRunOcr).not.toHaveBeenCalled();
+    });
+
+    it('denies practice_admin outside their scope', async () => {
+      const app = makeApp({ user: practiceAdminUser, practiceIds: [PRACTICE_B] });
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/${DOC_ID}/reocr`)
+        .send({});
+
+      expect(res.status).toBe(403);
+      expect(mockRunOcr).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid documentId format', async () => {
+      const app = makeApp({ user: adminUser, isSuperAdmin: true });
+
+      const res = await request(app)
+        .post(`/api/v1/practices/${PRACTICE_A}/documents/not-a-uuid/reocr`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(mockRunOcr).not.toHaveBeenCalled();
     });
   });
 
