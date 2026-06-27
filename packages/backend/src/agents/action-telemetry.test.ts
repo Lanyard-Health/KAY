@@ -113,7 +113,7 @@ describe('withAgentTelemetry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     envSnapshot = { AI_MODEL: process.env['AI_MODEL'] };
-    process.env['AI_MODEL'] = 'claude-sonnet-4-20250514';
+    process.env['AI_MODEL'] = 'claude-sonnet-4-6';
     prismaMock.agentAction.create.mockImplementation(async (args: unknown) => {
       const { data } = args as CapturedActionCreate;
       return data as never;

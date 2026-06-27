@@ -6,7 +6,7 @@ import { getPracticeProviderFilter, getPracticeRelationFilter } from '../middlew
 import { callLLM } from '../utils/llm.js';
 import type { Request } from 'express';
 
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 
 // ===========================
 // Intent Classification

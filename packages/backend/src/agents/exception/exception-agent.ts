@@ -13,7 +13,7 @@ import type { ExceptionJobData, ExceptionJobResult, ExceptionAnalysis } from './
 // Constants
 // ==========================================
 
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 const MAX_TOKENS = 1500;
 const MAX_REMEDIATION_ATTEMPTS = 3;
 
