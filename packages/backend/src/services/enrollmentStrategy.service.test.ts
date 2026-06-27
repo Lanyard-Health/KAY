@@ -188,7 +188,7 @@ describe('EnrollmentStrategy Service', () => {
       outputTokens: 300,
       cacheCreationTokens: 0,
       cacheReadTokens: 0,
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       stopReason: 'end_turn',
     };
 

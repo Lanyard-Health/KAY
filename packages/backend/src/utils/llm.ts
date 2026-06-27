@@ -17,7 +17,7 @@ import { logger } from './logger.js';
  */
 
 const DEFAULT_TIMEOUT_MS = 60_000;
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 export interface LLMCallParams {
   /** System prompt. Optional — vision-extractor and document-classifier

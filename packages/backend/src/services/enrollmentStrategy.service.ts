@@ -5,7 +5,7 @@ import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/clien
 import { getCached, setCache } from '../utils/cache.js';
 import { callLLM } from '../utils/llm.js';
 
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 
 // ===========================
 // Types

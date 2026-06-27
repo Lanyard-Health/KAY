@@ -44,13 +44,17 @@ const HAIKU_4_5_RATE: ModelRate = {
 };
 
 const MODEL_RATES: Record<string, ModelRate> = {
+  // Sonnet 4.6 is the live model. Same $3/$15 tier as the retired Sonnet 4,
+  // so it shares SONNET_4_RATE. Old keys kept so historical cost rows priced
+  // under the retired model still resolve.
+  'claude-sonnet-4-6': SONNET_4_RATE,
   'claude-sonnet-4-20250514': SONNET_4_RATE,
   'claude-sonnet-4': SONNET_4_RATE,
   'claude-haiku-4-5-20251001': HAIKU_4_5_RATE,
   'claude-haiku-4-5': HAIKU_4_5_RATE,
 };
 
-const DEFAULT_MODEL_KEY = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL_KEY = 'claude-sonnet-4-6';
 
 export function getModelRate(model: string | undefined): ModelRate | null {
   if (!model) return MODEL_RATES[DEFAULT_MODEL_KEY] ?? null;

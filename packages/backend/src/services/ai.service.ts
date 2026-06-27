@@ -6,7 +6,7 @@ import { callLLM } from '../utils/llm.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 const AI_DAILY_TOKEN_BUDGET = parseInt(process.env['AI_DAILY_TOKEN_BUDGET'] || '100000', 10);
 
 export function sanitizeUserInput(input: string, maxLength = 500): string {

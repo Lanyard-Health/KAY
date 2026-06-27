@@ -150,7 +150,7 @@ Analyze this denial and provide your triage assessment as JSON.`;
           recommendedSteps: [{ order: 1, action: 'Review denial reason and payer requirements manually', notes: 'AI triage unavailable' }],
         };
       } else {
-        const aiModel = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+        const aiModel = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 
         const response = await callLLM({
           model: aiModel,
