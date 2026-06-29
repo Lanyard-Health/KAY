@@ -231,6 +231,7 @@ model Practice {
   providerImports      ProviderImport[]
   subscription         Subscription?
   practicePayers       PracticePayer[]
+  enrollments          Enrollment[]
 
   // Phase 1 — submission engine relations
   portalCredentials PortalCredential[]
@@ -1937,10 +1938,23 @@ enum EnrollmentStatus {
   terminated
 }
 
+// What an enrollment is for. PROVIDER = an individual; PRACTICE = the
+// group/practice itself (incl. state Medicaid registrations). ORGANIZATION is
+// reserved/designed-for but not built in v1.
+enum EnrollmentSubject {
+  PROVIDER
+  PRACTICE
+  ORGANIZATION
+}
+
 model Enrollment {
-  id         String @id @default(uuid())
-  providerId String @map("provider_id")
-  payerId    String @map("payer_id")
+  id         String  @id @default(uuid())
+  providerId String? @map("provider_id")
+  practiceId String? @map("practice_id")
+  payerId    String  @map("payer_id")
+
+  // Explicit discriminator — do NOT infer the subject from which FK is null.
+  subjectType EnrollmentSubject @default(PROVIDER) @map("subject_type")
 
   status               EnrollmentStatus @default(not_started)
   productTypes         String[]         @default([]) @map("product_types")
@@ -1987,7 +2001,8 @@ model Enrollment {
   updatedBy   User?    @relation("EnrollmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   // Relations
-  provider          ProviderProfile          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider          ProviderProfile?         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice          Practice?                @relation(fields: [practiceId], references: [id], onDelete: Restrict)
   payer             Payer                    @relation(fields: [payerId], references: [id])
   payerTrack        PayerTrack?              @relation(fields: [payerTrackId], references: [id])
   workflowTemplate  WorkflowTemplate?        @relation(fields: [workflowTemplateId], references: [id])
@@ -2000,9 +2015,16 @@ model Enrollment {
   denialTriages     DenialTriage[]
   outcomes          EnrollmentOutcome[]
 
-  @@unique([providerId, payerId])
+  // Uniqueness is enforced by TWO partial unique indexes created via raw SQL in
+  // the migration — Prisma can't express partial/filtered indexes:
+  //   payer_enrollments_provider_payer_key  UNIQUE (provider_id, payer_id) WHERE provider_id IS NOT NULL
+  //   payer_enrollments_practice_payer_key  UNIQUE (practice_id, payer_id) WHERE practice_id IS NOT NULL
+  // A plain @@unique([providerId, payerId]) can't enforce practice uniqueness
+  // because Postgres treats NULLs as distinct. `migrate dev` may report these as
+  // drift locally; `migrate deploy` (staging/prod) just applies them.
   @@index([status])
   @@index([payerId])
+  @@index([practiceId])
   @@map("payer_enrollments")
 }
 

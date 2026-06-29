@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
-import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import {
   generateEmailSchema,
   expirationAlertSchema,
@@ -37,9 +37,9 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
-    const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true, practiceId: true } });
     if (!enrollment) return;
-    if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) throw new ForbiddenError('Access denied to this enrollment');
+    if (!(await validateEnrollmentAccess(req, enrollment))) throw new ForbiddenError('Access denied to this enrollment');
     return;
   }
 

@@ -14,6 +14,7 @@ import { logger } from '../utils/logger.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
 import { createFollowUpApproval } from './workflow-approval.service.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ export async function executeAllDueSteps(prisma: PrismaClient): Promise<Executor
           provider: {
             include: { practice: { select: { name: true } } },
           },
+          practice: { select: { name: true } },
           payer: true,
           payerTrack: {
             include: { contacts: true },
@@ -159,7 +161,7 @@ export async function executeAllDueSteps(prisma: PrismaClient): Promise<Executor
       const provider = enrollment.provider;
       const payer = enrollment.payer;
       const steps = run.template.steps;
-      const providerName = `${provider.firstName} ${provider.lastName}`;
+      const providerName = subjectName(provider, enrollment.practice);
 
       // 2a. Skip terminal enrollments
       if (TERMINAL_ENROLLMENT_STATUSES.includes(enrollment.status)) {

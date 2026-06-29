@@ -10,7 +10,7 @@ function mockClient(response: Partial<Anthropic.Messages.Message> = {}): {
     id: 'msg_test',
     type: 'message',
     role: 'assistant',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     stop_reason: 'end_turn',
     stop_sequence: null,
     content: [{ type: 'text', text: 'hello', citations: null }],
@@ -53,7 +53,7 @@ describe('callLLM', () => {
     expect(create).toHaveBeenCalledTimes(1);
     const call = create.mock.calls[0][0];
     expect(call.system).toBe('You are a helpful assistant.');
-    expect(call.model).toBe('claude-sonnet-4-20250514');
+    expect(call.model).toBe('claude-sonnet-4-6');
     expect(call.max_tokens).toBe(100);
   });
 

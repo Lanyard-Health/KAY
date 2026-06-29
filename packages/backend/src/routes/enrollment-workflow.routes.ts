@@ -17,7 +17,8 @@ import { WorkflowStepStatus } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
-import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 import {
   updateStepStatus,
   getWorkflowProgress,
@@ -48,6 +49,7 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
       include: {
         payer: { select: { id: true, name: true } },
         provider: { select: { id: true, firstName: true, lastName: true, providerType: true } },
+        practice: { select: { name: true } },
       },
     });
 
@@ -55,8 +57,8 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
       return res.status(404).json({ error: 'Enrollment not found' });
     }
 
-    // Verify user has access to this enrollment's provider's practice
-    if (!(await validateProviderPracticeAccess(req, enrollment.provider.id))) {
+    // Verify user has access to this enrollment's subject (provider or practice)
+    if (!(await validateEnrollmentAccess(req, enrollment))) {
       return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
     }
 
@@ -78,8 +80,8 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
         status: enrollment.status,
         workflowType: enrollment.workflowType,
         payerName: enrollment.payer.name,
-        providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
-        providerType: enrollment.provider.providerType,
+        providerName: subjectName(enrollment.provider, enrollment.practice),
+        providerType: enrollment.provider?.providerType ?? null,
       },
       steps,
       progress,
@@ -110,12 +112,12 @@ router.put(
       // Verify practice access via the enrollment's provider
       const enrollment = await prisma.enrollment.findUnique({
         where: { id },
-        select: { providerId: true },
+        select: { providerId: true, practiceId: true },
       });
       if (!enrollment) {
         return res.status(404).json({ error: 'Enrollment not found' });
       }
-      if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) {
+      if (!(await validateEnrollmentAccess(req, enrollment))) {
         return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
       }
 
@@ -202,8 +204,8 @@ router.post(
         return res.status(404).json({ error: 'Enrollment not found' });
       }
 
-      // Verify practice access via the enrollment's provider
-      if (!(await validateProviderPracticeAccess(req, enrollment.provider.id))) {
+      // Verify practice access via the enrollment's subject (provider or practice)
+      if (!(await validateEnrollmentAccess(req, enrollment))) {
         return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
       }
 
@@ -226,7 +228,7 @@ router.post(
 
       const result = await instantiateWorkflow(prisma, id, enrollment.payerTrackId, {
         state: payerTrack?.stateRegion ?? undefined,
-        providerType: enrollment.provider.providerType ?? undefined,
+        providerType: enrollment.provider?.providerType ?? undefined,
       });
 
       if (!result.templateFound) {

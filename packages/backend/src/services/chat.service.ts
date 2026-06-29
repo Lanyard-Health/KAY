@@ -2,11 +2,12 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeUserInput, checkTokenBudget } from './ai.service.js';
 import { searchSimilarWithSources } from './knowledgeBase.embedding.service.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 import { getPracticeProviderFilter, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import { callLLM } from '../utils/llm.js';
 import type { Request } from 'express';
 
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 
 // ===========================
 // Intent Classification
@@ -78,6 +79,7 @@ async function fetchEnrollmentContext(req: Request, searchTerms?: string) {
       provider: {
         select: { firstName: true, lastName: true, npi: true, providerType: true },
       },
+      practice: { select: { name: true } },
       payer: {
         select: { name: true, payerType: true },
       },
@@ -88,7 +90,9 @@ async function fetchEnrollmentContext(req: Request, searchTerms?: string) {
 
   return enrollments.map(e => ({
     id: e.id,
-    provider: `${e.provider.firstName} ${e.provider.lastName} (${e.provider.providerType}, NPI: ${e.provider.npi})`,
+    provider: e.provider
+      ? `${e.provider.firstName} ${e.provider.lastName} (${e.provider.providerType}, NPI: ${e.provider.npi})`
+      : subjectName(null, e.practice),
     payer: `${e.payer.name} (${e.payer.payerType})`,
     status: e.status,
     applicationDate: e.applicationDate?.toISOString().split('T')[0] ?? null,
@@ -238,6 +242,7 @@ async function fetchPriorityContext(req: Request) {
         applicationDate: true,
         lastFollowUpDate: true,
         provider: { select: { firstName: true, lastName: true, npi: true } },
+        practice: { select: { name: true } },
         payer: { select: { name: true } },
       },
       take: 20,
@@ -277,7 +282,7 @@ async function fetchPriorityContext(req: Request) {
 
   return {
     overdueEnrollments: overdueEnrollments.map(e => ({
-      provider: `${e.provider.firstName} ${e.provider.lastName}`,
+      provider: subjectName(e.provider, e.practice),
       payer: e.payer.name,
       status: e.status,
       daysSinceApplication: e.applicationDate

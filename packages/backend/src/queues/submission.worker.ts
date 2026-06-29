@@ -74,7 +74,7 @@ export async function processSubmissionJob(
     logger.info('submission.worker: provider archived mid-flight, skipping', {
       enrollmentRunId,
       providerId,
-      deletedAt: run.enrollment.provider.deletedAt,
+      deletedAt: run.enrollment.provider?.deletedAt,
     });
     return { status: 'skipped', enrollmentRunId };
   }

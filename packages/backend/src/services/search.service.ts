@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import type { Request } from 'express';
 import { getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
+import { subjectName } from './../utils/enrollmentSubject.js';
 
 interface SearchResult {
   id: string;
@@ -72,6 +73,7 @@ export async function globalSearch(
           id: true,
           status: true,
           provider: { select: { firstName: true, lastName: true } },
+          practice: { select: { name: true } },
           payer: { select: { name: true } },
         },
         take: MAX_RESULTS_PER_TYPE,
@@ -131,7 +133,7 @@ export async function globalSearch(
       results.push({
         id: e.id,
         type: 'enrollment',
-        title: `${e.provider.firstName} ${e.provider.lastName} — ${e.payer.name}`,
+        title: `${subjectName(e.provider, e.practice)} — ${e.payer.name}`,
         subtitle: `Status: ${e.status}`,
         url: `/enrollments/${e.id}`,
       });

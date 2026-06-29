@@ -24,6 +24,8 @@ vi.mock('../middleware/practiceScope.middleware.js', () => ({
   requirePracticeProvider: vi.fn((_req: any, _res: any, next: any) => next()),
   getPracticeRelationFilter: vi.fn(() => ({})),
   validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+  validateEnrollmentAccess: vi.fn().mockResolvedValue(true),
+  validatePracticeAccess: vi.fn(() => true),
 }));
 
 vi.mock('../middleware/audit.middleware.js', () => ({
@@ -54,6 +56,7 @@ import enrollmentRouter from './enrollment.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { updateEnrollmentStatus } from '../services/enrollment.service.js';
+import { validatePracticeAccess } from '../middleware/practiceScope.middleware.js';
 
 const mockedOnEnrollmentCreated = vi.mocked(onEnrollmentCreated);
 const mockedUpdateEnrollmentStatus = vi.mocked(updateEnrollmentStatus);
@@ -318,6 +321,63 @@ describe('Enrollment Routes', () => {
       // The enrollment was created but the workflow hook failed
       expect(prismaMock.enrollment.create).toHaveBeenCalled();
       expect(res.status).toBe(500);
+    });
+  });
+
+  describe('POST /practice/:practiceId', () => {
+    it('creates a practice enrollment (no provider) with existing payer', async () => {
+      prismaMock.practice.findFirst.mockResolvedValue({ id: 'practice-1-id' } as any);
+      prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
+      prismaMock.payerTrack.findMany.mockResolvedValue([]);
+      prismaMock.enrollment.create.mockResolvedValue(mockEnrollment as any);
+
+      const res = await request(app)
+        .post('/practice/practice-1-id')
+        .send(validEnrollmentInput);
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(prismaMock.enrollment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ subjectType: 'PRACTICE', practiceId: 'practice-1-id' }),
+        }),
+      );
+    });
+
+    it('returns 404 when the practice does not exist', async () => {
+      prismaMock.practice.findFirst.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/practice/missing-practice')
+        .send(validEnrollmentInput);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 403 when the practice is not in the caller scope', async () => {
+      vi.mocked(validatePracticeAccess).mockReturnValueOnce(false);
+
+      const res = await request(app)
+        .post('/practice/practice-1-id')
+        .send(validEnrollmentInput);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 409 on a duplicate practice+payer enrollment', async () => {
+      prismaMock.practice.findFirst.mockResolvedValue({ id: 'practice-1-id' } as any);
+      prismaMock.payer.findFirst.mockResolvedValue(mockPayer as any);
+      prismaMock.payerTrack.findMany.mockResolvedValue([]);
+      const prismaError = new Error('Unique constraint failed') as any;
+      prismaError.code = 'P2002';
+      prismaMock.enrollment.create.mockRejectedValue(prismaError);
+
+      const res = await request(app)
+        .post('/practice/practice-1-id')
+        .send(validEnrollmentInput);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toContain('already exists');
     });
   });
 

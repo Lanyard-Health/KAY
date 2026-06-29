@@ -30,7 +30,7 @@ const TRACK_NAME_FOR_WORKFLOW: Record<WorkflowType, string> = {
 
 interface EnrollmentWithRelations extends Enrollment {
   payer?: { name: string };
-  provider?: { providerType: ProviderType };
+  provider?: { providerType: ProviderType } | null; // null for practice enrollments
 }
 
 interface WorkflowResult {
@@ -61,7 +61,7 @@ export async function onEnrollmentCreated(
               select: { name: true },
             })
           : Promise.resolve(null),
-        providerType == null
+        providerType == null && enrollment.providerId
           ? prisma.providerProfile.findUnique({
               where: { id: enrollment.providerId },
               select: { providerType: true },
@@ -109,7 +109,7 @@ export async function onEnrollmentCreated(
     try {
       // Gather context for condition evaluation
       let providerType = enrollment.provider?.providerType;
-      if (!providerType) {
+      if (!providerType && enrollment.providerId) {
         const provider = await prisma.providerProfile.findUnique({
           where: { id: enrollment.providerId },
           select: { providerType: true },

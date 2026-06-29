@@ -56,6 +56,7 @@ const outcomeInclude = Prisma.validator<Prisma.EnrollmentInclude>()({
   payerTrack: { select: { stateRegion: true } },
   provider: {
     select: {
+      id: true,
       providerType: true,
       practice: { select: { id: true, isDemo: true, state: true, deletedAt: true } },
     },
@@ -99,6 +100,13 @@ async function upsertOutcome(
     return false;
   }
 
+  // Outcomes are a provider-level dataset (payer × state × provider_type).
+  // Practice enrollments have no provider and aren't recorded.
+  if (!e.provider) {
+    logger.debug(`[outcomes] skipped (practice enrollment, no provider) enrollment=${e.id}`);
+    return false;
+  }
+
   const practice = e.provider.practice!; // not-null guaranteed by isExcluded
   const state = e.payerTrack?.stateRegion ?? practice.state ?? 'unknown';
   const processType = e.recredentialingDate ? 'recred' : 'initial';
@@ -116,7 +124,7 @@ async function upsertOutcome(
       payerName: e.payer?.name ?? 'unknown',
       payerTrackId: e.payerTrackId,
       state,
-      providerId: e.providerId,
+      providerId: e.provider.id,
       providerType: String(e.provider.providerType),
       processType,
       practiceId: practice.id,

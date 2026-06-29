@@ -43,7 +43,7 @@ function createMockResponse(content: any[], inputTokens = 100, outputTokens = 50
   return {
     content,
     usage: { input_tokens: inputTokens, output_tokens: outputTokens },
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     id: 'msg-test',
     type: 'message' as const,
     role: 'assistant' as const,
@@ -196,7 +196,7 @@ describe('processOrchestratorJob', () => {
         cache_creation_input_tokens: 800,
         cache_read_input_tokens: 0,
       },
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       id: 'msg-cache',
       type: 'message' as const,
       role: 'assistant' as const,

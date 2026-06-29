@@ -3,10 +3,11 @@ import { logger } from '../utils/logger.js';
 import { getCached, setCache } from '../utils/cache.js';
 import { decryptSafe } from '../utils/crypto.js';
 import { callLLM } from '../utils/llm.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 import type { AiRecommendationType, AiRecommendationStatus } from '@prisma/client';
 
 const ANTHROPIC_API_KEY = process.env['ANTHROPIC_API_KEY'];
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 const AI_DAILY_TOKEN_BUDGET = parseInt(process.env['AI_DAILY_TOKEN_BUDGET'] || '100000', 10);
 
 export function sanitizeUserInput(input: string, maxLength = 500): string {
@@ -138,6 +139,7 @@ export async function generateFollowUpEmail(
     where: { id: enrollmentId },
     include: {
       provider: true,
+      practice: true,
       payer: true,
     },
   });
@@ -158,8 +160,8 @@ export async function generateFollowUpEmail(
 
   const userMessage = `Generate a follow-up email for this enrollment:
 
-**Provider:** ${enrollment.provider.firstName} ${enrollment.provider.lastName}, ${enrollment.provider.providerType}
-**NPI:** ${enrollment.provider.npi}
+**Subject:** ${subjectName(enrollment.provider, enrollment.practice)}${enrollment.provider ? `, ${enrollment.provider.providerType}` : ' (practice / group enrollment)'}
+**NPI:** ${enrollment.provider?.npi ?? 'N/A (practice enrollment)'}
 **Payer:** ${enrollment.payer.name} (ID: ${enrollment.payer.payerId})
 **Enrollment Status:** ${enrollment.status}
 **Product Types:** ${enrollment.productTypes.join(', ') || 'Not specified'}
@@ -266,7 +268,7 @@ export async function analyzeEnrollment(enrollmentId: string): Promise<{ analysi
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
-    include: { provider: true, payer: true },
+    include: { provider: true, practice: true, payer: true },
   });
 
   if (!enrollment) {
@@ -283,8 +285,8 @@ export async function analyzeEnrollment(enrollmentId: string): Promise<{ analysi
 
   const userMessage = `Analyze this enrollment and provide strategy recommendations:
 
-**Provider:** ${enrollment.provider.firstName} ${enrollment.provider.lastName}, ${enrollment.provider.providerType}
-**NPI:** ${enrollment.provider.npi}
+**Subject:** ${subjectName(enrollment.provider, enrollment.practice)}${enrollment.provider ? `, ${enrollment.provider.providerType}` : ' (practice / group enrollment)'}
+**NPI:** ${enrollment.provider?.npi ?? 'N/A (practice enrollment)'}
 **Payer:** ${enrollment.payer.name} (ID: ${enrollment.payer.payerId})
 **Enrollment Status:** ${enrollment.status}
 **Product Types:** ${enrollment.productTypes.join(', ') || 'Not specified'}
@@ -339,7 +341,7 @@ Respond with JSON only:
       enrollmentId,
       type: 'strategy' as AiRecommendationType,
       status: 'pending' as AiRecommendationStatus,
-      title: `Strategy: ${enrollment.payer.name} - ${enrollment.provider.lastName}`,
+      title: `Strategy: ${enrollment.payer.name} - ${subjectName(enrollment.provider, enrollment.practice)}`,
       content: JSON.stringify(parsed),
       reasoning: parsed.reasoning,
       metadata: { urgencyScore: parsed.urgencyScore, riskLevel: parsed.riskLevel },
@@ -385,7 +387,7 @@ export async function analyzePortfolio(): Promise<{ analysis: PortfolioAnalysis;
     where: {
       status: { in: ['not_started', 'in_progress', 'submitted', 'pending_review'] },
     },
-    include: { provider: true, payer: true },
+    include: { provider: true, practice: true, payer: true },
     orderBy: { createdAt: 'asc' },
   });
 
@@ -404,7 +406,7 @@ export async function analyzePortfolio(): Promise<{ analysis: PortfolioAnalysis;
       ? Math.floor((Date.now() - new Date(e.lastFollowUpDate).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    return `${i + 1}. [${e.id}] ${e.provider.firstName} ${e.provider.lastName} (${e.provider.providerType}) → ${e.payer.name} | Status: ${e.status} | Applied: ${daysSinceApp ?? '?'} days ago | Last follow-up: ${daysSinceFollowUp ?? 'never'} days ago | Products: ${e.productTypes.join(', ') || 'N/A'}`;
+    return `${i + 1}. [${e.id}] ${subjectName(e.provider, e.practice)}${e.provider ? ` (${e.provider.providerType})` : ' (practice)'} → ${e.payer.name} | Status: ${e.status} | Applied: ${daysSinceApp ?? '?'} days ago | Last follow-up: ${daysSinceFollowUp ?? 'never'} days ago | Products: ${e.productTypes.join(', ') || 'N/A'}`;
   });
 
   const userMessage = `Analyze this portfolio of active enrollments and rank them by urgency. For each, provide an urgency score and one-line recommendation.
@@ -468,7 +470,7 @@ Respond with JSON only:
 
     enrichedEnrollments.push({
       enrollmentId: enrollment.id,
-      providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
+      providerName: subjectName(enrollment.provider, enrollment.practice),
       payerName: enrollment.payer.name,
       status: enrollment.status as string,
       urgencyScore: aiItem.urgencyScore,

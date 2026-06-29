@@ -1,13 +1,16 @@
-import type { Enrollment, ProviderProfile, Payer, PracticeLocation } from '@prisma/client';
+import type { Enrollment, ProviderProfile, Payer, PracticeLocation, Practice } from '@prisma/client';
 import { emailService } from './email.service.js';
 import { prisma } from '../utils/prisma.js';
+import { subjectName, subjectNameLastFirst } from '../utils/enrollmentSubject.js';
 
 type ProviderWithLocations = ProviderProfile & {
   practiceLocations: PracticeLocation[];
 };
 
+// provider is null for practice enrollments; practice carries the subject name.
 type EnrollmentWithRelations = Enrollment & {
-  provider: ProviderWithLocations;
+  provider: ProviderWithLocations | null;
+  practice: Pick<Practice, 'name'> | null;
   payer: Payer;
 };
 
@@ -62,6 +65,7 @@ class FollowUpService {
             practiceLocations: true,
           },
         },
+        practice: { select: { name: true } },
         payer: true,
       },
     });
@@ -72,14 +76,14 @@ class FollowUpService {
    */
   extractProviderData(enrollment: EnrollmentWithRelations): FollowUpEmailData {
     const provider = enrollment.provider;
-    const primaryLocation = provider.practiceLocations?.find((loc) => loc.isPrimary)
-      || provider.practiceLocations?.[0];
+    const primaryLocation = provider?.practiceLocations?.find((loc) => loc.isPrimary)
+      || provider?.practiceLocations?.[0];
 
     return {
-      providerName: `${provider.firstName} ${provider.lastName}`,
-      providerNpi: provider.npi,
+      providerName: subjectName(provider, enrollment.practice),
+      providerNpi: provider?.npi ?? '',
       groupNpi: primaryLocation?.npi || '',
-      practiceName: primaryLocation?.locationName || '',
+      practiceName: primaryLocation?.locationName || enrollment.practice?.name || '',
       practiceCity: primaryLocation?.city || '',
       practiceState: primaryLocation?.state || '',
       payerName: enrollment.payer.name,
@@ -214,10 +218,10 @@ class FollowUpService {
 
           <div style="background: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
             <h2 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px;">
-              ${enrollment.provider.firstName} ${enrollment.provider.lastName}
+              ${subjectName(enrollment.provider, enrollment.practice)}
             </h2>
             <p style="color: #6b7280; margin: 0 0 5px 0; font-size: 14px;">
-              NPI: ${enrollment.provider.npi}
+              NPI: ${enrollment.provider?.npi ?? 'N/A'}
             </p>
           </div>
 
@@ -311,7 +315,7 @@ class FollowUpService {
   async sendFollowUpEmail(enrollment: EnrollmentWithRelations): Promise<FollowUpResult> {
     const result: FollowUpResult = {
       enrollmentId: enrollment.id,
-      providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
+      providerName: subjectName(enrollment.provider, enrollment.practice),
       payerName: enrollment.payer.name,
       email: enrollment.followUpEmail || '',
       success: false,
@@ -323,7 +327,7 @@ class FollowUpService {
     }
 
     const html = this.generateFollowUpEmail(enrollment);
-    const subject = `Follow-Up Reminder: ${enrollment.provider.lastName}, ${enrollment.provider.firstName} - ${enrollment.payer.name}`;
+    const subject = `Follow-Up Reminder: ${subjectNameLastFirst(enrollment.provider, enrollment.practice)} - ${enrollment.payer.name}`;
 
     const emailResult = await emailService.sendEmail({
       to: enrollment.followUpEmail,
@@ -401,6 +405,7 @@ class FollowUpService {
             practiceLocations: true,
           },
         },
+        practice: { select: { name: true } },
         payer: true,
       },
     });
@@ -419,7 +424,7 @@ class FollowUpService {
     if (!toEmail) {
       return {
         enrollmentId,
-        providerName: `${enrollment.provider.firstName} ${enrollment.provider.lastName}`,
+        providerName: subjectName(enrollment.provider, enrollment.practice),
         payerName: enrollment.payer.name,
         email: '',
         success: false,
@@ -476,6 +481,7 @@ class FollowUpService {
             practiceLocations: true,
           },
         },
+        practice: { select: { name: true } },
         payer: true,
       },
     });

@@ -16,7 +16,7 @@ import { callLLM, setLLMClientForTesting } from '../../utils/llm.js';
 const WORKFLOW_TOKEN_BUDGET = parseInt(process.env['AGENT_WORKFLOW_TOKEN_BUDGET'] ?? '50000', 10);
 const MAX_REPLANS_PER_WORKFLOW = parseInt(process.env['MAX_REPLANS_PER_WORKFLOW'] ?? '5', 10);
 const MAX_TOOL_CALLS_PER_INVOCATION = 20;
-const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-20250514';
+const AI_MODEL = process.env['AI_MODEL'] || 'claude-sonnet-4-6';
 
 // ==========================================
 // Types

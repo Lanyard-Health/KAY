@@ -49,7 +49,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
-vi.stubEnv('AI_MODEL', 'claude-sonnet-4-20250514');
+vi.stubEnv('AI_MODEL', 'claude-sonnet-4-6');
 
 import { triggerDenialTriage } from './denial-triage.service.js';
 
