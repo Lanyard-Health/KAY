@@ -188,6 +188,17 @@ export async function validateProviderPracticeAccess(
 }
 
 /**
+ * Sync helper: validates that the caller may act on a given practice. Super
+ * admins pass; everyone else must have the practice in their scope. Use when the
+ * resource IS a practice (e.g. creating a practice enrollment).
+ */
+export function validatePracticeAccess(req: Request, practiceId: string): boolean {
+  if (req.practiceScope?.isSuperAdmin) return true;
+  const practiceIds = req.practiceScope?.practiceIds ?? [];
+  return practiceIds.includes(practiceId);
+}
+
+/**
  * Async helper: validates practice-scope access for an enrollment that may be a
  * PROVIDER enrollment (authz via the provider's practice) or a PRACTICE
  * enrollment (authz via the practice directly). Pass the loaded enrollment row;
