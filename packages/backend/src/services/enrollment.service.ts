@@ -96,8 +96,8 @@ export async function updateEnrollmentStatus(
       .catch((err) => logger.error(`Denial triage failed for enrollment ${enrollmentId}:`, err));
   }
 
-  // Termination workflow
-  if (newStatus === 'terminated' && oldStatus !== 'terminated') {
+  // Termination workflow (provider-only; practice enrollments have no provider)
+  if (newStatus === 'terminated' && oldStatus !== 'terminated' && existing.providerId) {
     triggerTerminationWorkflow(existing.providerId, enrollmentId)
       .catch((err) => logger.error('Termination workflow trigger failed:', err));
   }
@@ -161,10 +161,13 @@ export async function updateEnrollmentStatus(
 
 async function fanoutEnrollmentStatusChanged(
   enrollmentId: string,
-  providerId: string,
+  providerId: string | null,
   oldStatus: EnrollmentStatus,
   newStatus: EnrollmentStatus,
 ): Promise<void> {
+  // Practice enrollments have no provider; webhook practice-scope is derived
+  // from the provider today, so skip the fanout when there's no provider.
+  if (!providerId) return;
   const provider = await prisma.providerProfile.findUnique({
     where: { id: providerId },
     select: { practiceId: true },

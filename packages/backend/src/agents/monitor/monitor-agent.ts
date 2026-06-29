@@ -72,7 +72,9 @@ async function checkEnrollmentStatus(
 
   // 3. CHECK CAQH ATTESTATION (bonus signal)
   const submissionConfig = enrollment.payer.submissionConfig;
-  const caqhProviderId = enrollment.provider.caqhProviderId;
+  // Practice enrollments have no individual provider (and no CAQH identity);
+  // optional chaining yields undefined so the CAQH block below is skipped.
+  const caqhProviderId = enrollment.provider?.caqhProviderId;
 
   if (
     submissionConfig?.adapterType === 'CAQH' &&

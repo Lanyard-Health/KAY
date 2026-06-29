@@ -5,7 +5,7 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
-import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess, validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { triggerAutomatedEmail } from '../services/automatedEmail.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
@@ -22,9 +22,9 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
-    const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true } });
+    const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true, practiceId: true } });
     if (!enr) return;
-    if (!(await validateProviderPracticeAccess(req, enr.providerId))) throw new ForbiddenError('Access denied to this enrollment');
+    if (!(await validateEnrollmentAccess(req, enr))) throw new ForbiddenError('Access denied to this enrollment');
     return;
   }
 
@@ -466,7 +466,8 @@ router.put(
         if (
           fieldUpdates.terminationDate &&
           !existing.terminationDate &&
-          enrollment.terminationDate
+          enrollment.terminationDate &&
+          enrollment.providerId
         ) {
           triggerTerminationWorkflow(enrollment.providerId, enrollment.id)
             .catch((err) => logger.error('Termination workflow trigger failed:', err));
@@ -525,7 +526,7 @@ router.delete(
         });
       }
 
-      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
+      if (!(await validateEnrollmentAccess(req, existing))) {
         return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
       }
 

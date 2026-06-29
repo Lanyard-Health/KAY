@@ -7,7 +7,8 @@ import { schedulerService } from '../services/scheduler.service.js';
 import { notificationService } from '../services/notification.service.js';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+import { validateProviderPracticeAccess, validateEnrollmentAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 import { verifyFileMagicBytes } from '../middleware/file-magic.middleware.js';
 
 // Mime types verifiable via magic bytes. text/csv and old Word .doc formats aren't
@@ -66,9 +67,9 @@ const upload = multer({
 async function checkEnrollmentPracticeAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
   const id = req.params['id'];
   if (!id) return next();
-  const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { providerId: true } });
+  const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { providerId: true, practiceId: true } });
   if (!enrollment) return next(); // Let route handle 404
-  if (!(await validateProviderPracticeAccess(req, enrollment.providerId))) {
+  if (!(await validateEnrollmentAccess(req, enrollment))) {
     res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
     return;
   }
@@ -468,6 +469,10 @@ followUpRoutes.get('/runs', authorize('admin', 'credentialing_staff', 'practice_
       where.status = status;
     }
 
+    // v1 gap: search + practice-scoping here filter on enrollment.provider only,
+    // so practice enrollments (no provider) aren't name-searchable and are hidden
+    // from non-admins' follow-up list. Not a crash or a security hole (fails
+    // closed); broaden to an OR over practice when practice follow-ups land.
     if (search && typeof search === 'string') {
       where.enrollment.provider = {
         OR: [
@@ -497,6 +502,7 @@ followUpRoutes.get('/runs', authorize('admin', 'credentialing_staff', 'practice_
         enrollment: {
           include: {
             provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            practice: { select: { name: true } },
             payer: { select: { id: true, name: true } },
           },
         },
@@ -531,10 +537,8 @@ followUpRoutes.patch('/runs/:id', authorize('admin', 'credentialing_staff', 'pra
     }
 
     // Practice scoping check
-    if (existing.enrollment.provider.practiceId) {
-      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
-        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
-      }
+    if (!(await validateEnrollmentAccess(req, existing.enrollment))) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
     }
 
     const run = await prisma.followUpRun.update({
@@ -571,6 +575,7 @@ followUpRoutes.patch('/runs/:id/pause', authorize('admin', 'credentialing_staff'
         enrollment: {
           include: {
             provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            practice: { select: { name: true } },
             payer: { select: { id: true, name: true } },
           },
         },
@@ -581,10 +586,8 @@ followUpRoutes.patch('/runs/:id/pause', authorize('admin', 'credentialing_staff'
       return res.status(404).json({ success: false, error: 'Follow-up run not found' });
     }
 
-    if (existing.enrollment.provider.practiceId) {
-      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
-        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
-      }
+    if (!(await validateEnrollmentAccess(req, existing.enrollment))) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
     }
 
     if (existing.status !== 'active') {
@@ -596,7 +599,7 @@ followUpRoutes.patch('/runs/:id/pause', authorize('admin', 'credentialing_staff'
       data: { status: 'paused' },
     });
 
-    const providerName = `${existing.enrollment.provider.firstName} ${existing.enrollment.provider.lastName}`;
+    const providerName = subjectName(existing.enrollment.provider, existing.enrollment.practice);
     notificationService.notifyAdminUsers({
       type: 'system_announcement',
       title: 'Follow-Up Paused',
@@ -619,6 +622,7 @@ followUpRoutes.patch('/runs/:id/resume', authorize('admin', 'credentialing_staff
         enrollment: {
           include: {
             provider: { select: { id: true, firstName: true, lastName: true, practiceId: true } },
+            practice: { select: { name: true } },
             payer: { select: { id: true, name: true } },
           },
         },
@@ -629,10 +633,8 @@ followUpRoutes.patch('/runs/:id/resume', authorize('admin', 'credentialing_staff
       return res.status(404).json({ success: false, error: 'Follow-up run not found' });
     }
 
-    if (existing.enrollment.provider.practiceId) {
-      if (!(await validateProviderPracticeAccess(req, existing.enrollment.providerId))) {
-        return res.status(404).json({ success: false, error: 'Follow-up run not found' });
-      }
+    if (!(await validateEnrollmentAccess(req, existing.enrollment))) {
+      return res.status(404).json({ success: false, error: 'Follow-up run not found' });
     }
 
     if (existing.status !== 'paused') {
@@ -644,7 +646,7 @@ followUpRoutes.patch('/runs/:id/resume', authorize('admin', 'credentialing_staff
       data: { status: 'active' },
     });
 
-    const providerName = `${existing.enrollment.provider.firstName} ${existing.enrollment.provider.lastName}`;
+    const providerName = subjectName(existing.enrollment.provider, existing.enrollment.practice);
     notificationService.notifyAdminUsers({
       type: 'system_announcement',
       title: 'Follow-Up Resumed',
