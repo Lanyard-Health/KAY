@@ -251,7 +251,8 @@ function AssignProviderModal({
           toast.success('Provider assigned to practice');
           handleClose();
         },
-        onError: () => toast.error('Failed to assign provider'),
+        onError: (error) =>
+          toast.error(error instanceof Error && error.message ? error.message : 'Failed to assign provider'),
       }
     );
   };
