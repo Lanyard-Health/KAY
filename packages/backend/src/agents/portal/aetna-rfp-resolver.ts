@@ -356,8 +356,11 @@ function isPresent(v: unknown): boolean {
   return true;
 }
 
-/** Format a Date as MM/DD/YYYY (UTC) — the format every Aetna date field wants. */
-function formatMMDDYYYY(d: Date): string {
+/** Format a Date as MM/DD/YYYY (UTC) — the format every Aetna date field wants.
+ *  Returns '' for a missing date (e.g. a provider imported without a DOB); the
+ *  form's own required-field check handles whether that blank is acceptable. */
+function formatMMDDYYYY(d: Date | null | undefined): string {
+  if (!d) return '';
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(d.getUTCDate()).padStart(2, '0');
   const yyyy = d.getUTCFullYear();
