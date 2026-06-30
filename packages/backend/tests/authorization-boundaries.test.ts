@@ -76,7 +76,11 @@ vi.mock('../src/middleware/audit.middleware.js', () => ({
 import { prismaMock } from './helpers/mock-prisma.js';
 import { errorHandler } from '../src/middleware/error.middleware.js';
 import { providerRoutes } from '../src/routes/provider.routes.js';
+import practiceRoutes from '../src/routes/practice.routes.js';
 import { adminUser, staffUser, providerUser, practiceAdminUser } from './helpers/fixtures.js';
+
+// Lanyard's own credentialing staff (cross-practice internal employees).
+const lanyardStaffUser = { ...staffUser, role: 'lanyard_staff' as const };
 
 // ==========================================
 // Helpers
@@ -260,5 +264,45 @@ describe('Authorization Boundaries — Edge Cases', () => {
         where: expect.objectContaining({ id: '__no_access__' }),
       }),
     );
+  });
+});
+
+// ==========================================
+// Create Practice — role gate
+// ==========================================
+// Regression for the "Insufficient permissions" bottleneck: lanyard_staff could
+// view and edit practices but POST /practices was gated to admin-only, so the
+// "Add Practice" form 403'd for the credentialing team. Create must mirror view.
+
+describe('Authorization Boundaries — Create Practice', () => {
+  function buildPracticeApp(user: Record<string, unknown>) {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = user as any;
+      req.practiceScope = { isSuperAdmin: false, practiceIds: [] } as any;
+      next();
+    });
+    app.use('/api/v1/practices', practiceRoutes);
+    app.use(errorHandler);
+    return app;
+  }
+
+  it('lanyard_staff CAN create a practice → 201 (not 403)', async () => {
+    prismaMock.practice.create.mockResolvedValue({ id: 'p1', name: 'New Practice', taxId: null } as any);
+
+    const res = await request(buildPracticeApp(lanyardStaffUser))
+      .post('/api/v1/practices')
+      .send({ name: 'New Practice' });
+
+    expect(res.status).toBe(201);
+  });
+
+  it('provider CANNOT create a practice → 403', async () => {
+    const res = await request(buildPracticeApp(providerUser))
+      .post('/api/v1/practices')
+      .send({ name: 'New Practice' });
+
+    expect(res.status).toBe(403);
   });
 });
