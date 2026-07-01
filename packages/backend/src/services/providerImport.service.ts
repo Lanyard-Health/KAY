@@ -2,6 +2,7 @@ import { parse } from 'csv-parse/sync';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { checkProviderCollision } from './provider.service.js';
+import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
 
 // ==========================================
 // Types
@@ -625,7 +626,10 @@ export interface ImportResult {
  * DB-required fields not in CSV use defaults:
  *   - gender → 'prefer_not_to_say'
  *   - phone → '' (empty string if not provided)
- *   - dateOfBirth → 1900-01-01 placeholder if not provided
+ *   - dateOfBirth → null if not provided (column is nullable)
+ *
+ * After the transaction commits, providers that carried a CAQH ID are queued for
+ * a CAQH roster push (fire-and-forget — a queue/CAQH failure never fails the import).
  */
 export async function executeImport(
   practiceId: string,
@@ -644,6 +648,11 @@ export async function executeImport(
   }
 
   const startTime = Date.now();
+
+  // Provider IDs (created below) that carried a CAQH ID — pushed to the CAQH
+  // roster queue AFTER the transaction commits, so a queue failure can't roll
+  // back the import.
+  const caqhPushTargets: string[] = [];
 
   // Create import tracking record
   const importRecord = await prisma.providerImport.create({
@@ -711,7 +720,7 @@ export async function executeImport(
             phone: row.data['phone'] || '',
             dateOfBirth: row.data['dateOfBirth']
               ? new Date(row.data['dateOfBirth'])
-              : new Date('1900-01-01'),
+              : null,
             gender: 'prefer_not_to_say',
             specialties: [],
             languages: [],
@@ -743,8 +752,30 @@ export async function executeImport(
             },
           });
         }
+
+        // Queue a CAQH roster push for this provider if the row carried a CAQH ID.
+        if (row.data['caqhProviderId']) {
+          caqhPushTargets.push(provider.id);
+        }
       }
     }, { timeout: 120_000 });
+
+    // Push imported providers with a CAQH ID onto the CAQH roster queue.
+    // Post-commit + per-item try/catch: a queue/CAQH failure is logged but never
+    // fails the import (Kay's decision: queue it, don't block the upload).
+    for (const providerId of caqhPushTargets) {
+      try {
+        await enqueueCaqhImport({ providerId, trigger: 'manual' });
+      } catch (qErr) {
+        logger.error({
+          event: 'provider_import_caqh_enqueue_failed',
+          practiceId,
+          importId,
+          providerId,
+          error: qErr instanceof Error ? qErr.message : String(qErr),
+        });
+      }
+    }
 
     const durationMs = Date.now() - startTime;
 

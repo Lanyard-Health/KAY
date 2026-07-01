@@ -493,7 +493,7 @@ model ProviderProfile {
   maidenName String? @map("maiden_name")
 
   // Personal Info
-  dateOfBirth  DateTime @map("date_of_birth")
+  dateOfBirth  DateTime? @map("date_of_birth")
   gender       Gender
   ssnEncrypted String?  @map("ssn_encrypted") // Encrypted SSN
 

@@ -112,6 +112,30 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Practice-admin-only pages (e.g. Bulk Import). A practice_admin manages their
+// own practice's providers; staff/admin use other tools, so they're redirected.
+function PracticeAdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'practice_admin') {
+    return <RedirectWithToast to="/" message="Bulk import is for practice admins only" />;
+  }
+
+  return <>{children}</>;
+}
+
 // Fires a single toast before redirecting. Used by route guards so role-based
 // redirects aren't silent (the user wonders why the URL bar changed).
 function RedirectWithToast({ to, message }: { to: string; message: string }) {
@@ -196,7 +220,7 @@ export default function App() {
           <Route path="onboarding/clinical-profile" element={<ClinicalProfileWizard />} />
           <Route path="command-center" element={<AdminOnlyRoute><CommandCenter /></AdminOnlyRoute>} />
           <Route path="providers" element={<ProviderList />} />
-          <Route path="providers/import" element={<AdminOnlyRoute><ProviderImportPage /></AdminOnlyRoute>} />
+          <Route path="providers/import" element={<PracticeAdminOnlyRoute><ProviderImportPage /></PracticeAdminOnlyRoute>} />
           <Route path="providers/archived" element={<AdminOnlyRoute><ArchivedProvidersView /></AdminOnlyRoute>} />
           <Route path="providers/new" element={<ProviderForm />} />
           <Route path="providers/:id" element={<ProviderDetail />} />
