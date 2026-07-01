@@ -38,14 +38,19 @@ vi.mock('../src/middleware/auth.middleware.js', async () => {
     authenticate: (_req: any, _res: any, next: any) => next(),
     authorize: (...allowedRoles: string[]) => (req: any, _res: any, next: any) => {
       if (!req.user) return next(new UnauthorizedError('Not authenticated'));
-      if (!allowedRoles.includes(req.user.role)) return next(new ForbiddenError('Insufficient permissions'));
+      // Mirror real authorize: lanyard_staff inherits credentialing_staff's route access.
+      const role = req.user.role;
+      const allowed =
+        allowedRoles.includes(role) ||
+        (role === 'lanyard_staff' && allowedRoles.includes('credentialing_staff'));
+      if (!allowed) return next(new ForbiddenError('Insufficient permissions'));
       next();
     },
     requireProviderAccess: (req: any, _res: any, next: any) => {
       if (!req.user) return next(new UnauthorizedError('Not authenticated'));
       const { role, providerId: userProviderId } = req.user;
       const requestedProviderId = req.params?.providerId || req.body?.providerId;
-      if (role === 'admin' || role === 'credentialing_staff' || role === 'practice_admin') return next();
+      if (role === 'admin' || role === 'lanyard_staff' || role === 'credentialing_staff' || role === 'practice_admin') return next();
       if (role === 'provider' && userProviderId === requestedProviderId) return next();
       next(new ForbiddenError('Access denied to this provider'));
     },
@@ -303,6 +308,47 @@ describe('Authorization Boundaries — Create Practice', () => {
       .post('/api/v1/practices')
       .send({ name: 'New Practice' });
 
+    expect(res.status).toBe(403);
+  });
+});
+
+// ==========================================
+// Assign unassigned provider (claim into own practice)
+// ==========================================
+// Regression for "Failed to assign provider": requirePracticeProvider 403'd on any
+// unassigned (practiceId=null) provider unless the caller was super-admin, which
+// blocked lanyard_staff / practice_admin from the assign flow. The carve-out lets
+// them claim an unassigned provider INTO a practice in their own scope; plain reads
+// of unassigned providers stay blocked (covered by the isolation test above).
+
+describe('Authorization Boundaries — Assign unassigned provider', () => {
+  const PRACTICE_A = '11111111-1111-1111-1111-111111111111';
+  const PRACTICE_B = '22222222-2222-2222-2222-222222222222';
+
+  function assignReq(
+    user: Record<string, unknown>,
+    scope: { isSuperAdmin: boolean; practiceIds: string[] },
+    targetPracticeId: string,
+  ) {
+    const app = buildApp(user, scope);
+    // Provider is unassigned (practiceId=null) — both the guard and the handler read it.
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ id: 'prov-unassigned', practiceId: null } as any);
+    prismaMock.providerProfile.update.mockResolvedValue({ id: 'prov-unassigned', practiceId: targetPracticeId } as any);
+    return request(app).put('/api/v1/providers/prov-unassigned').send({ practiceId: targetPracticeId });
+  }
+
+  it('practice_admin CAN claim an unassigned provider into their own practice → 200', async () => {
+    const res = await assignReq(practiceAdminUser, { isSuperAdmin: false, practiceIds: [PRACTICE_A] }, PRACTICE_A);
+    expect(res.status).toBe(200);
+  });
+
+  it('lanyard_staff CAN claim an unassigned provider into a practice in scope → 200', async () => {
+    const res = await assignReq(lanyardStaffUser, { isSuperAdmin: false, practiceIds: [PRACTICE_A] }, PRACTICE_A);
+    expect(res.status).toBe(200);
+  });
+
+  it('practice_admin CANNOT claim into a practice outside their scope → 403', async () => {
+    const res = await assignReq(practiceAdminUser, { isSuperAdmin: false, practiceIds: [PRACTICE_A] }, PRACTICE_B);
     expect(res.status).toBe(403);
   });
 });
