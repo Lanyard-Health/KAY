@@ -382,6 +382,20 @@ router.post(
         throw err;
       }
 
+      // Seed the practice-payer settings row so this payer shows on the
+      // practice's Payers tab even if it was never picked as a target payer
+      // in Settings. Non-blocking — the enrollment itself already succeeded.
+      if (provider?.practiceId) {
+        await prisma.practicePayer
+          .createMany({
+            data: [{ practiceId: provider.practiceId, payerId: payer.id }],
+            skipDuplicates: true,
+          })
+          .catch((err) =>
+            logger.warn(`practicePayer seed failed for practice ${provider.practiceId}`, err)
+          );
+      }
+
       // Auto-hydrate workflow steps if the payer has a template
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 

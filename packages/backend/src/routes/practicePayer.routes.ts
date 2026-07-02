@@ -50,7 +50,8 @@ function userCanAccessPractice(req: Request, practiceId: string): boolean {
 // caller's practice (or all if super admin).
 router.get(
   '/',
-  authorize(...ADMIN_ROLES, 'practice_admin'),
+  // credentialing_staff also grants lanyard_staff (auth.middleware role inheritance)
+  authorize(...ADMIN_ROLES, 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const scopedPracticeIds = req.practiceScope?.practiceIds ?? [];
@@ -75,7 +76,8 @@ router.get(
 // Encrypts groupTaxId via encryptSafe() before persisting.
 router.patch(
   '/:id',
-  authorize(...ADMIN_ROLES, 'practice_admin'),
+  // credentialing_staff also grants lanyard_staff (auth.middleware role inheritance)
+  authorize(...ADMIN_ROLES, 'credentialing_staff', 'practice_admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id']!;
