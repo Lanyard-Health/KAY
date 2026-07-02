@@ -5,12 +5,16 @@ import EmptyState from '../../components/ui/EmptyState';
 import PageTransition from '../../components/ui/PageTransition';
 import clsx from 'clsx';
 import { usePractices } from '../../hooks/usePractices';
+import { useAuthStore } from '../../stores/auth.store';
 import PracticeFormModal from './PracticeFormModal';
 
 export default function PracticesList() {
   const navigate = useNavigate();
   const { data: practices, isLoading } = usePractices();
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  // Only admin + lanyard_staff can create a practice (mirrors POST /practices authz).
+  const role = useAuthStore((s) => s.user?.role);
+  const canCreate = role === 'admin' || role === 'lanyard_staff';
 
   if (isLoading) {
     return (
@@ -46,13 +50,15 @@ export default function PracticesList() {
           <h1 className="text-2xl font-bold text-gray-900">Practices</h1>
           <p className="mt-1 text-sm text-gray-500">Manage practice organizations and their members</p>
         </div>
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          className="btn-primary mt-4 sm:mt-0"
-        >
-          <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-          Add Practice
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="btn-primary mt-4 sm:mt-0"
+          >
+            <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+            Add Practice
+          </button>
+        )}
       </div>
 
       {!practices || practices.length === 0 ? (

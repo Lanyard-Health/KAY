@@ -10,6 +10,11 @@ vi.mock('../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+// Mock the CAQH roster queue so import tests don't touch BullMQ/Redis.
+vi.mock('../../src/queues/caqh-import.queue.js', () => ({
+  enqueueCaqhImport: vi.fn().mockResolvedValue({ jobId: 'job-1', deduplicated: false }),
+}));
+
 import {
   validateFile,
   parseAndValidateRows,
@@ -22,6 +27,7 @@ import {
 } from '../../src/services/providerImport.service.js';
 import { prismaMock } from '../helpers/mock-prisma.js';
 import { logger } from '../../src/utils/logger.js';
+import { enqueueCaqhImport } from '../../src/queues/caqh-import.queue.js';
 
 // Known valid NPI: 1234567893 (passes Luhn with 80840 prefix)
 const VALID_NPI = '1234567893';
@@ -986,13 +992,34 @@ describe('executeImport', () => {
     });
   });
 
-  it('uses placeholder dateOfBirth when not provided', async () => {
+  it('stores null dateOfBirth when not provided (no placeholder)', async () => {
     await executeImport('practice-1', 'user-1', [makeRow()]);
 
     expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        dateOfBirth: new Date('1900-01-01'),
+        dateOfBirth: null,
       }),
+    });
+  });
+
+  describe('CAQH roster push', () => {
+    beforeEach(() => {
+      vi.mocked(enqueueCaqhImport).mockClear();
+    });
+
+    it('queues a CAQH push for an imported provider that has a CAQH ID', async () => {
+      const row = makeRow({ data: { ...makeRow().data, caqhProviderId: 'CAQH-123' } });
+      prismaMock.providerProfile.create.mockResolvedValue({ id: 'provider-1' } as any);
+
+      await executeImport('practice-1', 'user-1', [row]);
+
+      expect(enqueueCaqhImport).toHaveBeenCalledWith({ providerId: 'provider-1', trigger: 'manual' });
+    });
+
+    it('does NOT queue a CAQH push when the row has no CAQH ID', async () => {
+      await executeImport('practice-1', 'user-1', [makeRow()]);
+
+      expect(enqueueCaqhImport).not.toHaveBeenCalled();
     });
   });
 

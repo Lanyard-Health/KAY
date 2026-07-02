@@ -255,6 +255,73 @@ practiceDocumentRoutes.post(
 );
 
 // ──────────────────────────────────────────────
+// POST /:documentId/reocr — re-run OCR on an existing practice document.
+//
+// For documents stuck in 'failed' (e.g. after a model retirement/outage) or
+// 'needs_review' — reprocesses in place so the practice doesn't have to
+// re-upload. Same code path as the post-upload OCR; runOcr() overwrites
+// ocrData/ocrConfidence on success and the failureReason on failure, so no
+// stale-state cleanup is needed here. We optimistically flip status to
+// 'pending' before firing so the document list starts polling immediately;
+// runOcr() then drives pending → processing → completed/failed itself.
+// ──────────────────────────────────────────────
+practiceDocumentRoutes.post(
+  '/:documentId/reocr',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practiceId = req.params['practiceId'];
+      const documentId = req.params['documentId'];
+      if (!practiceId || !UUID_RE.test(practiceId)) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Invalid practiceId' },
+        });
+      }
+      if (!documentId || !UUID_RE.test(documentId)) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Invalid documentId' },
+        });
+      }
+      await assertPracticeDocumentAccess(req, practiceId);
+
+      const existing = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { id: true, practiceId: true },
+      });
+      if (!existing || existing.practiceId !== practiceId) {
+        throw new NotFoundError('Document');
+      }
+
+      setAuditContext(req, {
+        resourceType: 'practice_document',
+        resourceId: documentId,
+        action: 'update',
+      });
+
+      const document = await prisma.document.update({
+        where: { id: documentId },
+        data: { ocrStatus: 'pending' },
+      });
+
+      // Fire-and-forget — don't block the response on OCR. The list polls
+      // while the row is pending/processing.
+      void (await getDocumentService()).runOcr(documentId);
+
+      logger.info('Practice document re-OCR triggered', {
+        practiceId,
+        documentId,
+        userId: req.user?.id,
+      });
+
+      res.status(202).json({ success: true, data: document });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ──────────────────────────────────────────────
 // GET / — list practice-scoped documents
 // ──────────────────────────────────────────────
 practiceDocumentRoutes.get(

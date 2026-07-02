@@ -114,6 +114,18 @@ export async function requirePracticeProvider(
     if (!provider.practiceId) {
       if (req.user?.role === 'admin') return next();
       if (req.user?.role === 'provider' && req.user?.providerId === providerId) return next();
+
+      // Carve-out: claiming an unassigned provider INTO a practice the caller is scoped to.
+      // lanyard_staff / practice_admin assign providers from the "unassigned" list — this is the
+      // legitimate first assignment. We only allow it when the request is setting a practiceId
+      // within the caller's own scope. Plain reads of an unassigned provider carry no body
+      // practiceId, so they stay blocked and cross-tenant isolation is preserved.
+      const targetPracticeId = req.body?.practiceId;
+      const canAssign = req.user?.role === 'lanyard_staff' || req.user?.role === 'practice_admin';
+      if (canAssign && typeof targetPracticeId === 'string' && practiceIds.includes(targetPracticeId)) {
+        return next();
+      }
+
       logger.warn(
         `Practice access denied: user=${req.user?.id} tried to access unassigned provider=${providerId}`
       );

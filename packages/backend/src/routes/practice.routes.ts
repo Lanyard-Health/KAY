@@ -289,7 +289,8 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(...ADMIN_ROLES),
+  // lanyard_staff (cross-practice Lanyard employees) create practices — mirrors GET / view access
+  authorize(...ADMIN_ROLES, 'lanyard_staff'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createPracticeSchema.parse(req.body);
