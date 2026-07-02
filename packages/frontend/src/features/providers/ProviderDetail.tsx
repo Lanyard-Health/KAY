@@ -142,6 +142,8 @@ export default function ProviderDetail() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canSoftDelete = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'practice_admin';
+  // Mirrors the PUT /providers/:id allow-list (lanyard_staff inherits credentialing_staff)
+  const canEditStatus = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff' || user?.role === 'practice_admin';
   const deleteProvider = useDeleteProvider();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
@@ -262,6 +264,21 @@ export default function ProviderDetail() {
     },
     onError: () => {
       toast.error('Failed to delete location');
+    },
+  });
+
+  // Inline status change from the header badge — same PUT the edit form uses
+  const statusMutation = useMutation({
+    mutationFn: async (status: 'active' | 'pending' | 'inactive') => {
+      return api.put(`/providers/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['provider', id] });
+      queryClient.invalidateQueries({ queryKey: ['providers'] });
+      toast.success('Status updated');
+    },
+    onError: () => {
+      toast.error('Failed to update status');
     },
   });
 
@@ -827,14 +844,62 @@ export default function ProviderDetail() {
                     {provider.suffix && `, ${provider.suffix}`}
                   </h1>
                   <RefreshIndicator isFetching={isFetching && !isLoading} />
-                  <span className={clsx(
-                    'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
-                    provider.status === 'active' && 'bg-green-100 text-green-700',
-                    provider.status === 'inactive' && 'bg-gray-100 text-gray-600',
-                    provider.status === 'pending' && 'bg-amber-100 text-amber-700'
-                  )}>
-                    {provider.status}
-                  </span>
+                  {canEditStatus ? (
+                    <Menu as="div" className="relative">
+                      <Menu.Button
+                        disabled={statusMutation.isPending}
+                        title="Change status"
+                        className={clsx(
+                          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold disabled:opacity-60',
+                          provider.status === 'active' && 'bg-green-100 text-green-700 hover:bg-green-200',
+                          provider.status === 'inactive' && 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                          provider.status === 'pending' && 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                        )}
+                      >
+                        {provider.status}
+                        <ChevronDownIcon className="h-3 w-3" />
+                      </Menu.Button>
+                      <Transition
+                        as={Fragment}
+                        enter="transition ease-out duration-100"
+                        enterFrom="transform opacity-0 scale-95"
+                        enterTo="transform opacity-100 scale-100"
+                        leave="transition ease-in duration-75"
+                        leaveFrom="transform opacity-100 scale-100"
+                        leaveTo="transform opacity-0 scale-95"
+                      >
+                        <Menu.Items className="absolute left-0 z-10 mt-2 w-32 origin-top-left rounded-xl bg-white shadow-lg ring-1 ring-black/5 focus:outline-none">
+                          <div className="py-1">
+                            {(['active', 'pending', 'inactive'] as const).map((s) => (
+                              <Menu.Item key={s}>
+                                {({ active }) => (
+                                  <button
+                                    onClick={() => { if (s !== provider.status) statusMutation.mutate(s); }}
+                                    className={clsx(
+                                      active ? 'bg-gray-50' : '',
+                                      s === provider.status ? 'font-semibold text-primary-700' : 'text-gray-700',
+                                      'block w-full text-left px-4 py-2 text-sm capitalize'
+                                    )}
+                                  >
+                                    {s}
+                                  </button>
+                                )}
+                              </Menu.Item>
+                            ))}
+                          </div>
+                        </Menu.Items>
+                      </Transition>
+                    </Menu>
+                  ) : (
+                    <span className={clsx(
+                      'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
+                      provider.status === 'active' && 'bg-green-100 text-green-700',
+                      provider.status === 'inactive' && 'bg-gray-100 text-gray-600',
+                      provider.status === 'pending' && 'bg-amber-100 text-amber-700'
+                    )}>
+                      {provider.status}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5">
                   NPI: {provider.npi} &middot; {provider.providerType.replace('_', ' ')}
