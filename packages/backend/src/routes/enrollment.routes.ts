@@ -189,6 +189,24 @@ router.post(
 // ENROLLMENT ROUTES
 // ==========================================
 
+// Scope filter for the enrollments list. getPracticeRelationFilter requires a
+// non-deleted provider relation, which silently drops practice-level
+// (provider-optional) enrollments — those have no provider at all, so they are
+// scoped by the enrollment's own practiceId instead.
+function enrollmentScopeFilter(req: Request): Record<string, unknown> {
+  if (req.practiceScope?.isSuperAdmin) {
+    return { OR: [{ providerId: null }, { provider: { deletedAt: null } }] };
+  }
+  const ids = req.practiceScope?.practiceIds ?? [];
+  if (ids.length === 0) return { id: '__no_access__' }; // matches nothing
+  return {
+    OR: [
+      { provider: { practiceId: { in: ids }, deletedAt: null } },
+      { providerId: null, practiceId: { in: ids } },
+    ],
+  };
+}
+
 // Get all enrollments across all providers (admin/staff only)
 router.get(
   '/',
@@ -197,7 +215,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const enrollments = await prisma.enrollment.findMany({
-        where: getPracticeRelationFilter(req),
+        where: enrollmentScopeFilter(req),
         include: {
           payer: true,
           provider: {
@@ -209,6 +227,8 @@ router.get(
               practice: { select: { id: true, name: true } },
             },
           },
+          // Direct practice link for practice-level enrollments (no provider)
+          practice: { select: { id: true, name: true } },
           workflowSteps: { select: { status: true } },
         },
         orderBy: { createdAt: 'desc' },
