@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { searchSimilarWithSources } from './knowledgeBase.embedding.service.js';
 import { callLLM } from '../utils/llm.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export async function triggerDenialTriage(
       where: { id: enrollmentId },
       include: {
         provider: { select: { firstName: true, lastName: true, npi: true, entityType: true, targetStates: true } },
+        practice: { select: { name: true } },
         payer: { select: { name: true } },
         payerTrack: { select: { payerName: true, track: true, stateRegion: true, submissionMethod: true } },
       },
@@ -120,10 +122,10 @@ export async function triggerDenialTriage(
 - **Submission Method**: ${enrollment.payerTrack?.submissionMethod || 'Unknown'}
 - **Denial Reason**: ${denialReason}
 
-## Provider Context
-- **Name**: ${enrollment.provider.firstName} ${enrollment.provider.lastName}
-- **NPI**: ${enrollment.provider.npi}
-- **Entity Type**: ${enrollment.provider.entityType || 'Unknown'}
+## Subject Context
+- **Name**: ${subjectName(enrollment.provider, enrollment.practice)}${enrollment.provider ? '' : ' (practice / group enrollment)'}
+- **NPI**: ${enrollment.provider?.npi ?? 'N/A (practice enrollment)'}
+- **Entity Type**: ${enrollment.provider?.entityType || 'Unknown'}
 
 ## Relevant Knowledge Base Records
 ${kbContext || 'No relevant knowledge base records found.'}

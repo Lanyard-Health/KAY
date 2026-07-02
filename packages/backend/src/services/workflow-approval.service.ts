@@ -8,6 +8,7 @@
 
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
+import { subjectName } from '../utils/enrollmentSubject.js';
 import { initiateCall, isRetellEnabled } from './retell.service.js';
 import { emailService } from './email.service.js';
 import { notificationService } from './notification.service.js';
@@ -350,6 +351,7 @@ async function advanceFollowUpAfterDecision(
       enrollment: {
         include: {
           provider: true,
+          practice: { select: { name: true } },
           payer: true,
         },
       },
@@ -359,7 +361,7 @@ async function advanceFollowUpAfterDecision(
   if (!run) return { type: 'none' };
 
   const context = (approval.context || {}) as Record<string, any>;
-  const providerName = context['providerName'] || `${run.enrollment.provider.firstName} ${run.enrollment.provider.lastName}`;
+  const providerName = context['providerName'] || subjectName(run.enrollment.provider, run.enrollment.practice);
   const payerName = context['payerName'] || run.enrollment.payer.name;
   const channel = context['channel'] || 'unknown';
 

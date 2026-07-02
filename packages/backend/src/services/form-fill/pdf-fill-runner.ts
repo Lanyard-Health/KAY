@@ -160,6 +160,10 @@ export async function runPdfFill(input: RunPdfFillInput): Promise<RunPdfFillResu
     if (!enrollment) {
       throw new Error(`Enrollment ${enrollmentId} not found`);
     }
+    // Form-fill builds a provider's PDF packet; practice enrollments have no provider.
+    if (!enrollment.providerId) {
+      throw new Error(`Enrollment ${enrollmentId} has no provider — PDF form-fill is provider-only`);
+    }
 
     // 3. Load the PayerForm and verify it's a PDF form with a template
     const payerForm = await prisma.payerForm.findUnique({

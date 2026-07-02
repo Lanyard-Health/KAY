@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
-import { requirePracticeProvider, validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import { z } from 'zod';
 import { nullablePartial } from '@credential-management/shared';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -270,9 +270,9 @@ payerRoutes.put(
 
       setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'update' });
 
-      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true, practiceId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
-      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
+      if (!(await validateEnrollmentAccess(req, existing))) throw new NotFoundError('Enrollment');
 
       const enrollment = await prisma.enrollment.update({
         where: { id: req.params['id'] },
@@ -304,9 +304,9 @@ payerRoutes.delete(
       res.setHeader('X-Deprecated', 'Use DELETE /api/v1/enrollments/:id instead');
       setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'delete' });
 
-      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true } });
+      const existing = await prisma.enrollment.findUnique({ where: { id: req.params['id'] }, select: { providerId: true, practiceId: true } });
       if (!existing) throw new NotFoundError('Enrollment');
-      if (!(await validateProviderPracticeAccess(req, existing.providerId))) throw new NotFoundError('Enrollment');
+      if (!(await validateEnrollmentAccess(req, existing))) throw new NotFoundError('Enrollment');
 
       await prisma.enrollment.delete({
         where: { id: req.params['id'] },

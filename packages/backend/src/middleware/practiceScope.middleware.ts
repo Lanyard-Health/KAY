@@ -200,6 +200,28 @@ export async function validateProviderPracticeAccess(
 }
 
 /**
+ * Async helper: validates practice-scope access for an enrollment that may be a
+ * PROVIDER enrollment (authz via the provider's practice) or a PRACTICE
+ * enrollment (authz via the practice directly). Pass the loaded enrollment row;
+ * its scalar FKs (providerId/practiceId) are always present. Returns true if
+ * access is allowed, false otherwise. Fails closed when neither FK is set.
+ */
+export async function validateEnrollmentAccess(
+  req: Request,
+  enrollment: { providerId: string | null; practiceId: string | null }
+): Promise<boolean> {
+  if (req.practiceScope?.isSuperAdmin) return true;
+  if (enrollment.providerId) {
+    return validateProviderPracticeAccess(req, enrollment.providerId);
+  }
+  if (enrollment.practiceId) {
+    const practiceIds = req.practiceScope?.practiceIds ?? [];
+    return practiceIds.includes(enrollment.practiceId);
+  }
+  return false;
+}
+
+/**
  * Returns a Prisma WHERE clause fragment to filter providers by practice.
  * Use in list endpoints: { ...existingWhere, ...getPracticeProviderFilter(req) }
  *

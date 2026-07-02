@@ -147,7 +147,7 @@ router.get(
       const providerToPractice = new Map(providerPracticeRows.map((p) => [p.id, p.practiceId]));
       const practiceEnrollmentCount = new Map<string, number>();
       for (const row of enrollmentCounts) {
-        const pid = providerToPractice.get(row.providerId);
+        const pid = row.providerId ? providerToPractice.get(row.providerId) : undefined;
         if (pid) {
           practiceEnrollmentCount.set(pid, (practiceEnrollmentCount.get(pid) || 0) + row._count.id);
         }
@@ -203,7 +203,7 @@ router.get(
 
       const practiceEnrollmentCount = new Map<string, number>();
       for (const row of enrollmentCounts) {
-        const practiceId = providerToPractice.get(row.providerId);
+        const practiceId = row.providerId ? providerToPractice.get(row.providerId) : undefined;
         if (practiceId) {
           practiceEnrollmentCount.set(practiceId, (practiceEnrollmentCount.get(practiceId) || 0) + row._count.id);
         }
