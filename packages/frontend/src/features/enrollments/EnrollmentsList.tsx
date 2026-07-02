@@ -8,6 +8,7 @@ import { api } from '../../services/api';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import { useAuthStore } from '../../stores/auth.store';
 import { usePractice, usePractices } from '../../hooks/usePractices';
+import { isPracticeEnrollment } from './enrollmentSubject';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import {
   MagnifyingGlassIcon,
@@ -48,7 +49,9 @@ interface ProviderProfile {
 
 interface Enrollment {
   id: string;
-  providerId: string;
+  subjectType?: 'PROVIDER' | 'PRACTICE';
+  providerId: string | null;
+  practiceId?: string | null;
   payerId: string;
   status: string;
   isDraft?: boolean;
@@ -60,7 +63,8 @@ interface Enrollment {
   providerNumber: string | null;
   notes: string | null;
   payer: Payer;
-  provider: ProviderProfile;
+  provider: ProviderProfile | null;
+  practice?: { id: string; name: string } | null;
   workflowProgress?: { total: number; completed: number };
 }
 
@@ -175,14 +179,21 @@ export default function EnrollmentsList() {
   const { data: userPractice } = usePractice(userPracticeId ?? '');
   const targetPayerIds = userPractice?.targetPayerIds ?? [];
 
+  // Practice detail page is admin-only (App.tsx AdminOnlyRoute blocks provider +
+  // practice_admin), so only link a practice row for roles that can open it.
+  const canViewPracticePage = user?.role !== 'provider' && user?.role !== 'practice_admin';
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [payerFilter, setPayerFilter] = useState('');
+  const [subjectFilter, setSubjectFilter] = useState<'' | 'PROVIDER' | 'PRACTICE'>('');
   const [showDrafts, setShowDrafts] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   // New enrollment modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // What's being enrolled: an individual provider, or a practice/group.
+  const [subjectType, setSubjectType] = useState<'PROVIDER' | 'PRACTICE'>('PROVIDER');
   const [selectedProvider, setSelectedProvider] = useState<ProviderProfile | null>(null);
   const [selectedPracticeId, setSelectedPracticeId] = useState('');
   const [providerSearch, setProviderSearch] = useState('');
@@ -300,6 +311,10 @@ export default function EnrollmentsList() {
         return false;
       }
 
+      // Subject-type filter (provider vs practice)
+      if (subjectFilter === 'PRACTICE' && !isPracticeEnrollment(enrollment)) return false;
+      if (subjectFilter === 'PROVIDER' && isPracticeEnrollment(enrollment)) return false;
+
       // Draft filter
       if (!showDrafts && enrollment.isDraft) {
         return false;
@@ -307,7 +322,7 @@ export default function EnrollmentsList() {
 
       return true;
     });
-  }, [enrollments, search, statusFilter, payerFilter, showDrafts]);
+  }, [enrollments, search, statusFilter, payerFilter, subjectFilter, showDrafts]);
 
   // Search providers directly (for quick enrollment creation)
   const searchedProviders = useMemo(() => {
@@ -348,21 +363,25 @@ export default function EnrollmentsList() {
   // Create enrollment mutation
   const createMutation = useMutation({
     mutationFn: (data: {
-      providerId: string;
-      providerName: string;
+      subjectType: 'PROVIDER' | 'PRACTICE';
+      subjectId: string; // providerId or practiceId
+      subjectName: string;
       payerName: string;
       formData: EnrollmentFormData;
-    }) => api.post(`/enrollments/provider/${data.providerId}`, data.formData),
+    }) =>
+      data.subjectType === 'PRACTICE'
+        ? api.post(`/enrollments/practice/${data.subjectId}`, data.formData)
+        : api.post(`/enrollments/provider/${data.subjectId}`, data.formData),
     onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ['all-enrollments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-full'] });
       closeModal();
-      notify.success(`Enrollment created for ${variables.providerName}, ${variables.payerName}.`);
+      notify.success(`Enrollment created for ${variables.subjectName}, ${variables.payerName}.`);
     },
     onError: (error: any, variables) => {
-      // Backend returns 409 when this provider already has an enrollment for this payer.
+      // Backend returns 409 when this subject already has an enrollment for this payer.
       if (error?.response?.status === 409) {
-        notify.error(`${variables.providerName} already has a ${variables.payerName} enrollment.`);
+        notify.error(`${variables.subjectName} already has a ${variables.payerName} enrollment.`);
         return;
       }
       notify.error("We couldn't create that enrollment. Please try again.");
@@ -383,6 +402,7 @@ export default function EnrollmentsList() {
   });
 
   const openModal = (provider?: ProviderProfile) => {
+    setSubjectType('PROVIDER');
     setSelectedProvider(provider || null);
     setSelectedPracticeId(provider?.practiceId || '');
     setProviderSearch('');
@@ -395,6 +415,7 @@ export default function EnrollmentsList() {
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setSubjectType('PROVIDER');
     setSelectedProvider(null);
     setSelectedPracticeId('');
     setProviderSearch('');
@@ -404,11 +425,24 @@ export default function EnrollmentsList() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.payerName) return;
+    if (subjectType === 'PRACTICE') {
+      if (!selectedPracticeId) return;
+      const practiceName = (practices || []).find((p) => p.id === selectedPracticeId)?.name || 'practice';
+      createMutation.mutate({
+        subjectType: 'PRACTICE',
+        subjectId: selectedPracticeId,
+        subjectName: practiceName,
+        payerName: formData.payerName,
+        formData,
+      });
+      return;
+    }
     if (!selectedProvider) return;
-    const providerName = `${selectedProvider.firstName} ${selectedProvider.lastName}`.trim();
     createMutation.mutate({
-      providerId: selectedProvider.id,
-      providerName,
+      subjectType: 'PROVIDER',
+      subjectId: selectedProvider.id,
+      subjectName: `${selectedProvider.firstName} ${selectedProvider.lastName}`.trim(),
       payerName: formData.payerName,
       formData,
     });
@@ -553,6 +587,19 @@ export default function EnrollmentsList() {
             </select>
           </div>
 
+          {/* Subject Type Filter */}
+          <div className="w-full md:w-44">
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value as '' | 'PROVIDER' | 'PRACTICE')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">Providers & Practices</option>
+              <option value="PROVIDER">Providers only</option>
+              <option value="PRACTICE">Practices only</option>
+            </select>
+          </div>
+
           {/* Show drafts toggle */}
           {stats.drafts > 0 && (
             <label className="flex items-center gap-2 text-sm text-gray-700 whitespace-nowrap cursor-pointer">
@@ -648,27 +695,34 @@ export default function EnrollmentsList() {
           <FunnelIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Found</h3>
           <p className="text-gray-500 mb-4">
-            {targetPayerIds.length > 0 && providers.length === 0
-              ? 'Add a provider — drafts will auto-populate for your target payers.'
-              : 'Get started by adding an enrollment for a provider.'}
+            {providers.length === 0
+              ? 'No enrollments yet — add a provider enrollment, or enroll this practice as a group.'
+              : 'Get started — add a provider enrollment, or enroll a practice or group.'}
           </p>
-          {targetPayerIds.length > 0 && providers.length === 0 ? (
-            <Link
-              to="/providers/new"
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add First Provider
-            </Link>
-          ) : (
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {targetPayerIds.length > 0 && providers.length === 0 && (
+              <Link
+                to="/providers/new"
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add First Provider
+              </Link>
+            )}
             <button
               onClick={() => openModal()}
               className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
             >
               <PlusIcon className="h-5 w-5 mr-2" />
-              Add First Enrollment
+              Add Enrollment
             </button>
-          )}
+            <button
+              onClick={() => { openModal(); setSubjectType('PRACTICE'); if (userPracticeId) setSelectedPracticeId(userPracticeId); }}
+              className="inline-flex items-center px-4 py-2 border border-primary-600 text-primary-700 rounded-md hover:bg-primary-50"
+            >
+              Enroll a practice or group
+            </button>
+          </div>
         </div>
       ) : viewMode === 'kanban' ? (
         /* Kanban Pipeline View */
@@ -732,21 +786,33 @@ export default function EnrollmentsList() {
                           {/* Card Header with Provider */}
                           <div className="p-3 border-b border-gray-100">
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">
+                              <div className={`h-10 w-10 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0 ${isPracticeEnrollment(enrollment) ? 'from-purple-500 to-purple-600' : 'from-primary-500 to-primary-600'}`}>
                                 <span className="text-white font-medium text-sm">
-                                  {enrollment.provider?.firstName?.[0]}
-                                  {enrollment.provider?.lastName?.[0]}
+                                  {isPracticeEnrollment(enrollment)
+                                    ? (enrollment.practice?.name?.[0] ?? 'P')
+                                    : <>{enrollment.provider?.firstName?.[0]}{enrollment.provider?.lastName?.[0]}</>}
                                 </span>
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="font-medium text-gray-900 truncate">
-                                  {enrollment.provider?.firstName} {enrollment.provider?.lastName}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  NPI: {enrollment.provider?.npi}
-                                </p>
-                                {enrollment.provider?.practice?.name && (
-                                  <p className="text-xs text-gray-400 truncate">{enrollment.provider.practice.name}</p>
+                                {isPracticeEnrollment(enrollment) ? (
+                                  <>
+                                    <p className="font-medium text-gray-900 truncate">
+                                      {enrollment.practice?.name || 'Practice'}
+                                    </p>
+                                    <p className="text-xs text-purple-600 font-medium">Practice / group</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="font-medium text-gray-900 truncate">
+                                      {enrollment.provider?.firstName} {enrollment.provider?.lastName}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      NPI: {enrollment.provider?.npi}
+                                    </p>
+                                    {enrollment.provider?.practice?.name && (
+                                      <p className="text-xs text-gray-400 truncate">{enrollment.provider.practice.name}</p>
+                                    )}
+                                  </>
                                 )}
                               </div>
                               {enrollment.isDraft && (
@@ -860,7 +926,7 @@ export default function EnrollmentsList() {
             <thead className="bg-gray-50/50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Provider
+                  Provider / Practice
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Payer
@@ -897,18 +963,38 @@ export default function EnrollmentsList() {
                 return (
                   <AnimatedListItem itemKey={enrollment.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link
-                        to={`/providers/${enrollment.providerId}`}
-                        className="text-primary-600 hover:text-primary-800"
-                      >
-                        <div className="font-medium">
-                          {enrollment.provider?.firstName} {enrollment.provider?.lastName}
+                      {isPracticeEnrollment(enrollment) ? (
+                        <div>
+                          {canViewPracticePage && enrollment.practiceId ? (
+                            <Link
+                              to={`/practices/${enrollment.practiceId}`}
+                              className="text-primary-600 hover:text-primary-800 font-medium"
+                            >
+                              {enrollment.practice?.name || 'Practice'}
+                            </Link>
+                          ) : (
+                            <div className="font-medium text-gray-900">
+                              {enrollment.practice?.name || 'Practice'}
+                            </div>
+                          )}
+                          <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            Practice / group
+                          </span>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          NPI: {enrollment.provider?.npi}
-                          {enrollment.provider?.practice?.name && ` | ${enrollment.provider.practice.name}`}
-                        </div>
-                      </Link>
+                      ) : (
+                        <Link
+                          to={`/providers/${enrollment.providerId}`}
+                          className="text-primary-600 hover:text-primary-800"
+                        >
+                          <div className="font-medium">
+                            {enrollment.provider?.firstName} {enrollment.provider?.lastName}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            NPI: {enrollment.provider?.npi}
+                            {enrollment.provider?.practice?.name && ` | ${enrollment.provider.practice.name}`}
+                          </div>
+                        </Link>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{enrollment.payer?.name}</div>
@@ -1019,10 +1105,33 @@ export default function EnrollmentsList() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                {/* Practice filter (optional) */}
+                {/* What are you enrolling? */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">What are you enrolling?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSubjectType('PROVIDER')}
+                      className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${subjectType === 'PROVIDER' ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      A provider
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSubjectType('PRACTICE'); setSelectedProvider(null); }}
+                      className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors ${subjectType === 'PRACTICE' ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      A practice or group
+                    </button>
+                  </div>
+                </div>
+
+                {/* Practice: optional filter for the provider flow; the subject itself for the practice flow */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Practice <span className="text-gray-400 font-normal">(optional filter)</span>
+                    {subjectType === 'PRACTICE'
+                      ? <>Practice <span className="text-red-500">*</span></>
+                      : <>Practice <span className="text-gray-400 font-normal">(optional filter)</span></>}
                   </label>
                   <select
                     value={selectedPracticeId}
@@ -1034,17 +1143,21 @@ export default function EnrollmentsList() {
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">All practices</option>
+                    <option value="">{subjectType === 'PRACTICE' ? 'Select a practice…' : 'All practices'}</option>
                     {(practices || []).map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
-                  {selectedPracticeId && (
+                  {subjectType === 'PROVIDER' && selectedPracticeId && (
                     <p className="mt-1 text-xs text-gray-500">Showing only providers in this practice.</p>
+                  )}
+                  {subjectType === 'PRACTICE' && (
+                    <p className="mt-1 text-xs text-gray-500">Enrolling the practice/group itself — no individual provider. (State Medicaid? Pick the Medicaid payer below.)</p>
                   )}
                 </div>
 
-                {/* Provider Selection */}
+                {/* Provider Selection (provider flow only) */}
+                {subjectType === 'PROVIDER' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Provider *
@@ -1124,6 +1237,7 @@ export default function EnrollmentsList() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Payer Selection */}
                 <div>
@@ -1456,9 +1570,10 @@ export default function EnrollmentsList() {
                 </div>
 
                 {/* Validation hints */}
-                {(!selectedProvider || !formData.payerName) && (
+                {((subjectType === 'PROVIDER' ? !selectedProvider : !selectedPracticeId) || !formData.payerName) && (
                   <div className="text-sm text-amber-600 bg-amber-50 rounded-md px-3 py-2">
-                    {!selectedProvider && <div>Please select a provider above.</div>}
+                    {subjectType === 'PROVIDER' && !selectedProvider && <div>Please select a provider above.</div>}
+                    {subjectType === 'PRACTICE' && !selectedPracticeId && <div>Please select a practice above.</div>}
                     {!formData.payerName && <div>Please select or enter a payer name.</div>}
                   </div>
                 )}
@@ -1474,7 +1589,7 @@ export default function EnrollmentsList() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!selectedProvider || !formData.payerName || createMutation.isPending}
+                    disabled={(subjectType === 'PROVIDER' ? !selectedProvider : !selectedPracticeId) || !formData.payerName || createMutation.isPending}
                     className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {createMutation.isPending ? 'Creating...' : 'Create Enrollment'}
