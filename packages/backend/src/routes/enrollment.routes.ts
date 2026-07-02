@@ -5,7 +5,7 @@ import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
 import { ForbiddenError } from '../middleware/error.middleware.js';
-import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess, validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
+import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess, validateEnrollmentAccess, validatePracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { triggerAutomatedEmail } from '../services/automatedEmail.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
@@ -349,6 +349,7 @@ router.post(
       try {
         enrollment = await prisma.enrollment.create({
           data: {
+            subjectType: 'PROVIDER',
             providerId: providerId!,
             payerId: payer.id,
             status: validated.status || 'not_started',
@@ -409,6 +410,130 @@ router.post(
             .catch((err) => logger.error('Failed to trigger first-enrollment email:', err));
         }
       }
+
+      invalidateCache('dashboard');
+      invalidateCache('payer-analytics');
+      res.status(201).json({
+        success: true,
+        data: {
+          ...enrollment,
+          workflow: {
+            stepsCreated: workflow.stepsCreated,
+            templateFound: workflow.templateFound,
+            workflowType: workflow.workflowType,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Create enrollment for a PRACTICE (group / state Medicaid) — no individual provider.
+// Mirrors the provider create route; the provider-readiness gate and provider-scope
+// middleware don't apply, so access is checked against the practice directly.
+router.post(
+  '/practice/:practiceId',
+  authenticate,
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const practiceId = req.params['practiceId']!;
+      const validated = createEnrollmentSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', action: 'create' });
+
+      // Authz: caller must own this practice (super admins / staff pass)
+      if (!validatePracticeAccess(req, practiceId)) {
+        return res.status(403).json({ success: false, error: { message: 'Access denied — practice not in your scope' } });
+      }
+
+      // Practice must exist and not be soft-deleted
+      const practice = await prisma.practice.findFirst({
+        where: { id: practiceId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!practice) {
+        return res.status(404).json({ success: false, error: { message: 'Practice not found' } });
+      }
+
+      // Find or create the payer (same as the provider flow)
+      let payer = validated.payerId
+        ? await prisma.payer.findUnique({ where: { id: validated.payerId } })
+        : await prisma.payer.findFirst({ where: { name: validated.payerName } });
+
+      if (!payer) {
+        const payerIdSlug = validated.payerName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')
+          .substring(0, 50);
+
+        payer = await prisma.payer.create({
+          data: {
+            name: validated.payerName,
+            payerId: `custom-${payerIdSlug}-${Date.now()}`,
+            payerType: 'insurance',
+          },
+        });
+      }
+
+      // Resolve payerTrackId: explicit value, or fuzzy-match by payer name.
+      // (Provider-type-based resolution doesn't apply — practice enrollments have none.)
+      let resolvedPayerTrackId = validated.payerTrackId || null;
+      if (!resolvedPayerTrackId && validated.payerName) {
+        const matches = await prisma.payerTrack.findMany({
+          where: { payerName: { equals: validated.payerName, mode: 'insensitive' }, isActive: true },
+          select: { id: true },
+        });
+        if (matches.length === 1) {
+          resolvedPayerTrackId = matches[0]!.id;
+        }
+      }
+
+      const slaTargetDate = new Date(Date.now() + 90 * 86_400_000);
+
+      let enrollment;
+      try {
+        enrollment = await prisma.enrollment.create({
+          data: {
+            subjectType: 'PRACTICE',
+            practiceId,
+            payerId: payer.id,
+            status: validated.status || 'not_started',
+            productTypes: validated.productTypes || [],
+            applicationDate: validated.applicationDate ? new Date(validated.applicationDate) : null,
+            effectiveDate: validated.effectiveDate ? new Date(validated.effectiveDate) : null,
+            terminationDate: validated.terminationDate ? new Date(validated.terminationDate) : null,
+            dateContractReceived: validated.dateContractReceived ? new Date(validated.dateContractReceived) : null,
+            dateContractSigned: validated.dateContractSigned ? new Date(validated.dateContractSigned) : null,
+            lastFollowUpDate: validated.lastFollowUpDate ? new Date(validated.lastFollowUpDate) : null,
+            recredentialingDate: validated.recredentialingDate ? new Date(validated.recredentialingDate) : null,
+            providerNumber: validated.providerNumber,
+            groupNumber: validated.groupNumber,
+            notes: validated.notes,
+            payerTrackId: resolvedPayerTrackId,
+            createdById: req.user?.id,
+            slaTargetDate,
+          },
+          include: {
+            payer: { select: { id: true, name: true, payerId: true, payerType: true } },
+            practice: { select: { id: true, name: true } },
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          return res.status(409).json({
+            success: false,
+            error: { message: 'Enrollment already exists for this practice and payer' },
+          });
+        }
+        throw err;
+      }
+
+      // Auto-hydrate workflow steps if a payer track resolved to a template.
+      const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');
