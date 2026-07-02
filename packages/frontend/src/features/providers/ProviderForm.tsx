@@ -225,9 +225,9 @@ export default function ProviderForm() {
           taxId: (provider.practiceLocations?.find((l: any) => l.isPrimary) || provider.practiceLocations?.[0])?.taxId || '',
         }
       : persistedFormDefaults
-      ? { status: 'pending', ...persistedFormDefaults }
+      ? { status: 'active', ...persistedFormDefaults }
       : {
-          status: 'pending',
+          status: 'active',
         },
   });
 

@@ -50,6 +50,9 @@ export const createProviderProfileSchema = z.object({
   languages: z.array(z.string()).optional(),
   groupNpi: z.string().max(10).optional(),
   taxId: z.string().max(20).optional(),
+  // Manually-added providers default to active — matches bulk import. Portal
+  // applications set status explicitly (pending until approved).
+  status: providerStatusSchema.default('active'),
 });
 
 // Backward-compat alias — prefer createProviderProfileSchema for new code
