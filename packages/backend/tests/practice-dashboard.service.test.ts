@@ -97,7 +97,7 @@ describe('assemblePracticeDashboard', () => {
       row({ id: 'fine', status: 'submitted' }),
       row({ id: 'stale', status: 'in_progress', updatedAt: daysAgo(45) }),
     ], NOW);
-    expect(payload.attention.map((a) => `${a.enrollmentId}:${a.kind}`).sort())
+    expect(payload.attention.map((a) => `${a.enrollmentId}:${a.kind}`))
       .toEqual(['late:delayed', 'no:denied']);
     const late = payload.attention.find((a) => a.kind === 'delayed')!;
     expect(late.lastFollowUpDate).not.toBeNull();

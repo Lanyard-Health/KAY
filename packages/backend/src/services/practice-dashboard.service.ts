@@ -3,6 +3,7 @@ import type { EnrollmentStatus } from '@prisma/client';
 
 const MS_PER_DAY = 86_400_000;
 const IN_FLIGHT: EnrollmentStatus[] = ['submitted', 'pending_review'];
+const ATTENTION_ORDER = { delayed: 0, denied: 1 } as const;
 
 export interface EtaInfo {
   dayCount: number | null;
@@ -186,7 +187,7 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
       lastFollowUpDate: r.lastFollowUpDate?.toISOString() ?? null,
       nextFollowUpDate: r.nextFollowUpDate?.toISOString() ?? null,
     }))
-    .sort((a, b) => a.kind.localeCompare(b.kind)); // delayed before denied
+    .sort((a, b) => ATTENTION_ORDER[a.kind] - ATTENTION_ORDER[b.kind]);
 
   // Charts
   const byPayer = new Map<string, number>();
