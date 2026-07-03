@@ -366,10 +366,15 @@ export default function PracticeSignupPage() {
     return s.toLowerCase().includes(q) || STATE_NAMES[s].toLowerCase().includes(q);
   });
 
-  const filteredPayers = payers.filter((p) => {
+  // Catalog is 3,000+ payers post-Stedi-import; cap rendering so the list
+  // stays responsive — the filter box narrows to anything beyond the cap.
+  const PAYER_RENDER_CAP = 100;
+  const matchingPayers = payers.filter((p) => {
     if (!payerFilter) return true;
     return p.name.toLowerCase().includes(payerFilter.toLowerCase());
   });
+  const filteredPayers = matchingPayers.slice(0, PAYER_RENDER_CAP);
+  const truncatedPayerCount = matchingPayers.length - filteredPayers.length;
 
   const inputClassName =
     'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm';
@@ -1046,6 +1051,11 @@ export default function PracticeSignupPage() {
                     {p.name}
                   </label>
                 ))}
+                {truncatedPayerCount > 0 && (
+                  <p className="text-center text-xs text-gray-400 py-1.5">
+                    Showing first {PAYER_RENDER_CAP} of {matchingPayers.length} — type to narrow
+                  </p>
+                )}
               </div>
             )}
             {targetPayerIds.length > 0 && (
