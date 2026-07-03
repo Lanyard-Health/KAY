@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
@@ -220,11 +220,32 @@ export default function EnrollmentsList() {
     },
   });
 
-  // Fetch payers for filter dropdown
+  // Payer typeahead: search server-side (catalog is 3,000+ payers post-Stedi-import,
+  // far more than one page), debounced like CommandPalette.
+  const [debouncedPayerSearch, setDebouncedPayerSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPayerSearch(payerSearch.trim()), 200);
+    return () => clearTimeout(t);
+  }, [payerSearch]);
+
   const { data: payersData } = useQuery({
-    queryKey: ['payers'],
+    queryKey: ['payers', debouncedPayerSearch],
     queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: Payer[] }>('/enrollments/payers');
+      const params = debouncedPayerSearch ? `?q=${encodeURIComponent(debouncedPayerSearch)}` : '';
+      const response = await api.get<{ success: boolean; data: Payer[] }>(`/enrollments/payers${params}`);
+      return response.data;
+    },
+  });
+
+  // Target payers may not be in the first alphabetical page, so resolve them
+  // by id to keep the "Your payers" section populated before the user types.
+  const { data: targetPayersData } = useQuery({
+    queryKey: ['payers-by-id', targetPayerIds],
+    enabled: targetPayerIds.length > 0,
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Payer[] }>(
+        `/enrollments/payers?ids=${targetPayerIds.join(',')}`
+      );
       return response.data;
     },
   });
@@ -253,21 +274,17 @@ export default function EnrollmentsList() {
       .slice(0, 20);
   }, [providers, providerSearch, selectedPracticeId]);
 
-  // Filter payers based on search, with practice target payers prioritized
+  // Name filtering happens server-side (?q=); here we just merge in the target
+  // payers and pin them first. Target payers still honor the active search text.
   const filteredPayers = useMemo(() => {
-    let list = payers;
-    if (payerSearch.trim()) {
-      const searchLower = payerSearch.toLowerCase();
-      list = payers.filter((p) => p.name.toLowerCase().includes(searchLower));
-    }
-    if (targetPayerIds.length > 0) {
-      const targetSet = new Set(targetPayerIds);
-      const preferred = list.filter((p) => targetSet.has(p.id));
-      const others = list.filter((p) => !targetSet.has(p.id));
-      return [...preferred, ...others].slice(0, 50);
-    }
-    return list.slice(0, 50);
-  }, [payers, payerSearch, targetPayerIds]);
+    const searchLower = debouncedPayerSearch.toLowerCase();
+    const targetPayers = ((targetPayersData?.data as Payer[] | undefined) || []).filter(
+      (p) => !searchLower || p.name.toLowerCase().includes(searchLower)
+    );
+    const targetSet = new Set(targetPayers.map((p) => p.id));
+    const others = payers.filter((p) => !targetSet.has(p.id));
+    return [...targetPayers, ...others].slice(0, 50);
+  }, [payers, targetPayersData, debouncedPayerSearch]);
 
   // Get unique payers from enrollments for the filter
   const enrolledPayers = useMemo(() => {

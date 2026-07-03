@@ -141,17 +141,34 @@ router.get(
   authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const q = ((req.query['q'] as string) || '').trim();
+      const ids = ((req.query['ids'] as string) || '').split(',').filter(Boolean).slice(0, 100);
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
-      const pageSize = Math.min(200, Math.max(1, parseInt(req.query['pageSize'] as string) || 200));
+      const defaultPageSize = q ? 50 : 200;
+      const pageSize = Math.min(200, Math.max(1, parseInt(req.query['pageSize'] as string) || defaultPageSize));
       const skip = (page - 1) * pageSize;
+
+      // notes holds "Also known as: ..." aliases from the Stedi import,
+      // so searching notes lets users find payers by alias (e.g. "CHPW").
+      const where = ids.length
+        ? { id: { in: ids } }
+        : q
+          ? {
+              OR: [
+                { name: { contains: q, mode: 'insensitive' as const } },
+                { notes: { contains: q, mode: 'insensitive' as const } },
+              ],
+            }
+          : {};
 
       const [payers, total] = await Promise.all([
         prisma.payer.findMany({
+          where,
           orderBy: { name: 'asc' },
           skip,
           take: pageSize,
         }),
-        prisma.payer.count(),
+        prisma.payer.count({ where }),
       ]);
       res.json({ success: true, data: payers, pagination: { page, pageSize, total } });
     } catch (error) {
