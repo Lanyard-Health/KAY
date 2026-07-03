@@ -10,6 +10,7 @@ import {
   computeEta,
   assemblePracticeDashboard,
   getPracticeDashboard,
+  PRACTICE_ROW_ID,
   type EnrollmentRow,
 } from '../src/services/practice-dashboard.service.js';
 
@@ -134,7 +135,7 @@ describe('assemblePracticeDashboard', () => {
 });
 
 describe('getPracticeDashboard', () => {
-  it('excludes provider-less enrollments from the grid and tile counts, and filters providerId not-null in the query', async () => {
+  it('surfaces provider-less enrollments as the Practice-wide row and scopes them by practice id', async () => {
     prismaMock.enrollment.findMany.mockResolvedValueOnce([
       {
         id: 'with-provider',
@@ -162,20 +163,67 @@ describe('getPracticeDashboard', () => {
       },
     ] as any);
 
-    const payload = await getPracticeDashboard({});
+    const payload = await getPracticeDashboard({}, { practiceIds: ['prac1'], isSuperAdmin: false });
 
-    // Only the row with a provider should surface in the grid.
-    expect(payload.grid.rows).toHaveLength(1);
-    expect(payload.grid.rows[0]?.providerName).toBe('Amara Osei');
+    // Both enrollments surface: Practice-wide row pinned first, provider row after.
+    expect(payload.grid.rows.map((r) => r.providerName)).toEqual(['Practice-wide', 'Amara Osei']);
+    expect(payload.grid.rows[0]?.providerId).toBe(PRACTICE_ROW_ID);
+    expect(payload.grid.rows[0]?.credential).toBeNull();
 
-    // The provider-less enrollment must not inflate the tiles either.
-    expect(payload.tiles.submitted).toBe(1);
+    // Group enrollments count in the tiles now.
+    expect(payload.tiles.submitted).toBe(2);
 
-    // The where-clause guard is the belt-and-braces filter under test.
+    // The query fetches provider enrollments via the provider filter AND
+    // provider-less enrollments scoped directly by practice id.
     expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ providerId: { not: null } }),
+        where: {
+          OR: [
+            { providerId: { not: null }, provider: {} },
+            { providerId: null, practiceId: { in: ['prac1'] } },
+          ],
+        },
       }),
     );
+  });
+
+  it('does not restrict provider-less enrollments by practice for super admins', async () => {
+    prismaMock.enrollment.findMany.mockResolvedValueOnce([] as any);
+
+    await getPracticeDashboard({}, { practiceIds: [], isSuperAdmin: true });
+
+    expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          OR: [
+            { providerId: { not: null }, provider: {} },
+            { providerId: null },
+          ],
+        },
+      }),
+    );
+  });
+});
+
+describe('assemblePracticeDashboard — Practice-wide row', () => {
+  it('shows the newest enrollment per payer on the Practice-wide row but counts all of them', () => {
+    const payload = assemblePracticeDashboard([
+      row({ id: 'newer', provider: null, status: 'submitted', updatedAt: daysAgo(1) }),
+      row({ id: 'older', provider: null, status: 'approved', updatedAt: daysAgo(10) }),
+    ], NOW);
+    const practiceRow = payload.grid.rows[0]!;
+    expect(practiceRow.providerId).toBe(PRACTICE_ROW_ID);
+    expect(practiceRow.cells[0]?.enrollmentId).toBe('newer');
+    expect(practiceRow.totalCount).toBe(2);
+    expect(practiceRow.approvedCount).toBe(1);
+  });
+
+  it('labels Practice-wide items in the in-flight and attention lists', () => {
+    const payload = assemblePracticeDashboard([
+      row({ id: 'g1', provider: null, status: 'denied' }),
+      row({ id: 'g2', provider: null, status: 'submitted' }),
+    ], NOW);
+    expect(payload.inFlight[0]?.providerName).toBe('Practice-wide');
+    expect(payload.attention[0]?.providerName).toBe('Practice-wide');
   });
 });
