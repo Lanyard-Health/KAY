@@ -153,6 +153,20 @@ router.get(
         }
       }
 
+      // Practice-level (provider-optional) enrollments have no provider — count
+      // them by their direct practiceId. providerId: null makes double-counting
+      // impossible: each enrollment is attributed exactly one way.
+      const practiceLevelCounts = await prisma.enrollment.groupBy({
+        by: ['practiceId'],
+        where: { providerId: null, practiceId: { not: null } },
+        _count: { id: true },
+      });
+      for (const row of practiceLevelCounts) {
+        if (row.practiceId) {
+          practiceEnrollmentCount.set(row.practiceId, (practiceEnrollmentCount.get(row.practiceId) || 0) + row._count.id);
+        }
+      }
+
       const data = practices.map((p) => ({
         ...maskPractice(p),
         enrollmentCount: practiceEnrollmentCount.get(p.id) || 0,
