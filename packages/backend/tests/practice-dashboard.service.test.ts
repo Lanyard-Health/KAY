@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../src/utils/prisma.js', async () => {
+  const { prismaMock } = await import('./helpers/mock-prisma.js');
+  return { prisma: prismaMock };
+});
+
+import { prismaMock } from './helpers/mock-prisma.js';
 import {
   computeEta,
   assemblePracticeDashboard,
+  getPracticeDashboard,
   type EnrollmentRow,
 } from '../src/services/practice-dashboard.service.js';
 
@@ -122,5 +130,52 @@ describe('assemblePracticeDashboard', () => {
     expect(payload.charts.approvalsByMonth).toHaveLength(7);
     expect(payload.charts.approvalsByMonth.at(-1)).toEqual({ month: '2026-07', count: 1 });
     expect(payload.charts.approvalsByMonth.at(-2)).toEqual({ month: '2026-06', count: 2 });
+  });
+});
+
+describe('getPracticeDashboard', () => {
+  it('excludes provider-less enrollments from the grid and tile counts, and filters providerId not-null in the query', async () => {
+    prismaMock.enrollment.findMany.mockResolvedValueOnce([
+      {
+        id: 'with-provider',
+        status: 'submitted',
+        applicationDate: daysAgo(21),
+        effectiveDate: null,
+        lastFollowUpDate: null,
+        nextFollowUpDate: null,
+        updatedAt: daysAgo(2),
+        payer: { id: 'p1', name: 'Optum' },
+        provider: { id: 'pr1', firstName: 'Amara', lastName: 'Osei', providerType: 'physician', degree: 'MD' },
+        payerTrack: null,
+      },
+      {
+        id: 'no-provider',
+        status: 'submitted',
+        applicationDate: null,
+        effectiveDate: null,
+        lastFollowUpDate: null,
+        nextFollowUpDate: null,
+        updatedAt: daysAgo(2),
+        payer: { id: 'p1', name: 'Optum' },
+        provider: null,
+        payerTrack: null,
+      },
+    ] as any);
+
+    const payload = await getPracticeDashboard({});
+
+    // Only the row with a provider should surface in the grid.
+    expect(payload.grid.rows).toHaveLength(1);
+    expect(payload.grid.rows[0]?.providerName).toBe('Amara Osei');
+
+    // The provider-less enrollment must not inflate the tiles either.
+    expect(payload.tiles.submitted).toBe(1);
+
+    // The where-clause guard is the belt-and-braces filter under test.
+    expect(prismaMock.enrollment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ providerId: { not: null } }),
+      }),
+    );
   });
 });

@@ -253,8 +253,9 @@ export async function getPracticeDashboard(
 
   // Provider-optional enrollments (migration 20260628000000) can have a null
   // provider relation, but this dashboard is provider-centric — exclude them
-  // here (the where-clause above already filters providerId, this guard just
-  // proves it to the type checker).
+  // here. The where-clause above should already filter providerId, but this
+  // guard is belt-and-braces (and proves the narrowed type to the checker)
+  // in case Prisma's relation shorthand doesn't exclude nulls as expected.
   const withProvider = enrollments.filter(
     (e): e is typeof e & { provider: NonNullable<typeof e['provider']> } => e.provider !== null,
   );
