@@ -83,7 +83,7 @@ const groupIntakeFields = {
 
 // Validation schemas
 const createPracticeSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   phone: z.string().max(20).optional(),
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().max(500).optional().or(z.literal('')),
@@ -94,7 +94,7 @@ const createPracticeSchema = z.object({
 
 const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updatePracticeSchema = z.object({
-  name: n(z.string().min(1).max(200)),
+  name: n(z.string().trim().min(1).max(200)),
   status: n(z.enum(['ACTIVE', 'INACTIVE'])),
   phone: z.union([z.string().max(20), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
   email: z.union([z.string().email(), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
