@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
 import ErrorState from '../../components/ui/ErrorState';
 import { notify } from '../../utils/notify';
@@ -183,8 +183,14 @@ export default function EnrollmentsList() {
   // practice_admin), so only link a practice row for roles that can open it.
   const canViewPracticePage = user?.role !== 'provider' && user?.role !== 'practice_admin';
 
+  const [searchParams] = useSearchParams();
+  const VALID_STATUS_FILTERS = ['not_started', 'in_progress', 'submitted', 'pending_review', 'approved', 'denied', 'terminated'];
+  const urlStatus = searchParams.get('status');
+
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(
+    VALID_STATUS_FILTERS.includes(urlStatus ?? '') ? (urlStatus as string) : '',
+  );
   const [payerFilter, setPayerFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState<'' | 'PROVIDER' | 'PRACTICE'>('');
   const [showDrafts, setShowDrafts] = useState(true);

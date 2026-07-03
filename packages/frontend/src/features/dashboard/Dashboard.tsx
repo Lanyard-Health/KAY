@@ -34,6 +34,7 @@ const EnrollmentPipelineChart = lazy(() => import('./EnrollmentPipelineChart'));
 const ExpirationForecastWidget = lazy(() => import('./ExpirationForecastWidget'));
 const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
 const AttestationBoardWidget = lazy(() => import('./AttestationBoardWidget'));
+const PracticeDashboard = lazy(() => import('./practice/PracticeDashboard'));
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -180,6 +181,16 @@ export default function Dashboard() {
           onRetry={() => refetch()}
         />
       </div>
+    );
+  }
+
+  // Slice 1: practice_admin gets the transparency dashboard. credentialing_staff
+  // keeps the simplified view below until slice 2 ships its workload dashboard.
+  if (isPracticeAdmin) {
+    return (
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-gray-200" />}>
+        <PracticeDashboard />
+      </Suspense>
     );
   }
 

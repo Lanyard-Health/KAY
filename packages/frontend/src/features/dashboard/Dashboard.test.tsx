@@ -10,10 +10,13 @@ vi.mock('../../services/api', () => ({
   api: { get: (...args: any[]) => mockGet(...args) },
 }));
 
+const mockUseAuthStore = vi.fn();
 vi.mock('../../stores/auth.store', () => ({
-  useAuthStore: () => ({
-    user: { id: 'u1', role: 'admin', email: 'admin@test.com', practices: [] },
-  }),
+  useAuthStore: () => mockUseAuthStore(),
+}));
+
+vi.mock('./practice/PracticeDashboard', () => ({
+  default: () => <div data-testid="practice-dashboard" />,
 }));
 
 import Dashboard from './Dashboard';
@@ -61,6 +64,9 @@ function mockApiSuccess() {
 describe('Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u1', role: 'admin', email: 'admin@test.com', practices: [] },
+    });
     const store: Record<string, string> = {};
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => (k in store ? store[k] : null),
@@ -121,5 +127,15 @@ describe('Dashboard', () => {
 
     const enrollmentLink = screen.getAllByText('New Enrollment')[0]?.closest('a');
     expect(enrollmentLink).toHaveAttribute('href', '/enrollments');
+  });
+
+  it('renders the practice_admin transparency dashboard for practice_admin role', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u2', role: 'practice_admin', email: 'pa@test.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId('practice-dashboard')).toBeInTheDocument();
   });
 });
