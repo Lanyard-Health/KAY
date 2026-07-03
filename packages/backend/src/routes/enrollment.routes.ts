@@ -150,14 +150,19 @@ router.get(
 
       // notes holds "Also known as: ..." aliases from the Stedi import,
       // so searching notes lets users find payers by alias (e.g. "CHPW").
+      // Each word must match somewhere (name or alias), in any order —
+      // "georgia medicaid" finds "Medicaid Georgia".
+      const words = q.split(/\s+/).filter(Boolean).slice(0, 8);
       const where = ids.length
         ? { id: { in: ids } }
-        : q
+        : words.length
           ? {
-              OR: [
-                { name: { contains: q, mode: 'insensitive' as const } },
-                { notes: { contains: q, mode: 'insensitive' as const } },
-              ],
+              AND: words.map((w) => ({
+                OR: [
+                  { name: { contains: w, mode: 'insensitive' as const } },
+                  { notes: { contains: w, mode: 'insensitive' as const } },
+                ],
+              })),
             }
           : {};
 
