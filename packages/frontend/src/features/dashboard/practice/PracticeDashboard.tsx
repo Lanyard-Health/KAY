@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../services/api';
 import { useAuthStore } from '../../../stores/auth.store';
@@ -54,6 +55,13 @@ export default function PracticeDashboard() {
       return res.data.data;
     },
   });
+
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === '#attention' && !isLoading) {
+      document.getElementById('attention')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [hash, isLoading]);
 
   if (error) {
     return (
