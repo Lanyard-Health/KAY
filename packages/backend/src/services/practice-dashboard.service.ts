@@ -209,7 +209,8 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
   for (const r of rows) {
     if (r.status !== 'approved' || !r.effectiveDate) continue;
     const idx = monthIdx.get(monthKey(r.effectiveDate));
-    if (idx !== undefined) approvalsByMonth[idx].count++;
+    const bucket = idx !== undefined ? approvalsByMonth[idx] : undefined;
+    if (bucket) bucket.count++;
   }
 
   return {
@@ -231,7 +232,7 @@ export async function getPracticeDashboard(
     // render as honest "Not started" dots (EXPERIENCE.md providers-but-zero-
     // enrollments state). Their default status is not_started, so they don't
     // inflate the In progress / Submitted / Approved tiles.
-    where: { provider: practiceFilter },
+    where: { providerId: { not: null }, provider: practiceFilter },
     select: {
       id: true,
       status: true,
@@ -250,7 +251,15 @@ export async function getPracticeDashboard(
     },
   });
 
-  const rows: EnrollmentRow[] = enrollments.map((e) => ({
+  // Provider-optional enrollments (migration 20260628000000) can have a null
+  // provider relation, but this dashboard is provider-centric — exclude them
+  // here (the where-clause above already filters providerId, this guard just
+  // proves it to the type checker).
+  const withProvider = enrollments.filter(
+    (e): e is typeof e & { provider: NonNullable<typeof e['provider']> } => e.provider !== null,
+  );
+
+  const rows: EnrollmentRow[] = withProvider.map((e) => ({
     id: e.id,
     status: e.status,
     applicationDate: e.applicationDate,
