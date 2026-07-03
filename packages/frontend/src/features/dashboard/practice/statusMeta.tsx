@@ -42,7 +42,7 @@ export const DELAYED_META = {
 
 export function fmtDate(iso: string | null): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 export function etaCaption(

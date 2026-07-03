@@ -101,7 +101,7 @@ export default function Dashboard() {
         enterpriseQueuePending: stats.enterpriseQueuePending ?? null,
       };
     },
-    enabled: !showGettingStarted,
+    enabled: !showGettingStarted && !isPracticeAdmin,
   });
 
   const quickActions = [
