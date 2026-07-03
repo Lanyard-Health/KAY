@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { STATUS_META, DELAYED_META, etaCaption, type EnrollmentStatus } from './statusMeta';
@@ -119,10 +119,49 @@ function lastInRow(row: GridRowView, maxC: number): number | null {
   return null;
 }
 
+/**
+ * Nearest row (scanning from `start` in `dir`, inclusive) that has at least one non-null cell.
+ * Used to fall back to a disconnected "island" row once same-row/same-column scanning is exhausted.
+ */
+function firstRowWithCell(rows: GridRowView[], start: number, dir: 1 | -1, maxR: number, maxC: number): number | null {
+  let nr = start;
+  while (nr >= 0 && nr <= maxR) {
+    if (firstInRow(rows[nr], maxC) !== null) return nr;
+    nr += dir;
+  }
+  return null;
+}
+
+/** Non-null column in `row` nearest to `targetC` (by absolute distance). Ties keep the lower index. Null if the row has no cells. */
+function nearestColInRow(row: GridRowView, targetC: number, maxC: number): number | null {
+  let best: number | null = null;
+  let bestDist = Infinity;
+  for (let c = 0; c <= maxC; c++) {
+    if (!row.cells[c]) continue;
+    const dist = Math.abs(c - targetC);
+    if (dist < bestDist) {
+      best = c;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
   const navigate = useNavigate();
   const [focusPos, setFocusPos] = useState<{ r: number; c: number }>(() => findFirstCellPos(rows));
   const [hoverPos, setHoverPos] = useState<{ r: number; c: number } | null>(null);
+
+  // If `rows` changes (e.g. a re-fetch) and the current focus position no longer
+  // points at a real cell, re-derive it to the first non-null cell in the grid.
+  useEffect(() => {
+    setFocusPos((pos) => {
+      const cell = rows[pos.r]?.cells[pos.c];
+      return cell ? pos : findFirstCellPos(rows);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
   const [focusedCell, setFocusedCell] = useState<{ r: number; c: number } | null>(null);
   const [focusTooltipDismissed, setFocusTooltipDismissed] = useState(false);
   const gridRef = useRef<HTMLTableElement>(null);
@@ -149,25 +188,61 @@ export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
       case 'ArrowRight': {
         e.preventDefault();
         const nc = nextInRow(rows[r], c, 1, maxC);
-        if (nc !== null) focusCell(r, nc);
+        if (nc !== null) {
+          focusCell(r, nc);
+          break;
+        }
+        // Row exhausted — wrap to the first non-null cell of the next row that has any cell.
+        const wrapR = firstRowWithCell(rows, r + 1, 1, maxR, maxC);
+        if (wrapR !== null) {
+          const firstC = firstInRow(rows[wrapR], maxC);
+          if (firstC !== null) focusCell(wrapR, firstC);
+        }
         break;
       }
       case 'ArrowLeft': {
         e.preventDefault();
         const nc = nextInRow(rows[r], c, -1, maxC);
-        if (nc !== null) focusCell(r, nc);
+        if (nc !== null) {
+          focusCell(r, nc);
+          break;
+        }
+        // Row exhausted — wrap to the last non-null cell of the nearest previous row that has any cell.
+        const wrapR = firstRowWithCell(rows, r - 1, -1, maxR, maxC);
+        if (wrapR !== null) {
+          const lastC = lastInRow(rows[wrapR], maxC);
+          if (lastC !== null) focusCell(wrapR, lastC);
+        }
         break;
       }
       case 'ArrowDown': {
         e.preventDefault();
         const nr = nextInColumn(rows, r, c, 1, maxR);
-        if (nr !== null) focusCell(nr, c);
+        if (nr !== null) {
+          focusCell(nr, c);
+          break;
+        }
+        // Same column exhausted — fall back to the nearest cell (by column) in the next island row.
+        const fallbackR = firstRowWithCell(rows, r + 1, 1, maxR, maxC);
+        if (fallbackR !== null) {
+          const nearestC = nearestColInRow(rows[fallbackR], c, maxC);
+          if (nearestC !== null) focusCell(fallbackR, nearestC);
+        }
         break;
       }
       case 'ArrowUp': {
         e.preventDefault();
         const nr = nextInColumn(rows, r, c, -1, maxR);
-        if (nr !== null) focusCell(nr, c);
+        if (nr !== null) {
+          focusCell(nr, c);
+          break;
+        }
+        // Same column exhausted — fall back to the nearest cell (by column) in the previous island row.
+        const fallbackR = firstRowWithCell(rows, r - 1, -1, maxR, maxC);
+        if (fallbackR !== null) {
+          const nearestC = nearestColInRow(rows[fallbackR], c, maxC);
+          if (nearestC !== null) focusCell(fallbackR, nearestC);
+        }
         break;
       }
       case 'Home': {

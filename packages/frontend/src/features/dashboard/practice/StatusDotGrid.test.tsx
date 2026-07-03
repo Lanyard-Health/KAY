@@ -127,6 +127,30 @@ describe('StatusDotGrid', () => {
     expect(first.tabIndex).toBe(-1);
   });
 
+  it('ArrowRight reaches a disconnected cell island (no shared row/column path)', () => {
+    // Row 0 has only cell (0,1). Row 1 has only cell (1,2). Same-row and same-column
+    // scanning alone can never bridge these — the wrap-to-next-row fallback must.
+    const { container } = renderSparseGrid();
+    const start = container.querySelector('[data-cell="0-1"]') as HTMLButtonElement;
+    const target = container.querySelector('[data-cell="1-2"]') as HTMLButtonElement;
+    expect(start.tabIndex).toBe(0);
+    fireEvent.keyDown(start, { key: 'ArrowRight' });
+    expect(target.tabIndex).toBe(0);
+    expect(start.tabIndex).toBe(-1);
+  });
+
+  it("ArrowLeft from an island cell wraps back to the previous row's island", () => {
+    const { container } = renderSparseGrid();
+    const origin = container.querySelector('[data-cell="0-1"]') as HTMLButtonElement;
+    const island = container.querySelector('[data-cell="1-2"]') as HTMLButtonElement;
+    // Move focus to (1,2) first (exercises the same ArrowRight island-reach behavior above).
+    fireEvent.keyDown(origin, { key: 'ArrowRight' });
+    expect(island.tabIndex).toBe(0);
+    fireEvent.keyDown(island, { key: 'ArrowLeft' });
+    expect(island.tabIndex).toBe(-1);
+    expect(origin.tabIndex).toBe(0);
+  });
+
   it('Enter on a cell button navigates exactly once (no double-navigation)', async () => {
     const user = userEvent.setup();
     renderGrid();
