@@ -72,14 +72,68 @@ const LEGEND: Array<{ label: string; status?: EnrollmentStatus; delayed?: boolea
   { label: STATUS_META.terminated.label, status: 'terminated' },
 ];
 
+/** Finds the first non-null cell, scanning row by row, then column by column. */
+function findFirstCellPos(rows: GridRowView[]): { r: number; c: number } {
+  for (let r = 0; r < rows.length; r++) {
+    const cells = rows[r].cells;
+    for (let c = 0; c < cells.length; c++) {
+      if (cells[c]) return { r, c };
+    }
+  }
+  return { r: 0, c: 0 };
+}
+
+/** Next non-null column in the same row, scanning in `dir` (1 = right, -1 = left). Null if none found. */
+function nextInRow(row: GridRowView, c: number, dir: 1 | -1, maxC: number): number | null {
+  let nc = c + dir;
+  while (nc >= 0 && nc <= maxC) {
+    if (row.cells[nc]) return nc;
+    nc += dir;
+  }
+  return null;
+}
+
+/** Next non-null row in the same column, scanning in `dir` (1 = down, -1 = up). Null if none found. */
+function nextInColumn(rows: GridRowView[], r: number, c: number, dir: 1 | -1, maxR: number): number | null {
+  let nr = r + dir;
+  while (nr >= 0 && nr <= maxR) {
+    if (rows[nr].cells[c]) return nr;
+    nr += dir;
+  }
+  return null;
+}
+
+/** First non-null column in the row. Null if the row has no cells at all. */
+function firstInRow(row: GridRowView, maxC: number): number | null {
+  for (let c = 0; c <= maxC; c++) {
+    if (row.cells[c]) return c;
+  }
+  return null;
+}
+
+/** Last non-null column in the row. Null if the row has no cells at all. */
+function lastInRow(row: GridRowView, maxC: number): number | null {
+  for (let c = maxC; c >= 0; c--) {
+    if (row.cells[c]) return c;
+  }
+  return null;
+}
+
 export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
   const navigate = useNavigate();
-  const [focusPos, setFocusPos] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
-  const [tooltip, setTooltip] = useState<{ r: number; c: number } | null>(null);
+  const [focusPos, setFocusPos] = useState<{ r: number; c: number }>(() => findFirstCellPos(rows));
+  const [hoverPos, setHoverPos] = useState<{ r: number; c: number } | null>(null);
+  const [focusedCell, setFocusedCell] = useState<{ r: number; c: number } | null>(null);
+  const [focusTooltipDismissed, setFocusTooltipDismissed] = useState(false);
   const gridRef = useRef<HTMLTableElement>(null);
+
+  // The cell whose tooltip should be visible: hover always wins; otherwise the
+  // currently-focused cell, unless its tooltip was dismissed via Escape.
+  const tooltipPos = hoverPos ?? (focusTooltipDismissed ? null : focusedCell);
 
   const focusCell = useCallback((r: number, c: number) => {
     setFocusPos({ r, c });
+    setFocusTooltipDismissed(false);
     // roving tabindex: focus the button at the new position after render
     requestAnimationFrame(() => {
       gridRef.current
@@ -92,13 +146,43 @@ export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
     const maxR = rows.length - 1;
     const maxC = payers.length - 1;
     switch (e.key) {
-      case 'ArrowRight': e.preventDefault(); focusCell(r, Math.min(maxC, c + 1)); break;
-      case 'ArrowLeft': e.preventDefault(); focusCell(r, Math.max(0, c - 1)); break;
-      case 'ArrowDown': e.preventDefault(); focusCell(Math.min(maxR, r + 1), c); break;
-      case 'ArrowUp': e.preventDefault(); focusCell(Math.max(0, r - 1), c); break;
-      case 'Home': e.preventDefault(); focusCell(r, 0); break;
-      case 'End': e.preventDefault(); focusCell(r, maxC); break;
-      case 'Escape': setTooltip(null); break;
+      case 'ArrowRight': {
+        e.preventDefault();
+        const nc = nextInRow(rows[r], c, 1, maxC);
+        if (nc !== null) focusCell(r, nc);
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        const nc = nextInRow(rows[r], c, -1, maxC);
+        if (nc !== null) focusCell(r, nc);
+        break;
+      }
+      case 'ArrowDown': {
+        e.preventDefault();
+        const nr = nextInColumn(rows, r, c, 1, maxR);
+        if (nr !== null) focusCell(nr, c);
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const nr = nextInColumn(rows, r, c, -1, maxR);
+        if (nr !== null) focusCell(nr, c);
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        const nc = firstInRow(rows[r], maxC);
+        if (nc !== null) focusCell(r, nc);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        const nc = lastInRow(rows[r], maxC);
+        if (nc !== null) focusCell(r, nc);
+        break;
+      }
+      case 'Escape': setFocusTooltipDismissed(true); break;
       default: break;
     }
   };
@@ -137,18 +221,18 @@ export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
                           data-cell={`${r}-${c}`}
                           tabIndex={focusPos.r === r && focusPos.c === c ? 0 : -1}
                           aria-label={cellFacts(payers[c].name, cell)}
-                          aria-describedby={tooltip?.r === r && tooltip?.c === c ? `tt-${r}-${c}` : undefined}
+                          aria-describedby={tooltipPos?.r === r && tooltipPos?.c === c ? `tt-${r}-${c}` : undefined}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
-                          onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/enrollments/${cell.enrollmentId}`); else onKeyDown(e, r, c); }}
+                          onKeyDown={(e) => onKeyDown(e, r, c)}
                           onClick={() => navigate(`/enrollments/${cell.enrollmentId}`)}
-                          onFocus={() => setTooltip({ r, c })}
-                          onBlur={() => setTooltip((t) => (t?.r === r && t?.c === c ? null : t))}
-                          onMouseEnter={() => setTooltip({ r, c })}
-                          onMouseLeave={() => setTooltip((t) => (t?.r === r && t?.c === c ? null : t))}
+                          onFocus={() => { setFocusedCell({ r, c }); setFocusTooltipDismissed(false); }}
+                          onBlur={() => setFocusedCell((f) => (f?.r === r && f?.c === c ? null : f))}
+                          onMouseEnter={() => setHoverPos({ r, c })}
+                          onMouseLeave={() => setHoverPos((h) => (h?.r === r && h?.c === c ? null : h))}
                         >
                           <Dot status={cell.status} isDelayed={cell.isDelayed} />
                         </button>
-                        {tooltip?.r === r && tooltip?.c === c && (
+                        {tooltipPos?.r === r && tooltipPos?.c === c && (
                           <div
                             id={`tt-${r}-${c}`}
                             role="tooltip"
