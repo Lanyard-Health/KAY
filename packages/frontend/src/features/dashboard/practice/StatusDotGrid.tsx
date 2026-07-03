@@ -277,7 +277,9 @@ export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
               {payers.map((p) => (
                 <th key={p.id} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">{p.name}</th>
               ))}
-              <th aria-hidden="true" />
+              <th className="px-2 py-2 text-right">
+                <span className="sr-only">Approved out of total</span>
+              </th>
             </tr>
           </thead>
           <tbody>

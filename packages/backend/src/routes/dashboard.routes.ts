@@ -28,7 +28,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const practiceIds = req.practiceScope?.practiceIds ?? [];
     const cacheKeySuffix = req.practiceScope?.isSuperAdmin
       ? 'global'
-      : practiceIds.sort().join(',');
+      : [...practiceIds].sort().join(',');
     const scopedCacheKey = `${CACHE_KEY}:${cacheKeySuffix}`;
 
     const cached = getCached<Record<string, unknown>>(scopedCacheKey);
@@ -206,7 +206,7 @@ router.get('/practice', async (req: Request, res: Response) => {
   try {
     const practiceFilter = getPracticeProviderFilter(req);
     const practiceIds = req.practiceScope?.practiceIds ?? [];
-    const cacheKey = `dashboard:practice:${req.practiceScope?.isSuperAdmin ? 'global' : practiceIds.sort().join(',')}`;
+    const cacheKey = `dashboard:practice:${req.practiceScope?.isSuperAdmin ? 'global' : [...practiceIds].sort().join(',')}`;
 
     const cached = getCached<Record<string, unknown>>(cacheKey);
     if (cached) {
