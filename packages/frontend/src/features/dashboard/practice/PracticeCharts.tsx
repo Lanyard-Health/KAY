@@ -2,7 +2,9 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, LabelList, ResponsiveContain
 
 const PAYER_RAMP = ['#0A3D2E', '#2d8b6a', '#7ccaab', '#b0e0cb', '#E5E7EB']; // brand ramp + neutral for "Other"
 const prefersReducedMotion =
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 interface PracticeChartsProps {
   approvedByPayer: Array<{ payerName: string; count: number }>;
@@ -64,7 +66,7 @@ export default function PracticeCharts({ approvedByPayer, approvalsByMonth }: Pr
       {/* Approvals by month — bars with value labels on every bar */}
       <figure
         className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm"
-        aria-label={`Approvals by month, last 7 months: ${monthData.map((m) => `${m.label} ${m.count}`).join(', ')}`}
+        aria-label={`Approvals by month, last ${monthData.length} months: ${monthData.map((m) => `${m.label} ${m.count}`).join(', ')}`}
       >
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Approvals by month</h2>
         <div className="h-48">
@@ -75,7 +77,7 @@ export default function PracticeCharts({ approvedByPayer, approvalsByMonth }: Pr
                 {monthData.map((m, i) => (
                   <Cell key={m.month} fill={i === currentIdx ? '#1A6B4E' : '#d6f0e4'} />
                 ))}
-                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#6B7280' }} />
+                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#6B7280', fontVariantNumeric: 'tabular-nums' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
