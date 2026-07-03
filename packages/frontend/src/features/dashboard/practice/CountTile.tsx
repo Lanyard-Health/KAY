@@ -6,17 +6,19 @@ interface CountTileProps {
   chip: string;          // human label, e.g. "Submitted to payer"
   chipClass: string;     // soft chip classes from STATUS_META/DELAYED_META
   to?: string;           // tile is a filter — links to the enrollments list
+  onClick?: () => void;  // same-page tiles (e.g. scroll to the attention panel)
   hot?: boolean;         // warm border for warning-state tiles
   delta?: string;        // e.g. "+3 this month"
 }
 
-export default function CountTile({ value, chip, chipClass, to, hot, delta }: CountTileProps) {
+export default function CountTile({ value, chip, chipClass, to, onClick, hot, delta }: CountTileProps) {
+  const interactive = Boolean(to || onClick);
   const body = (
     <div
       className={clsx(
         'h-full rounded-2xl bg-white p-4 shadow-sm transition-shadow',
         hot ? 'border border-[#F0DCB8]' : 'border border-gray-200/60',
-        to && 'hover:shadow-md',
+        interactive && 'hover:shadow-md',
       )}
     >
       <p className="text-[34px] font-bold leading-tight text-gray-900 tabular-nums">
@@ -28,5 +30,13 @@ export default function CountTile({ value, chip, chipClass, to, hot, delta }: Co
       </span>
     </div>
   );
-  return to ? <Link to={to} className="block h-full">{body}</Link> : body;
+  if (to) return <Link to={to} className="block h-full">{body}</Link>;
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="block h-full w-full text-left">
+        {body}
+      </button>
+    );
+  }
+  return body;
 }

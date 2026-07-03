@@ -56,11 +56,21 @@ export default function PracticeDashboard() {
     },
   });
 
+  const scrollToAttention = () => {
+    // behavior:'smooth' silently no-ops in some Chromium contexts (verified in
+    // dev); instant scroll is reliable and matches reduced-motion preferences.
+    document.getElementById('attention')?.scrollIntoView({ block: 'start' });
+  };
+
+  // Deep-link support (/#attention): the page transition on mount interrupts an
+  // immediate smooth scroll, so wait for it to settle before scrolling.
   const { hash } = useLocation();
   useEffect(() => {
     if (hash === '#attention' && !isLoading) {
-      document.getElementById('attention')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const t = setTimeout(scrollToAttention, 450);
+      return () => clearTimeout(t);
     }
+    return undefined;
   }, [hash, isLoading]);
 
   if (error) {
@@ -105,7 +115,7 @@ export default function PracticeDashboard() {
                 to="/enrollments?status=approved"
                 delta={data.tiles.approvedThisMonth > 0 ? `+${data.tiles.approvedThisMonth} this month` : undefined}
               />
-              <CountTile value={data.tiles.runningLong} chip={DELAYED_META.label} chipClass={DELAYED_META.chip} to="#attention" hot={data.tiles.runningLong > 0} />
+              <CountTile value={data.tiles.runningLong} chip={DELAYED_META.label} chipClass={DELAYED_META.chip} onClick={scrollToAttention} hot={data.tiles.runningLong > 0} />
             </div>
 
             {/* 2 — Charts */}
