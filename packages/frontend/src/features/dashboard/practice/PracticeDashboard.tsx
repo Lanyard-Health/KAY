@@ -73,7 +73,9 @@ export default function PracticeDashboard() {
     return undefined;
   }, [hash, isLoading]);
 
-  if (error) {
+  // Only replace the page with the error card when there's nothing to show —
+  // a failed background refetch keeps the last good data on screen.
+  if (error && !data) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
