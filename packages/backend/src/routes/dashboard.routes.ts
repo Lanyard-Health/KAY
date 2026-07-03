@@ -214,7 +214,10 @@ router.get('/practice', async (req: Request, res: Response) => {
       return;
     }
 
-    const data = await getPracticeDashboard(practiceFilter);
+    const data = await getPracticeDashboard(practiceFilter, {
+      practiceIds,
+      isSuperAdmin: req.practiceScope?.isSuperAdmin ?? false,
+    });
     setCache(cacheKey, data, CACHE_TTL);
     res.json({ success: true, data });
   } catch (error) {

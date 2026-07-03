@@ -13,6 +13,8 @@ export interface EtaInfo {
 }
 
 // The minimal enrollment row the assembly needs — Task 2's fetch selects exactly this.
+// provider is null for practice-wide (group) enrollments, which surface as a
+// synthetic "Practice-wide" grid row (decision log #22).
 export interface EnrollmentRow {
   id: string;
   status: EnrollmentStatus;
@@ -22,9 +24,15 @@ export interface EnrollmentRow {
   nextFollowUpDate: Date | null;
   updatedAt: Date;
   payer: { id: string; name: string };
-  provider: { id: string; firstName: string; lastName: string; providerType: string; degree: string | null };
+  provider: { id: string; firstName: string; lastName: string; providerType: string; degree: string | null } | null;
   timeline: { minDays: number | null; maxDays: number | null } | null;
 }
+
+export const PRACTICE_ROW_ID = '__practice__';
+const PRACTICE_ROW_NAME = 'Practice-wide';
+
+const nameOf = (r: EnrollmentRow): string =>
+  r.provider ? `${r.provider.firstName} ${r.provider.lastName}` : PRACTICE_ROW_NAME;
 
 export interface GridCell {
   enrollmentId: string;
@@ -126,23 +134,23 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
 
   const providerMap = new Map<string, { row: PracticeDashboardPayload['grid']['rows'][number] }>();
   for (const r of rows) {
-    const name = `${r.provider.firstName} ${r.provider.lastName}`;
-    let entry = providerMap.get(r.provider.id);
+    const rowId = r.provider?.id ?? PRACTICE_ROW_ID;
+    let entry = providerMap.get(rowId);
     if (!entry) {
       entry = {
         row: {
-          providerId: r.provider.id,
-          providerName: name,
-          credential: r.provider.degree ?? r.provider.providerType ?? null,
+          providerId: rowId,
+          providerName: nameOf(r),
+          credential: r.provider ? (r.provider.degree ?? r.provider.providerType ?? null) : null,
           approvedCount: 0,
           totalCount: 0,
           cells: payers.map(() => null),
         },
       };
-      providerMap.set(r.provider.id, entry);
+      providerMap.set(rowId, entry);
     }
     const eta = etaFor(r);
-    entry.row.cells[payerIndex.get(r.payer.id)!] = {
+    const cell: GridCell = {
       enrollmentId: r.id,
       status: r.status,
       isDelayed: eta.isDelayed,
@@ -151,12 +159,22 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
       maxDays: eta.maxDays,
       updatedDaysAgo: Math.max(0, Math.floor((now.getTime() - r.updatedAt.getTime()) / MS_PER_DAY)),
     };
+    // Per-provider cells are unique per payer (DB constraint), but the
+    // Practice-wide row can hold several enrollments for one payer — the dot
+    // shows the most recently updated one; counts still include all of them.
+    const idx = payerIndex.get(r.payer.id)!;
+    const existing = entry.row.cells[idx];
+    if (!existing || cell.updatedDaysAgo <= existing.updatedDaysAgo) entry.row.cells[idx] = cell;
     entry.row.totalCount++;
     if (r.status === 'approved') entry.row.approvedCount++;
   }
+  // Practice-wide row pinned to the top (decision log #22), providers alphabetical after it.
   const gridRows = [...providerMap.values()]
     .map((e) => e.row)
-    .sort((a, b) => a.providerName.localeCompare(b.providerName));
+    .sort((a, b) =>
+      a.providerId === PRACTICE_ROW_ID ? -1
+      : b.providerId === PRACTICE_ROW_ID ? 1
+      : a.providerName.localeCompare(b.providerName));
 
   // In flight
   const inFlight: InFlightItem[] = rows
@@ -165,7 +183,7 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
       const eta = etaFor(r);
       return {
         enrollmentId: r.id,
-        providerName: `${r.provider.firstName} ${r.provider.lastName}`,
+        providerName: nameOf(r),
         payerName: r.payer.name,
         status: r.status,
         dayCount: eta.dayCount as number,
@@ -181,7 +199,7 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
     .filter((r) => r.status === 'denied' || etaFor(r).isDelayed)
     .map((r) => ({
       enrollmentId: r.id,
-      providerName: `${r.provider.firstName} ${r.provider.lastName}`,
+      providerName: nameOf(r),
       payerName: r.payer.name,
       kind: r.status === 'denied' ? 'denied' as const : 'delayed' as const,
       lastFollowUpDate: r.lastFollowUpDate?.toISOString() ?? null,
@@ -224,15 +242,24 @@ export function assemblePracticeDashboard(rows: EnrollmentRow[], now: Date): Pra
 
 // Prisma fetch wrapper — used by the route (Task 2). practiceFilter comes from
 // getPracticeProviderFilter(req) and scopes providers to the caller's practice(s).
+// Provider-less (group) enrollments have no provider to scope through, so they
+// are scoped directly by the caller's practice ids.
 export async function getPracticeDashboard(
   practiceFilter: Record<string, unknown>,
+  scope: { practiceIds: string[]; isSuperAdmin: boolean },
 ): Promise<PracticeDashboardPayload> {
   const enrollments = await prisma.enrollment.findMany({
     // Drafts stay IN: they're the auto-created target-payer placeholders and
     // render as honest "Not started" dots (EXPERIENCE.md providers-but-zero-
     // enrollments state). Their default status is not_started, so they don't
     // inflate the In progress / Submitted / Approved tiles.
-    where: { providerId: { not: null }, provider: practiceFilter },
+    where: {
+      OR: [
+        { providerId: { not: null }, provider: practiceFilter },
+        // Practice-wide (group) enrollments — surfaced as the Practice-wide row.
+        { providerId: null, ...(scope.isSuperAdmin ? {} : { practiceId: { in: scope.practiceIds } }) },
+      ],
+    },
     select: {
       id: true,
       status: true,
@@ -251,16 +278,7 @@ export async function getPracticeDashboard(
     },
   });
 
-  // Provider-optional enrollments (migration 20260628000000) can have a null
-  // provider relation, but this dashboard is provider-centric — exclude them
-  // here. The where-clause above should already filter providerId, but this
-  // guard is belt-and-braces (and proves the narrowed type to the checker)
-  // in case Prisma's relation shorthand doesn't exclude nulls as expected.
-  const withProvider = enrollments.filter(
-    (e): e is typeof e & { provider: NonNullable<typeof e['provider']> } => e.provider !== null,
-  );
-
-  const rows: EnrollmentRow[] = withProvider.map((e) => ({
+  const rows: EnrollmentRow[] = enrollments.map((e) => ({
     id: e.id,
     status: e.status,
     applicationDate: e.applicationDate,
@@ -269,7 +287,9 @@ export async function getPracticeDashboard(
     nextFollowUpDate: e.nextFollowUpDate,
     updatedAt: e.updatedAt,
     payer: e.payer,
-    provider: { ...e.provider, providerType: String(e.provider.providerType), degree: e.provider.degree ? String(e.provider.degree) : null },
+    provider: e.provider
+      ? { ...e.provider, providerType: String(e.provider.providerType), degree: e.provider.degree ? String(e.provider.degree) : null }
+      : null,
     timeline: e.payerTrack?.timelines[0] ?? null,
   }));
 
