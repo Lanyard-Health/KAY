@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import { getCached, setCache } from '../utils/cache.js';
 import { getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { computeHealthScore } from '../services/health-score.service.js';
+import { getPracticeDashboard } from '../services/practice-dashboard.service.js';
 
 const router = Router();
 
@@ -193,6 +194,32 @@ router.get('/stats', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching dashboard stats:', error);
     res.status(500).json({ success: false, error: { message: 'Failed to fetch dashboard stats' } });
+  }
+});
+
+/**
+ * GET /api/v1/dashboard/practice
+ * Practice Admin transparency dashboard: tiles, charts, provider × payer grid,
+ * in-flight ETA list, attention items. Practice-scoped.
+ */
+router.get('/practice', async (req: Request, res: Response) => {
+  try {
+    const practiceFilter = getPracticeProviderFilter(req);
+    const practiceIds = req.practiceScope?.practiceIds ?? [];
+    const cacheKey = `dashboard:practice:${req.practiceScope?.isSuperAdmin ? 'global' : practiceIds.sort().join(',')}`;
+
+    const cached = getCached<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return;
+    }
+
+    const data = await getPracticeDashboard(practiceFilter);
+    setCache(cacheKey, data, CACHE_TTL);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Error fetching practice dashboard:', error);
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch practice dashboard' } });
   }
 });
 
