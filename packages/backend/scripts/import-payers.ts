@@ -57,7 +57,7 @@ async function importPayers() {
         where: {
           OR: [
             { payerId: row.StediId },
-            { name: row.DisplayName },
+            { name: { equals: row.DisplayName, mode: 'insensitive' } },
           ],
         },
       });
@@ -90,6 +90,9 @@ async function importPayers() {
           state: row.OperatingStates?.split('|')[0] || null,
           website: row.WebsiteUrl || null,
           notes: row.Names ? `Also known as: ${row.Names}` : null,
+          // Provenance tag: enables a clean rollback of this bulk import
+          // without touching seeded or hand-created payers.
+          verticalTags: ['stedi-import'],
         },
       });
 

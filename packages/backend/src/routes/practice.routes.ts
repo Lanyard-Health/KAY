@@ -83,7 +83,7 @@ const groupIntakeFields = {
 
 // Validation schemas
 const createPracticeSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   phone: z.string().max(20).optional(),
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().max(500).optional().or(z.literal('')),
@@ -94,7 +94,7 @@ const createPracticeSchema = z.object({
 
 const n = <T extends z.ZodTypeAny>(s: T) => z.union([s, z.null()]).optional().transform((v: z.input<T> | null | undefined) => v === null ? undefined : v);
 const updatePracticeSchema = z.object({
-  name: n(z.string().min(1).max(200)),
+  name: n(z.string().trim().min(1).max(200)),
   status: n(z.enum(['ACTIVE', 'INACTIVE'])),
   phone: z.union([z.string().max(20), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
   email: z.union([z.string().email(), z.literal(''), z.null()]).optional().transform((v) => v === null ? undefined : v),
@@ -150,6 +150,20 @@ router.get(
         const pid = row.providerId ? providerToPractice.get(row.providerId) : undefined;
         if (pid) {
           practiceEnrollmentCount.set(pid, (practiceEnrollmentCount.get(pid) || 0) + row._count.id);
+        }
+      }
+
+      // Practice-level (provider-optional) enrollments have no provider — count
+      // them by their direct practiceId. providerId: null makes double-counting
+      // impossible: each enrollment is attributed exactly one way.
+      const practiceLevelCounts = await prisma.enrollment.groupBy({
+        by: ['practiceId'],
+        where: { providerId: null, practiceId: { not: null } },
+        _count: { id: true },
+      });
+      for (const row of practiceLevelCounts) {
+        if (row.practiceId) {
+          practiceEnrollmentCount.set(row.practiceId, (practiceEnrollmentCount.get(row.practiceId) || 0) + row._count.id);
         }
       }
 
