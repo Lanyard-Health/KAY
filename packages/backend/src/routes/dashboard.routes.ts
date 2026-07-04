@@ -8,6 +8,7 @@ import { getPracticeProviderFilter } from '../middleware/practiceScope.middlewar
 import { computeHealthScore } from '../services/health-score.service.js';
 import { getPracticeDashboard } from '../services/practice-dashboard.service.js';
 import { getAdminDashboard } from '../services/admin-dashboard.service.js';
+import { getStaffDashboard } from '../services/staff-dashboard.service.js';
 
 const router = Router();
 
@@ -236,6 +237,41 @@ router.get('/practice', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching practice dashboard:', error);
     res.status(500).json({ success: false, error: { message: 'Failed to fetch practice dashboard' } });
+  }
+});
+
+/**
+ * GET /api/v1/dashboard/staff
+ * Credentialing Staff workload dashboard: tiles, urgency-sorted work queue,
+ * pipeline + submissions charts. Practice-scoped (staff → own practice(s),
+ * lanyard_staff/admin → all). practice_admin is blocked: the staff surface
+ * uses shop-talk vocabulary banned on client surfaces.
+ */
+router.get('/staff', async (req: Request, res: Response) => {
+  try {
+    if (req.user?.role === 'practice_admin') {
+      res.status(403).json({ success: false, error: { message: 'Not authorized' } });
+      return;
+    }
+    const practiceFilter = getPracticeProviderFilter(req);
+    const scope = {
+      practiceIds: req.practiceScope?.practiceIds ?? [],
+      isSuperAdmin: req.practiceScope?.isSuperAdmin ?? false,
+    };
+    // Scoped like /stats — credentialing_staff results are per-practice.
+    const cacheKey = `dashboard:staff:${scope.isSuperAdmin ? 'global' : [...scope.practiceIds].sort().join(',')}`;
+
+    const cached = getCached<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return;
+    }
+    const data = await getStaffDashboard(practiceFilter, scope);
+    setCache(cacheKey, data, CACHE_TTL);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Error fetching staff dashboard:', error);
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch staff dashboard' } });
   }
 });
 
