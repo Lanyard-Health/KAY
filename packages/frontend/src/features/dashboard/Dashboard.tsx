@@ -36,6 +36,7 @@ const ExpirationForecastWidget = lazy(() => import('./ExpirationForecastWidget')
 const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
 const AttestationBoardWidget = lazy(() => import('./AttestationBoardWidget'));
 const PracticeDashboard = lazy(() => import('./practice/PracticeDashboard'));
+const StaffDashboard = lazy(() => import('./staff/StaffDashboard'));
 const AdminDashboard = lazy(() => import('./admin/AdminDashboard'));
 const ViewAsBar = lazy(() => import('./admin/ViewAsBar'));
 
@@ -43,20 +44,26 @@ export default function Dashboard() {
   const { user } = useAuthStore();
   const practiceId = user?.practices?.[0]?.practiceId ?? '';
   const isPracticeAdmin = user?.role === 'practice_admin';
-  const isAdmin = user?.role === 'admin' || user?.role === 'lanyard_staff';
+  const isCredStaff = user?.role === 'credentialing_staff';
+  const isLanyardStaff = user?.role === 'lanyard_staff';
+  const isAdmin = user?.role === 'admin' || isLanyardStaff;
 
-  // View-as (admin + lanyard_staff): practice id lives in the URL so the back
-  // button and refresh keep/exit the impersonated context naturally.
+  // View-as (admin + lanyard_staff): impersonated context lives in the URL so
+  // the back button and refresh keep/exit it naturally. viewAs=<practiceId>
+  // renders a practice's dashboard; viewAsRole=staff renders the staff view.
   const [searchParams, setSearchParams] = useSearchParams();
   const viewAsId = isAdmin ? searchParams.get('viewAs') : null;
+  const viewAsStaff = isAdmin && searchParams.get('viewAsRole') === 'staff';
   const { data: allPractices } = usePractices({ enabled: isAdmin });
   const viewingPractice = viewAsId
     ? { id: viewAsId, name: allPractices?.find((p) => p.id === viewAsId)?.name ?? 'practice' }
     : null;
   const enterViewAs = (practiceId: string) => setSearchParams({ viewAs: practiceId });
+  const enterViewAsStaff = () => setSearchParams({ viewAsRole: 'staff' });
   const exitViewAs = () => setSearchParams((prev) => {
     const next = new URLSearchParams(prev);
     next.delete('viewAs');
+    next.delete('viewAsRole');
     return next;
   });
 
@@ -119,7 +126,10 @@ export default function Dashboard() {
         enterpriseQueuePending: stats.enterpriseQueuePending ?? null,
       };
     },
-    enabled: !showGettingStarted && !isPracticeAdmin && !viewAsId,
+    // Roles whose surface is a transparency dashboard never need the legacy
+    // stats bundle: practice_admin (slice 1), credentialing_staff + lanyard_staff
+    // (slice 2), or any impersonated context.
+    enabled: !showGettingStarted && !isPracticeAdmin && !isCredStaff && !isLanyardStaff && !viewAsId && !viewAsStaff,
   });
 
   const quickActions = [
@@ -202,8 +212,7 @@ export default function Dashboard() {
     );
   }
 
-  // Slice 1: practice_admin gets the transparency dashboard. credentialing_staff
-  // keeps the simplified view below until slice 2 ships its workload dashboard.
+  // Slice 1: practice_admin gets the transparency dashboard.
   if (isPracticeAdmin) {
     return (
       <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-gray-200" />}>
@@ -212,7 +221,16 @@ export default function Dashboard() {
     );
   }
 
-  // Practice admin / credentialing_staff simplified dashboard
+  // Slice 2: credentialing_staff gets the workload dashboard.
+  if (isCredStaff) {
+    return (
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-gray-200" />}>
+        <StaffDashboard />
+      </Suspense>
+    );
+  }
+
+  // Provider simplified dashboard
   if (!isAdmin) {
     const pp = data?.practiceProfile;
     const addressParts = [pp?.addressLine1, pp?.city, pp?.state, pp?.zipCode].filter(Boolean);
@@ -301,11 +319,22 @@ export default function Dashboard() {
     <PageTransition>
       <div className="space-y-3.5">
         <Suspense fallback={<div className="h-14 animate-pulse rounded-2xl bg-gray-200" />}>
-          <ViewAsBar viewingPractice={viewingPractice} onEnter={enterViewAs} onExit={exitViewAs} />
+          <ViewAsBar
+            viewing={viewingPractice ? { kind: 'practice', ...viewingPractice } : viewAsStaff ? { kind: 'staff' } : null}
+            onEnterPractice={enterViewAs}
+            onEnterStaff={enterViewAsStaff}
+            onExit={exitViewAs}
+          />
         </Suspense>
         {viewingPractice ? (
           <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl bg-gray-200" />}>
             <PracticeDashboard practiceId={viewingPractice.id} />
+          </Suspense>
+        ) : viewAsStaff || isLanyardStaff ? (
+          // lanyard_staff's own dashboard IS the staff workload view (Kay, 2026-07-04);
+          // for admins it renders under viewAsRole=staff impersonation.
+          <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl bg-gray-200" />}>
+            <StaffDashboard />
           </Suspense>
         ) : (
           <>

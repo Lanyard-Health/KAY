@@ -37,6 +37,7 @@ export default function LoginPage() {
     devLogin,
     devProviderLogin,
     devPracticeAdminLogin,
+    devStaffLogin,
     isDevMode,
     challengeName,
     availableMfaTypes,
@@ -159,6 +160,19 @@ export default function LoginPage() {
       navigate('/');
     } catch (error) {
       notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev practice admin' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDevStaffLogin = async () => {
+    setIsLoading(true);
+    try {
+      await devStaffLogin();
+      notify.success('Dev Staff', { description: 'Logged in with credentialing staff privileges' });
+      navigate('/');
+    } catch (error) {
+      notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev staff' });
     } finally {
       setIsLoading(false);
     }
@@ -841,6 +855,13 @@ export default function LoginPage() {
                       className="w-full flex justify-center py-2 px-4 border border-emerald-400 text-sm font-medium rounded-xl text-emerald-800 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors"
                     >
                       {isLoading ? 'Logging in...' : 'Login as Dev Practice Admin'}
+                    </button>
+                    <button
+                      onClick={handleDevStaffLogin}
+                      disabled={isLoading}
+                      className="w-full flex justify-center py-2 px-4 border border-cyan-400 text-sm font-medium rounded-xl text-cyan-800 bg-cyan-50 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 transition-colors"
+                    >
+                      {isLoading ? 'Logging in...' : 'Login as Dev Staff'}
                     </button>
                   </div>
                 </div>

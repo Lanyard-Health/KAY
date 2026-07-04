@@ -64,6 +64,7 @@ interface AuthState {
   devLogin: () => Promise<void>;
   devProviderLogin: () => Promise<void>;
   devPracticeAdminLogin: () => Promise<void>;
+  devStaffLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 
@@ -143,6 +144,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           } else if (devSession === 'practice_admin') {
             try {
               await get().devPracticeAdminLogin();
+              return;
+            } catch {
+              // Recovery failed — fall through to unauthenticated state
+            }
+          } else if (devSession === 'staff') {
+            try {
+              await get().devStaffLogin();
               return;
             } catch {
               // Recovery failed — fall through to unauthenticated state
@@ -325,6 +333,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.removeItem('dev_session');
       set({
         error: error instanceof Error ? error.message : 'Dev practice admin login failed',
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  // Development credentialing staff login bypass (staff@dev.local —
+  // created by packages/backend/scripts/ensure-dev-staff.ts)
+  devStaffLogin: async () => {
+    if (!DEV_BYPASS_ENABLED) {
+      throw new Error('Dev login only available when VITE_DEV_AUTH_BYPASS is enabled');
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      localStorage.setItem('dev_session', 'staff');
+
+      const response = await fetchWithDevRetry(
+        `${API_BASE_URL}/users/me`,
+        {
+          Authorization: 'Bearer dev-token',
+          'X-Dev-Role': 'staff',
+        },
+      );
+
+      if (response?.ok) {
+        const { data } = await response.json();
+        set({
+          user: data,
+          isAuthenticated: true,
+          token: 'dev-token',
+          isLoading: false,
+        });
+      } else {
+        throw new Error('Failed to fetch dev staff user');
+      }
+    } catch (error) {
+      localStorage.removeItem('dev_session');
+      set({
+        error: error instanceof Error ? error.message : 'Dev staff login failed',
         isLoading: false,
       });
       throw error;
