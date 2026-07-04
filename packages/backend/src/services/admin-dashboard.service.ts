@@ -103,7 +103,6 @@ export async function getAdminDashboard(): Promise<AdminDashboardPayload> {
         applicationDate: true,
         effectiveDate: true,
         nextFollowUpDate: true,
-        practiceId: true,
         practice: { select: { id: true, name: true } },
         provider: { select: { practiceId: true, practice: { select: { id: true, name: true } } } },
         payerTrack: {

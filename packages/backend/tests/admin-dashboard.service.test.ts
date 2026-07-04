@@ -83,6 +83,30 @@ describe('assembleAdminDashboard', () => {
     expect(payload.tiles.delayedPlatformWide).toBe(1); // still counted platform-wide
     expect(payload.churnRisk).toEqual([]);             // but no practice row
   });
+
+  it('sorts churn-risk by all four levels: delayed desc → overdue desc → open desc → name asc', () => {
+    const payload = assembleAdminDashboard(5, [
+      // pracA: 1 delayed, 0 overdue
+      row({ id: 'a1', practiceId: 'pracA', practiceName: 'Alpha Health', applicationDate: daysAgo(97), timeline: { minDays: 45, maxDays: 90 } }),
+      // pracB: 1 delayed, 1 overdue (sorts before A on overdue count)
+      row({ id: 'b1', practiceId: 'pracB', practiceName: 'Beta Health', applicationDate: daysAgo(97), timeline: { minDays: 45, maxDays: 90 } }),
+      row({ id: 'b2', practiceId: 'pracB', practiceName: 'Beta Health', nextFollowUpDate: daysAgo(2) }),
+      // pracC: 0 delayed, 1 overdue, 2 open (1 overdue + 1 other)
+      row({ id: 'c1', practiceId: 'pracC', practiceName: 'Gamma Health', nextFollowUpDate: daysAgo(2) }),
+      row({ id: 'c2', practiceId: 'pracC', practiceName: 'Gamma Health', applicationDate: daysAgo(21), timeline: { minDays: 30, maxDays: 60 } }),
+      // pracD: 0 delayed, 1 overdue, 1 open (just the overdue)
+      row({ id: 'd1', practiceId: 'pracD', practiceName: 'Delta Health', nextFollowUpDate: daysAgo(2) }),
+      // pracE: 0 delayed, 1 overdue, 1 open (same as D, sorts after D alphabetically)
+      row({ id: 'e1', practiceId: 'pracE', practiceName: 'Echo Health', nextFollowUpDate: daysAgo(2) }),
+    ], NOW);
+    expect(payload.churnRisk.map(c => c.practiceName)).toEqual([
+      'Beta Health',   // 1 delayed, 1 overdue
+      'Alpha Health',  // 1 delayed, 0 overdue
+      'Gamma Health',  // 0 delayed, 1 overdue, 2 open
+      'Delta Health',  // 0 delayed, 1 overdue, 1 open
+      'Echo Health',   // 0 delayed, 1 overdue, 1 open (Echo > Delta alphabetically)
+    ]);
+  });
 });
 
 describe('getAdminDashboard', () => {
