@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { notificationService } from '../services/notification.service.js';
-import { markNotificationsReadSchema } from '@credential-management/shared';
+import { markNotificationsReadSchema, notificationPreferencesSchema } from '@credential-management/shared';
 import { parseQuery, limitOffsetSchema } from '../utils/queryValidation.js';
 
 const notificationQuerySchema = limitOffsetSchema.extend({
@@ -69,6 +69,37 @@ router.post('/mark-read', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: { message: 'Failed to mark notifications as read' } });
+  }
+});
+
+/**
+ * GET /api/v1/notifications/preferences
+ * Current user's email notification preferences (defaults if never saved)
+ */
+router.get('/preferences', async (req: Request, res: Response) => {
+  try {
+    const prefs = await notificationService.getPreferences(req.user!.id);
+    res.json({ success: true, data: prefs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch notification preferences' } });
+  }
+});
+
+/**
+ * PUT /api/v1/notifications/preferences
+ * Replace current user's email notification preferences
+ */
+router.put('/preferences', async (req: Request, res: Response) => {
+  try {
+    const parsed = notificationPreferencesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: { message: 'Invalid request body', details: parsed.error.issues } });
+      return;
+    }
+    const prefs = await notificationService.updatePreferences(req.user!.id, parsed.data);
+    res.json({ success: true, data: prefs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to update notification preferences' } });
   }
 });
 

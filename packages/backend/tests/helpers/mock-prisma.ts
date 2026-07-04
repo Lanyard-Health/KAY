@@ -18,7 +18,7 @@ const MODELS = [
   'enrollmentOutcome', 'enrollmentRun', 'enrollmentWorkflowStep', 'enterpriseQueue', 'followUpRun',
   'followUpTemplate', 'followUpTemplateStep', 'hospitalAffiliation',
   'inAppNotification', 'license', 'malpracticeClaim', 'malpracticeInsurance',
-  'malpracticePolicyLocation', 'notification', 'organizationType',
+  'malpracticePolicyLocation', 'notification', 'notificationPreference', 'organizationType',
   'patientAgeGroup', 'patientGenderIdentity', 'patientSexualOrientation',
   'payer', 'payerContact', 'payerForm', 'payerFormField',
   'payerFormFieldMapping', 'payerRequirement', 'payerStateRule',

@@ -30,6 +30,16 @@ export const markNotificationsReadSchema = z.object({
   notificationIds: z.array(z.string().uuid()).max(100).optional(),
 });
 
+// Per-user email notification preferences (Settings > Notifications).
+// .strict() so typos/extra keys are rejected rather than silently dropped.
+export const notificationPreferencesSchema = z.object({
+  enrollmentStatusChanges: z.boolean(),
+  credentialExpirations: z.boolean(),
+  followUpReminders: z.boolean(),
+  denialAlerts: z.boolean(),
+  weeklySummary: z.boolean(),
+}).strict();
+
 const passwordSchema = z.string()
   .min(12, 'Password must be at least 12 characters')
   .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
