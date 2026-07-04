@@ -59,6 +59,8 @@ export interface ProviderActionEmailParams {
   secondaryLink?: { label: string; url: string };
   /** Calm closing line under the CTA, e.g. what happens automatically next. */
   reassurance?: string;
+  /** Small muted footer links (e.g. unsubscribe + notification settings). */
+  footerLinks?: Array<{ label: string; url: string }>;
 }
 
 export function renderProviderActionEmail(params: ProviderActionEmailParams): string {
@@ -144,6 +146,16 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
             </td></tr>
           </table>
           <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">This is an automated notification from Lanyard Health about your credentialing. Please do not reply to this email.</p>
+          ${
+            params.footerLinks?.length
+              ? `<p style="margin: 10px 0 0 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">${params.footerLinks
+                  .map(
+                    (l) =>
+                      `<a href="${escapeHtml(l.url)}" target="_blank" style="color: ${COLOR.muted}; text-decoration: underline;">${escapeHtml(l.label)}</a>`
+                  )
+                  .join(' &nbsp;·&nbsp; ')}</p>`
+              : ''
+          }
         </td></tr>
       </table>
 

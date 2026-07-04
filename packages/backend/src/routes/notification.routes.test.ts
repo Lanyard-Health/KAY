@@ -3,12 +3,17 @@ import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
 import { adminUser, providerUser } from '../../tests/helpers/fixtures.js';
 
-const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead, mockGetPreferences, mockUpdatePreferences } = vi.hoisted(() => ({
+const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead, mockGetPreferences, mockUpdatePreferences, mockVerifyToken } = vi.hoisted(() => ({
   mockGetNotifications: vi.fn(),
   mockGetUnreadCount: vi.fn(),
   mockMarkAsRead: vi.fn(),
   mockGetPreferences: vi.fn(),
   mockUpdatePreferences: vi.fn(),
+  mockVerifyToken: vi.fn(),
+}));
+
+vi.mock('../services/enrollment-alerts.service.js', () => ({
+  verifyUnsubscribeToken: mockVerifyToken,
 }));
 
 vi.mock('../middleware/auth.middleware.js', () => ({
@@ -275,6 +280,49 @@ describe('Notification Routes', () => {
       mockUpdatePreferences.mockRejectedValue(new Error('DB down'));
 
       const res = await request(app).put('/preferences').send(PREFS);
+
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('GET /unsubscribe (public — no auth)', () => {
+    // No user injected. NOTE: authenticate is mocked pass-through in this file,
+    // so "public" placement is proven by the live curl check (no auth header →
+    // 200/400 from this route, 401 from the others), not by this suite.
+    const publicApp = createTestApp(notificationRouter, undefined as any);
+
+    it('flips the named preference to false on a valid token, without auth', async () => {
+      mockVerifyToken.mockReturnValue({ userId: 'u9', prefKey: 'weeklySummary' });
+      mockGetPreferences.mockResolvedValue({ ...PREFS, weeklySummary: true });
+      mockUpdatePreferences.mockResolvedValue({ ...PREFS, weeklySummary: false });
+
+      const res = await request(publicApp).get('/unsubscribe?token=valid');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain("You're unsubscribed from the weekly summary email");
+      expect(mockUpdatePreferences).toHaveBeenCalledWith('u9', { ...PREFS, weeklySummary: false });
+    });
+
+    it('returns 400 for an invalid or expired token', async () => {
+      mockVerifyToken.mockReturnValue(null);
+
+      const res = await request(publicApp).get('/unsubscribe?token=bad');
+
+      expect(res.status).toBe(400);
+      expect(res.text).toContain('invalid or has expired');
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when token is missing', async () => {
+      const res = await request(publicApp).get('/unsubscribe');
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 500 page when the pref update fails', async () => {
+      mockVerifyToken.mockReturnValue({ userId: 'u9', prefKey: 'denialAlerts' });
+      mockGetPreferences.mockRejectedValue(new Error('db down'));
+
+      const res = await request(publicApp).get('/unsubscribe?token=valid');
 
       expect(res.status).toBe(500);
     });
