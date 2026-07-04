@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -25,6 +25,17 @@ function wrap(children: ReactNode) {
   );
 }
 
+function renderWithQueryClient(queryClient: QueryClient, children: ReactNode) {
+  function Wrapper({ children: innerChildren }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>{innerChildren}</MemoryRouter>
+      </QueryClientProvider>
+    );
+  }
+  return render(children, { wrapper: Wrapper });
+}
+
 describe('AdminDashboard', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -48,11 +59,19 @@ describe('AdminDashboard', () => {
     )).toBeInTheDocument();
   });
 
-  it('keeps rendered data when a background refetch fails', async () => {
-    mockGet.mockResolvedValue({ data: { data: PAYLOAD } });
-    wrap(<AdminDashboard onViewPractice={() => {}} />);
-    await screen.findByText('Active practices');
-    // error state only replaces the page when there is no data (slice 1 rule)
-    expect(screen.queryByText("We couldn't load this right now.")).not.toBeInTheDocument();
+  it('keeps the rendered dashboard when a background refetch fails', async () => {
+    mockGet.mockRejectedValue(new Error('Network blip'));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // Prime the cache as if a previous fetch succeeded, then let the
+    // on-mount refetch fail.
+    queryClient.setQueryData(['admin-dashboard'], PAYLOAD);
+    renderWithQueryClient(queryClient, <AdminDashboard onViewPractice={() => {}} />);
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(['admin-dashboard'])?.status).toBe('error');
+    });
+
+    expect(screen.queryByText("We couldn't load the platform overview right now.")).not.toBeInTheDocument();
+    expect(screen.getByText('Active practices')).toBeInTheDocument();
   });
 });

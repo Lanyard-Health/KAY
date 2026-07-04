@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../services/api';
 import ErrorState from '../../../components/ui/ErrorState';
 import CountTile from '../practice/CountTile';
+import { DELAYED_META } from '../practice/statusMeta';
 
 interface AdminPayload {
   tiles: { activePractices: number; openApplications: number; approvedThisQuarter: number; delayedPlatformWide: number };
@@ -13,7 +14,6 @@ interface AdminPayload {
 const CHIP_NEUTRAL = 'bg-gray-100 text-gray-700';
 const CHIP_TEAL = 'bg-[#E0F2F6] text-[#0E7490]';
 const CHIP_GREEN = 'bg-[#E7F3EC] text-[#15803D]';
-const CHIP_AMBER = 'bg-[#FDF3E3] text-[#B45309]';
 
 export default function AdminDashboard({ onViewPractice }: { onViewPractice: (practiceId: string) => void }) {
   const { data, isLoading, error, refetch } = useQuery({
@@ -51,7 +51,7 @@ export default function AdminDashboard({ onViewPractice }: { onViewPractice: (pr
         <CountTile value={data.tiles.activePractices} chip="Active practices" chipClass={CHIP_NEUTRAL} to="/practices" />
         <CountTile value={data.tiles.openApplications} chip="Open applications" chipClass={CHIP_TEAL} to="/enrollments" />
         <CountTile value={data.tiles.approvedThisQuarter} chip="Approved this quarter" chipClass={CHIP_GREEN} to="/enrollments?status=approved" />
-        <CountTile value={data.tiles.delayedPlatformWide} chip="Delayed platform-wide" chipClass={CHIP_AMBER} hot={data.tiles.delayedPlatformWide > 0} />
+        <CountTile value={data.tiles.delayedPlatformWide} chip="Delayed platform-wide" chipClass={DELAYED_META.chip} hot={data.tiles.delayedPlatformWide > 0} />
       </div>
 
       <div className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm">
