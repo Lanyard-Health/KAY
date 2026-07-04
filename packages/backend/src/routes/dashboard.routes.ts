@@ -7,6 +7,7 @@ import { getCached, setCache } from '../utils/cache.js';
 import { getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { computeHealthScore } from '../services/health-score.service.js';
 import { getPracticeDashboard } from '../services/practice-dashboard.service.js';
+import { getAdminDashboard } from '../services/admin-dashboard.service.js';
 
 const router = Router();
 
@@ -204,9 +205,24 @@ router.get('/stats', async (req: Request, res: Response) => {
  */
 router.get('/practice', async (req: Request, res: Response) => {
   try {
-    const practiceFilter = getPracticeProviderFilter(req);
-    const practiceIds = req.practiceScope?.practiceIds ?? [];
-    const cacheKey = `dashboard:practice:${req.practiceScope?.isSuperAdmin ? 'global' : [...practiceIds].sort().join(',')}`;
+    const isPlatformRole = req.practiceScope?.isSuperAdmin || req.user?.role === 'lanyard_staff';
+    const viewAs = typeof req.query['practiceId'] === 'string' ? req.query['practiceId'] : null;
+
+    // View-as: admin/lanyard_staff may render any single practice's dashboard.
+    // Everyone else may only pass a practiceId inside their own scope.
+    if (viewAs && !isPlatformRole && !(req.practiceScope?.practiceIds ?? []).includes(viewAs)) {
+      res.status(403).json({ success: false, error: { message: 'Not authorized to view this practice' } });
+      return;
+    }
+
+    const practiceFilter = viewAs
+      ? { practiceId: { in: [viewAs] }, deletedAt: null } // same shape getPracticeProviderFilter produces
+      : getPracticeProviderFilter(req);
+    const scope = viewAs
+      ? { practiceIds: [viewAs], isSuperAdmin: false }
+      : { practiceIds: req.practiceScope?.practiceIds ?? [], isSuperAdmin: req.practiceScope?.isSuperAdmin ?? false };
+
+    const cacheKey = `dashboard:practice:${viewAs ?? (scope.isSuperAdmin ? 'global' : [...scope.practiceIds].sort().join(','))}`;
 
     const cached = getCached<Record<string, unknown>>(cacheKey);
     if (cached) {
@@ -214,15 +230,38 @@ router.get('/practice', async (req: Request, res: Response) => {
       return;
     }
 
-    const data = await getPracticeDashboard(practiceFilter, {
-      practiceIds,
-      isSuperAdmin: req.practiceScope?.isSuperAdmin ?? false,
-    });
+    const data = await getPracticeDashboard(practiceFilter, scope);
     setCache(cacheKey, data, CACHE_TTL);
     res.json({ success: true, data });
   } catch (error) {
     logger.error('Error fetching practice dashboard:', error);
     res.status(500).json({ success: false, error: { message: 'Failed to fetch practice dashboard' } });
+  }
+});
+
+/**
+ * GET /api/v1/dashboard/admin
+ * Lanyard Admin platform dashboard: platform tiles + churn-risk table.
+ * admin + lanyard_staff only.
+ */
+router.get('/admin', async (req: Request, res: Response) => {
+  try {
+    if (!(req.practiceScope?.isSuperAdmin || req.user?.role === 'lanyard_staff')) {
+      res.status(403).json({ success: false, error: { message: 'Not authorized' } });
+      return;
+    }
+    const cacheKey = 'dashboard:admin';
+    const cached = getCached<Record<string, unknown>>(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return;
+    }
+    const data = await getAdminDashboard();
+    setCache(cacheKey, data, CACHE_TTL);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Error fetching admin dashboard:', error);
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch admin dashboard' } });
   }
 });
 

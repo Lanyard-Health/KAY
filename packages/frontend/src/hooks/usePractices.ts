@@ -109,13 +109,14 @@ export interface PracticeUserAssignment {
 // Queries
 // ==========================================
 
-export function usePractices() {
+export function usePractices(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['practices'],
     queryFn: async () => {
       const response = await api.get('/practices');
       return response.data.data as Practice[];
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
