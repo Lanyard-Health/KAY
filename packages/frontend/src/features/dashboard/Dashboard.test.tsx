@@ -19,6 +19,18 @@ vi.mock('./practice/PracticeDashboard', () => ({
   default: () => <div data-testid="practice-dashboard" />,
 }));
 
+vi.mock('./admin/AdminDashboard', () => ({
+  default: () => <div data-testid="admin-dashboard" />,
+}));
+
+vi.mock('./admin/ViewAsBar', () => ({
+  default: () => <div data-testid="view-as-bar" />,
+}));
+
+vi.mock('../../hooks/usePractices', () => ({
+  usePractices: () => ({ data: [{ id: 'p1', name: 'Greens Health' }] }),
+}));
+
 import Dashboard from './Dashboard';
 
 function createWrapper() {
@@ -30,6 +42,17 @@ function createWrapper() {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>{children}</MemoryRouter>
       </QueryClientProvider>
+    );
+  };
+}
+
+function createQueryOnlyWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   };
 }
@@ -137,5 +160,28 @@ describe('Dashboard', () => {
     render(<Dashboard />, { wrapper: createWrapper() });
 
     expect(await screen.findByTestId('practice-dashboard')).toBeInTheDocument();
+  });
+
+  it('renders ViewAsBar + AdminDashboard for admin role', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u3', role: 'admin', email: 'kay@lanyardhealth.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(<Dashboard />, { wrapper: createWrapper() });
+    expect(await screen.findByTestId('view-as-bar')).toBeInTheDocument();
+    expect(await screen.findByTestId('admin-dashboard')).toBeInTheDocument();
+  });
+
+  it('renders the practice dashboard read-only when ?viewAs= is set', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u3', role: 'admin', email: 'kay@lanyardhealth.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(
+      <MemoryRouter initialEntries={['/?viewAs=p1']}><Dashboard /></MemoryRouter>,
+      { wrapper: createQueryOnlyWrapper() }, // wrapper WITHOUT its own MemoryRouter
+    );
+    expect(await screen.findByTestId('practice-dashboard')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-dashboard')).not.toBeInTheDocument();
   });
 });

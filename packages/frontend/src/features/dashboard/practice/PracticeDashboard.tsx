@@ -45,13 +45,18 @@ function Skeleton() {
   );
 }
 
-export default function PracticeDashboard() {
+export default function PracticeDashboard({ practiceId }: { practiceId?: string } = {}) {
   const { user } = useAuthStore();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['practice-dashboard'],
+    // Keep the base "own dashboard" key unchanged (['practice-dashboard']) so
+    // existing cache entries / tests for the non-view-as path still match;
+    // view-as reads get their own key per practiceId.
+    queryKey: practiceId ? ['practice-dashboard', practiceId] : ['practice-dashboard'],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: PracticePayload }>('/dashboard/practice');
+      const res = await api.get<{ success: boolean; data: PracticePayload }>(
+        practiceId ? `/dashboard/practice?practiceId=${encodeURIComponent(practiceId)}` : '/dashboard/practice',
+      );
       return res.data.data;
     },
   });

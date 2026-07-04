@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import PageTransition from '../../components/ui/PageTransition';
 import ErrorState from '../../components/ui/ErrorState';
 import {
@@ -22,6 +22,7 @@ import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { dashboardGreeting } from './greeting';
 import { useGettingStarted } from '../../hooks/useReporting';
+import { usePractices } from '../../hooks/usePractices';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import RefreshIndicator from '../../components/RefreshIndicator';
 import StatCard from '../../components/ui/StatCard';
@@ -35,12 +36,25 @@ const ExpirationForecastWidget = lazy(() => import('./ExpirationForecastWidget')
 const ProviderReadinessTable = lazy(() => import('./ProviderReadinessTable'));
 const AttestationBoardWidget = lazy(() => import('./AttestationBoardWidget'));
 const PracticeDashboard = lazy(() => import('./practice/PracticeDashboard'));
+const AdminDashboard = lazy(() => import('./admin/AdminDashboard'));
+const ViewAsBar = lazy(() => import('./admin/ViewAsBar'));
 
 export default function Dashboard() {
   const { user } = useAuthStore();
   const practiceId = user?.practices?.[0]?.practiceId ?? '';
   const isPracticeAdmin = user?.role === 'practice_admin';
   const isAdmin = user?.role === 'admin' || user?.role === 'lanyard_staff';
+
+  // View-as (admin + lanyard_staff): practice id lives in the URL so the back
+  // button and refresh keep/exit the impersonated context naturally.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewAsId = isAdmin ? searchParams.get('viewAs') : null;
+  const { data: allPractices } = usePractices();
+  const viewingPractice = viewAsId
+    ? { id: viewAsId, name: allPractices?.find((p) => p.id === viewAsId)?.name ?? 'practice' }
+    : null;
+  const enterViewAs = (practiceId: string) => setSearchParams({ viewAs: practiceId });
+  const exitViewAs = () => setSearchParams({});
 
   // Getting Started check — only for practice_admin with a practiceId
   const {
@@ -101,7 +115,7 @@ export default function Dashboard() {
         enterpriseQueuePending: stats.enterpriseQueuePending ?? null,
       };
     },
-    enabled: !showGettingStarted && !isPracticeAdmin,
+    enabled: !showGettingStarted && !isPracticeAdmin && !viewAsId,
   });
 
   const quickActions = [
@@ -281,6 +295,21 @@ export default function Dashboard() {
 
   return (
     <PageTransition>
+      <div className="space-y-3.5">
+        <Suspense fallback={<div className="h-14 animate-pulse rounded-2xl bg-gray-200" />}>
+          <ViewAsBar viewingPractice={viewingPractice} onEnter={enterViewAs} onExit={exitViewAs} />
+        </Suspense>
+        {viewingPractice ? (
+          <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl bg-gray-200" />}>
+            <PracticeDashboard practiceId={viewingPractice.id} />
+          </Suspense>
+        ) : (
+          <>
+            {user?.role === 'admin' && (
+              <Suspense fallback={<div className="h-72 animate-pulse rounded-2xl bg-gray-200" />}>
+                <AdminDashboard onViewPractice={enterViewAs} />
+              </Suspense>
+            )}
     <div className="space-y-6">
       <style>{`
         @keyframes dashFadeUp {
@@ -451,6 +480,9 @@ export default function Dashboard() {
       </ErrorBoundary>
       </div>
     </div>
+          </>
+        )}
+      </div>
     </PageTransition>
   );
 }
