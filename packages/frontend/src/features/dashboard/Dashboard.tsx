@@ -49,12 +49,16 @@ export default function Dashboard() {
   // button and refresh keep/exit the impersonated context naturally.
   const [searchParams, setSearchParams] = useSearchParams();
   const viewAsId = isAdmin ? searchParams.get('viewAs') : null;
-  const { data: allPractices } = usePractices();
+  const { data: allPractices } = usePractices({ enabled: isAdmin });
   const viewingPractice = viewAsId
     ? { id: viewAsId, name: allPractices?.find((p) => p.id === viewAsId)?.name ?? 'practice' }
     : null;
   const enterViewAs = (practiceId: string) => setSearchParams({ viewAs: practiceId });
-  const exitViewAs = () => setSearchParams({});
+  const exitViewAs = () => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.delete('viewAs');
+    return next;
+  });
 
   // Getting Started check — only for practice_admin with a practiceId
   const {

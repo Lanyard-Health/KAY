@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePractices } from '../../../hooks/usePractices';
 
 interface ViewAsBarProps {
@@ -12,6 +12,10 @@ interface ViewAsBarProps {
 export default function ViewAsBar({ viewingPractice, onEnter, onExit }: ViewAsBarProps) {
   const { data: practices } = usePractices();
   const [selected, setSelected] = useState('');
+
+  useEffect(() => {
+    if (!viewingPractice) setSelected('');
+  }, [viewingPractice]);
 
   return (
     <div className="rounded-2xl bg-gray-900 px-5 py-3 text-white">
