@@ -19,6 +19,10 @@ vi.mock('./practice/PracticeDashboard', () => ({
   default: () => <div data-testid="practice-dashboard" />,
 }));
 
+vi.mock('./staff/StaffDashboard', () => ({
+  default: () => <div data-testid="staff-dashboard" />,
+}));
+
 vi.mock('./admin/AdminDashboard', () => ({
   default: () => <div data-testid="admin-dashboard" />,
 }));
@@ -170,6 +174,42 @@ describe('Dashboard', () => {
     render(<Dashboard />, { wrapper: createWrapper() });
     expect(await screen.findByTestId('view-as-bar')).toBeInTheDocument();
     expect(await screen.findByTestId('admin-dashboard')).toBeInTheDocument();
+  });
+
+  it('renders the staff workload dashboard for credentialing_staff role', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u4', role: 'credentialing_staff', email: 'staff@test.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId('staff-dashboard')).toBeInTheDocument();
+    expect(screen.queryByTestId('view-as-bar')).not.toBeInTheDocument();
+  });
+
+  it('renders ViewAsBar + staff dashboard as the default for lanyard_staff', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u5', role: 'lanyard_staff', email: 'ls@lanyardhealth.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    expect(await screen.findByTestId('view-as-bar')).toBeInTheDocument();
+    expect(await screen.findByTestId('staff-dashboard')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-dashboard')).not.toBeInTheDocument();
+  });
+
+  it('renders the staff dashboard when an admin sets ?viewAsRole=staff', async () => {
+    mockUseAuthStore.mockReturnValue({
+      user: { id: 'u3', role: 'admin', email: 'kay@lanyardhealth.com', practices: [] },
+    });
+    mockApiSuccess();
+    render(
+      <MemoryRouter initialEntries={['/?viewAsRole=staff']}><Dashboard /></MemoryRouter>,
+      { wrapper: createQueryOnlyWrapper() },
+    );
+    expect(await screen.findByTestId('staff-dashboard')).toBeInTheDocument();
+    expect(screen.queryByTestId('admin-dashboard')).not.toBeInTheDocument();
   });
 
   it('renders the practice dashboard read-only when ?viewAs= is set', async () => {
