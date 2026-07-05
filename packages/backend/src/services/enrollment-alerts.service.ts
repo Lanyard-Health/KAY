@@ -137,7 +137,7 @@ function emailCopy(
           : `We'll watch it and follow up with ${ctx.payerName} automatically.`;
       return {
         subject: `Submitted to payer: ${ctx.subjectName} — ${ctx.payerName}`,
-        heading: `${ctx.subjectName}'s ${ctx.payerName} application is in`,
+        heading: `${ctx.subjectName}'s application has been submitted`,
         paragraphs: [
           `Good news — ${ctx.subjectName}'s enrollment application was submitted to ${ctx.payerName} today.`,
           windowLine,
@@ -271,6 +271,7 @@ export async function notifyEnrollmentStatusChange(params: {
         firstName: r.firstName,
         paragraphs: copy.paragraphs,
         cta: { label: 'View enrollment', url: `${FRONTEND_URL()}/enrollments/${enrollmentId}` },
+        supportSubject: `Question about ${ctx.subjectName}'s ${ctx.payerName} enrollment`,
         ...(copy.reassurance ? { reassurance: copy.reassurance } : {}),
         footerLinks,
       });
