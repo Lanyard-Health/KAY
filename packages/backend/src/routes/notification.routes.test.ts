@@ -3,10 +3,12 @@ import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
 import { adminUser, providerUser } from '../../tests/helpers/fixtures.js';
 
-const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead } = vi.hoisted(() => ({
+const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead, mockGetPreferences, mockUpdatePreferences } = vi.hoisted(() => ({
   mockGetNotifications: vi.fn(),
   mockGetUnreadCount: vi.fn(),
   mockMarkAsRead: vi.fn(),
+  mockGetPreferences: vi.fn(),
+  mockUpdatePreferences: vi.fn(),
 }));
 
 vi.mock('../middleware/auth.middleware.js', () => ({
@@ -19,6 +21,8 @@ vi.mock('../services/notification.service.js', () => ({
     getNotifications: mockGetNotifications,
     getUnreadCount: mockGetUnreadCount,
     markAsRead: mockMarkAsRead,
+    getPreferences: mockGetPreferences,
+    updatePreferences: mockUpdatePreferences,
   },
 }));
 
@@ -200,6 +204,77 @@ describe('Notification Routes', () => {
       const res = await request(app)
         .post('/mark-read')
         .send({});
+
+      expect(res.status).toBe(500);
+    });
+  });
+
+  const PREFS = {
+    enrollmentStatusChanges: true,
+    credentialExpirations: true,
+    followUpReminders: true,
+    denialAlerts: true,
+    weeklySummary: false,
+  };
+
+  describe('GET /preferences', () => {
+    it('returns the current user preferences', async () => {
+      mockGetPreferences.mockResolvedValue(PREFS);
+
+      const res = await request(app).get('/preferences');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual(PREFS);
+      expect(mockGetPreferences).toHaveBeenCalledWith('admin-user-id');
+    });
+
+    it('returns 500 on service error', async () => {
+      mockGetPreferences.mockRejectedValue(new Error('DB down'));
+
+      const res = await request(app).get('/preferences');
+
+      expect(res.status).toBe(500);
+    });
+  });
+
+  describe('PUT /preferences', () => {
+    it('round-trips a full preferences object', async () => {
+      const updated = { ...PREFS, weeklySummary: true };
+      mockUpdatePreferences.mockResolvedValue(updated);
+
+      const res = await request(app).put('/preferences').send(updated);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual(updated);
+      expect(mockUpdatePreferences).toHaveBeenCalledWith('admin-user-id', updated);
+    });
+
+    it('returns 400 when a key is missing', async () => {
+      const { weeklySummary: _omit, ...partial } = PREFS;
+      const res = await request(app).put('/preferences').send(partial);
+
+      expect(res.status).toBe(400);
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 on extra keys (strict schema)', async () => {
+      const res = await request(app).put('/preferences').send({ ...PREFS, hackerFlag: true });
+
+      expect(res.status).toBe(400);
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 on non-boolean values', async () => {
+      const res = await request(app).put('/preferences').send({ ...PREFS, denialAlerts: 'yes' });
+
+      expect(res.status).toBe(400);
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it('returns 500 on service error', async () => {
+      mockUpdatePreferences.mockRejectedValue(new Error('DB down'));
+
+      const res = await request(app).put('/preferences').send(PREFS);
 
       expect(res.status).toBe(500);
     });

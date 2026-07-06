@@ -86,6 +86,7 @@ model User {
   termLettersReviewed         TerminationLetter[]      @relation("TermLetterReviewedBy")
   practices                   UserPractice[]
   inAppNotifications          InAppNotification[]
+  notificationPreference      NotificationPreference?
   workflowStepsCompleted      EnrollmentWorkflowStep[] @relation("WorkflowStepCompletedBy")
   aetnaEnrollmentRuns         AetnaEnrollmentRun[]
   requestedWorkflows          AgentWorkflow[]          @relation("WorkflowRequester")
@@ -2340,6 +2341,26 @@ model InAppNotification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@map("in_app_notifications")
+}
+
+// Per-user email notification preferences. Absence of a row = defaults
+// (all true except weeklySummary — digest is opt-in per Kay 2026-07-04).
+// Columns mirror the frontend NotificationPreferences type exactly.
+// credentialExpirations/followUpReminders are stored but not wired yet.
+model NotificationPreference {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique @map("user_id")
+  enrollmentStatusChanges Boolean  @default(true) @map("enrollment_status_changes")
+  credentialExpirations   Boolean  @default(true) @map("credential_expirations")
+  followUpReminders       Boolean  @default(true) @map("follow_up_reminders")
+  denialAlerts            Boolean  @default(true) @map("denial_alerts")
+  weeklySummary           Boolean  @default(false) @map("weekly_summary")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 // ==========================================

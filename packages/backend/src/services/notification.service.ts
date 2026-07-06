@@ -25,6 +25,30 @@ interface GetNotificationsOptions {
   offset?: number;
 }
 
+export interface NotificationPreferences {
+  enrollmentStatusChanges: boolean;
+  credentialExpirations: boolean;
+  followUpReminders: boolean;
+  denialAlerts: boolean;
+  weeklySummary: boolean;
+}
+
+// Absence of a DB row = these defaults. weeklySummary is opt-in (Kay 2026-07-04).
+export const DEFAULT_PREFERENCES: NotificationPreferences = {
+  enrollmentStatusChanges: true,
+  credentialExpirations: true,
+  followUpReminders: true,
+  denialAlerts: true,
+  weeklySummary: false,
+};
+
+export interface PracticeAdminRecipient {
+  id: string;
+  email: string;
+  firstName: string;
+  preferences: NotificationPreferences;
+}
+
 class NotificationService {
   /**
    * Create a single notification for a user
@@ -126,6 +150,78 @@ class NotificationService {
       where: { userId, read: false },
       data: { read: true, readAt: now },
     });
+  }
+
+  /**
+   * Get a user's email notification preferences (defaults when no row exists)
+   */
+  async getPreferences(userId: string): Promise<NotificationPreferences> {
+    const row = await prisma.notificationPreference.findUnique({ where: { userId } });
+    if (!row) return { ...DEFAULT_PREFERENCES };
+    return {
+      enrollmentStatusChanges: row.enrollmentStatusChanges,
+      credentialExpirations: row.credentialExpirations,
+      followUpReminders: row.followUpReminders,
+      denialAlerts: row.denialAlerts,
+      weeklySummary: row.weeklySummary,
+    };
+  }
+
+  /**
+   * Upsert a user's email notification preferences
+   */
+  async updatePreferences(userId: string, prefs: NotificationPreferences): Promise<NotificationPreferences> {
+    const row = await prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId, ...prefs },
+      update: { ...prefs },
+    });
+    return {
+      enrollmentStatusChanges: row.enrollmentStatusChanges,
+      credentialExpirations: row.credentialExpirations,
+      followUpReminders: row.followUpReminders,
+      denialAlerts: row.denialAlerts,
+      weeklySummary: row.weeklySummary,
+    };
+  }
+
+  /**
+   * All active practice-admin users of a practice, with their preferences.
+   * Used to fan out enrollment status alerts and the weekly digest.
+   */
+  async getPracticeAdminRecipients(practiceId: string): Promise<PracticeAdminRecipient[]> {
+    const memberships = await prisma.userPractice.findMany({
+      where: {
+        practiceId,
+        role: { in: ['SUPER_ADMIN', 'PRACTICE_ADMIN'] },
+        user: { isActive: true },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            notificationPreference: true,
+          },
+        },
+      },
+    });
+
+    return memberships.map(({ user }) => ({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      preferences: user.notificationPreference
+        ? {
+            enrollmentStatusChanges: user.notificationPreference.enrollmentStatusChanges,
+            credentialExpirations: user.notificationPreference.credentialExpirations,
+            followUpReminders: user.notificationPreference.followUpReminders,
+            denialAlerts: user.notificationPreference.denialAlerts,
+            weeklySummary: user.notificationPreference.weeklySummary,
+          }
+        : { ...DEFAULT_PREFERENCES },
+    }));
   }
 
   /**
