@@ -5,6 +5,7 @@ import { triggerDenialTriage } from './denial-triage.service.js';
 import { triggerTerminationWorkflow } from './terminationWorkflow.service.js';
 import { instantiateFollowUp } from './followup-instantiation.service.js';
 import { recordEnrollmentOutcome } from './enrollment-outcome.service.js';
+import { notifyEnrollmentStatusChange } from './enrollment-alerts.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { emitWebhookEvent } from '../agents/webhook-emitter.js';
@@ -80,6 +81,10 @@ export async function updateEnrollmentStatus(
   if (oldStatus !== newStatus) {
     void recordEnrollmentOutcome({ enrollmentId, status: newStatus, transitionAt: new Date() });
   }
+
+  // Practice-facing alerts (in-app + email). Never throws; skips non-alert
+  // statuses internally. Actor excluded — they just clicked the button.
+  void notifyEnrollmentStatusChange({ enrollmentId, oldStatus, newStatus, actorUserId: updatedById });
 
   // Denial triage
   if (newStatus === 'denied' && oldStatus !== 'denied' && options?.triggerDenialTriage) {

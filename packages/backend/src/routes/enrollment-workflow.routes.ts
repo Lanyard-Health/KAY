@@ -14,7 +14,9 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { WorkflowStepStatus } from '@prisma/client';
+import type { EnrollmentStatus } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
+import { notifyEnrollmentStatusChange } from '../services/enrollment-alerts.service.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
 import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
@@ -293,6 +295,24 @@ async function syncEnrollmentStatus(enrollmentId: string): Promise<void> {
       where: { id: enrollmentId },
       data: { status: newStatus as any },
     });
+
+    // Practice-facing alerts + audit trail for the auto-advance transition —
+    // each independently fire-and-forget. System-initiated: no actor.
+    void notifyEnrollmentStatusChange({
+      enrollmentId,
+      oldStatus: enrollment.status,
+      newStatus: newStatus as EnrollmentStatus,
+      actorUserId: null,
+    });
+    prisma.auditLog.create({
+      data: {
+        userId: null,
+        action: 'update',
+        resourceType: 'enrollment',
+        resourceId: enrollmentId,
+        changes: { field: 'status', from: enrollment.status, to: newStatus, source: 'workflow_auto_advance' },
+      },
+    }).catch((err) => logger.error('Workflow auto-advance audit log failed:', err));
   }
 }
 

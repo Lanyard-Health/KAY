@@ -35,6 +35,8 @@ import {
 } from '../services/webhookAuth.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
 import { recordEnrollmentOutcome } from '../services/enrollment-outcome.service.js';
+import { notifyEnrollmentStatusChange } from '../services/enrollment-alerts.service.js';
+import type { EnrollmentStatus } from '@prisma/client';
 import { logAgentEvent } from '../agents/event-logger.js';
 import { emitWorkflowEvent } from '../agents/websocket.js';
 
@@ -171,17 +173,20 @@ router.post(
 
       const data = byId.success ? byId.data : (byNpi as z.SafeParseSuccess<z.infer<typeof webhookByNpiSchema>>).data;
 
-      // 4. Resolve enrollmentId.
+      // 4. Resolve enrollmentId (pre-reading status so downstream side effects
+      //    know the old value — replays with an unchanged status become no-ops).
       let enrollmentId: string;
+      let oldStatus: string | null = null;
       if ('enrollmentId' in data) {
         enrollmentId = data.enrollmentId;
         const exists = await prisma.enrollment.findUnique({
           where: { id: enrollmentId },
-          select: { id: true },
+          select: { id: true, status: true },
         });
         if (!exists) {
           return res.status(400).json({ success: false, error: { message: 'Enrollment not found.' } });
         }
+        oldStatus = exists.status;
       } else {
         // Mode B: lookup by NPI + payer.payerId.
         const matches = await prisma.enrollment.findMany({
@@ -189,7 +194,7 @@ router.post(
             provider: { npi: data.providerNpi },
             payer: { payerId: data.payerExternalId },
           },
-          select: { id: true },
+          select: { id: true, status: true },
           take: 2,
         });
         if (matches.length === 0) {
@@ -205,6 +210,7 @@ router.post(
           });
         }
         enrollmentId = matches[0]!.id;
+        oldStatus = matches[0]!.status;
       }
 
       // 5. Build the update payload.
@@ -221,6 +227,26 @@ router.post(
 
       // Outcome recorder (the moat) — fire-and-forget, idempotent, demo-excluded.
       void recordEnrollmentOutcome({ enrollmentId, status: dbStatus, transitionAt: new Date() });
+
+      // Practice-facing alerts + audit trail — each independently fire-and-forget
+      // so one failure never skips the others. System-initiated: no actor.
+      if (oldStatus !== dbStatus) {
+        void notifyEnrollmentStatusChange({
+          enrollmentId,
+          oldStatus: oldStatus as EnrollmentStatus,
+          newStatus: dbStatus,
+          actorUserId: null,
+        });
+        prisma.auditLog.create({
+          data: {
+            userId: null,
+            action: 'update',
+            resourceType: 'enrollment',
+            resourceId: enrollmentId,
+            changes: { field: 'status', from: oldStatus, to: dbStatus, source: 'webhook' },
+          },
+        }).catch((err) => logger.error('Webhook enrollment audit log failed:', err));
+      }
 
       // 6. Side effects.
       let triageCreated = false;

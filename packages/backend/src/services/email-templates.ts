@@ -59,6 +59,10 @@ export interface ProviderActionEmailParams {
   secondaryLink?: { label: string; url: string };
   /** Calm closing line under the CTA, e.g. what happens automatically next. */
   reassurance?: string;
+  /** Small muted footer links (e.g. unsubscribe + notification settings). */
+  footerLinks?: Array<{ label: string; url: string }>;
+  /** Pre-filled subject for the footer support mailto (defaults to a generic one). */
+  supportSubject?: string;
 }
 
 export function renderProviderActionEmail(params: ProviderActionEmailParams): string {
@@ -140,10 +144,20 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
         <tr><td style="padding: 20px 32px 0 32px;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 14px 0;">
             <tr><td style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px;">
-              <a href="mailto:${SUPPORT_EMAIL}?subject=Lanyard%20Health%20support%20request" style="display: inline-block; padding: 9px 18px; font-family: ${FONT_STACK}; font-size: 13px; font-weight: 600; color: ${COLOR.brand}; text-decoration: none;">Click here for support</a>
+              <a href="mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(params.supportSubject ?? 'Lanyard Health support request')}" style="display: inline-block; padding: 9px 18px; font-family: ${FONT_STACK}; font-size: 13px; font-weight: 600; color: ${COLOR.brand}; text-decoration: none;">Click here for support</a>
             </td></tr>
           </table>
           <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">This is an automated notification from Lanyard Health about your credentialing. Please do not reply to this email.</p>
+          ${
+            params.footerLinks?.length
+              ? `<p style="margin: 10px 0 0 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">${params.footerLinks
+                  .map(
+                    (l) =>
+                      `<a href="${escapeHtml(l.url)}" target="_blank" style="color: ${COLOR.muted}; text-decoration: underline;">${escapeHtml(l.label)}</a>`
+                  )
+                  .join(' &nbsp;·&nbsp; ')}</p>`
+              : ''
+          }
         </td></tr>
       </table>
 
