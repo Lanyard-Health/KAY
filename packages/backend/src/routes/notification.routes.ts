@@ -157,4 +157,25 @@ router.put('/preferences', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/v1/notifications/digest/run
+ * Manual weekly-digest trigger for verification (admin + lanyard_staff only —
+ * lanyard_staff passes via credentialing_staff inheritance then the explicit
+ * check below).
+ */
+router.post('/digest/run', async (req: Request, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'admin' && role !== 'lanyard_staff') {
+      res.status(403).json({ success: false, error: { message: 'Not authorized' } });
+      return;
+    }
+    const { runWeeklyDigest } = await import('../services/weekly-digest.service.js');
+    const result = await runWeeklyDigest();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to run weekly digest' } });
+  }
+});
+
 export default router;
