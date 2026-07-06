@@ -80,37 +80,32 @@ export default function NotificationsTab() {
         </p>
 
         <div className="divide-y divide-gray-100">
+          {/* credentialExpirations + followUpReminders rows are hidden until
+              those emails actually reach practice admins (they currently go
+              to providers). The preference columns already exist in the DB. */}
           <ToggleRow
             label="Enrollment Status Changes"
-            description="Get notified when an enrollment status is updated"
+            description="Email when an enrollment is submitted to a payer or approved"
             enabled={local.enrollmentStatusChanges}
             onChange={(v) => handleToggle('enrollmentStatusChanges', v)}
           />
           <ToggleRow
-            label="Credential Expirations"
-            description="Warnings at 30, 60, and 90 days before credentials expire"
-            enabled={local.credentialExpirations}
-            onChange={(v) => handleToggle('credentialExpirations', v)}
-          />
-          <ToggleRow
-            label="Follow-Up Reminders"
-            description="Notifications when follow-up actions are due"
-            enabled={local.followUpReminders}
-            onChange={(v) => handleToggle('followUpReminders', v)}
-          />
-          <ToggleRow
             label="Denial Alerts"
-            description="Immediate notification when an enrollment is denied"
+            description="Email immediately if a payer denies an enrollment, including what Lanyard is doing about it"
             enabled={local.denialAlerts}
             onChange={(v) => handleToggle('denialAlerts', v)}
           />
           <ToggleRow
             label="Weekly Summary Digest"
-            description="A weekly overview of all credentialing activity"
+            description="Monday morning email summary of your practice's credentialing"
             enabled={local.weeklySummary}
             onChange={(v) => handleToggle('weeklySummary', v)}
           />
         </div>
+
+        <p className="mt-4 text-xs text-gray-400">
+          These settings control emails only — in-app notifications in the bell menu are always on.
+        </p>
       </div>
 
       {isDirty && (
