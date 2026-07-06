@@ -169,24 +169,21 @@ export function useUpdateUserRole() {
 // Notification preferences
 // ===========================
 
-const PREFS_STORAGE_KEY = 'notification_preferences';
+// Pre-backend versions of these hooks stored prefs here; clean up on first fetch.
+const LEGACY_PREFS_STORAGE_KEY = 'notification_preferences';
 
 export function useNotificationPreferences() {
   return useQuery({
     queryKey: ['notification-preferences'],
     queryFn: async (): Promise<NotificationPreferences> => {
-      // Use localStorage as placeholder until backend endpoint exists
-      const stored = localStorage.getItem(PREFS_STORAGE_KEY);
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          return DEFAULT_PREFERENCES;
-        }
-      }
-      return DEFAULT_PREFERENCES;
+      const res = await api.get<{ success: boolean; data: NotificationPreferences }>(
+        '/notifications/preferences',
+      );
+      localStorage.removeItem(LEGACY_PREFS_STORAGE_KEY);
+      return res.data.data;
     },
-    staleTime: Infinity,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: DEFAULT_PREFERENCES,
   });
 }
 
@@ -195,13 +192,18 @@ export function useUpdateNotificationPreferences() {
 
   return useMutation({
     mutationFn: async (prefs: NotificationPreferences) => {
-      // Use localStorage as placeholder until backend endpoint exists
-      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
-      return prefs;
+      const res = await api.put<{ success: boolean; data: NotificationPreferences }>(
+        '/notifications/preferences',
+        prefs,
+      );
+      return res.data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
       notify.success('Notification preferences saved');
+    },
+    onError: () => {
+      notify.error('Could not save notification preferences. Please try again.');
     },
   });
 }

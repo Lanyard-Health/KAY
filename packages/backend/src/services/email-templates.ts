@@ -59,6 +59,10 @@ export interface ProviderActionEmailParams {
   secondaryLink?: { label: string; url: string };
   /** Calm closing line under the CTA, e.g. what happens automatically next. */
   reassurance?: string;
+  /** Small muted footer links (e.g. unsubscribe + notification settings). */
+  footerLinks?: Array<{ label: string; url: string }>;
+  /** Pre-filled subject for the footer support mailto (defaults to a generic one). */
+  supportSubject?: string;
 }
 
 export function renderProviderActionEmail(params: ProviderActionEmailParams): string {
@@ -140,13 +144,125 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
         <tr><td style="padding: 20px 32px 0 32px;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 14px 0;">
             <tr><td style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px;">
-              <a href="mailto:${SUPPORT_EMAIL}?subject=Lanyard%20Health%20support%20request" style="display: inline-block; padding: 9px 18px; font-family: ${FONT_STACK}; font-size: 13px; font-weight: 600; color: ${COLOR.brand}; text-decoration: none;">Click here for support</a>
+              <a href="mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(params.supportSubject ?? 'Lanyard Health support request')}" style="display: inline-block; padding: 9px 18px; font-family: ${FONT_STACK}; font-size: 13px; font-weight: 600; color: ${COLOR.brand}; text-decoration: none;">Click here for support</a>
             </td></tr>
           </table>
           <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">This is an automated notification from Lanyard Health about your credentialing. Please do not reply to this email.</p>
+          ${
+            params.footerLinks?.length
+              ? `<p style="margin: 10px 0 0 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">${params.footerLinks
+                  .map(
+                    (l) =>
+                      `<a href="${escapeHtml(l.url)}" target="_blank" style="color: ${COLOR.muted}; text-decoration: underline;">${escapeHtml(l.label)}</a>`
+                  )
+                  .join(' &nbsp;·&nbsp; ')}</p>`
+              : ''
+          }
         </td></tr>
       </table>
 
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly digest email — the practice dashboard in email form (chunk 4).
+// Reuses the same shell constants; adds simple list-row sections.
+// Vocabulary: human status labels + "Running long" only — never raw enums,
+// never the staff word "Delayed" (client-facing surface).
+// ---------------------------------------------------------------------------
+
+export interface DigestRow {
+  /** e.g. "Jane Smith — Aetna" */
+  title: string;
+  /** e.g. "Approved" or "Day 23 of a typical 30–45 day window" */
+  detail: string;
+  /** Optional second detail line, e.g. the we're-on-it sentence. */
+  subDetail?: string;
+}
+
+export interface DigestSection {
+  heading: string;
+  rows: DigestRow[];
+}
+
+export interface DigestEmailParams {
+  previewText: string;
+  heading: string;
+  firstName: string;
+  intro: string;
+  sections: DigestSection[];
+  /** Tile summary, e.g. "12 approved overall · 4 with payers · 1 running long" */
+  summaryLine: string;
+  cta: { label: string; url: string };
+  footerLinks?: Array<{ label: string; url: string }>;
+}
+
+export function renderDigestEmail(params: DigestEmailParams): string {
+  const sectionsHtml = params.sections
+    .filter((s) => s.rows.length > 0)
+    .map(
+      (s) => `
+      <p style="margin: 24px 0 8px 0; font-family: ${FONT_STACK}; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: ${COLOR.muted};">${escapeHtml(s.heading)}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px;">
+        ${s.rows
+          .map(
+            (r, i) => `<tr><td style="padding: 12px 18px; ${i > 0 ? `border-top: 1px solid ${COLOR.panelBorder};` : ''}">
+          <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 600; color: ${COLOR.heading};">${escapeHtml(r.title)}</p>
+          <p style="margin: 2px 0 0 0; font-family: ${FONT_STACK}; font-size: 13.5px; line-height: 1.5; color: ${COLOR.body};">${escapeHtml(r.detail)}</p>
+          ${r.subDetail ? `<p style="margin: 4px 0 0 0; font-family: ${FONT_STACK}; font-size: 13px; line-height: 1.5; color: ${COLOR.muted};">${escapeHtml(r.subDetail)}</p>` : ''}
+        </td></tr>`,
+          )
+          .join('\n')}
+      </table>`,
+    )
+    .join('\n');
+
+  const footerLinksHtml = params.footerLinks?.length
+    ? `<p style="margin: 10px 0 0 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">${params.footerLinks
+        .map(
+          (l) =>
+            `<a href="${escapeHtml(l.url)}" target="_blank" style="color: ${COLOR.muted}; text-decoration: underline;">${escapeHtml(l.label)}</a>`,
+        )
+        .join(' &nbsp;·&nbsp; ')}</p>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(params.heading)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: ${COLOR.paper};">
+  <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">${escapeHtml(params.previewText)}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${COLOR.paper};">
+    <tr><td align="center" style="padding: 32px 16px;">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%; background-color: ${COLOR.card}; border: 1px solid ${COLOR.border}; border-radius: 12px; overflow: hidden;">
+        <tr><td style="background-color: ${COLOR.brand}; padding: 22px 32px;">
+          <img src="${LOGO_URL}" width="240" height="35" alt="Lanyard Health" style="display: block; border: 0; outline: none; font-family: ${FONT_STACK}; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; color: ${COLOR.onBrand};" />
+        </td></tr>
+        <tr><td style="padding: 32px;">
+          <h1 style="margin: 0 0 18px 0; font-family: ${FONT_STACK}; font-size: 20px; font-weight: 600; line-height: 1.35; color: ${COLOR.heading};">${escapeHtml(params.heading)}</h1>
+          <p style="margin: 0 0 16px 0; font-family: ${FONT_STACK}; font-size: 15px; line-height: 1.6; color: ${COLOR.body};">Hi ${escapeHtml(params.firstName)},</p>
+          <p style="margin: 0 0 8px 0; font-family: ${FONT_STACK}; font-size: 15px; line-height: 1.6; color: ${COLOR.body};">${escapeHtml(params.intro)}</p>
+          ${sectionsHtml}
+          <p style="margin: 24px 0 24px 0; padding-top: 16px; border-top: 1px solid ${COLOR.border}; font-family: ${FONT_STACK}; font-size: 14px; line-height: 1.6; color: ${COLOR.body};">${escapeHtml(params.summaryLine)}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 12px 0;">
+            <tr><td style="background-color: ${COLOR.brand}; border-radius: 8px;">
+              <a href="${escapeHtml(params.cta.url)}" target="_blank" style="display: inline-block; padding: 12px 28px; font-family: ${FONT_STACK}; font-size: 15px; font-weight: 600; color: ${COLOR.onBrand}; text-decoration: none;">${escapeHtml(params.cta.label)}</a>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%;">
+        <tr><td style="padding: 20px 32px 0 32px;">
+          <p style="margin: 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.6; color: ${COLOR.muted};">This is an automated weekly summary from Lanyard Health about your credentialing. Please do not reply to this email.</p>
+          ${footerLinksHtml}
+        </td></tr>
+      </table>
     </td></tr>
   </table>
 </body>

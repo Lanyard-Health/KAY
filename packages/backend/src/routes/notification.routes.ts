@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
 import { notificationService } from '../services/notification.service.js';
-import { markNotificationsReadSchema } from '@credential-management/shared';
+import { verifyUnsubscribeToken } from '../services/enrollment-alerts.service.js';
+import { markNotificationsReadSchema, notificationPreferencesSchema } from '@credential-management/shared';
 import { parseQuery, limitOffsetSchema } from '../utils/queryValidation.js';
 
 const notificationQuerySchema = limitOffsetSchema.extend({
@@ -12,7 +13,60 @@ const notificationQuerySchema = limitOffsetSchema.extend({
 
 const router = Router();
 
-// All routes require authentication (any role)
+/**
+ * GET /api/v1/notifications/unsubscribe?token=...
+ * One-click email opt-out from an email footer link. PUBLIC — registered
+ * before the auth middleware because it's clicked from an email, not the app.
+ * The signed token only authorizes flipping ONE preference to false.
+ */
+router.get('/unsubscribe', async (req: Request, res: Response) => {
+  const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+  const verified = token ? verifyUnsubscribeToken(token) : null;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+  if (!verified) {
+    res.status(400).send(unsubscribePage(
+      'This unsubscribe link is invalid or has expired.',
+      'You can manage all email notifications from Settings in the portal.',
+    ));
+    return;
+  }
+
+  try {
+    const current = await notificationService.getPreferences(verified.userId);
+    await notificationService.updatePreferences(verified.userId, {
+      ...current,
+      [verified.prefKey]: false,
+    });
+    const label = {
+      enrollmentStatusChanges: 'enrollment status emails',
+      denialAlerts: 'denial alert emails',
+      weeklySummary: 'the weekly summary email',
+    }[verified.prefKey];
+    res.send(unsubscribePage(
+      `You're unsubscribed from ${label}.`,
+      'You can turn them back on anytime from Settings in the portal.',
+    ));
+  } catch {
+    res.status(500).send(unsubscribePage(
+      'Something went wrong.',
+      'Please try the link again, or manage notifications from Settings in the portal.',
+    ));
+  }
+});
+
+function unsubscribePage(headline: string, sub: string): string {
+  const settingsUrl = `${process.env['FRONTEND_URL'] || 'https://portal.lanyardhealth.com'}/settings`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Lanyard Health</title></head>
+<body style="margin:0;background:#F4F7F5;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<div style="max-width:480px;margin:64px auto;padding:32px;background:#FDFEFD;border:1px solid #E2EAE5;border-radius:12px;text-align:center;">
+<h1 style="margin:0 0 12px 0;font-size:20px;color:#14241E;">${headline}</h1>
+<p style="margin:0 0 24px 0;font-size:15px;line-height:1.6;color:#3A4A43;">${sub}</p>
+<a href="${settingsUrl}" style="display:inline-block;padding:10px 20px;background:#0A3D2E;color:#F4F9F6;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Open notification settings</a>
+</div></body></html>`;
+}
+
+// All routes below require authentication (any role)
 router.use(authenticate);
 router.use(authorize(...ALL_AUTHENTICATED_ROLES));
 
@@ -69,6 +123,58 @@ router.post('/mark-read', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: { message: 'Failed to mark notifications as read' } });
+  }
+});
+
+/**
+ * GET /api/v1/notifications/preferences
+ * Current user's email notification preferences (defaults if never saved)
+ */
+router.get('/preferences', async (req: Request, res: Response) => {
+  try {
+    const prefs = await notificationService.getPreferences(req.user!.id);
+    res.json({ success: true, data: prefs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch notification preferences' } });
+  }
+});
+
+/**
+ * PUT /api/v1/notifications/preferences
+ * Replace current user's email notification preferences
+ */
+router.put('/preferences', async (req: Request, res: Response) => {
+  try {
+    const parsed = notificationPreferencesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: { message: 'Invalid request body', details: parsed.error.issues } });
+      return;
+    }
+    const prefs = await notificationService.updatePreferences(req.user!.id, parsed.data);
+    res.json({ success: true, data: prefs });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to update notification preferences' } });
+  }
+});
+
+/**
+ * POST /api/v1/notifications/digest/run
+ * Manual weekly-digest trigger for verification (admin + lanyard_staff only —
+ * lanyard_staff passes via credentialing_staff inheritance then the explicit
+ * check below).
+ */
+router.post('/digest/run', async (req: Request, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'admin' && role !== 'lanyard_staff') {
+      res.status(403).json({ success: false, error: { message: 'Not authorized' } });
+      return;
+    }
+    const { runWeeklyDigest } = await import('../services/weekly-digest.service.js');
+    const result = await runWeeklyDigest();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { message: 'Failed to run weekly digest' } });
   }
 });
 

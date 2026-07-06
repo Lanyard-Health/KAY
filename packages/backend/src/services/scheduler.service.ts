@@ -12,9 +12,12 @@ import { updateAttestationTracker, evaluateAdminAttestationAlerts } from './caqh
 import { mirrorRawJson } from './caqh-mirror.service.js';
 import { evaluateProviderReminder } from './caqh-reminder.service.js';
 import { runSignupReminders } from './signup-reminder.service.js';
+import { runWeeklyDigest } from './weekly-digest.service.js';
 
 /** Advisory lock key for the nightly CAQH sync (arbitrary stable int). */
 const CAQH_SYNC_LOCK_KEY = 73411001;
+/** Advisory lock key for the Monday weekly digest. */
+const WEEKLY_DIGEST_LOCK_KEY = 73411002;
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -52,6 +55,8 @@ class SchedulerService {
   private isCaqhSyncJobRunning = false;
   private isStalledTaskJobRunning = false;
   private isSignupReminderJobRunning = false;
+  private weeklyDigestJob: cron.ScheduledTask | null = null;
+  private isWeeklyDigestJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -125,6 +130,18 @@ class SchedulerService {
       logger.info('[Scheduler] Email not configured, signup reminder job not scheduled.');
     }
 
+    // Schedule the weekly digest (Monday 7am Eastern — practice-local morning,
+    // not UTC). Recipients are opt-in via the weeklySummary preference.
+    if (emailService.isConfigured()) {
+      const digestSchedule = process.env['DIGEST_SCHEDULE'] || '0 7 * * 1';
+      this.weeklyDigestJob = cron.schedule(digestSchedule, () => {
+        this.runWeeklyDigestJob();
+      }, { timezone: 'America/New_York' });
+      logger.info(`[Scheduler] Weekly digest job scheduled: ${digestSchedule} (America/New_York)`);
+    } else {
+      logger.info('[Scheduler] Email not configured, weekly digest job not scheduled.');
+    }
+
     // Schedule weekly notification cleanup (Sundays at 4am)
     this.notificationCleanupJob = cron.schedule('0 4 * * 0', () => {
       notificationService.cleanupOldNotifications(90)
@@ -192,6 +209,38 @@ class SchedulerService {
       Sentry.captureException(err, { tags: { job: 'signup-reminder' } });
     } finally {
       this.isSignupReminderJobRunning = false;
+    }
+  }
+
+  /**
+   * Run one weekly digest sweep. Re-entrancy guarded in-process; session
+   * advisory lock guards across Render instances (never SETNX — its TTL can
+   * expire mid-run).
+   */
+  async runWeeklyDigestJob(): Promise<void> {
+    if (this.isWeeklyDigestJobRunning) {
+      logger.info('[Scheduler] Weekly digest job already running, skipping...');
+      return;
+    }
+    this.isWeeklyDigestJobRunning = true;
+
+    const lockRows = await prisma.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_lock(${WEEKLY_DIGEST_LOCK_KEY}) AS locked`;
+    if (!lockRows[0]?.locked) {
+      logger.info('[Scheduler] Weekly digest lock held by another instance, skipping.');
+      this.isWeeklyDigestJobRunning = false;
+      return;
+    }
+
+    try {
+      await runWeeklyDigest();
+    } catch (err) {
+      logger.error('[Scheduler] Weekly digest job error:', err);
+      Sentry.captureException(err, { tags: { job: 'weekly-digest' } });
+    } finally {
+      await prisma.$queryRaw`SELECT pg_advisory_unlock(${WEEKLY_DIGEST_LOCK_KEY})`
+        .catch((err) => logger.error('[Scheduler] Weekly digest unlock failed:', err));
+      this.isWeeklyDigestJobRunning = false;
     }
   }
 
@@ -637,6 +686,11 @@ class SchedulerService {
       this.signupReminderJob = null;
       logger.info('[Scheduler] Signup reminder job stopped');
     }
+    if (this.weeklyDigestJob) {
+      this.weeklyDigestJob.stop();
+      this.weeklyDigestJob = null;
+      logger.info('[Scheduler] Weekly digest job stopped');
+    }
   }
 
   /**
@@ -651,6 +705,7 @@ class SchedulerService {
     expirationEmailJobRunning: boolean;
     caqhSyncConfigured: boolean;
     caqhSyncJobRunning: boolean;
+    weeklyDigestJobRunning: boolean;
     followUpSchedule: string;
     followUpExecutorSchedule: string;
     expirationAlertSchedule: string;
@@ -666,6 +721,7 @@ class SchedulerService {
       expirationEmailJobRunning: this.isExpirationEmailJobRunning,
       caqhSyncConfigured: this.caqhService.isConfigured(),
       caqhSyncJobRunning: this.isCaqhSyncJobRunning,
+      weeklyDigestJobRunning: this.isWeeklyDigestJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       followUpExecutorSchedule: process.env['FOLLOW_UP_EXECUTOR_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
