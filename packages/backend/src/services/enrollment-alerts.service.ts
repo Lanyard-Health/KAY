@@ -187,6 +187,20 @@ export async function notifyEnrollmentStatusChange(params: {
     if (!ALERT_STATUSES.includes(newStatus)) return;
     const status = newStatus as 'submitted' | 'approved' | 'denied';
 
+    // Atomic claim: mark this status notified BEFORE sending so concurrent or
+    // replayed callers (service, workflow auto-advance, webhook) can't
+    // double-send. Count 0 = already announced (or enrollment gone) — skip.
+    // If a send fails after claiming we don't retry; suppressing duplicates
+    // matters more than best-effort redelivery here.
+    const claim = await prisma.enrollment.updateMany({
+      where: { id: enrollmentId, NOT: { notifiedStatuses: { has: newStatus } } },
+      data: { notifiedStatuses: { push: newStatus } },
+    });
+    if (claim.count === 0) {
+      logger.debug(`Enrollment alert skipped (already sent): enrollment ${enrollmentId}, status ${newStatus}`);
+      return;
+    }
+
     const enrollment = await prisma.enrollment.findUnique({
       where: { id: enrollmentId },
       select: {

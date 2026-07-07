@@ -164,6 +164,91 @@ export async function updateEnrollmentStatus(
   return enrollment;
 }
 
+/**
+ * Correct a mis-clicked status. This is NOT a transition:
+ *  - bypasses validateStatusTransition (corrections can go backward / out of terminal)
+ *  - sends NO practice-facing notifications and NO webhook fanout
+ *  - removes the corrected-away status from notifiedStatuses so a future
+ *    genuine transition re-notifies exactly once
+ *  - deletes the EnrollmentOutcome row recorded for the old status (only
+ *    approved/denied/terminated have outcome rows) and records the outcome
+ *    for the corrected-to status if it is one (recorder is idempotent)
+ *  - restores workflow steps auto-skipped when the old status was terminal,
+ *    and skips incomplete steps if the corrected-to status is terminal
+ *    (mirrors the sync in updateEnrollmentStatus)
+ *  - writes an AuditLog row with source 'status_correction'
+ */
+export async function correctEnrollmentStatus(
+  enrollmentId: string,
+  toStatus: EnrollmentStatus,
+  correctedById: string,
+): Promise<Enrollment> {
+  const existing = await prisma.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { id: true, status: true, notifiedStatuses: true, providerId: true },
+  });
+  if (!existing) {
+    throw new NotFoundError('Enrollment');
+  }
+
+  const oldStatus = existing.status;
+  if (oldStatus === toStatus) {
+    throw new ValidationError(`Enrollment is already '${toStatus}' — nothing to correct`);
+  }
+
+  const enrollment = await prisma.enrollment.update({
+    where: { id: enrollmentId },
+    data: {
+      status: toStatus,
+      // Scalar lists have no atomic "remove"; set the filtered array.
+      notifiedStatuses: { set: existing.notifiedStatuses.filter((s) => s !== oldStatus) },
+      updatedById: correctedById,
+    },
+    include: { payer: true },
+  });
+
+  // Remove the now-wrong outcome row so Payer Brain data stays clean.
+  if (oldStatus === 'approved' || oldStatus === 'denied' || oldStatus === 'terminated') {
+    await prisma.enrollmentOutcome
+      .deleteMany({ where: { enrollmentId, outcome: oldStatus } })
+      .catch((err) => logger.error(`Outcome cleanup failed for enrollment ${enrollmentId}:`, err));
+  }
+
+  // The corrected-TO status is the enrollment's real state; record its outcome
+  // (idempotent, demo-excluded, no-ops for non-outcome statuses). Corrections
+  // are the only path that can reach e.g. approved after a mistaken denial.
+  void recordEnrollmentOutcome({ enrollmentId, status: toStatus, transitionAt: new Date() });
+
+  // Workflow-step sync, both directions.
+  if (TERMINAL_STATUSES.has(oldStatus) && !TERMINAL_STATUSES.has(toStatus)) {
+    await prisma.enrollmentWorkflowStep.updateMany({
+      where: { enrollmentId, status: 'skipped', skippedReason: `Enrollment ${oldStatus}` },
+      data: { status: 'not_started', skippedReason: null },
+    }).catch((err) => logger.error(`Workflow step un-skip failed for enrollment ${enrollmentId}:`, err));
+  }
+  if (TERMINAL_STATUSES.has(toStatus) && !TERMINAL_STATUSES.has(oldStatus)) {
+    await prisma.enrollmentWorkflowStep.updateMany({
+      where: { enrollmentId, status: { in: ['not_started', 'in_progress', 'blocked'] } },
+      data: { status: 'skipped', skippedReason: `Enrollment ${toStatus}` },
+    }).catch((err) => logger.error(`Workflow step sync failed for enrollment ${enrollmentId}:`, err));
+  }
+
+  prisma.auditLog.create({
+    data: {
+      userId: correctedById,
+      action: 'update',
+      resourceType: 'enrollment',
+      resourceId: enrollmentId,
+      changes: { field: 'status', from: oldStatus, to: toStatus, source: 'status_correction' },
+    },
+  }).catch((err) => logger.error('Failed to create audit log for enrollment status correction:', err));
+
+  invalidateCache('dashboard');
+  invalidateCache('payer-analytics');
+
+  return enrollment;
+}
+
 async function fanoutEnrollmentStatusChanged(
   enrollmentId: string,
   providerId: string | null,
