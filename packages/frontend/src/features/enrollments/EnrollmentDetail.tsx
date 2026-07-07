@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -11,7 +12,9 @@ import {
   XCircleIcon,
   ArrowRightIcon,
   DocumentTextIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline';
+import EnrollmentEditModal from './EnrollmentEditModal';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 import AiSidebar from '../../components/AiSidebar';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
@@ -70,13 +73,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Dates are stored as UTC midnight; render in UTC or they display one day early.
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 export default function EnrollmentDetail() {
   const { id } = useParams<{ id: string }>();
   const demoAvailityPayerId = useDemoAvailityPayerId();
   const demoAetnaPayerId = useDemoAetnaPayerId();
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['enrollment', id],
@@ -138,10 +143,20 @@ export default function EnrollmentDetail() {
               </p>
             )}
           </div>
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${status.color}`}>
-            <StatusIcon className="h-4 w-4" />
-            {status.label}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${status.color}`}>
+              <StatusIcon className="h-4 w-4" />
+              {status.label}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <PencilSquareIcon className="h-4 w-4" />
+              Edit
+            </button>
+          </div>
         </div>
       </div>
 
@@ -269,6 +284,9 @@ export default function EnrollmentDetail() {
 
       {/* AI Sidebar */}
       <AiSidebar entityType="enrollment" entityId={enrollment.id} />
+
+      {/* Edit Modal */}
+      <EnrollmentEditModal enrollment={enrollment} isOpen={editOpen} onClose={() => setEditOpen(false)} />
     </div>
   );
 }
