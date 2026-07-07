@@ -11,7 +11,7 @@ import { triggerAutomatedEmail } from '../services/automatedEmail.service.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { instantiateFollowUp } from '../services/followup-instantiation.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
-import { updateEnrollmentStatus } from '../services/enrollment.service.js';
+import { updateEnrollmentStatus, correctEnrollmentStatus } from '../services/enrollment.service.js';
 import { invalidateCache } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
@@ -91,6 +91,17 @@ const createEnrollmentSchema = z.object({
 });
 
 const updateEnrollmentSchema = nullablePartial(createEnrollmentSchema);
+
+// nullablePartial maps JSON null → undefined, so after parsing, date fields are
+// string | undefined. The frontend sends '' for a cleared date input; treat ''
+// as an explicit set-to-null. undefined = field untouched, no change.
+function toDateUpdate(v: string | null | undefined): Date | null | undefined {
+  // null only survives at the type level — nullablePartial transforms it to
+  // undefined at runtime. Treat both as "no change".
+  if (v === undefined || v === null) return undefined;
+  if (v === '') return null;
+  return new Date(v);
+}
 
 // ==========================================
 // PAYER TRACK OPTIONS (for enrollment form dropdown)
@@ -628,13 +639,13 @@ router.put(
           where: { id },
           data: {
             productTypes: fieldUpdates.productTypes,
-            applicationDate: fieldUpdates.applicationDate ? new Date(fieldUpdates.applicationDate) : undefined,
-            effectiveDate: fieldUpdates.effectiveDate ? new Date(fieldUpdates.effectiveDate) : undefined,
-            terminationDate: fieldUpdates.terminationDate ? new Date(fieldUpdates.terminationDate) : undefined,
-            dateContractReceived: fieldUpdates.dateContractReceived ? new Date(fieldUpdates.dateContractReceived) : undefined,
-            dateContractSigned: fieldUpdates.dateContractSigned ? new Date(fieldUpdates.dateContractSigned) : undefined,
-            lastFollowUpDate: fieldUpdates.lastFollowUpDate ? new Date(fieldUpdates.lastFollowUpDate) : undefined,
-            recredentialingDate: fieldUpdates.recredentialingDate ? new Date(fieldUpdates.recredentialingDate) : undefined,
+            applicationDate: toDateUpdate(fieldUpdates.applicationDate),
+            effectiveDate: toDateUpdate(fieldUpdates.effectiveDate),
+            terminationDate: toDateUpdate(fieldUpdates.terminationDate),
+            dateContractReceived: toDateUpdate(fieldUpdates.dateContractReceived),
+            dateContractSigned: toDateUpdate(fieldUpdates.dateContractSigned),
+            lastFollowUpDate: toDateUpdate(fieldUpdates.lastFollowUpDate),
+            recredentialingDate: toDateUpdate(fieldUpdates.recredentialingDate),
             providerNumber: fieldUpdates.providerNumber,
             groupNumber: fieldUpdates.groupNumber,
             notes: fieldUpdates.notes,
@@ -677,6 +688,35 @@ router.put(
         }
       }
 
+      res.json({ success: true, data: enrollment });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+const statusCorrectionSchema = z.object({
+  toStatus: z.enum(['not_started', 'in_progress', 'submitted', 'pending_review', 'approved', 'denied', 'terminated']),
+});
+
+// Correct a mis-clicked status. Staff-only (lanyard_staff passes via the
+// credentialing_staff equivalence in authorize()). Bypasses the forward-only
+// state machine; sends no notifications; cleans outcome rows + workflow steps.
+// TODO(Phase 0.B): register in generate-openapi.ts when the enrollment surface lands in the spec
+router.post(
+  '/:id/status-correction',
+  authenticate,
+  blockPendingVerification,
+  authorize('admin', 'credentialing_staff'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id']!;
+      await assertEnrollmentAccess(req, id);
+      const { toStatus } = statusCorrectionSchema.parse(req.body);
+
+      setAuditContext(req, { resourceType: 'enrollment', resourceId: id, action: 'update' });
+
+      const enrollment = await correctEnrollmentStatus(id, toStatus, req.user!.id);
       res.json({ success: true, data: enrollment });
     } catch (error) {
       next(error);

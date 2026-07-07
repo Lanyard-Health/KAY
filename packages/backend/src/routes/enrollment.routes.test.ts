@@ -38,6 +38,7 @@ vi.mock('../services/enrollment-creation-hook.js', () => ({
 
 vi.mock('../services/enrollment.service.js', () => ({
   updateEnrollmentStatus: vi.fn(),
+  correctEnrollmentStatus: vi.fn(),
 }));
 
 vi.mock('../services/terminationWorkflow.service.js', () => ({
@@ -55,11 +56,13 @@ vi.mock('../services/denial-triage.service.js', () => ({
 import enrollmentRouter from './enrollment.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
-import { updateEnrollmentStatus } from '../services/enrollment.service.js';
+import { updateEnrollmentStatus, correctEnrollmentStatus } from '../services/enrollment.service.js';
 import { validatePracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { NotFoundError } from '../middleware/error.middleware.js';
 
 const mockedOnEnrollmentCreated = vi.mocked(onEnrollmentCreated);
 const mockedUpdateEnrollmentStatus = vi.mocked(updateEnrollmentStatus);
+const mockedCorrectEnrollmentStatus = vi.mocked(correctEnrollmentStatus);
 
 describe('Enrollment Routes', () => {
   const app = createTestApp(enrollmentRouter, adminUser);
@@ -419,6 +422,103 @@ describe('Enrollment Routes', () => {
           }),
         })
       );
+    });
+
+    it('parses a provided date string into a Date', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment as any);
+
+      await request(app)
+        .put('/enrollment-1-id')
+        .send({ applicationDate: '2026-01-15' });
+
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            applicationDate: new Date('2026-01-15'),
+          }),
+        })
+      );
+    });
+
+    it('clears a date when empty string is sent', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment as any);
+
+      await request(app)
+        .put('/enrollment-1-id')
+        .send({ applicationDate: '', notes: 'keep entering update branch' });
+
+      expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            applicationDate: null,
+          }),
+        })
+      );
+    });
+
+    it('leaves dates untouched when omitted or JSON null', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      prismaMock.enrollment.update.mockResolvedValue(mockEnrollment as any);
+
+      await request(app)
+        .put('/enrollment-1-id')
+        .send({ notes: 'no dates here', effectiveDate: null });
+
+      const updateArg = prismaMock.enrollment.update.mock.calls[0]![0] as any;
+      expect(updateArg.data.applicationDate).toBeUndefined();
+      expect(updateArg.data.effectiveDate).toBeUndefined();
+    });
+
+    it('does not trigger termination workflow when clearing terminationDate', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue({ ...mockEnrollment, terminationDate: new Date('2026-01-01') } as any);
+      prismaMock.enrollment.update.mockResolvedValue({ ...mockEnrollment, terminationDate: null } as any);
+
+      const { triggerTerminationWorkflow } = await import('../services/terminationWorkflow.service.js');
+
+      await request(app)
+        .put('/enrollment-1-id')
+        .send({ terminationDate: '' });
+
+      expect(vi.mocked(triggerTerminationWorkflow)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /:id/status-correction', () => {
+    it('corrects the status via the service', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      mockedCorrectEnrollmentStatus.mockResolvedValue({ ...mockEnrollment, status: 'submitted' } as any);
+
+      const res = await request(app)
+        .post('/enrollment-1-id/status-correction')
+        .send({ toStatus: 'submitted' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockedCorrectEnrollmentStatus).toHaveBeenCalledWith('enrollment-1-id', 'submitted', 'admin-user-id');
+    });
+
+    it('rejects an invalid toStatus with 400', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+
+      const res = await request(app)
+        .post('/enrollment-1-id/status-correction')
+        .send({ toStatus: 'bogus' });
+
+      expect(res.status).toBe(400);
+      expect(mockedCorrectEnrollmentStatus).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the enrollment does not exist', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(null);
+      mockedCorrectEnrollmentStatus.mockRejectedValue(new NotFoundError('Enrollment'));
+
+      const res = await request(app)
+        .post('/nonexistent-id/status-correction')
+        .send({ toStatus: 'submitted' });
+
+      expect(res.status).toBe(404);
     });
   });
 
