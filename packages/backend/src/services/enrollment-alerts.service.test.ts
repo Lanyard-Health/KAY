@@ -48,13 +48,15 @@ function mockLoadedEnrollment() {
   } as any);
 }
 
+const recipient = { id: 'admin-2', email: 'other-admin@realpractice.com', firstName: 'Ada', preferences: null };
+
 describe('notifyEnrollmentStatusChange dedup claim', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRecipients.mockResolvedValue([]);
+    mockedRecipients.mockResolvedValue([recipient as any]);
   });
 
-  it('claims the status atomically before sending', async () => {
+  it('claims the status atomically before sending, once a recipient exists', async () => {
     prismaMock.enrollment.updateMany.mockResolvedValue({ count: 1 } as any);
     mockLoadedEnrollment();
 
@@ -69,12 +71,13 @@ describe('notifyEnrollmentStatusChange dedup claim', () => {
       where: { id: 'enr-1', NOT: { notifiedStatuses: { has: 'approved' } } },
       data: { notifiedStatuses: { push: 'approved' } },
     });
-    // Claim succeeded → proceeds to load the enrollment for sending
-    expect(prismaMock.enrollment.findUnique).toHaveBeenCalled();
+    // Claim succeeded → the in-app notification goes out
+    expect(vi.mocked(notificationService.createNotification)).toHaveBeenCalledTimes(1);
   });
 
-  it('skips everything when the status was already announced (count 0)', async () => {
+  it('sends nothing when the status was already announced (claim count 0)', async () => {
     prismaMock.enrollment.updateMany.mockResolvedValue({ count: 0 } as any);
+    mockLoadedEnrollment();
 
     await notifyEnrollmentStatusChange({
       enrollmentId: 'enr-1',
@@ -83,8 +86,22 @@ describe('notifyEnrollmentStatusChange dedup claim', () => {
       actorUserId: 'user-1',
     });
 
-    expect(prismaMock.enrollment.findUnique).not.toHaveBeenCalled();
-    expect(mockedRecipients).not.toHaveBeenCalled();
+    expect(vi.mocked(notificationService.createNotification)).not.toHaveBeenCalled();
+  });
+
+  it('does NOT claim when there is no one to notify (lone-admin self-change)', async () => {
+    mockLoadedEnrollment();
+    // Only recipient is the actor — filtered out, list becomes empty
+    mockedRecipients.mockResolvedValue([{ ...recipient, id: 'user-1' } as any]);
+
+    await notifyEnrollmentStatusChange({
+      enrollmentId: 'enr-1',
+      oldStatus: 'submitted',
+      newStatus: 'approved',
+      actorUserId: 'user-1',
+    });
+
+    expect(prismaMock.enrollment.updateMany).not.toHaveBeenCalled();
     expect(vi.mocked(notificationService.createNotification)).not.toHaveBeenCalled();
   });
 
