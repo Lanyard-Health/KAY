@@ -57,7 +57,7 @@ import enrollmentRouter from './enrollment.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { onEnrollmentCreated } from '../services/enrollment-creation-hook.js';
 import { updateEnrollmentStatus, correctEnrollmentStatus } from '../services/enrollment.service.js';
-import { validatePracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { validatePracticeAccess, validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
 
 const mockedOnEnrollmentCreated = vi.mocked(onEnrollmentCreated);
@@ -123,6 +123,28 @@ describe('Enrollment Routes', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /:id as practice_admin', () => {
+    const practiceAdminApp = createTestApp(enrollmentRouter, { ...adminUser, role: 'practice_admin' });
+
+    it('allows a practice admin scoped to the enrollment practice', async () => {
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+
+      const res = await request(practiceAdminApp).get('/enrollment-1-id');
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(validateEnrollmentAccess)).toHaveBeenCalled();
+    });
+
+    it('rejects a practice admin outside the enrollment practice', async () => {
+      vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+
+      const res = await request(practiceAdminApp).get('/enrollment-1-id');
+
+      expect(res.status).toBe(403);
     });
   });
 
