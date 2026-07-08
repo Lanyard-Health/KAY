@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { BugAntIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { BugAntIcon, XMarkIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { api } from '../services/api';
 import { notify } from '../utils/notify';
@@ -23,16 +23,23 @@ export default function BugReportWidget() {
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<Severity>('annoying');
   const [submitting, setSubmitting] = useState(false);
+  // After a successful submit we keep the dialog OPEN and swap the form for an
+  // explicit confirmation panel. A toast alone (top-right, auto-dismiss) was too
+  // easy to miss — testers thought nothing happened. This makes "it sent" obvious.
+  const [sent, setSent] = useState(false);
   const user = useAuthStore((s) => s.user);
-
-  const reset = () => {
-    setDescription('');
-    setSeverity('annoying');
-  };
 
   const close = () => {
     if (submitting) return;
     setOpen(false);
+  };
+
+  // Reset everything only AFTER the close animation finishes, so the form doesn't
+  // flash back into view while the success panel is animating out.
+  const afterClose = () => {
+    setDescription('');
+    setSeverity('annoying');
+    setSent(false);
   };
 
   const submit = async () => {
@@ -54,9 +61,7 @@ export default function BugReportWidget() {
           role: user?.role ?? 'unknown',
         },
       });
-      notify.success('Thanks — sent to the team');
-      reset();
-      setOpen(false);
+      setSent(true);
     } catch {
       notify.error('Could not send the report — please try again');
     } finally {
@@ -76,7 +81,7 @@ export default function BugReportWidget() {
         Report a bug
       </button>
 
-      <Transition appear show={open} as={Fragment}>
+      <Transition appear show={open} as={Fragment} afterLeave={afterClose}>
         <Dialog as="div" className="relative z-50" onClose={close}>
           <Transition.Child
             as={Fragment}
@@ -102,59 +107,80 @@ export default function BugReportWidget() {
                 leaveTo="opacity-0 translate-y-4 sm:scale-95"
               >
                 <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-                  <div className="mb-4 flex items-center justify-between">
-                    <Dialog.Title className="text-lg font-semibold text-gray-900">Report a bug</Dialog.Title>
-                    <button onClick={close} className="text-gray-400 hover:text-gray-500" aria-label="Close">
-                      <XMarkIcon className="h-6 w-6" />
-                    </button>
-                  </div>
-
-                  <label className="label">What happened?</label>
-                  <textarea
-                    autoFocus
-                    rows={4}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    maxLength={5000}
-                    placeholder="e.g. I clicked Save on a provider and nothing happened"
-                    className="input w-full"
-                  />
-
-                  <div className="mt-4">
-                    <label className="label">How much is it blocking you?</label>
-                    <div className="mt-1 grid grid-cols-3 gap-2">
-                      {SEVERITIES.map((s) => (
-                        <button
-                          key={s.value}
-                          type="button"
-                          onClick={() => setSeverity(s.value)}
-                          title={s.hint}
-                          className={clsx(
-                            'rounded-lg border px-2 py-2 text-xs font-medium transition',
-                            severity === s.value
-                              ? 'border-primary-500 bg-primary-50 text-primary-700'
-                              : 'border-gray-200 text-gray-600 hover:border-gray-300',
-                          )}
-                        >
-                          {s.label}
+                  {sent ? (
+                    <div className="py-2 text-center">
+                      <CheckCircleIcon className="mx-auto h-14 w-14 text-primary-600" />
+                      <Dialog.Title className="mt-3 text-lg font-semibold text-gray-900">
+                        Report sent — thank you!
+                      </Dialog.Title>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Your report has been logged and the team has been notified. You won't get an
+                        email back, but we review every report and will follow up if we need more
+                        detail.
+                      </p>
+                      <div className="mt-6 flex justify-center">
+                        <button type="button" onClick={close} className="btn-primary">
+                          Done
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="mb-4 flex items-center justify-between">
+                        <Dialog.Title className="text-lg font-semibold text-gray-900">Report a bug</Dialog.Title>
+                        <button onClick={close} className="text-gray-400 hover:text-gray-500" aria-label="Close">
+                          <XMarkIcon className="h-6 w-6" />
+                        </button>
+                      </div>
 
-                  <p className="mt-3 text-[11px] text-gray-400">
-                    We attach the page you're on and your browser automatically. Don't include real patient or provider
-                    information — this is a test environment.
-                  </p>
+                      <label className="label">What happened?</label>
+                      <textarea
+                        autoFocus
+                        rows={4}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        maxLength={5000}
+                        placeholder="e.g. I clicked Save on a provider and nothing happened"
+                        className="input w-full"
+                      />
 
-                  <div className="mt-5 flex justify-end gap-3">
-                    <button type="button" onClick={close} className="btn-secondary" disabled={submitting}>
-                      Cancel
-                    </button>
-                    <button type="button" onClick={submit} className="btn-primary" disabled={submitting}>
-                      {submitting ? 'Sending…' : 'Send report'}
-                    </button>
-                  </div>
+                      <div className="mt-4">
+                        <label className="label">How much is it blocking you?</label>
+                        <div className="mt-1 grid grid-cols-3 gap-2">
+                          {SEVERITIES.map((s) => (
+                            <button
+                              key={s.value}
+                              type="button"
+                              onClick={() => setSeverity(s.value)}
+                              title={s.hint}
+                              className={clsx(
+                                'rounded-lg border px-2 py-2 text-xs font-medium transition',
+                                severity === s.value
+                                  ? 'border-primary-500 bg-primary-50 text-primary-700'
+                                  : 'border-gray-200 text-gray-600 hover:border-gray-300',
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-[11px] text-gray-400">
+                        We attach the page you're on and your browser automatically. Don't include real patient or provider
+                        information — this is a test environment.
+                      </p>
+
+                      <div className="mt-5 flex justify-end gap-3">
+                        <button type="button" onClick={close} className="btn-secondary" disabled={submitting}>
+                          Cancel
+                        </button>
+                        <button type="button" onClick={submit} className="btn-primary" disabled={submitting}>
+                          {submitting ? 'Sending…' : 'Send report'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </Dialog.Panel>
               </Transition.Child>
             </div>

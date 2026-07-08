@@ -1972,6 +1972,10 @@ model Enrollment {
   notes                String?
   payerEmail           String?          @map("payer_email")
 
+  // Statuses for which practice-facing alerts were already sent (dedup guard).
+  // Claimed atomically inside notifyEnrollmentStatusChange before sending.
+  notifiedStatuses EnrollmentStatus[] @default([]) @map("notified_statuses")
+
   // Automated Follow-up Settings
   followUpEnabled       Boolean   @default(false) @map("follow_up_enabled")
   followUpEmail         String?   @map("follow_up_email")
