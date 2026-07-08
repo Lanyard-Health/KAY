@@ -21,7 +21,7 @@ import { setAuditContext } from '../middleware/audit.middleware.js';
 async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promise<void> {
   const { role, providerId: userProviderId } = req.user!;
   if (role === 'admin') return;
-  if (role === 'credentialing_staff' || role === 'lanyard_staff') {
+  if (role === 'credentialing_staff' || role === 'lanyard_staff' || role === 'practice_admin') {
     const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true, practiceId: true } });
     if (!enr) return;
     if (!(await validateEnrollmentAccess(req, enr))) throw new ForbiddenError('Access denied to this enrollment');
