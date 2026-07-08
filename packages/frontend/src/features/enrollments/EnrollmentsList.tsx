@@ -903,11 +903,11 @@ export default function EnrollmentsList() {
                             {enrollment.effectiveDate ? (
                               <span className="text-gray-600 flex items-center gap-1">
                                 <CalendarDaysIcon className="h-3.5 w-3.5" />
-                                {new Date(enrollment.effectiveDate).toLocaleDateString()}
+                                {new Date(enrollment.effectiveDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}
                               </span>
                             ) : enrollment.applicationDate ? (
                               <span className="text-gray-500">
-                                Applied {new Date(enrollment.applicationDate).toLocaleDateString()}
+                                Applied {new Date(enrollment.applicationDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}
                               </span>
                             ) : (
                               <span className="text-gray-400">No date</span>
@@ -1058,7 +1058,7 @@ export default function EnrollmentsList() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                       {enrollment.effectiveDate
-                        ? new Date(enrollment.effectiveDate).toLocaleDateString()
+                        ? new Date(enrollment.effectiveDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
                         : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1068,7 +1068,7 @@ export default function EnrollmentsList() {
                             needsFollowUp ? 'text-orange-600 font-medium' : 'text-gray-500'
                           }
                         >
-                          {new Date(enrollment.lastFollowUpDate).toLocaleDateString()}
+                          {new Date(enrollment.lastFollowUpDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}
                           {needsFollowUp && ' (overdue)'}
                         </span>
                       ) : (

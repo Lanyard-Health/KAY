@@ -599,22 +599,22 @@ export function ProviderEnrollments({ providerId }: ProviderEnrollmentsProps) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {enrollment.effectiveDate
-                          ? new Date(enrollment.effectiveDate).toLocaleDateString()
+                          ? new Date(enrollment.effectiveDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
                           : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {enrollment.terminationDate
-                          ? new Date(enrollment.terminationDate).toLocaleDateString()
+                          ? new Date(enrollment.terminationDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
                           : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {enrollment.lastFollowUpDate
-                          ? new Date(enrollment.lastFollowUpDate).toLocaleDateString()
+                          ? new Date(enrollment.lastFollowUpDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
                           : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                         {enrollment.recredentialingDate
-                          ? new Date(enrollment.recredentialingDate).toLocaleDateString()
+                          ? new Date(enrollment.recredentialingDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
                           : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
