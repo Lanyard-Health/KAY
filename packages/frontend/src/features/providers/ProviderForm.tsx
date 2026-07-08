@@ -193,6 +193,7 @@ export default function ProviderForm() {
     []
   );
   const [npiLookupModalOpen, setNpiLookupModalOpen] = useState(false);
+  const [locationCreated, setLocationCreated] = useState<boolean | null>(null);
   const [npiLookupResult, setNpiLookupResult] = useState<NPILookupResult | null>(null);
   const [npiLookupLoading, setNpiLookupLoading] = useState(false);
   const [medicareEnrollment, setMedicareEnrollment] = useState<MedicareEnrollmentResult | null>(null);
@@ -258,6 +259,26 @@ export default function ProviderForm() {
     clearPersistedDocs();
   };
 
+  // A finished run clears the form values but a later setCurrentStep re-persists
+  // the step. If the user left without clicking "Go to Provider Profile", the next
+  // visit restores step 3/4 with an empty form — a blank Review the user can't
+  // submit from. No persisted values on a step past 1 means stale state: start over.
+  useEffect(() => {
+    if (isEditing || currentStep <= 1) return;
+    let hasValues = false;
+    try {
+      hasValues = !!sessionStorage.getItem(`form:${persistKey}:values`);
+    } catch {
+      /* ignore */
+    }
+    if (!hasValues) {
+      clearPersistedForm();
+      setCurrentStep(1);
+      setUploadedDocs([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'mobilePhone') => {
     const formatted = formatPhoneNumber(e.target.value);
     setValue(field, formatted, { shouldValidate: true });
@@ -318,9 +339,11 @@ export default function ProviderForm() {
               ...(formValues.groupNpi && { groupNpi: formValues.groupNpi }),
               ...(formValues.taxId && { taxId: formValues.taxId }),
             });
+            setLocationCreated(true);
             const source = npiLoc ? 'NPI registry' : 'practice';
             toast.success(`Provider created with address from ${source}! Now upload documents.`);
           } catch (err) {
+            setLocationCreated(false);
             console.error('Failed to create practice location:', err);
             toast.success('Provider created! Practice location could not be added automatically.');
           }
@@ -452,6 +475,7 @@ export default function ProviderForm() {
   };
 
   const finishWizard = () => {
+    clearPersistedForm();
     toast.success('Provider setup complete!');
     navigate(`/providers/${createdProviderId}`);
   };
@@ -1101,8 +1125,8 @@ export default function ProviderForm() {
                 </div>
               </div>
 
-              {/* Practice Location (if imported from NPI) */}
-              {npiLookupResult?.found && npiLookupResult.practiceLocation && (
+              {/* Practice Location (if imported from NPI) — only claim success when the save succeeded */}
+              {npiLookupResult?.found && npiLookupResult.practiceLocation && locationCreated === true && (
                 <div>
                   <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                     <CheckCircleIcon className="h-5 w-5 text-green-500" />
@@ -1120,6 +1144,18 @@ export default function ProviderForm() {
                     {npiLookupResult.practiceLocation.phone && (
                       <p className="text-gray-500 mt-1">Phone: {npiLookupResult.practiceLocation.phone}</p>
                     )}
+                  </div>
+                </div>
+              )}
+              {locationCreated === false && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <span className="h-5 w-5 rounded-full border-2 border-yellow-400" />
+                    Practice Location Not Added
+                  </h4>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-gray-700">
+                    The practice location could not be saved automatically. You can add it from the
+                    provider's profile page after finishing.
                   </div>
                 </div>
               )}

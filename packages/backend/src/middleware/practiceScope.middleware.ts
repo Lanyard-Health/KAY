@@ -110,9 +110,12 @@ export async function requirePracticeProvider(
 
     const practiceIds = req.practiceScope?.practiceIds ?? [];
 
-    // If provider has no practice assigned, only admins and the provider themselves can access
+    // If provider has no practice assigned, only admins, Lanyard staff, and the
+    // provider themselves can access. lanyard_staff services every practice and
+    // creates providers that start unassigned (e.g. the Add Provider wizard's
+    // practice-location step) — an unassigned provider has no tenant to isolate.
     if (!provider.practiceId) {
-      if (req.user?.role === 'admin') return next();
+      if (req.user?.role === 'admin' || req.user?.role === 'lanyard_staff') return next();
       if (req.user?.role === 'provider' && req.user?.providerId === providerId) return next();
 
       // Carve-out: claiming an unassigned provider INTO a practice the caller is scoped to.
