@@ -351,7 +351,15 @@ export default function PracticeSignupPage() {
       } else {
         const { login } = useAuthStore.getState();
         await login(form.email, form.password);
-        navigate('/onboarding/clinical-profile');
+        if (useAuthStore.getState().challengeName) {
+          // MFA challenge pending: the user is not authenticated yet, so a
+          // guarded route would bounce them and kill the in-flight Cognito
+          // sign-in ("signIn was not called before confirmSignIn", ENG-250).
+          // LoginPage owns the challenge UI and picks it up from the store.
+          navigate('/login');
+        } else {
+          navigate('/onboarding/clinical-profile');
+        }
       }
     } catch {
       toast.error('Registration failed. Please try again.');
