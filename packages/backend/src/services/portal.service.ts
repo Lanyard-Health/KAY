@@ -187,7 +187,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
   // Send email notification to admin (non-blocking)
   const adminEmail = process.env['ADMIN_EMAIL'];
   if (adminEmail && emailService.isConfigured()) {
-    const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+    const appUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
     emailService.sendEmail({
       to: adminEmail,
       subject: `New Provider Application: ${data.firstName} ${data.lastName}`,
@@ -382,7 +382,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
 
     // 9. Send welcome email (non-blocking)
     if (emailService.isConfigured()) {
-      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      const appUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
       emailService.sendEmail({
         to: data.email,
         subject: 'Welcome to Lanyard Health',
@@ -530,7 +530,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
 
     // Send "verified" email (no temp password mention)
     if (emailService.isConfigured()) {
-      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      const appUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
       emailService.sendEmail({
         to: application.email,
         subject: 'Account Verified — Lanyard Health',
@@ -672,7 +672,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
 
     // 3. Send approval email to provider (non-blocking)
     if (emailService.isConfigured()) {
-      const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+      const appUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
       emailService.sendEmail({
         to: application.email,
         subject: 'Application Approved — Lanyard Health',
@@ -748,7 +748,7 @@ export async function rejectApplication(id: string, reviewedBy: string, notes: s
 
   // Send rejection email (non-blocking)
   if (emailService.isConfigured()) {
-    const appUrl = process.env['APP_URL'] || 'http://localhost:5190';
+    const appUrl = process.env['FRONTEND_URL'] || 'http://localhost:5190';
     emailService.sendEmail({
       to: application.email,
       subject: 'Application Update — Lanyard Health',
