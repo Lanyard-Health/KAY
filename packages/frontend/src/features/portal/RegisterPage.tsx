@@ -487,7 +487,8 @@ export default function RegisterPage() {
                 <p className="mt-1 text-sm text-red-300">{errors.caqhProviderId}</p>
               ) : (
                 <p className="mt-1 text-xs text-white/50">
-                  With your CAQH ID we can import your profile and documents automatically.
+                  With your CAQH ID we'll import your profile and documents automatically
+                  once your account is approved — no need to re-enter them.
                   Don't have one? Leave blank — we'll help you set it up later.
                 </p>
               )}
