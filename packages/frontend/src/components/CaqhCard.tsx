@@ -6,6 +6,7 @@ import { Menu, Transition } from '@headlessui/react';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
 import ConfirmDialog from './ConfirmDialog';
+import CaqhNotReadyModal from './ui/CaqhNotReadyModal';
 import {
   useCaqhCredentialStatus,
   useSaveCaqhCredentials,
@@ -29,6 +30,9 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   const [showSyncHistory, setShowSyncHistory] = useState(false);
   const [syncHistoryPage, setSyncHistoryPage] = useState(1);
   const [removeRosterConfirm, setRemoveRosterConfirm] = useState(false);
+  // Non-null = the import pre-flight found the provider not roster-ready; holds
+  // the missing-field codes shown in CaqhNotReadyModal.
+  const [notReadyFields, setNotReadyFields] = useState<string[] | null>(null);
 
   const queryClient = useQueryClient();
   const { data: credentialStatusData, isLoading: isLoadingCredentials } = useCaqhCredentialStatus(providerId);
@@ -95,10 +99,22 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   // if the provider isn't roster-ready.
   const importMutation = useMutation({
     mutationFn: async () => {
+      // Pre-flight: mirror the background job's roster-readiness check so an
+      // incomplete provider gets a clear on-screen explanation instead of a
+      // failed worker alert. Runs inside mutationFn so isPending covers it.
+      const readinessRes = await api.get(`/caqh/roster-readiness/${providerId}`);
+      const readiness = (readinessRes.data as { data: { ready: boolean; missingFields: string[] } }).data;
+      if (!readiness.ready) {
+        return { notReady: true, missingFields: readiness.missingFields };
+      }
       const response = await api.post(`/caqh/import/${providerId}`);
       return response.data.data;
     },
-    onSuccess: (data: { deduplicated?: boolean }) => {
+    onSuccess: (data: { notReady?: boolean; missingFields?: string[]; deduplicated?: boolean }) => {
+      if (data?.notReady) {
+        setNotReadyFields(data.missingFields ?? []);
+        return;
+      }
       toast.success(
         data?.deduplicated
           ? 'An import is already running for this provider'
@@ -535,6 +551,12 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
         confirmLabel="Remove"
         variant="danger"
         isLoading={removeFromRoster.isPending}
+      />
+
+      <CaqhNotReadyModal
+        isOpen={notReadyFields !== null}
+        onClose={() => setNotReadyFields(null)}
+        missingFields={notReadyFields ?? []}
       />
     </div>
   );
