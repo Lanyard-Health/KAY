@@ -259,40 +259,12 @@ describe('computeHealthScore', () => {
     });
   });
 
-  // ─── Revenue at risk ────────────────────────────────────────────────
-
-  describe('revenue at risk', () => {
-    it('calculates revenue at risk as (totalProviders - providersWithCreds) * $2500', async () => {
-      mockCounts({
-        totalProviders: 10,
-        providersWithCreds: 8,
-      });
-
-      const result = await computeHealthScore();
-
-      // (10 - 8) * 2500 = 5000
-      expect(result.revenueAtRisk).toBe(5000);
-    });
-
-    it('returns 0 revenue at risk when all providers are credentialed', async () => {
-      mockCounts({
-        totalProviders: 10,
-        providersWithCreds: 10,
-      });
-
-      const result = await computeHealthScore();
-
-      expect(result.revenueAtRisk).toBe(0);
-    });
-  });
-
   // ─── Caching ────────────────────────────────────────────────────────
 
   describe('caching', () => {
     it('returns cached result when available', async () => {
       const cachedResult = {
         credentialingHealthScore: 85,
-        revenueAtRisk: 7500,
         aiActionsToday: 3,
         trendData: { providers7d: [1, 2, 3, 4, 5, 6, 7], enrollments7d: [2, 3, 4, 5, 6, 7, 8] },
         breakdown: {
@@ -336,7 +308,6 @@ describe('computeHealthScore', () => {
 
       expect(result).toEqual({
         credentialingHealthScore: 0,
-        revenueAtRisk: 0,
         aiActionsToday: 0,
         trendData: { providers7d: [], enrollments7d: [] },
         breakdown: {
