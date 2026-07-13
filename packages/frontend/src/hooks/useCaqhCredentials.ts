@@ -131,6 +131,12 @@ export function getCredentialStatusColor(status: CaqhCredentialStatus): string {
 }
 
 /**
- * CAQH ProView login URL
+ * CAQH ProView login URL (provider-facing)
  */
 export const CAQH_PROVIEW_URL = 'https://proview.caqh.org/Login';
+
+/**
+ * CAQH ProView Participating Organization login URL — for Lanyard admin /
+ * credentialing staff managing the roster. Distinct from the provider login above.
+ */
+export const CAQH_PROVIEW_PO_URL = 'https://proview.caqh.org/Login?Type=PO';

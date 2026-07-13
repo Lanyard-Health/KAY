@@ -39,6 +39,7 @@ vi.mock('../services/caqh.service.js', async () => {
     CaqhService: vi.fn().mockImplementation(function () {
       return {
         addToRoster: vi.fn(),
+        checkRosterReadiness: vi.fn(),
         removeFromRoster: vi.fn(),
         checkStatus: vi.fn(),
         pullCredentials: vi.fn(),
@@ -225,6 +226,42 @@ describe('CAQH Routes', () => {
   // ==========================================
   // ROSTER ROUTES
   // ==========================================
+  describe('GET /roster-readiness/:providerId', () => {
+    const validProviderId = '00000000-0000-4000-a000-000000000001';
+
+    it('returns ready:true for a complete provider', async () => {
+      caqhServiceInstance.checkRosterReadiness.mockResolvedValue({
+        ready: true,
+        missingFields: [],
+        caqhType: 'MD',
+        practiceState: 'GA',
+      });
+
+      const res = await request(app).get(`/roster-readiness/${validProviderId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual({ ready: true, missingFields: [] });
+      expect(caqhServiceInstance.checkRosterReadiness).toHaveBeenCalledWith(validProviderId);
+    });
+
+    it('returns ready:false with missingFields for an incomplete provider', async () => {
+      caqhServiceInstance.checkRosterReadiness.mockResolvedValue({
+        ready: false,
+        missingFields: ['practice_location_missing', 'practiceState'],
+      });
+
+      const res = await request(app).get(`/roster-readiness/${validProviderId}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual({
+        ready: false,
+        missingFields: ['practice_location_missing', 'practiceState'],
+      });
+    });
+  });
+
   describe('POST /roster', () => {
     const validProviderId = '00000000-0000-4000-a000-000000000001';
 

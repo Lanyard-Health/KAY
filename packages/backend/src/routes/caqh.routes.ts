@@ -95,6 +95,24 @@ caqhRoutes.post(
   }
 );
 
+// GET /api/v1/caqh/roster-readiness/:providerId — pre-flight for the Import
+// button: mirrors the roster-add resolver's required-field checks without
+// sending anything to CAQH (DB reads only; works even if CAQH creds are unset).
+caqhRoutes.get(
+  '/roster-readiness/:providerId',
+  requireProviderAccess,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { ready, missingFields } = await caqhService.checkRosterReadiness(
+        req.params['providerId']!
+      );
+      res.json({ success: true, data: { ready, missingFields } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /api/v1/caqh/import/:providerId — CAQH-first onboarding: enqueue the
 // background import job (roster-add → status check → full profile sync).
 // Returns 202 immediately; progress is visible via provider.caqhImportStatus.
