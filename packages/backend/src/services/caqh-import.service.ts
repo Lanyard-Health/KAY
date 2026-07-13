@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { CaqhService, CaqhDuplicateException } from './caqh.service.js';
+import { CaqhService, CaqhDuplicateException, ProviderNotReadyForCaqhError } from './caqh.service.js';
 import { renderProviderActionEmail } from './email-templates.js';
 import { importCaqhDocuments } from './caqh-document-import.service.js';
 import { emailService } from './email.service.js';
@@ -23,6 +23,39 @@ function getCaqhService(): CaqhService {
 }
 
 type WaitingReason = 'waiting_authorization' | 'waiting_attestation';
+
+/**
+ * Staff-facing labels for the roster resolver's missing-field codes (mirrors
+ * the map in CaqhNotReadyModal.tsx). Unknown codes degrade to spaced lowercase
+ * words, never raw snake_case.
+ */
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  practice_location_missing: 'a practice location',
+  practiceState: 'a practice state',
+  address1: 'a practice address line',
+  city: 'a practice city',
+  state: 'a practice state',
+  zip: 'a practice ZIP code',
+  npi: 'an NPI number',
+  firstName: 'a first name',
+  lastName: 'a last name',
+  dateOfBirth: 'a date of birth',
+  provider_not_found: 'a provider profile',
+};
+
+function humanizeMissingFields(codes: string[]): string {
+  const labels = codes.map((code) => {
+    if (MISSING_FIELD_LABELS[code]) return MISSING_FIELD_LABELS[code];
+    if (code.startsWith('provider_type_')) return 'a recognized provider type or taxonomy';
+    return code
+      .replace(/\s*\(.*\)$/, '')
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .trim();
+  });
+  return [...new Set(labels)].join(', ');
+}
 
 async function setImportStatus(
   providerId: string,
@@ -266,6 +299,34 @@ export async function processCaqhImportJob(data: CaqhImportJobData): Promise<{
     logger.info('caqh-import: completed', { providerId: provider.id, syncId, trigger: data.trigger });
     return { outcome: 'completed', syncId };
   } catch (error) {
+    // An incomplete provider profile is an expected business outcome, not a
+    // system failure: retries can't fix missing data, and a failed BullMQ job
+    // pages Slack. Record a plain-English reason, tell admins in-app what to
+    // add, and complete the job quietly.
+    if (error instanceof ProviderNotReadyForCaqhError) {
+      const missing = humanizeMissingFields(error.missingFields);
+      await setImportStatus(
+        provider.id,
+        'failed',
+        `Provider profile isn't complete enough for CAQH yet — missing: ${missing}.`.slice(0, 500)
+      ).catch((err: unknown) => logger.error('caqh-import: failed to record failure status:', err));
+      notificationService
+        .notifyAdminUsers({
+          type: 'caqh_import_stalled',
+          title: 'CAQH import needs provider info',
+          message: `A CAQH import couldn't start because the provider's profile is missing: ${missing}. Add the missing info on the provider page, then click Import from CAQH.`,
+          actionUrl: `/providers/${provider.id}`,
+          metadata: { providerId: provider.id, missingFields: error.missingFields, trigger: data.trigger },
+        })
+        .catch((err: unknown) => logger.error('caqh-import: failed to notify admins of not-ready provider:', err));
+      logger.info('caqh-import: provider not roster-ready — parked without alerting', {
+        providerId: provider.id,
+        missingFields: error.missingFields,
+        trigger: data.trigger,
+      });
+      return { outcome: 'failed' };
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error';
     await setImportStatus(provider.id, 'failed', message.slice(0, 500)).catch((err: unknown) =>
       logger.error('caqh-import: failed to record failure status:', err)
