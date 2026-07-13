@@ -183,7 +183,6 @@ router.get('/stats', async (req: Request, res: Response) => {
       followUpEngagementCount,
       practiceProfile,
       credentialingHealthScore: healthData.credentialingHealthScore,
-      revenueAtRisk: healthData.revenueAtRisk,
       aiActionsToday: healthData.aiActionsToday,
       trendData: healthData.trendData,
       healthBreakdown: healthData.breakdown,

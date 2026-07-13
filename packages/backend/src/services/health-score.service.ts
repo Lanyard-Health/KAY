@@ -7,7 +7,6 @@ const CACHE_TTL = 300_000; // 5 minutes
 
 export interface HealthScoreResult {
   credentialingHealthScore: number;
-  revenueAtRisk: number;
   aiActionsToday: number;
   trendData: {
     providers7d: number[];
@@ -160,13 +159,8 @@ export async function computeHealthScore(
       completenessPct * 0.10,
     );
 
-    // Revenue at risk: $2,500/month per provider with expired or missing credentials
-    const atRiskProviders = totalProviders - providersWithCreds;
-    const revenueAtRisk = atRiskProviders * 2500;
-
     const result: HealthScoreResult = {
       credentialingHealthScore: Math.max(0, Math.min(100, score)),
-      revenueAtRisk,
       aiActionsToday,
       trendData: {
         providers7d: providers7d,
@@ -186,7 +180,6 @@ export async function computeHealthScore(
     logger.error('Error computing health score:', error);
     return {
       credentialingHealthScore: 0,
-      revenueAtRisk: 0,
       aiActionsToday: 0,
       trendData: { providers7d: [], enrollments7d: [] },
       breakdown: { credentialedPct: 0, activeEnrollmentsPct: 0, expiredCredsPenalty: 0, caqhCurrentPct: 0 },

@@ -11,9 +11,16 @@ const caqhMocks = vi.hoisted(() => ({
   syncProvider: vi.fn(),
 }));
 
-const { MockCaqhDuplicateException } = vi.hoisted(() => {
+const { MockCaqhDuplicateException, MockProviderNotReadyForCaqhError } = vi.hoisted(() => {
   class MockCaqhDuplicateException extends Error {}
-  return { MockCaqhDuplicateException };
+  class MockProviderNotReadyForCaqhError extends Error {
+    missingFields: string[];
+    constructor(missingFields: string[]) {
+      super(`Provider not ready for CAQH roster. Missing/invalid: ${missingFields.join(', ')}`);
+      this.missingFields = missingFields;
+    }
+  }
+  return { MockCaqhDuplicateException, MockProviderNotReadyForCaqhError };
 });
 
 vi.mock('./caqh.service.js', () => ({
@@ -22,6 +29,7 @@ vi.mock('./caqh.service.js', () => ({
     return caqhMocks;
   }),
   CaqhDuplicateException: MockCaqhDuplicateException,
+  ProviderNotReadyForCaqhError: MockProviderNotReadyForCaqhError,
 }));
 
 vi.mock('./email.service.js', () => ({
@@ -198,6 +206,35 @@ describe('processCaqhImportJob', () => {
 
     expect(result.outcome).toBe('failed');
     expect(caqhMocks.checkStatus).not.toHaveBeenCalled();
+  });
+
+  it('handles a not-roster-ready provider gracefully: no rethrow, plain-English status, admin note', async () => {
+    prismaMock.providerProfile.findUnique.mockResolvedValue(provider as any);
+    caqhMocks.checkStatus.mockResolvedValue({ ...attestedStatus, roster_status: 'NOT ON ROSTER' });
+    caqhMocks.addToRoster.mockRejectedValue(
+      new MockProviderNotReadyForCaqhError(['practice_location_missing', 'practiceState'])
+    );
+
+    // Must resolve (not reject) — a rethrow would fail the BullMQ job and page Slack.
+    const result = await processCaqhImportJob({ providerId: 'prov-1', trigger: 'approval', recheckCount: 0 });
+
+    expect(result.outcome).toBe('failed');
+    expect(prismaMock.providerProfile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          caqhImportStatus: 'failed',
+          caqhImportError: expect.stringContaining('a practice location, a practice state'),
+        }),
+      })
+    );
+    expect(notificationService.notifyAdminUsers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'caqh_import_stalled',
+        actionUrl: '/providers/prov-1',
+        message: expect.stringContaining('a practice location, a practice state'),
+      })
+    );
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it('records failure and rethrows on unexpected sync errors so BullMQ retries', async () => {

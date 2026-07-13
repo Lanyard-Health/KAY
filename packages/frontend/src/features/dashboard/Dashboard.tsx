@@ -9,7 +9,6 @@ import {
   ClipboardDocumentListIcon,
   CheckCircleIcon,
   UserCircleIcon,
-  CurrencyDollarIcon,
   SparklesIcon,
   BuildingOfficeIcon,
   BuildingOffice2Icon,
@@ -114,7 +113,6 @@ export default function Dashboard() {
         followUpCount: stats.followUpCount || 0,
         // Phase 2 fields
         credentialingHealthScore: stats.credentialingHealthScore ?? 0,
-        revenueAtRisk: stats.revenueAtRisk ?? 0,
         aiActionsToday: stats.aiActionsToday ?? 0,
         trendData: stats.trendData ?? { providers7d: [], enrollments7d: [] },
         healthBreakdown: stats.healthBreakdown ?? {},
@@ -417,7 +415,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Hero Stats */}
-      <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-4 gap-4">
         <AnimatedCard index={0}>
           <StatCard
             label="Total Providers"
@@ -443,13 +441,6 @@ export default function Dashboard() {
           />
         </AnimatedCard>
         <AnimatedCard index={3}>
-          <StatCard
-            label="Revenue at Risk"
-            value={isLoading ? '-' : `$${((data?.revenueAtRisk ?? 0) / 1000).toFixed(0)}k`}
-            icon={<CurrencyDollarIcon className="h-5 w-5" />}
-          />
-        </AnimatedCard>
-        <AnimatedCard index={4}>
           <StatCard
             label="AI Actions Today"
             value={isLoading ? '-' : data?.aiActionsToday ?? 0}
