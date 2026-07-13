@@ -6,6 +6,7 @@ import {
   PlusIcon,
   MagnifyingGlassIcon,
   ClipboardDocumentCheckIcon,
+  ClockIcon,
   ExclamationCircleIcon,
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -24,7 +25,7 @@ interface ProviderProfile {
   lastName: string;
   email: string;
   providerType: string;
-  status: 'active' | 'inactive' | 'pending';
+  status: 'active' | 'inactive' | 'pending' | 'pending_verification';
   _count: {
     licenses: number;
     boardCertifications: number;
@@ -83,16 +84,21 @@ export default function ProviderList() {
     });
   };
 
-  const statusColors = {
+  // Record<string, …> + fallbacks below: an unmapped ProviderStatus must never
+  // render an undefined component (crashed the whole page for pending_verification).
+  const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-800 border-green-200',
     inactive: 'bg-gray-100 text-gray-800 border-gray-200',
     pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    pending_verification: 'bg-blue-100 text-blue-800 border-blue-200',
   };
+  const defaultStatusColor = 'bg-gray-100 text-gray-800 border-gray-200';
 
-  const statusIcons = {
+  const statusIcons: Record<string, typeof CheckCircleIcon> = {
     active: CheckCircleIcon,
     inactive: ExclamationCircleIcon,
     pending: ClipboardDocumentCheckIcon,
+    pending_verification: ClockIcon,
   };
 
   return (
@@ -223,7 +229,7 @@ export default function ProviderList() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data?.data?.map((provider: ProviderProfile) => {
             const { progress, details } = calculateProgress(provider);
-            const StatusIcon = statusIcons[provider.status];
+            const StatusIcon = statusIcons[provider.status] ?? ExclamationCircleIcon;
 
             return (
               <Link
@@ -264,11 +270,11 @@ export default function ProviderList() {
                     <span
                       className={clsx(
                         'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium capitalize border',
-                        statusColors[provider.status]
+                        statusColors[provider.status] ?? defaultStatusColor
                       )}
                     >
                       <StatusIcon className="h-3.5 w-3.5" />
-                      {provider.status}
+                      {provider.status.replace(/_/g, ' ')}
                     </span>
                     {provider.medicareVerification ? (
                       <span className={clsx(
@@ -346,7 +352,7 @@ export default function ProviderList() {
             <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
               {data?.data?.map((provider: ProviderProfile, index: number) => {
                 const { progress } = calculateProgress(provider);
-                const StatusIcon = statusIcons[provider.status];
+                const StatusIcon = statusIcons[provider.status] ?? ExclamationCircleIcon;
 
                 return (
                   <AnimatedListItem itemKey={provider.id} index={index} as="tr" className="hover:bg-gray-50/50 transition-colors">
@@ -375,11 +381,11 @@ export default function ProviderList() {
                       <span
                         className={clsx(
                           'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium capitalize border',
-                          statusColors[provider.status]
+                          statusColors[provider.status] ?? defaultStatusColor
                         )}
                       >
                         <StatusIcon className="h-3.5 w-3.5" />
-                        {provider.status}
+                        {provider.status.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
