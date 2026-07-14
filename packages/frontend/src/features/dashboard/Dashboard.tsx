@@ -7,15 +7,12 @@ import {
   UserPlusIcon,
   DocumentArrowUpIcon,
   ClipboardDocumentListIcon,
-  CheckCircleIcon,
   UserCircleIcon,
   SparklesIcon,
   BuildingOfficeIcon,
-  BuildingOffice2Icon,
   PhoneArrowUpRightIcon,
   Cog6ToothIcon,
   MapPinIcon,
-  QueueListIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
@@ -102,7 +99,6 @@ export default function Dashboard() {
 
       return {
         totalProviders: stats.totalProviders || 0,
-        activeProviders: stats.activeProviders || 0,
         pendingProviders: stats.pendingProviders || 0,
         activeEnrollments: stats.activeEnrollments || 0,
         incompleteProviders: stats.incompleteProviders || [],
@@ -119,9 +115,6 @@ export default function Dashboard() {
         // Practice view fields
         followUpEngagementCount: stats.followUpEngagementCount ?? 0,
         practiceProfile: stats.practiceProfile ?? null,
-        // Admin-only fields
-        practicesOnboarded: stats.practicesOnboarded ?? null,
-        enterpriseQueuePending: stats.enterpriseQueuePending ?? null,
       };
     },
     // Roles whose surface is a transparency dashboard never need the legacy
@@ -153,11 +146,6 @@ export default function Dashboard() {
       color: 'bg-white/[0.08] hover:bg-white/[0.15] backdrop-blur-sm border border-white/[0.1]',
     },
   ];
-
-  // Credentialed percentage for stat card
-  const credentialedPct = data?.totalProviders
-    ? Math.round((data.activeProviders / data.totalProviders) * 100)
-    : 0;
 
   // Loading state for practice_admin while getting-started query loads
   if (isPracticeAdmin && practiceId && gettingStartedLoading) {
@@ -383,39 +371,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 0: Admin Platform Stats */}
-      <div className="dash-stagger grid grid-cols-2 gap-4">
-        <AnimatedCard index={0}>
-          <StatCard
-            label="Practices Onboarded"
-            value={isLoading ? '-' : data?.practicesOnboarded ?? 0}
-            icon={<BuildingOffice2Icon className="h-5 w-5" />}
-          />
-        </AnimatedCard>
-        <AnimatedCard index={1}>
-          <div className={clsx(
-            'h-full rounded-2xl shadow-sm border p-5 transition-shadow duration-300 hover:shadow-md',
-            (data?.enterpriseQueuePending ?? 0) > 0
-              ? 'bg-amber-50 border-amber-200'
-              : 'bg-white border-gray-200/60',
-          )}>
-            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-              <QueueListIcon className={clsx('h-5 w-5', (data?.enterpriseQueuePending ?? 0) > 0 ? 'text-amber-500' : '')} />
-              <span>Enterprise Queue</span>
-            </div>
-            <p className={clsx(
-              'text-2xl font-bold',
-              (data?.enterpriseQueuePending ?? 0) > 0 ? 'text-amber-700' : 'text-gray-900',
-            )}>
-              {isLoading ? '-' : data?.enterpriseQueuePending ?? 0}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">pending setup</p>
-          </div>
-        </AnimatedCard>
-      </div>
-
       {/* Row 1: Hero Stats */}
-      <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="dash-stagger dash-d1 grid grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatedCard index={0}>
           <StatCard
             label="Total Providers"
@@ -426,21 +383,13 @@ export default function Dashboard() {
         </AnimatedCard>
         <AnimatedCard index={1}>
           <StatCard
-            label="Fully Credentialed"
-            value={isLoading ? '-' : `${credentialedPct}%`}
-            trend={credentialedPct >= 80 ? { value: credentialedPct, label: 'of target' } : undefined}
-            icon={<CheckCircleIcon className="h-5 w-5" />}
-          />
-        </AnimatedCard>
-        <AnimatedCard index={2}>
-          <StatCard
             label="Active Enrollments"
             value={isLoading ? '-' : data?.activeEnrollments ?? 0}
             sparkline={data?.trendData?.enrollments7d}
             icon={<ClipboardDocumentListIcon className="h-5 w-5" />}
           />
         </AnimatedCard>
-        <AnimatedCard index={3}>
+        <AnimatedCard index={2}>
           <StatCard
             label="AI Actions Today"
             value={isLoading ? '-' : data?.aiActionsToday ?? 0}
