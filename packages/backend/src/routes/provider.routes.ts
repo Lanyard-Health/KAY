@@ -175,6 +175,9 @@ providerRoutes.get(
               createdAt: true,
             },
           },
+          // Header stat card counts these — id/status only, the full records
+          // live on the enrollments tab's own endpoint.
+          enrollments: { select: { id: true, status: true } },
           practice: { select: { id: true, name: true, status: true } },
         },
       });
