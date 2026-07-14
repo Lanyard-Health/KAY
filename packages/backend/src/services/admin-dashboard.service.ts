@@ -94,17 +94,22 @@ export function assembleAdminDashboard(
 // Platform-wide fetch — admin/lanyard_staff only (enforced by the route).
 // An enrollment's practice is its own practiceId when set, else its provider's.
 export async function getAdminDashboard(): Promise<AdminDashboardPayload> {
+  const practiceSelect = { id: true, name: true, isDemo: true, deletedAt: true } as const;
   const [activePractices, enrollments] = await Promise.all([
-    prisma.practice.count(),
+    prisma.practice.count({ where: { status: 'ACTIVE', deletedAt: null, isDemo: false } }),
     prisma.enrollment.findMany({
+      where: {
+        isDraft: false,
+        OR: [{ providerId: null }, { provider: { deletedAt: null } }],
+      },
       select: {
         id: true,
         status: true,
         applicationDate: true,
         effectiveDate: true,
         nextFollowUpDate: true,
-        practice: { select: { id: true, name: true } },
-        provider: { select: { practiceId: true, practice: { select: { id: true, name: true } } } },
+        practice: { select: practiceSelect },
+        provider: { select: { practiceId: true, practice: { select: practiceSelect } } },
         payerTrack: {
           select: {
             timelines: { where: { processType: 'Initial' }, select: { minDays: true, maxDays: true }, take: 1 },
@@ -114,9 +119,12 @@ export async function getAdminDashboard(): Promise<AdminDashboardPayload> {
     }),
   ]);
 
-  const rows: AdminEnrollmentRow[] = enrollments.map((e) => {
+  const rows: AdminEnrollmentRow[] = [];
+  for (const e of enrollments) {
     const practice = e.practice ?? e.provider?.practice ?? null;
-    return {
+    // Demo and soft-deleted practices don't count anywhere, not even platform totals.
+    if (practice && (practice.isDemo || practice.deletedAt !== null)) continue;
+    rows.push({
       id: e.id,
       status: e.status,
       applicationDate: e.applicationDate,
@@ -125,8 +133,8 @@ export async function getAdminDashboard(): Promise<AdminDashboardPayload> {
       practiceId: practice?.id ?? null,
       practiceName: practice?.name ?? null,
       timeline: e.payerTrack?.timelines[0] ?? null,
-    };
-  });
+    });
+  }
 
   return assembleAdminDashboard(activePractices, rows, new Date());
 }
