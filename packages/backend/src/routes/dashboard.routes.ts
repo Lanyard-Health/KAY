@@ -157,16 +157,6 @@ router.get('/stats', async (req: Request, res: Response) => {
       });
     }
 
-    // Admin-only platform metrics
-    const isAdmin = req.user?.role === 'admin';
-    let adminMetrics: { practicesOnboarded?: number; enterpriseQueuePending?: number } = {};
-    if (isAdmin) {
-      const [practicesOnboarded, enterpriseQueuePending] = await Promise.all([
-        prisma.practice.count({ where: { status: 'ACTIVE' } }),
-        prisma.enterpriseQueue.count({ where: { status: 'PENDING' } }),
-      ]);
-      adminMetrics = { practicesOnboarded, enterpriseQueuePending };
-    }
 
     // Health score + trends (cached separately at 5min TTL)
     const healthData = await computeHealthScore(practiceFilter);
@@ -186,7 +176,6 @@ router.get('/stats', async (req: Request, res: Response) => {
       aiActionsToday: healthData.aiActionsToday,
       trendData: healthData.trendData,
       healthBreakdown: healthData.breakdown,
-      ...adminMetrics,
     };
 
     setCache(scopedCacheKey, result, CACHE_TTL);
