@@ -62,13 +62,20 @@ export default function TaxonomyAssistant({
     ? ALL_TAXONOMIES[currentTaxonomy] || 'Unknown taxonomy code'
     : null;
 
-  // Check if current taxonomy matches provider type
-  const suggestedCodes = providerType ? TAXONOMY_MAP[providerType] || [] : [];
+  // Check if current taxonomy matches provider type.
+  // The DB enum is lowercase (e.g. "psychologist") while the map keys are
+  // display-cased ("Psychologist") — compare case-insensitively.
+  const mapKey = providerType
+    ? Object.keys(TAXONOMY_MAP).find((k) => k.toLowerCase() === providerType.toLowerCase())
+    : undefined;
+  const suggestedCodes = mapKey ? TAXONOMY_MAP[mapKey] || [] : [];
   const isMatch =
     currentTaxonomy &&
     providerType &&
     suggestedCodes.some((t) => t.code === currentTaxonomy);
-  const isMismatch = currentTaxonomy && providerType && !isMatch;
+  // Only warn when we actually have suggested codes to compare against —
+  // an unmapped provider type is "no opinion", not a mismatch.
+  const isMismatch = currentTaxonomy && providerType && suggestedCodes.length > 0 && !isMatch;
 
   const handleApply = () => {
     if (selectedCode && onUpdate) {
