@@ -65,16 +65,37 @@ describe('TaskDetailPanel', () => {
     );
   });
 
-  it('keeps the status select on COMPLETED after selecting it, even though the task prop is stale', () => {
-    // The old bug: the select read `task.status` directly, so once the
-    // mutation started (isPending flips, causing a re-render) React
-    // re-asserted the stale prop value and the select snapped back to
-    // IN_PROGRESS. Mock the mutation as a no-op that never settles to
-    // simulate that in-flight window.
+  it('keeps the status select on COMPLETED after a re-render with the same stale task prop', () => {
+    // The old bug: the select read `task.status` directly, so any re-render
+    // (e.g. isPending flipping during the mutation) re-asserted the stale
+    // prop value and the select snapped back to IN_PROGRESS. Forcing a
+    // `rerender` with the SAME task object reference reproduces that
+    // re-assertion without needing to fake the mutation's pending state.
     updateMutate.mockImplementation(() => {});
-    renderPanel();
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'COMPLETED' } });
-    expect(screen.getByLabelText('Status')).toHaveValue('COMPLETED');
+    const task = { ...baseTask };
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <MemoryRouter>
+        <TaskDetailPanel task={task} onClose={onClose} />
+      </MemoryRouter>,
+    );
+
+    const statusSelect = screen.getByLabelText('Status');
+    fireEvent.change(statusSelect, { target: { value: 'COMPLETED' } });
+
+    // Re-render with the identical `task` reference to mimic a parent
+    // re-render (e.g. isPending flipping) that does NOT bring fresh data.
+    rerender(
+      <MemoryRouter>
+        <TaskDetailPanel task={task} onClose={onClose} />
+      </MemoryRouter>,
+    );
+
+    expect((statusSelect as HTMLSelectElement).value).toBe('COMPLETED');
+    expect(updateMutate).toHaveBeenCalledWith(
+      { taskId: 't1', data: { status: 'COMPLETED' } },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
   });
 
   it('shows the true assignee name (with "(unavailable)") when they are missing from the assignees list', () => {
