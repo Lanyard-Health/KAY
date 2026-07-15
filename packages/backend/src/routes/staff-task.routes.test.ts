@@ -41,6 +41,7 @@ vi.mock('../services/staff-task.service.js', () => ({
   createStaffTask: vi.fn(),
   claimTask: vi.fn(),
   assertAssignableUser: vi.fn(),
+  notifyAssignee: vi.fn(),
   ASSIGNABLE_ROLES: ['admin', 'lanyard_staff'],
 }));
 
@@ -54,6 +55,10 @@ import * as staffSvc from '../services/staff-task.service.js';
 import { createTestApp } from '../../tests/helpers/test-app.js';
 import { adminUser, staffUser } from '../../tests/helpers/fixtures.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
+
+const TASK_ID = 'task-1-id';
+const PROVIDER_ID = '11111111-1111-4111-a111-111111111111';
+const STAFF_USER_UUID = '00000000-0000-4000-a000-000000000099';
 
 describe('GET /tasks (staff list)', () => {
   beforeEach(() => {
@@ -183,6 +188,164 @@ describe('Provider-less tasks (null providerId) fail closed to internal roles', 
       .send({ status: 'COMPLETED' });
 
     expect(res.status).toBe(404);
+    expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /tasks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('creates a staff task without a provider', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockResolvedValue({ id: 't1', title: 'Update payer sheet' } as any);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post('/tasks').send({ title: 'Update payer sheet', priority: 'LOW' });
+    expect(res.status).toBe(201);
+  });
+
+  it('400s when two record links are sent', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockRejectedValue(new Error('MULTIPLE_LINKS'));
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post('/tasks').send({ title: 'x', priority: 'NORMAL', providerId: PROVIDER_ID, practiceId: PROVIDER_ID });
+    expect(res.status).toBe(400);
+  });
+
+  it('400s when assignee is not admin/lanyard_staff', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockRejectedValue(new Error('ASSIGNEE_NOT_ALLOWED'));
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post('/tasks').send({ title: 'x', priority: 'NORMAL', assignedToId: STAFF_USER_UUID });
+    expect(res.status).toBe(400);
+  });
+
+  it('403s when a credentialing_staff (practice-side) user tries to create a staff task', async () => {
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
+    const res = await request(app).post('/tasks').send({ title: 'x' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /tasks/:taskId/claim', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('409s when already claimed', async () => {
+    vi.mocked(staffSvc.claimTask).mockResolvedValue(false);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post(`/tasks/${TASK_ID}/claim`);
+    expect(res.status).toBe(409);
+  });
+
+  it('200s and returns the claim when successful', async () => {
+    vi.mocked(staffSvc.claimTask).mockResolvedValue(true);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post(`/tasks/${TASK_ID}/claim`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ taskId: TASK_ID, assignedToId: adminUser.id });
+  });
+});
+
+describe('DELETE /tasks/:taskId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('403s when a lanyard_staff user deletes a task they did not create', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ id: TASK_ID, createdById: 'someone-else' } as any);
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).delete(`/tasks/${TASK_ID}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('204s when the creator deletes their own task', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ id: TASK_ID, createdById: staffUser.id } as any);
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).delete(`/tasks/${TASK_ID}`);
+    expect(res.status).toBe(204);
+    expect(prismaMock.task.delete).toHaveBeenCalledWith({ where: { id: TASK_ID } });
+  });
+
+  it('204s when an admin deletes a task created by someone else', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ id: TASK_ID, createdById: 'someone-else' } as any);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).delete(`/tasks/${TASK_ID}`);
+    expect(res.status).toBe(204);
+  });
+
+  it('404s when the task does not exist', async () => {
+    prismaMock.task.findUnique.mockResolvedValue(null);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).delete(`/tasks/${TASK_ID}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+// ==========================================
+// PATCH /tasks/:taskId — staff-only field guard + assignee validation/auto-status
+// (staff/pool tasks only — providerId null; provider-linked tasks keep their
+// pre-existing assignedToId behavior, covered by task.routes.test.ts)
+// ==========================================
+describe('PATCH /tasks/:taskId (staff/pool task assignment)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('403s when credentialing_staff touches a staff-only field (priority)', async () => {
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ priority: 'HIGH' });
+    expect(res.status).toBe(403);
+    expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
+
+  it('auto-sets IN_PROGRESS and notifies when assigning a pending pool task', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({
+      id: TASK_ID, providerId: null, status: 'PENDING', assignedToId: null, title: 'Pool task',
+    } as any);
+    prismaMock.task.update.mockResolvedValue({ id: TASK_ID, status: 'IN_PROGRESS', assignedToId: STAFF_USER_UUID } as any);
+    vi.mocked(staffSvc.assertAssignableUser).mockResolvedValue(undefined);
+
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ assignedToId: STAFF_USER_UUID });
+
+    expect(res.status).toBe(200);
+    expect(staffSvc.assertAssignableUser).toHaveBeenCalledWith(STAFF_USER_UUID);
+    expect(prismaMock.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assignedToId: STAFF_USER_UUID, status: 'IN_PROGRESS' }),
+      })
+    );
+    expect(staffSvc.notifyAssignee).toHaveBeenCalledWith(STAFF_USER_UUID, TASK_ID, 'Pool task');
+  });
+
+  it('auto-sets PENDING when unassigning back to the pool', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({
+      id: TASK_ID, providerId: null, status: 'IN_PROGRESS', assignedToId: 'some-user-id', title: 'Pool task',
+    } as any);
+    prismaMock.task.update.mockResolvedValue({ id: TASK_ID, status: 'PENDING', assignedToId: null } as any);
+
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ assignedToId: null });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assignedToId: null, status: 'PENDING' }),
+      })
+    );
+    expect(staffSvc.notifyAssignee).not.toHaveBeenCalled();
+  });
+
+  it('400s when the new assignee is not an allowed staff user', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({
+      id: TASK_ID, providerId: null, status: 'PENDING', assignedToId: null, title: 'Pool task',
+    } as any);
+    vi.mocked(staffSvc.assertAssignableUser).mockRejectedValue(new Error('ASSIGNEE_NOT_ALLOWED'));
+
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ assignedToId: STAFF_USER_UUID });
+
+    expect(res.status).toBe(400);
     expect(prismaMock.task.update).not.toHaveBeenCalled();
   });
 });

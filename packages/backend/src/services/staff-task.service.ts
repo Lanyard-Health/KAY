@@ -36,7 +36,7 @@ function assertSingleLink(input: Pick<CreateStaffTaskInput, 'providerId' | 'prac
   if (links.length > 1) throw new Error('MULTIPLE_LINKS');
 }
 
-function notifyAssignee(userId: string, taskId: string, title: string) {
+export function notifyAssignee(userId: string, taskId: string, title: string) {
   prisma.inAppNotification.create({
     data: {
       userId, type: 'system_announcement',
