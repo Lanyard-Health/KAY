@@ -5,6 +5,8 @@ import { authenticate, authorize, requireProviderAccess } from '../middleware/au
 import { ForbiddenError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import { createTask } from '../services/task.service.js';
+import { listStaffTasks, getMyTaskCounts, listAssignees } from '../services/staff-task.service.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
@@ -13,7 +15,7 @@ async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { providerId: true } });
     if (!t) return;
-    if (!(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
+    if (t.providerId && !(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
     return;
   }
 
@@ -122,6 +124,41 @@ router.post(
 );
 
 // ==========================================
+// STAFF TASK ROUTES (internal team only — not practice credentialing_staff)
+// ==========================================
+
+const staffOnly = authorize(...ADMIN_ROLES, 'lanyard_staff'); // internal team ONLY — not practice credentialing_staff
+
+const listTasksQuerySchema = z.object({
+  view: z.enum(['my', 'pool', 'all']).default('my'),
+  status: z.enum(['open', 'completed', 'all']).default('open'),
+  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+  practiceId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+router.get('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const q = listTasksQuerySchema.parse(req.query);
+    const { tasks, total } = await listStaffTasks({ ...q, userId: req.user!.id });
+    res.json({ success: true, data: tasks, meta: { total } });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/counts', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await getMyTaskCounts(req.user!.id) });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await listAssignees() });
+  } catch (error) { next(error); }
+});
+
+// ==========================================
 // INDIVIDUAL TASK ROUTES
 // ==========================================
 
@@ -183,7 +220,7 @@ router.patch(
         });
       }
 
-      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
+      if (existing.providerId && !(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Task not found' },
