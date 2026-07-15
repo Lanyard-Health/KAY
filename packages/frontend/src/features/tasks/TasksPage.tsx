@@ -11,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import LoadingState from '../../components/ui/LoadingState';
 import ErrorState from '../../components/ui/ErrorState';
 import { notify } from '../../utils/notify';
+import NewTaskModal from './NewTaskModal';
 
 const VIEWS = [
   { key: 'my' as const, label: 'My Tasks' },
@@ -219,7 +220,7 @@ export default function TasksPage() {
           </>
         )}
       </div>
-      {isNewTaskOpen && null /* Task 8 mounts <NewTaskModal isOpen={isNewTaskOpen} onClose={...} /> here */}
+      <NewTaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
       {selectedTask && null /* Task 9 mounts <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} /> here */}
     </div>
   );
