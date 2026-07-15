@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
-import { ForbiddenError } from '../middleware/error.middleware.js';
+import { ForbiddenError, NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import { createTask } from '../services/task.service.js';
 import { listStaffTasks, getMyTaskCounts, listAssignees } from '../services/staff-task.service.js';
@@ -15,7 +15,14 @@ async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { providerId: true } });
     if (!t) return;
-    if (t.providerId && !(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
+    if (!t.providerId) {
+      // Provider-less tasks are internal-only (admin/lanyard_staff). Fail closed:
+      // 404 (not 403) so a practice-side credentialing_staff can't even confirm
+      // the task exists.
+      if (role === 'lanyard_staff') return;
+      throw new NotFoundError('Task');
+    }
+    if (!(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
     return;
   }
 
@@ -220,7 +227,18 @@ router.patch(
         });
       }
 
-      if (existing.providerId && !(await validateProviderPracticeAccess(req, existing.providerId))) {
+      if (!existing.providerId) {
+        // Provider-less tasks are internal-only (admin/lanyard_staff). Fail closed:
+        // 404 (not 403) so a practice-side credentialing_staff can't even confirm
+        // the task exists.
+        const internalRole = req.user!.role === 'admin' || req.user!.role === 'lanyard_staff';
+        if (!internalRole) {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Task not found' },
+          });
+        }
+      } else if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Task not found' },
