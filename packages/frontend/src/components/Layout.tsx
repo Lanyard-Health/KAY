@@ -32,6 +32,7 @@ import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
 import ApprovalToasts from './ApprovalToasts';
+import TaskAssignmentToasts from './TaskAssignmentToasts';
 import { useSearch } from '../hooks/useSearch';
 import { useOcrReviewCount } from '../hooks/useOcrReviewCount';
 import { useTaskCounts } from '../hooks/useStaffTasks';
@@ -420,6 +421,7 @@ export default function Layout() {
         </footer>
       </div>
       <ApprovalToasts />
+      <TaskAssignmentToasts />
     </div>
   );
 }
