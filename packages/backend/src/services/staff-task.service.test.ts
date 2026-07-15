@@ -5,7 +5,7 @@ vi.mock('../utils/prisma.js', async () => {
 });
 vi.mock('../utils/logger.js', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { assertAssignableUser, createStaffTask, claimTask } from './staff-task.service.js';
+import { assertAssignableUser, createStaffTask, claimTask, listStaffTasks } from './staff-task.service.js';
 
 const USER_ID = '00000000-0000-4000-a000-000000000001';
 const TASK_ID = '00000000-0000-4000-a000-000000000002';
@@ -44,5 +44,19 @@ describe('claimTask', () => {
     expect(prismaMock.task.updateMany.mock.calls[0][0].where).toEqual(
       expect.objectContaining({ assignedToId: null })
     );
+  });
+});
+
+describe('listStaffTasks', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('sorts the full window before paginating (urgent no-due-date beats normal with due date)', async () => {
+    const normal = { id: 'n1', priority: 'NORMAL', status: 'PENDING', dueDate: new Date('2026-07-20'), createdAt: new Date() };
+    const urgent = { id: 'u1', priority: 'URGENT', status: 'PENDING', dueDate: null, createdAt: new Date() };
+    const overdue = { id: 'o1', priority: 'LOW', status: 'PENDING', dueDate: new Date('2026-07-01'), createdAt: new Date() };
+    prismaMock.task.findMany.mockResolvedValue([normal, urgent, overdue] as any);
+    prismaMock.task.count.mockResolvedValue(3 as any);
+    const { tasks } = await listStaffTasks({ view: 'all', userId: 'u', limit: 2, offset: 0 });
+    expect(tasks.map((t: any) => t.id)).toEqual(['o1', 'u1']); // overdue first, then urgent; NORMAL pushed to page 2
+    expect(prismaMock.task.findMany.mock.calls[0][0]).not.toHaveProperty('skip'); // slicing happens after the sort, not in the DB
   });
 });

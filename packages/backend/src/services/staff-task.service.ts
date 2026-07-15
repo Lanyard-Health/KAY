@@ -86,19 +86,20 @@ export async function listStaffTasks(opts: ListStaffTasksOptions) {
   if (opts.priority) where['priority'] = opts.priority;
   if (opts.practiceId) where['practiceId'] = opts.practiceId;
 
-  const [tasks, total] = await Promise.all([
+  // ponytail: full-window in-memory sort (bounded); switch to raw SQL ordering if open tasks ever exceed the window
+  const MAX_SORT_WINDOW = 1000;
+
+  const [rows, total] = await Promise.all([
     prisma.task.findMany({
       where, include: TASK_INCLUDE,
-      orderBy: [{ dueDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
-      take: opts.limit, skip: opts.offset,
+      orderBy: { createdAt: 'desc' },
+      take: MAX_SORT_WINDOW,
     }),
     prisma.task.count({ where }),
   ]);
 
-  // ponytail: in-page sort (overdue first, then priority rank) on the fetched window;
-  // move to raw SQL ordering if pages ever feel wrong at large volumes.
   const now = Date.now();
-  tasks.sort((a, b) => {
+  rows.sort((a, b) => {
     const aOver = a.dueDate && a.dueDate.getTime() < now && a.status !== 'COMPLETED' ? 0 : 1;
     const bOver = b.dueDate && b.dueDate.getTime() < now && b.status !== 'COMPLETED' ? 0 : 1;
     if (aOver !== bOver) return aOver - bOver;
@@ -106,6 +107,7 @@ export async function listStaffTasks(opts: ListStaffTasksOptions) {
     if (pr !== 0) return pr;
     return (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity);
   });
+  const tasks = rows.slice(opts.offset, opts.offset + opts.limit);
   return { tasks, total };
 }
 
