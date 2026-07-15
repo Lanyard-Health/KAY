@@ -1,0 +1,11 @@
+{
+  "name": "expirations-clip",
+  "tagline": "Nothing lapses silently.",
+  "segments": [
+    {
+      "scene": "clip-expirations",
+      "text": "Every credentialing lapse starts the same way: a renewal date nobody was watching. Lanyard watches all of them. Re-attestations, sorted by urgency — overdue, due soon, on track. Licenses and board certifications on a ninety-day forecast, so nothing sneaks up on you. No spreadsheet. No sticky notes. Nothing lapses silently."
+    },
+    { "scene": "closing", "text": "Lanyard Health. Nothing lapses silently." }
+  ]
+}
