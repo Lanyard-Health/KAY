@@ -39,6 +39,8 @@ Extend `task.routes.ts` (keep existing endpoints backward-compatible for Provide
 - `GET /tasks` — cross-practice list with filters: `assignedToId` (incl. `me` and `unassigned`), `status`, `priority`, `practiceId`. Auth: `admin` + `lanyard_staff` role-gates only, mirroring how other staff routes do it (check the sibling-route allow-list pattern — the "insufficient permissions" 403 class of bug).
 - `POST /tasks` — create without requiring a provider; accepts optional provider/practice/enrollment link, priority, assignee.
 - `PATCH /tasks/:id` — status changes, reassignment, claim (set assignee to self), priority/due-date edits.
+  - **Auto-status:** claiming a task or being assigned one sets status to `IN_PROGRESS` automatically (Kay decision 2026-07-15). Nobody maintains status by hand; manual override remains possible from the detail panel.
+  - **Claim conflict:** claim uses an atomic conditional update (only succeeds if still unassigned). Loser gets a 409 and the UI shows "Someone else just claimed this" and removes the row.
 - `DELETE /tasks/:id` — creator or admin only.
 - On assignment (create-with-assignee or reassign), write a notification record for the assignee via the existing notification system. No notification when someone claims their own task.
 
@@ -51,9 +53,19 @@ Three tabs:
 - **Task Pool**: unassigned tasks, one-click **Claim**. Visible to admin + lanyard_staff only (like the whole page — no practice role ever sees it).
 - **All Tasks**: every open task with assignee column — the oversight view. Visible to both roles.
 
-Row contents: title, priority badge, linked-record chip (click → that provider / practice / enrollment page), due date (red when overdue), assignee, status. Filters: status, priority, practice. Completed tasks hidden by default behind a filter toggle.
+Row contents: title, priority badge, linked-record chip (click → that provider / practice / enrollment page), due date (red when overdue), assignee, status. Filters: status, priority, practice. Completed tasks hidden by default behind a real toggle switch whose on/off state is visible. Task Pool rows also show "Added N days ago" so stale unclaimed work is visible. Claim is available on unassigned rows in **every** tab, not just Task Pool. Claiming shows an in-place "Claimed ✓ · Undo" affordance (undo window ~5s). Lists over 50 rows get a "Load more" control.
 
-**New Task** modal: title, description, priority (default Normal), due date, assign-to dropdown of admin + lanyard_staff users (or "Leave in Task Pool"), and an optional attach-record search (provider / practice / enrollment).
+**Task detail panel (required — findings from 2026-07-15 UX critique):** clicking a task title/row opens a slide-over panel from the right (the app's existing pattern) showing description, linked record, status control (manual override of the auto-status), assignee with reassign dropdown, priority + due date editing, activity trail (created by/when, claimed, completed), Complete, and Delete-with-confirm. This is the only place Delete appears. Without this panel the description field is write-only; it is not optional.
+
+**New Task** modal: title, description, priority (default Normal), due date, assign-to dropdown of admin + lanyard_staff users (or "Leave in Task Pool"), and an optional attach-record search (provider / practice / enrollment). Title is required with an inline validation message; Create does not close the modal on validation failure. Closing with typed content asks before discarding.
+
+**Efficiency layer (v1):** bulk select via hover checkboxes with a floating action bar (assign, priority, complete); keyboard shortcuts (j/k rows, e complete, c claim, n new task) extending the existing command-palette vocabulary.
+
+**States (v1, all using the existing LoadingState/ErrorState/EmptyState components):** skeleton rows while loading; claim-conflict toast; empty states for My Tasks, Task Pool, and empty filter results; network-error state.
+
+**Accessibility (WCAG AA):** no text under 13px lighter than #6b7280 on white; sidebar group labels at ≥55% white; complete-circle uses `aria-pressed` and updates its label; modal traps focus and returns it to the trigger on close; tabs support arrow keys; toast actions are keyboard-focusable. Mobile: rows stack (title + meta) rather than dropping columns — the Claim button must never be hidden on small screens.
+
+**Sidebar badge semantics:** one number, one meaning — red overdue count when anything is overdue, otherwise amber open count.
 
 ## Notifications
 
@@ -73,6 +85,8 @@ Row contents: title, priority badge, linked-record chip (click → that provider
 ## Explicitly out of scope for v1
 
 Auto-generated tasks from credentialing events (phase 2 — schema is ready), email notifications/digests, task comments, recurring tasks, practice-user-facing tasks.
+
+**Direction note (Kay decision 2026-07-15):** Tasks is intended to become the single work queue — system-generated work (including what lands in Workflow Queue today) flows INTO Tasks in phase 2 rather than living in a parallel queue. V1 design choices should not preclude this (the `type` field and null-creator convention are the hooks).
 
 ## Testing
 
