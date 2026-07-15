@@ -50,9 +50,9 @@ describe('claimTask', () => {
 describe('listStaffTasks', () => {
   beforeEach(() => vi.clearAllMocks());
   it('sorts the full window before paginating (urgent no-due-date beats normal with due date)', async () => {
-    const normal = { id: 'n1', priority: 'NORMAL', status: 'PENDING', dueDate: new Date('2026-07-20'), createdAt: new Date() };
+    const normal = { id: 'n1', priority: 'NORMAL', status: 'PENDING', dueDate: new Date(Date.now() + 5 * 86_400_000), createdAt: new Date() };
     const urgent = { id: 'u1', priority: 'URGENT', status: 'PENDING', dueDate: null, createdAt: new Date() };
-    const overdue = { id: 'o1', priority: 'LOW', status: 'PENDING', dueDate: new Date('2026-07-01'), createdAt: new Date() };
+    const overdue = { id: 'o1', priority: 'LOW', status: 'PENDING', dueDate: new Date(Date.now() - 14 * 86_400_000), createdAt: new Date() };
     prismaMock.task.findMany.mockResolvedValue([normal, urgent, overdue] as any);
     prismaMock.task.count.mockResolvedValue(3 as any);
     const { tasks } = await listStaffTasks({ view: 'all', userId: 'u', limit: 2, offset: 0 });
