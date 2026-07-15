@@ -41,5 +41,8 @@ describe('claimTask', () => {
   it('returns false when someone else already claimed (atomic guard)', async () => {
     prismaMock.task.updateMany.mockResolvedValue({ count: 0 } as any);
     expect(await claimTask(TASK_ID, USER_ID)).toBe(false);
+    expect(prismaMock.task.updateMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({ assignedToId: null })
+    );
   });
 });
