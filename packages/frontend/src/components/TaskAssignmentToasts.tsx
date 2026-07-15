@@ -20,11 +20,21 @@ export default function TaskAssignmentToasts() {
   const markRead = useMarkNotificationsRead();
   const navigate = useNavigate();
   const seenIds = useRef<Set<string> | null>(null);
+  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [toasts, setToasts] = useState<TaskToast[]>([]);
 
+  const dismiss = (id: string) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
+    const timer = timers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timers.current.delete(id);
+    }
+  };
+
   useEffect(() => {
-    if (!enabled) return;
-    const items = data?.notifications ?? [];
+    if (!enabled || !data) return;
+    const items = data.notifications ?? [];
     const taskItems = items.filter(
       (n) => n.metadata?.kind === 'task_assigned' && n.metadata?.taskId,
     );
@@ -32,18 +42,36 @@ export default function TaskAssignmentToasts() {
       seenIds.current = new Set(taskItems.map((n) => n.id)); // prime — no toast storm on login
       return;
     }
+    // Items arrive newest-first from the API; collect all unseen ones before
+    // touching state so a single poll with multiple new items preserves order.
+    const freshToasts: TaskToast[] = [];
     for (const n of taskItems) {
       if (seenIds.current.has(n.id)) continue;
       seenIds.current.add(n.id);
-      const toast: TaskToast = {
+      freshToasts.push({
         id: n.id,
         taskId: n.metadata!.taskId as string,
         title: n.message.replace('You have been assigned: ', ''),
-      };
-      setToasts((t) => [toast, ...t].slice(0, MAX_VISIBLE));
-      setTimeout(() => setToasts((t) => t.filter((x) => x.id !== toast.id)), AUTO_DISMISS_MS);
+      });
+    }
+    if (freshToasts.length === 0) return;
+    setToasts((t) => [...freshToasts, ...t].slice(0, MAX_VISIBLE));
+    for (const toast of freshToasts) {
+      const timer = setTimeout(() => {
+        timers.current.delete(toast.id);
+        setToasts((t) => t.filter((x) => x.id !== toast.id));
+      }, AUTO_DISMISS_MS);
+      timers.current.set(toast.id, timer);
     }
   }, [data, enabled]);
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      timers.current.forEach((timer) => clearTimeout(timer));
+      timers.current.clear();
+    };
+  }, []);
 
   if (!enabled || toasts.length === 0) return null;
 
@@ -65,7 +93,7 @@ export default function TaskAssignmentToasts() {
               className="mt-1 text-xs font-semibold text-primary-700 hover:underline"
               onClick={() => {
                 markRead.mutate([t.id]);
-                setToasts((x) => x.filter((y) => y.id !== t.id));
+                dismiss(t.id);
                 navigate(`/tasks?taskId=${t.taskId}`);
               }}
             >
@@ -76,7 +104,7 @@ export default function TaskAssignmentToasts() {
             type="button"
             aria-label="Dismiss"
             className="ml-auto text-gray-400 hover:text-gray-600"
-            onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}
+            onClick={() => dismiss(t.id)}
           >
             <XMarkIcon className="h-4 w-4" />
           </button>
