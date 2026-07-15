@@ -49,15 +49,43 @@ export default function TasksPage() {
 
   // deep link: /tasks?taskId=<id> opens the detail panel
   const deepLinkId = searchParams.get('taskId');
+  const deepLinkHandled = useRef(false);
+  const deepLinkNotFoundHandled = useRef(false);
+
+  // A deep-linked task may live in a tab other than the current one, or be
+  // completed/skipped and hidden by the default open-only filter. Force the
+  // page into the view that can see everything before searching for it.
+  useEffect(() => {
+    if (deepLinkId && !deepLinkHandled.current) {
+      deepLinkHandled.current = true;
+      setTabIndex(2); // All Tasks
+      setShowCompleted(true); // include completed/skipped
+    }
+  }, [deepLinkId]);
+
   useEffect(() => {
     if (deepLinkId && tasks.length > 0) {
       const t = tasks.find((x) => x.id === deepLinkId);
       if (t) {
         setSelectedTask(t);
         setSearchParams({}, { replace: true });
+        return;
       }
     }
-  }, [deepLinkId, tasks, setSearchParams]);
+    // Only conclude "not found" once the all-view query (which can see every
+    // task, including completed ones) has actually loaded.
+    if (
+      deepLinkId &&
+      !isLoading &&
+      view === 'all' &&
+      showCompleted &&
+      !deepLinkNotFoundHandled.current
+    ) {
+      deepLinkNotFoundHandled.current = true;
+      setSearchParams({}, { replace: true });
+      notify.error('Task not found', { description: 'It may have been deleted.' });
+    }
+  }, [deepLinkId, tasks, setSearchParams, isLoading, view, showCompleted]);
 
   // Clear any pending "claimed" undo timer on unmount.
   useEffect(() => {

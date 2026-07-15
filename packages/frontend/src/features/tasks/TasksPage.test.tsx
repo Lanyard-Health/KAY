@@ -33,11 +33,11 @@ vi.mock('../../hooks/useStaffTasks', () => ({
 
 import TasksPage from './TasksPage';
 
-function renderPage() {
+function renderPage(initialEntries = ['/tasks']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <TasksPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -52,5 +52,11 @@ describe('TasksPage', () => {
     expect(screen.getByRole('tab', { name: /all tasks/i })).toBeInTheDocument();
     expect(screen.getByText('Chase W-9')).toBeInTheDocument();
     expect(screen.getByText(/overdue/i)).toBeInTheDocument();
+  });
+
+  it('deep link (?taskId=) switches to the All Tasks tab so the task can be found regardless of which view it lives in', () => {
+    renderPage(['/tasks?taskId=t1']);
+    const allTasksTab = screen.getByRole('tab', { name: /all tasks/i });
+    expect(allTasksTab).toHaveAttribute('aria-selected', 'true');
   });
 });
