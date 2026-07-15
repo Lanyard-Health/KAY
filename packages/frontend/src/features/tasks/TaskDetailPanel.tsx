@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Link } from 'react-router-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -41,6 +41,22 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
   const updateMutation = useUpdateStaffTask();
   const deleteMutation = useDeleteTask();
   const { data: assignees } = useAssignees();
+
+  // Local mirror of the two editable fields. Selects read from this state,
+  // not directly off `task` — `task` is a snapshot from the parent's list
+  // state, and re-asserting it on every render (e.g. while isPending flips)
+  // would snap a just-made selection back to the stale value. Re-seeded
+  // whenever a *different* task opens (task.id changes) or fresh server
+  // data replaces the prop object (TasksPage swaps `selectedTask` once the
+  // list refetches) — both are covered by keying on the `task` object
+  // identity itself.
+  const [localStatus, setLocalStatus] = useState<StaffTask['status'] | undefined>(task?.status);
+  const [localAssigneeId, setLocalAssigneeId] = useState<string>(task?.assignedTo?.id ?? '');
+
+  useEffect(() => {
+    setLocalStatus(task?.status);
+    setLocalAssigneeId(task?.assignedTo?.id ?? '');
+  }, [task]);
 
   const handleMutationError = (error: any) =>
     notify.error('Could not update the task', {
@@ -116,13 +132,20 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                       </label>
                       <select
                         id="task-detail-status"
-                        value={task.status}
-                        onChange={(e) =>
+                        value={localStatus}
+                        onChange={(e) => {
+                          const next = e.target.value as StaffTask['status'];
+                          setLocalStatus(next);
                           updateMutation.mutate(
-                            { taskId: task.id, data: { status: e.target.value } },
-                            { onError: handleMutationError },
-                          )
-                        }
+                            { taskId: task.id, data: { status: next } },
+                            {
+                              onError: (error) => {
+                                setLocalStatus(task.status);
+                                handleMutationError(error);
+                              },
+                            },
+                          );
+                        }}
                         className="input"
                       >
                         {STATUS_OPTIONS.map((opt) => (
@@ -163,15 +186,27 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                       </label>
                       <select
                         id="task-detail-assignee"
-                        value={task.assignedTo?.id ?? ''}
-                        onChange={(e) =>
+                        value={localAssigneeId}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setLocalAssigneeId(next);
                           updateMutation.mutate(
-                            { taskId: task.id, data: { assignedToId: e.target.value || null } },
-                            { onError: handleMutationError },
-                          )
-                        }
+                            { taskId: task.id, data: { assignedToId: next || null } },
+                            {
+                              onError: (error) => {
+                                setLocalAssigneeId(task.assignedTo?.id ?? '');
+                                handleMutationError(error);
+                              },
+                            },
+                          );
+                        }}
                         className="input"
                       >
+                        {task.assignedTo && !(assignees ?? []).some((a) => a.id === task.assignedTo!.id) && (
+                          <option value={task.assignedTo.id} disabled>
+                            {task.assignedTo.firstName} {task.assignedTo.lastName} (unavailable)
+                          </option>
+                        )}
                         {(assignees ?? []).map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.firstName} {a.lastName}
@@ -215,15 +250,21 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                     >
                       Delete…
                     </button>
-                    {task.status !== 'COMPLETED' && (
+                    {localStatus !== 'COMPLETED' && (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          setLocalStatus('COMPLETED');
                           updateMutation.mutate(
                             { taskId: task.id, data: { status: 'COMPLETED' } },
-                            { onError: handleMutationError },
-                          )
-                        }
+                            {
+                              onError: (error) => {
+                                setLocalStatus(task.status);
+                                handleMutationError(error);
+                              },
+                            },
+                          );
+                        }}
                         className="btn-primary"
                       >
                         Mark complete

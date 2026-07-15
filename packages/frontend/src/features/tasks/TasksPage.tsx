@@ -49,6 +49,26 @@ export default function TasksPage() {
   const tasks: StaffTask[] = data?.data ?? [];
   const total: number = data?.meta?.total ?? 0;
 
+  // Keep the open detail panel in sync with refetched list data. After a
+  // mutation invalidates the tasks query, `tasks` gets a new array with a
+  // fresh object for the edited task; swap it into `selectedTask` so
+  // TaskDetailPanel's re-seed effect (keyed on the `task` prop identity)
+  // picks up the server's truth. Deliberately not keyed on `selectedTask`
+  // itself — that would re-run this effect every time we call
+  // setSelectedTask below, causing a loop.
+  useEffect(() => {
+    if (!selectedTask) return;
+    const fresh = tasks.find((t) => t.id === selectedTask.id);
+    // Compare by content, not object identity: `tasks` is a fresh array
+    // reference on every query refetch even when nothing changed, so an
+    // identity check (`fresh !== selectedTask`) would re-set state (and
+    // re-run this effect) on every render forever. Content equality
+    // converges as soon as the panel's copy matches the server's.
+    if (fresh && JSON.stringify(fresh) !== JSON.stringify(selectedTask)) {
+      setSelectedTask(fresh);
+    }
+  }, [tasks]);
+
   // deep link: /tasks?taskId=<id> opens the detail panel
   const deepLinkId = searchParams.get('taskId');
   const deepLinkHandled = useRef(false);

@@ -64,4 +64,27 @@ describe('TaskDetailPanel', () => {
       expect.objectContaining({ onError: expect.any(Function) }),
     );
   });
+
+  it('keeps the status select on COMPLETED after selecting it, even though the task prop is stale', () => {
+    // The old bug: the select read `task.status` directly, so once the
+    // mutation started (isPending flips, causing a re-render) React
+    // re-asserted the stale prop value and the select snapped back to
+    // IN_PROGRESS. Mock the mutation as a no-op that never settles to
+    // simulate that in-flight window.
+    updateMutate.mockImplementation(() => {});
+    renderPanel();
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'COMPLETED' } });
+    expect(screen.getByLabelText('Status')).toHaveValue('COMPLETED');
+  });
+
+  it('shows the true assignee name (with "(unavailable)") when they are missing from the assignees list', () => {
+    const ghostTask: StaffTask = {
+      ...baseTask,
+      assignedTo: { id: 'ghost', firstName: 'Old', lastName: 'Staffer' },
+    };
+    renderPanel(ghostTask);
+    const select = screen.getByLabelText('Assigned to') as HTMLSelectElement;
+    expect(select).toHaveValue('ghost');
+    expect(screen.getByText('Old Staffer (unavailable)')).toBeInTheDocument();
+  });
 });
