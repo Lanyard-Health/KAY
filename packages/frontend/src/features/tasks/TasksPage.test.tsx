@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -44,6 +44,7 @@ vi.mock('./NewTaskModal', () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="new-task-modal" /> : null),
 }));
 
+import { useStaffTasks } from '../../hooks/useStaffTasks';
 import TasksPage from './TasksPage';
 
 function renderPage(initialEntries = ['/tasks']) {
@@ -92,5 +93,50 @@ describe('TasksPage', () => {
     fireEvent.click(screen.getByLabelText('Select Chase W-9'));
     fireEvent.click(screen.getByLabelText('Select Verify NPI for Dr. Lee'));
     expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
+  it('prunes a selection that disappears from the list (e.g. a filter change) and hides the bulk bar', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // A fresh element (not a shared reference) is built per render call: if
+    // `rerender` is handed the exact same JSX object twice, React sees
+    // identical props by reference and bails out of re-invoking TasksPage
+    // entirely, so the updated mock below would never be read.
+    const makeTree = () => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/tasks']}>
+          <TasksPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(makeTree());
+
+    fireEvent.click(screen.getByLabelText('Select Chase W-9'));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    // Simulate a filter change that removes the selected task ("Chase W-9",
+    // t1) from the visible list.
+    vi.mocked(useStaffTasks).mockReturnValue({
+      data: {
+        data: [
+          {
+            id: 't2',
+            title: 'Verify NPI for Dr. Lee',
+            status: 'PENDING',
+            priority: 'NORMAL',
+            dueDate: null,
+            createdAt: '2026-07-02T00:00:00Z',
+            assignedTo: null,
+          },
+        ],
+        meta: { total: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as any);
+
+    rerender(makeTree());
+
+    await waitFor(() => expect(screen.queryByText(/selected/i)).not.toBeInTheDocument());
   });
 });

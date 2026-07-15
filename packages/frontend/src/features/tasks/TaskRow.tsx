@@ -83,7 +83,7 @@ export default function TaskRow({
             aria-label={`Select ${task.title}`}
             className={clsx(
               'h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500',
-              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
             )}
           />
         )}

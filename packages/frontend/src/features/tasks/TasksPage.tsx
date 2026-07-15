@@ -66,6 +66,16 @@ export default function TasksPage() {
     setSelected(new Set());
   }, [tabIndex]);
 
+  // prune selections that are no longer visible (filter changes, completion, refetch)
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(tasks.map((t) => t.id));
+      const pruned = new Set([...prev].filter((id) => visible.has(id)));
+      return pruned.size === prev.size ? prev : pruned;
+    });
+  }, [tasks]);
+
   // Keep the open detail panel in sync with refetched list data. After a
   // mutation invalidates the tasks query, `tasks` gets a new array with a
   // fresh object for the edited task; swap it into `selectedTask` so
