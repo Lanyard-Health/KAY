@@ -7,6 +7,7 @@ import { PlusIcon } from '@heroicons/react/24/outline';
 import { useStaffTasks, useClaimTask, useUpdateStaffTask, type StaffTask } from '../../hooks/useStaffTasks';
 import { api } from '../../services/api';
 import TaskRow from './TaskRow';
+import TaskDetailPanel from './TaskDetailPanel';
 import EmptyState from '../../components/ui/EmptyState';
 import LoadingState from '../../components/ui/LoadingState';
 import ErrorState from '../../components/ui/ErrorState';
@@ -221,7 +222,7 @@ export default function TasksPage() {
         )}
       </div>
       <NewTaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
-      {selectedTask && null /* Task 9 mounts <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} /> here */}
+      <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
     </div>
   );
 }
