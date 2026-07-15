@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { PlusIcon } from '@heroicons/react/24/outline';
-import { useStaffTasks, useClaimTask, useUpdateStaffTask, type StaffTask } from '../../hooks/useStaffTasks';
+import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
 import { api } from '../../services/api';
 import TaskRow from './TaskRow';
 import TaskDetailPanel from './TaskDetailPanel';
@@ -31,6 +31,8 @@ export default function TasksPage() {
   const [justClaimed, setJustClaimed] = useState<StaffTask | null>(null);
   const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [focusIndex, setFocusIndex] = useState(-1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const view = VIEWS[tabIndex].key;
   const status = showCompleted ? 'all' : 'open';
@@ -44,10 +46,25 @@ export default function TasksPage() {
     queryFn: async () => (await api.get('/practices')).data.data as { id: string; name: string }[],
     staleTime: 5 * 60_000,
   });
+  const { data: assignees } = useAssignees();
   const claimMutation = useClaimTask();
   const updateMutation = useUpdateStaffTask();
   const tasks: StaffTask[] = data?.data ?? [];
   const total: number = data?.meta?.total ?? 0;
+
+  // The focused row index is meaningless once the row order changes under
+  // it (new tab or new filter), so drop it rather than let the highlight
+  // land on an unrelated row.
+  useEffect(() => {
+    setFocusIndex(-1);
+  }, [tabIndex, priority, practiceId, showCompleted]);
+
+  // Bulk selection is scoped to a tab (selecting across My Tasks / Task
+  // Pool / All Tasks would make "Assign to…" ambiguous), so clear it on
+  // tab change only — filters narrowing the same tab can keep a selection.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [tabIndex]);
 
   // Keep the open detail panel in sync with refetched list data. After a
   // mutation invalidates the tasks query, `tasks` gets a new array with a
@@ -142,6 +159,73 @@ export default function TasksPage() {
     setJustClaimed(null);
   };
 
+  const handleToggleSelect = (task: StaffTask) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(task.id)) next.delete(task.id);
+      else next.add(task.id);
+      return next;
+    });
+  };
+
+  // ponytail: N sequential PATCHes via Promise.all; add a bulk endpoint if teams exceed ~20-row selections
+  const bulkAssign = async (assignedToId: string | null) => {
+    const ids = [...selected];
+    try {
+      await Promise.all(ids.map((taskId) => updateMutation.mutateAsync({ taskId, data: { assignedToId } })));
+      notify.success(`${ids.length} task${ids.length > 1 ? 's' : ''} reassigned`);
+    } catch {
+      notify.error('Some tasks could not be updated', { description: 'The list has been refreshed.' });
+    } finally {
+      setSelected(new Set());
+    }
+  };
+
+  const bulkComplete = async () => {
+    const ids = [...selected];
+    try {
+      await Promise.all(ids.map((taskId) => updateMutation.mutateAsync({ taskId, data: { status: 'COMPLETED' } })));
+      notify.success(`${ids.length} task${ids.length > 1 ? 's' : ''} completed`);
+    } catch {
+      notify.error('Some tasks could not be updated', { description: 'The list has been refreshed.' });
+    } finally {
+      setSelected(new Set());
+    }
+  };
+
+  // Keyboard shortcuts: j/k move a focus highlight through the list, e
+  // toggles complete, c claims (pool/unassigned only), n opens New Task.
+  // Bails out whenever the user is typing anywhere (input/textarea/select/
+  // contentEditable) or a modal/panel already owns the keyboard, so a
+  // shortcut key never gets swallowed while composing text elsewhere.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable ||
+        isNewTaskOpen ||
+        selectedTask
+      ) {
+        return;
+      }
+      if (e.key === 'n') {
+        e.preventDefault();
+        setIsNewTaskOpen(true);
+      }
+      if (e.key === 'j') setFocusIndex((i) => Math.min(i + 1, tasks.length - 1));
+      if (e.key === 'k') setFocusIndex((i) => Math.max(i - 1, 0));
+      if (e.key === 'e' && tasks[focusIndex]) handleToggleComplete(tasks[focusIndex]);
+      if (e.key === 'c' && tasks[focusIndex] && !tasks[focusIndex].assignedTo) handleClaim(tasks[focusIndex]);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, focusIndex, isNewTaskOpen, selectedTask]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
@@ -222,7 +306,7 @@ export default function TasksPage() {
           )
         ) : (
           <>
-            {tasks.map((task) => (
+            {tasks.map((task, index) => (
               <TaskRow
                 key={task.id}
                 task={task}
@@ -231,6 +315,10 @@ export default function TasksPage() {
                 onToggleComplete={handleToggleComplete}
                 onClaim={handleClaim}
                 claimPending={claimMutation.isPending}
+                focused={index === focusIndex}
+                selectable
+                selected={selected.has(task.id)}
+                onToggleSelect={handleToggleSelect}
               />
             ))}
             {tasks.length < total && (
@@ -241,8 +329,30 @@ export default function TasksPage() {
           </>
         )}
       </div>
+      <p className="text-center text-xs text-gray-400">j/k move · e complete · c claim · n new task</p>
       <NewTaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
       <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 shadow-lg">
+          <span className="text-sm font-medium text-gray-700">{selected.size} selected</span>
+          <select
+            className="input w-44"
+            defaultValue=""
+            aria-label="Assign selected to"
+            onChange={(e) => {
+              if (e.target.value !== '') bulkAssign(e.target.value === 'POOL' ? null : e.target.value);
+            }}
+          >
+            <option value="" disabled>Assign to…</option>
+            <option value="POOL">Back to Task Pool</option>
+            {(assignees ?? []).map((a) => (
+              <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>
+            ))}
+          </select>
+          <button type="button" className="btn-secondary" onClick={bulkComplete}>Complete</button>
+          <button type="button" className="text-sm text-gray-500 hover:text-gray-700" onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
     </div>
   );
 }

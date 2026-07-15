@@ -41,14 +41,53 @@ interface TaskRowProps {
   onToggleComplete: (task: StaffTask) => void;
   onClaim: (task: StaffTask) => void;
   claimPending: boolean;
+  focused?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (task: StaffTask) => void;
 }
 
-export default function TaskRow({ task, view, onOpenDetail, onToggleComplete, onClaim, claimPending }: TaskRowProps) {
+export default function TaskRow({
+  task,
+  view,
+  onOpenDetail,
+  onToggleComplete,
+  onClaim,
+  claimPending,
+  focused = false,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+}: TaskRowProps) {
   const overdue = isOverdue(task);
   const done = task.status === 'COMPLETED';
   const record = linkedRecordLabel(task);
   return (
-    <div className="grid grid-cols-[26px_minmax(0,1fr)_92px_150px_150px] items-center gap-3 px-4 py-3 hover:bg-gray-50/60 max-md:flex max-md:flex-wrap">
+    <div
+      className={clsx(
+        'group grid grid-cols-[20px_26px_minmax(0,1fr)_92px_150px_150px] items-center gap-3 px-4 py-3 hover:bg-gray-50/60 max-md:flex max-md:flex-wrap',
+        focused && 'bg-primary-50/50 ring-1 ring-inset ring-primary-200',
+      )}
+    >
+      {/* Leading select-checkbox slot, kept separate from the complete-circle
+          column below: the circle renders unconditionally on every row (My
+          Tasks, Pool, All), so there's no view where it's absent for the
+          checkbox to borrow its space. A dedicated column keeps the two
+          controls from fighting for the same pixels. */}
+      <div className="flex items-center justify-center">
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect?.(task)}
+            aria-label={`Select ${task.title}`}
+            className={clsx(
+              'h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500',
+              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            )}
+          />
+        )}
+      </div>
       <button
         type="button"
         aria-pressed={done}
