@@ -1,0 +1,22 @@
+{
+  "name": "onboarding",
+  "tagline": "Credentialing on autopilot",
+  "segments": [
+    {
+      "scene": "scene1-portal",
+      "text": "Worried that switching tools means weeks of setup? Here's your actual first week with Lanyard. Day one: you invite your providers, and they complete their own profiles in a guided portal."
+    },
+    {
+      "scene": "scene2-approve",
+      "text": "When an application comes in, you review and approve with one click. That creates their account — no IT project, no imports."
+    },
+    {
+      "scene": "scene3-caqh",
+      "text": "Then Lanyard goes to work: it pulls each provider's full profile from CAQH automatically — licenses, history, documents — usually before you've finished your coffee."
+    },
+    {
+      "scene": "closing",
+      "text": "By Friday, your roster is in, organized, and tracked. Lanyard Health — credentialing on autopilot."
+    }
+  ]
+}

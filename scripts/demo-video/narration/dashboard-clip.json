@@ -1,0 +1,11 @@
+{
+  "name": "dashboard-clip",
+  "tagline": "Always know where it stands.",
+  "segments": [
+    {
+      "scene": "clip-dashboard",
+      "text": "Where's Dr. Alvarez's Aetna application? If answering that means opening a spreadsheet and three payer portals — keep watching. This is your whole practice in one view: every provider, every payer, one grid. Applications in flight show a live timeline, based on how long each payer actually takes. And when one runs long, Lanyard flags it — and tells you what it's doing about it."
+    },
+    { "scene": "closing", "text": "Lanyard Health. Always know where it stands." }
+  ]
+}

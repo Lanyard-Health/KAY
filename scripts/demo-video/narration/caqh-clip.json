@@ -1,0 +1,11 @@
+{
+  "name": "caqh-clip",
+  "tagline": "Enter it once.",
+  "segments": [
+    {
+      "scene": "clip-caqh",
+      "text": "If you've ever spent an afternoon retyping a provider's CV into yet another form — this is for you. Lanyard connects to CAQH and pulls the whole profile: licenses, education, work history, malpractice coverage — even the documents. Everything lands in one place, organized and ready to use. And it doesn't go stale — Lanyard re-syncs every night, so when something changes in CAQH, it changes here too."
+    },
+    { "scene": "closing", "text": "Lanyard Health. Enter it once." }
+  ]
+}
