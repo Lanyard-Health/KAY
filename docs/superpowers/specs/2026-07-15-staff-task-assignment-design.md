@@ -38,6 +38,7 @@ Extend `task.routes.ts` (keep existing endpoints backward-compatible for Provide
 
 - `GET /tasks` — cross-practice list with filters: `assignedToId` (incl. `me` and `unassigned`), `status`, `priority`, `practiceId`. Auth: `admin` + `lanyard_staff` role-gates only, mirroring how other staff routes do it (check the sibling-route allow-list pattern — the "insufficient permissions" 403 class of bug).
 - `POST /tasks` — create without requiring a provider; accepts optional provider/practice/enrollment link, priority, assignee.
+- **Assignee restriction (Kay decision 2026-07-15):** a task may only be assigned to a user whose role is `admin` or `lanyard_staff`. Enforced server-side on create, reassign, and claim — not just filtered in the dropdown. Any other assignee returns a validation error.
 - `PATCH /tasks/:id` — status changes, reassignment, claim (set assignee to self), priority/due-date edits.
   - **Auto-status:** claiming a task or being assigned one sets status to `IN_PROGRESS` automatically (Kay decision 2026-07-15). Nobody maintains status by hand; manual override remains possible from the detail panel.
   - **Claim conflict:** claim uses an atomic conditional update (only succeeds if still unassigned). Loser gets a 409 and the UI shows "Someone else just claimed this" and removes the row.
