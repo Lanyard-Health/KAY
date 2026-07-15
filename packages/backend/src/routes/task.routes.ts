@@ -195,7 +195,7 @@ router.post('/tasks', authenticate, staffOnly, async (req: Request, res: Respons
         error: {
           message: error.message === 'MULTIPLE_LINKS'
             ? 'A task can link to at most one record'
-            : 'Tasks can only be assigned to Lanyard admin or staff',
+            : 'Tasks can only be assigned to Lanyard admin or credentialing staff',
         },
       });
       return;
