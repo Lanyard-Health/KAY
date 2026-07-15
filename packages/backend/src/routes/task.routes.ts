@@ -284,9 +284,9 @@ router.patch(
       const validated = updateTaskSchema.parse(req.body);
 
       // Staff-only fields: priority (new — internal triage concept) and
-      // assignedToId (reassignment — see isStaffTask scoping below). title/
-      // description/dueDate stay open to practice-side credentialing_staff,
-      // unchanged from prior behavior.
+      // assignedToId (reassignment — role-validated below for ALL tasks).
+      // title/description/dueDate stay open to practice-side
+      // credentialing_staff, unchanged from prior behavior.
       const staffFields = ['priority', 'assignedToId'] as const;
       const touchesStaffFields = staffFields.some((f) => f in req.body);
       if (touchesStaffFields && req.user!.role !== 'admin' && req.user!.role !== 'lanyard_staff') {
@@ -322,19 +322,17 @@ router.patch(
         });
       }
 
-      // Staff/pool tasks (no linked provider) are the ones this feature governs:
-      // validate the new assignee and apply auto-status/notify. Provider-linked
-      // tasks keep their pre-existing assignedToId behavior untouched so the
-      // TaskStatusUpdateModal flow for practice staff doesn't regress.
-      const isStaffTask = !existing.providerId;
-      if (isStaffTask && typeof validated.assignedToId === 'string') {
+      // Assignee-role validation applies to ALL tasks (provider-linked or not):
+      // a task may only be assigned to a user with role admin or lanyard_staff,
+      // enforced server-side on create, reassign, and claim.
+      if (typeof validated.assignedToId === 'string') {
         try {
           await assertAssignableUser(validated.assignedToId);
         } catch (err) {
           if (err instanceof Error && err.message === 'ASSIGNEE_NOT_ALLOWED') {
             return res.status(400).json({
               success: false,
-              error: { message: 'Tasks can only be assigned to Lanyard admin or staff' },
+              error: { message: 'Tasks can only be assigned to Lanyard admin or credentialing staff' },
             });
           }
           throw err;
@@ -352,11 +350,11 @@ router.patch(
         updateData['dueDate'] = validated.dueDate ? new Date(validated.dueDate) : null;
       }
 
-      // Handle status transitions — explicit, or auto-derived from a staff-task
+      // Handle status transitions — explicit, or auto-derived from a
       // reassignment (spec: newly assigned + still PENDING -> IN_PROGRESS;
-      // unassigned back to the pool -> PENDING).
+      // unassigned back to the pool -> PENDING). Applies to ALL tasks.
       let statusToSet = validated.status;
-      if (statusToSet === undefined && isStaffTask && 'assignedToId' in req.body) {
+      if (statusToSet === undefined && 'assignedToId' in req.body) {
         if (validated.assignedToId && existing.status === 'PENDING') {
           statusToSet = 'IN_PROGRESS';
         } else if (validated.assignedToId === null) {
@@ -377,9 +375,8 @@ router.patch(
         }
       }
 
-      // Notify on reassignment to someone other than the actor (staff tasks only)
+      // Notify on reassignment to someone other than the actor (any task)
       if (
-        isStaffTask &&
         'assignedToId' in req.body &&
         validated.assignedToId &&
         validated.assignedToId !== existing.assignedToId &&

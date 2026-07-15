@@ -348,4 +348,21 @@ describe('PATCH /tasks/:taskId (staff/pool task assignment)', () => {
     expect(res.status).toBe(400);
     expect(prismaMock.task.update).not.toHaveBeenCalled();
   });
+
+  // Proves the assignee-role rule is now GLOBAL, not just for provider-less
+  // pool tasks: a provider-linked task reassigned to a non-admin/lanyard_staff
+  // user must also 400.
+  it('400s when reassigning a provider-linked task to a non-admin/lanyard_staff user', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({
+      id: TASK_ID, providerId: PROVIDER_ID, status: 'PENDING', assignedToId: null, title: 'Provider task',
+    } as any);
+    vi.mocked(staffSvc.assertAssignableUser).mockRejectedValue(new Error('ASSIGNEE_NOT_ALLOWED'));
+
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ assignedToId: STAFF_USER_UUID });
+
+    expect(res.status).toBe(400);
+    expect(staffSvc.assertAssignableUser).toHaveBeenCalledWith(STAFF_USER_UUID);
+    expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
 });

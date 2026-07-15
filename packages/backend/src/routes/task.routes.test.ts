@@ -296,6 +296,11 @@ describe('Task Routes', () => {
 
     it('updates assignedToId and dueDate', async () => {
       prismaMock.task.findUnique.mockResolvedValue(mockTask as any);
+      prismaMock.user.findUnique.mockResolvedValue({ id: STAFF_USER_UUID, role: 'lanyard_staff', isActive: true } as any);
+      // staff-task.service.js is not mocked in this file, so the real
+      // notifyAssignee() runs and calls prisma.inAppNotification.create —
+      // give it a resolvable promise (assignedToId !== admin actor, so it fires).
+      prismaMock.inAppNotification.create.mockResolvedValue({} as any);
       prismaMock.task.update.mockResolvedValue({
         ...mockTask,
         assignedToId: STAFF_USER_UUID,
@@ -315,6 +320,9 @@ describe('Task Routes', () => {
           data: expect.objectContaining({
             assignedToId: STAFF_USER_UUID,
             dueDate: expect.any(Date),
+            // mockTask.status is PENDING, so assigning it flips it to IN_PROGRESS
+            // (global auto-status rule, no longer scoped to provider-less tasks).
+            status: 'IN_PROGRESS',
           }),
         })
       );
