@@ -63,6 +63,7 @@ const DenialsList = lazy(() => import('./features/denials/DenialsList'));
 const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'));
 const Settings = lazy(() => import('./features/settings/Settings'));
 const ClinicalProfileWizard = lazy(() => import('./features/clinical-profile/ClinicalProfileWizard'));
+const TasksPage = lazy(() => import('./features/tasks/TasksPage'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -107,6 +108,31 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
 
   if (user?.role === 'provider' || user?.role === 'practice_admin') {
     return <RedirectWithToast to="/" message="You don't have permission to view that page" />;
+  }
+
+  return <>{children}</>;
+}
+
+// Internal Lanyard team only (admin + lanyard_staff). Practice roles are redirected.
+// Note: AdminOnlyRoute is NOT sufficient here — it still admits practice-side
+// credentialing_staff, who must not see internal staff task assignments.
+function InternalOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'admin' && user?.role !== 'lanyard_staff') {
+    return <RedirectWithToast to="/" message="You don't have access to Tasks" />;
   }
 
   return <>{children}</>;
@@ -226,6 +252,7 @@ export default function App() {
           <Route path="providers/:id" element={<ProviderDetail />} />
           <Route path="providers/:id/edit" element={<ProviderForm />} />
           <Route path="documents" element={<DocumentList />} />
+          <Route path="tasks" element={<InternalOnlyRoute><TasksPage /></InternalOnlyRoute>} />
           <Route path="ocr-review" element={<AdminOnlyRoute><OcrReviewQueue /></AdminOnlyRoute>} />
           <Route path="enrollments" element={<EnrollmentsList />} />
           <Route path="enrollments/:id" element={<EnrollmentDetail />} />

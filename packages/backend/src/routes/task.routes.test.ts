@@ -186,6 +186,22 @@ describe('Task Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
     });
+
+    it('returns 400 when assignedToId is not an assignable role', async () => {
+      // staff-task.service.js is NOT mocked here, so the real
+      // assertAssignableUser runs — feed it a practice_admin via prismaMock.
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: STAFF_USER_UUID, role: 'practice_admin', isActive: true,
+      } as any);
+
+      const res = await request(app)
+        .post(`/providers/${PROVIDER_ID}/tasks`)
+        .send({ title: 'Assign to the wrong role', assignedToId: STAFF_USER_UUID });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toBe('Tasks can only be assigned to Lanyard admin or credentialing staff');
+      expect(createTask).not.toHaveBeenCalled();
+    });
   });
 
   // ==========================================
@@ -296,6 +312,11 @@ describe('Task Routes', () => {
 
     it('updates assignedToId and dueDate', async () => {
       prismaMock.task.findUnique.mockResolvedValue(mockTask as any);
+      prismaMock.user.findUnique.mockResolvedValue({ id: STAFF_USER_UUID, role: 'lanyard_staff', isActive: true } as any);
+      // staff-task.service.js is not mocked in this file, so the real
+      // notifyAssignee() runs and calls prisma.inAppNotification.create —
+      // give it a resolvable promise (assignedToId !== admin actor, so it fires).
+      prismaMock.inAppNotification.create.mockResolvedValue({} as any);
       prismaMock.task.update.mockResolvedValue({
         ...mockTask,
         assignedToId: STAFF_USER_UUID,
@@ -315,6 +336,9 @@ describe('Task Routes', () => {
           data: expect.objectContaining({
             assignedToId: STAFF_USER_UUID,
             dueDate: expect.any(Date),
+            // mockTask.status is PENDING, so assigning it flips it to IN_PROGRESS
+            // (global auto-status rule, no longer scoped to provider-less tasks).
+            status: 'IN_PROGRESS',
           }),
         })
       );
