@@ -7,6 +7,7 @@ const navItems = [
   { name: 'Users', path: '/users' },
   { name: 'Enrollments', path: '/enrollments' },
   { name: 'Documents', path: '/documents' },
+  { name: 'Tasks', path: '/tasks' },
   { name: 'Expirations', path: '/expirations' },
   { name: 'Roster', path: '/roster' },
   { name: 'AI Agent', path: '/ai-agent' },

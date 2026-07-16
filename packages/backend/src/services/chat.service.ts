@@ -304,7 +304,7 @@ async function fetchPriorityContext(req: Request) {
       type: t.type,
       status: t.status,
       dueDate: t.dueDate?.toISOString().split('T')[0] ?? null,
-      provider: `${t.provider.firstName} ${t.provider.lastName}`,
+      provider: t.provider ? `${t.provider.firstName} ${t.provider.lastName}` : null,
     })),
   };
 }

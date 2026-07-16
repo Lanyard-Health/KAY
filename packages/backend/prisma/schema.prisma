@@ -83,6 +83,7 @@ model User {
   documentsReviewedAsReviewer Document[]               @relation("DocumentReviewer")
   tasksAssigned               Task[]                   @relation("TaskAssignedTo")
   tasksCompleted              Task[]                   @relation("TaskCompletedBy")
+  tasksCreated                Task[]                   @relation("TaskCreatedBy")
   termLettersReviewed         TerminationLetter[]      @relation("TermLetterReviewedBy")
   practices                   UserPractice[]
   inAppNotifications          InAppNotification[]
@@ -256,6 +257,7 @@ model Practice {
   agentActions               AgentAction[]
   webhookSubscriptions       WebhookSubscription[]
   documents                  Document[]
+  tasks               Task[]
 
   @@index([deletedAt])
   @@map("practices")
@@ -2386,6 +2388,13 @@ enum TaskStatus {
   SKIPPED
 }
 
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum TerminationLetterStatus {
   DRAFT
   REVIEWED
@@ -2393,23 +2402,28 @@ enum TerminationLetterStatus {
 }
 
 model Task {
-  id            String     @id @default(uuid())
-  providerId    String     @map("provider_id")
-  enrollmentId  String?    @map("enrollment_id")
+  id            String       @id @default(uuid())
+  providerId    String?      @map("provider_id")
+  practiceId    String?      @map("practice_id")
+  enrollmentId  String?      @map("enrollment_id")
   title         String
   description   String?
   type          TaskType
-  status        TaskStatus @default(PENDING)
-  assignedToId  String?    @map("assigned_to_id")
-  dueDate       DateTime?  @map("due_date")
-  completedAt   DateTime?  @map("completed_at")
-  completedById String?    @map("completed_by_id")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  status        TaskStatus   @default(PENDING)
+  priority      TaskPriority @default(NORMAL)
+  assignedToId  String?      @map("assigned_to_id")
+  createdById   String?      @map("created_by_id")
+  dueDate       DateTime?    @map("due_date")
+  completedAt   DateTime?    @map("completed_at")
+  completedById String?      @map("completed_by_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  provider           ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider           ProviderProfile?    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  practice           Practice?           @relation(fields: [practiceId], references: [id], onDelete: Cascade)
   enrollment         Enrollment?         @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  createdBy          User?               @relation("TaskCreatedBy", fields: [createdById], references: [id])
   completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
   terminationLetters TerminationLetter[]
 
@@ -2417,6 +2431,9 @@ model Task {
   @@index([enrollmentId])
   @@index([status])
   @@index([type])
+  @@index([assignedToId])
+  @@index([practiceId])
+  @@index([priority])
   @@map("tasks")
 }
 

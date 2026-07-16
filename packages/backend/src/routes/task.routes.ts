@@ -2,9 +2,14 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
-import { ForbiddenError } from '../middleware/error.middleware.js';
+import { ForbiddenError, NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRelationFilter } from '../middleware/practiceScope.middleware.js';
 import { createTask } from '../services/task.service.js';
+import {
+  listStaffTasks, getMyTaskCounts, listAssignees,
+  createStaffTask, claimTask, assertAssignableUser, notifyAssignee,
+} from '../services/staff-task.service.js';
+import { ADMIN_ROLES } from '../constants/roles.js';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
@@ -13,6 +18,13 @@ async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { providerId: true } });
     if (!t) return;
+    if (!t.providerId) {
+      // Provider-less tasks are internal-only (admin/lanyard_staff). Fail closed:
+      // 404 (not 403) so a practice-side credentialing_staff can't even confirm
+      // the task exists.
+      if (role === 'lanyard_staff') return;
+      throw new NotFoundError('Task');
+    }
     if (!(await validateProviderPracticeAccess(req, t.providerId))) throw new ForbiddenError('Access denied to this task');
     return;
   }
@@ -43,6 +55,7 @@ const updateTaskSchema = z.object({
   title: n(z.string().min(1).max(500)),
   description: n(z.string().max(2000)),
   status: n(z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED'])),
+  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
   assignedToId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
 });
@@ -101,6 +114,21 @@ router.post(
       const providerId = req.params['providerId']!;
       const validated = createTaskSchema.parse(req.body);
 
+      if (validated.assignedToId) {
+        try {
+          await assertAssignableUser(validated.assignedToId);
+        } catch (err) {
+          if (err instanceof Error && err.message === 'ASSIGNEE_NOT_ALLOWED') {
+            res.status(400).json({
+              success: false,
+              error: { message: 'Tasks can only be assigned to Lanyard admin or credentialing staff' },
+            });
+            return;
+          }
+          throw err;
+        }
+      }
+
       const task = await createTask(
         {
           providerId,
@@ -120,6 +148,104 @@ router.post(
     }
   }
 );
+
+// ==========================================
+// STAFF TASK ROUTES (internal team only — not practice credentialing_staff)
+// ==========================================
+
+const staffOnly = authorize(...ADMIN_ROLES, 'lanyard_staff'); // internal team ONLY — not practice credentialing_staff
+
+const listTasksQuerySchema = z.object({
+  view: z.enum(['my', 'pool', 'all']).default('my'),
+  status: z.enum(['open', 'completed', 'all']).default('open'),
+  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
+  practiceId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+router.get('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const q = listTasksQuerySchema.parse(req.query);
+    const { tasks, total } = await listStaffTasks({ ...q, userId: req.user!.id });
+    res.json({ success: true, data: tasks, meta: { total } });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/counts', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await getMyTaskCounts(req.user!.id) });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await listAssignees() });
+  } catch (error) { next(error); }
+});
+
+const staffCreateTaskSchema = z.object({
+  title: z.string().trim().min(1, 'Give the task a title').max(500),
+  description: z.string().max(2000).optional(),
+  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
+  dueDate: z.string().datetime().optional(),
+  assignedToId: z.string().uuid().optional(),
+  providerId: z.string().uuid().optional(),
+  practiceId: z.string().uuid().optional(),
+  enrollmentId: z.string().uuid().optional(),
+});
+
+router.post('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const v = staffCreateTaskSchema.parse(req.body);
+    const task = await createStaffTask(
+      { ...v, dueDate: v.dueDate ? new Date(v.dueDate) : undefined },
+      req.user!.id,
+    );
+    res.status(201).json({ success: true, data: task });
+  } catch (error) {
+    if (error instanceof Error && (error.message === 'MULTIPLE_LINKS' || error.message === 'ASSIGNEE_NOT_ALLOWED')) {
+      res.status(400).json({
+        success: false,
+        error: {
+          message: error.message === 'MULTIPLE_LINKS'
+            ? 'A task can link to at most one record'
+            : 'Tasks can only be assigned to Lanyard admin or credentialing staff',
+        },
+      });
+      return;
+    }
+    next(error);
+  }
+});
+
+router.post('/tasks/:taskId/claim', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const taskId = req.params['taskId']!;
+    const claimed = await claimTask(taskId, req.user!.id);
+    if (!claimed) {
+      res.status(409).json({ success: false, error: { code: 'ALREADY_CLAIMED', message: 'Someone else claimed this task first' } });
+      return;
+    }
+    res.json({ success: true, data: { taskId, assignedToId: req.user!.id } });
+  } catch (error) { next(error); }
+});
+
+router.delete('/tasks/:taskId', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const taskId = req.params['taskId']!;
+    const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, createdById: true } });
+    if (!task) {
+      res.status(404).json({ success: false, error: { message: 'Task not found' } });
+      return;
+    }
+    if (req.user!.role !== 'admin' && task.createdById !== req.user!.id) {
+      throw new ForbiddenError('Only the creator or an admin can delete a task');
+    }
+    await prisma.task.delete({ where: { id: task.id } });
+    res.status(204).send();
+  } catch (error) { next(error); }
+});
 
 // ==========================================
 // INDIVIDUAL TASK ROUTES
@@ -172,6 +298,16 @@ router.patch(
       const taskId = req.params['taskId']!;
       const validated = updateTaskSchema.parse(req.body);
 
+      // Staff-only fields: priority (new — internal triage concept) and
+      // assignedToId (reassignment — role-validated below for ALL tasks).
+      // title/description/dueDate stay open to practice-side
+      // credentialing_staff, unchanged from prior behavior.
+      const staffFields = ['priority', 'assignedToId'] as const;
+      const touchesStaffFields = staffFields.some((f) => f in req.body);
+      if (touchesStaffFields && req.user!.role !== 'admin' && req.user!.role !== 'lanyard_staff') {
+        throw new ForbiddenError('Insufficient permissions');
+      }
+
       const existing = await prisma.task.findUnique({
         where: { id: taskId },
       });
@@ -183,11 +319,39 @@ router.patch(
         });
       }
 
-      if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
+      if (!existing.providerId) {
+        // Provider-less tasks are internal-only (admin/lanyard_staff). Fail closed:
+        // 404 (not 403) so a practice-side credentialing_staff can't even confirm
+        // the task exists.
+        const internalRole = req.user!.role === 'admin' || req.user!.role === 'lanyard_staff';
+        if (!internalRole) {
+          return res.status(404).json({
+            success: false,
+            error: { message: 'Task not found' },
+          });
+        }
+      } else if (!(await validateProviderPracticeAccess(req, existing.providerId))) {
         return res.status(404).json({
           success: false,
           error: { message: 'Task not found' },
         });
+      }
+
+      // Assignee-role validation applies to ALL tasks (provider-linked or not):
+      // a task may only be assigned to a user with role admin or lanyard_staff,
+      // enforced server-side on create, reassign, and claim.
+      if (typeof validated.assignedToId === 'string') {
+        try {
+          await assertAssignableUser(validated.assignedToId);
+        } catch (err) {
+          if (err instanceof Error && err.message === 'ASSIGNEE_NOT_ALLOWED') {
+            return res.status(400).json({
+              success: false,
+              error: { message: 'Tasks can only be assigned to Lanyard admin or credentialing staff' },
+            });
+          }
+          throw err;
+        }
       }
 
       // Build update data
@@ -195,16 +359,28 @@ router.patch(
 
       if (validated.title !== undefined) updateData['title'] = validated.title;
       if (validated.description !== undefined) updateData['description'] = validated.description;
+      if (validated.priority !== undefined) updateData['priority'] = validated.priority;
       if (validated.assignedToId !== undefined) updateData['assignedToId'] = validated.assignedToId;
       if (validated.dueDate !== undefined) {
         updateData['dueDate'] = validated.dueDate ? new Date(validated.dueDate) : null;
       }
 
-      // Handle status transitions
-      if (validated.status !== undefined) {
-        updateData['status'] = validated.status;
+      // Handle status transitions — explicit, or auto-derived from a
+      // reassignment (spec: newly assigned + still PENDING -> IN_PROGRESS;
+      // unassigned back to the pool -> PENDING). Applies to ALL tasks.
+      let statusToSet = validated.status;
+      if (statusToSet === undefined && 'assignedToId' in req.body) {
+        if (validated.assignedToId && existing.status === 'PENDING') {
+          statusToSet = 'IN_PROGRESS';
+        } else if (validated.assignedToId === null) {
+          statusToSet = 'PENDING';
+        }
+      }
 
-        if (validated.status === 'COMPLETED') {
+      if (statusToSet !== undefined) {
+        updateData['status'] = statusToSet;
+
+        if (statusToSet === 'COMPLETED') {
           updateData['completedAt'] = new Date();
           updateData['completedById'] = req.user!.id;
         } else if (existing.status === 'COMPLETED') {
@@ -225,6 +401,17 @@ router.patch(
           completedBy: { select: { id: true, firstName: true, lastName: true } },
         },
       });
+
+      // Notify on reassignment to someone other than the actor (any task) —
+      // fires only after the update has actually persisted.
+      if (
+        'assignedToId' in req.body &&
+        validated.assignedToId &&
+        validated.assignedToId !== existing.assignedToId &&
+        validated.assignedToId !== req.user!.id
+      ) {
+        notifyAssignee(validated.assignedToId, taskId, existing.title);
+      }
 
       res.json({ success: true, data: task });
     } catch (error) {

@@ -24,6 +24,7 @@ import {
   QueueListIcon,
   ShieldExclamationIcon,
   ChatBubbleLeftRightIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -31,8 +32,10 @@ import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
 import ApprovalToasts from './ApprovalToasts';
+import TaskAssignmentToasts from './TaskAssignmentToasts';
 import { useSearch } from '../hooks/useSearch';
 import { useOcrReviewCount } from '../hooks/useOcrReviewCount';
+import { useTaskCounts } from '../hooks/useStaffTasks';
 import { isSafeNavigationPath } from '../utils/safe-navigation';
 
 // ──────────────────────────────────────────────
@@ -44,6 +47,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   badge?: number;
+  badgeColor?: 'amber' | 'red';
 }
 
 interface NavGroup {
@@ -67,6 +71,7 @@ const adminNavGroups: NavGroup[] = [
       { name: 'Providers', href: '/providers', icon: UsersIcon },
       { name: 'Enrollments', href: '/enrollments', icon: ClipboardDocumentListIcon },
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
+      { name: 'Tasks', href: '/tasks', icon: CheckCircleIcon },
       { name: 'OCR Review', href: '/ocr-review', icon: DocumentMagnifyingGlassIcon },
       { name: 'Workflow Queue', href: '/workflow-queue', icon: QueueListIcon },
       { name: 'Agent Workflows', href: '/admin/workflows', icon: SparklesIcon },
@@ -152,7 +157,12 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                   <item.icon className="h-5 w-5 shrink-0" />
                   <span className="flex-1">{item.name}</span>
                   {item.badge != null && item.badge > 0 && (
-                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]">
+                    <span
+                      className={clsx(
+                        'ml-auto inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]',
+                        item.badgeColor === 'red' ? 'bg-red-600' : 'bg-amber-500',
+                      )}
+                    >
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   )}
@@ -180,14 +190,26 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
   const isInternalStaff = role === 'admin' || role === 'lanyard_staff' || role === 'credentialing_staff';
   const baseGroups = isInternalStaff ? adminNavGroups : customerNavGroups;
 
-  // Inject OCR review count badge into OCR Review nav item
+  // Tasks is admin + lanyard_staff only (credentialing_staff is practice-side and
+  // gets a 403 from /tasks/counts), so only fetch counts for those roles.
+  const isTaskUser = role === 'admin' || role === 'lanyard_staff';
+  const { data: taskCounts } = useTaskCounts({ enabled: isTaskUser });
+
+  // Inject OCR review count badge into OCR Review nav item; inject Tasks badge
+  // (red overdue count wins, else amber open count); hide Tasks from credentialing_staff.
   const activeGroups = baseGroups.map(group => ({
     ...group,
-    items: group.items.map(item =>
-      item.name === 'OCR Review' && ocrReviewCount
-        ? { ...item, badge: ocrReviewCount }
-        : item
-    ),
+    items: group.items
+      .filter((item) => !(item.name === 'Tasks' && role === 'credentialing_staff'))
+      .map((item) => {
+        if (item.name === 'OCR Review' && ocrReviewCount) return { ...item, badge: ocrReviewCount };
+        if (item.name === 'Tasks' && taskCounts && (taskCounts.overdue > 0 || taskCounts.open > 0)) {
+          return taskCounts.overdue > 0
+            ? { ...item, badge: taskCounts.overdue, badgeColor: 'red' as const }
+            : { ...item, badge: taskCounts.open, badgeColor: 'amber' as const };
+        }
+        return item;
+      }),
   }));
 
   return (
@@ -399,6 +421,7 @@ export default function Layout() {
         </footer>
       </div>
       <ApprovalToasts />
+      <TaskAssignmentToasts />
     </div>
   );
 }
