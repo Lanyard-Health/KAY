@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Tab } from '@headlessui/react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
@@ -34,9 +34,11 @@ export default function TasksPage() {
   const [focusIndex, setFocusIndex] = useState(-1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  const queryClient = useQueryClient();
+
   const view = VIEWS[tabIndex].key;
   const status = showCompleted ? 'all' : 'open';
-  const { data, isLoading, isError, refetch } = useStaffTasks(
+  const { data, isLoading, isFetching, isError, refetch } = useStaffTasks(
     view,
     { status, priority: priority || undefined, practiceId: practiceId || undefined },
     limit,
@@ -96,21 +98,27 @@ export default function TasksPage() {
     }
   }, [tasks]);
 
-  // deep link: /tasks?taskId=<id> opens the detail panel
+  // deep link: /tasks?taskId=<id> opens the detail panel. Both refs are
+  // keyed to the taskId (not latched for the component's lifetime) so a
+  // second deep link within the same mount — e.g. clicking another task
+  // notification without leaving the page — is treated as brand new.
   const deepLinkId = searchParams.get('taskId');
-  const deepLinkHandled = useRef(false);
-  const deepLinkNotFoundHandled = useRef(false);
+  const handledFor = useRef<string | null>(null);
+  const notFoundHandledFor = useRef<string | null>(null);
 
   // A deep-linked task may live in a tab other than the current one, or be
   // completed/skipped and hidden by the default open-only filter. Force the
   // page into the view that can see everything before searching for it.
   useEffect(() => {
-    if (deepLinkId && !deepLinkHandled.current) {
-      deepLinkHandled.current = true;
+    if (deepLinkId && deepLinkId !== handledFor.current) {
+      handledFor.current = deepLinkId;
+      notFoundHandledFor.current = null; // new link → new not-found verdict
       setTabIndex(2); // All Tasks
       setShowCompleted(true); // include completed/skipped
+      // A just-assigned task may not be in the cached list yet — refetch.
+      queryClient.invalidateQueries({ queryKey: ['staff-tasks'] });
     }
-  }, [deepLinkId]);
+  }, [deepLinkId, queryClient]);
 
   useEffect(() => {
     if (deepLinkId && tasks.length > 0) {
@@ -122,19 +130,23 @@ export default function TasksPage() {
       }
     }
     // Only conclude "not found" once the all-view query (which can see every
-    // task, including completed ones) has actually loaded.
+    // task, including completed ones) has actually finished a fresh fetch —
+    // and never off the back of a fetch error (a network failure is not
+    // evidence the task was deleted).
     if (
       deepLinkId &&
       !isLoading &&
+      !isFetching &&
+      !isError &&
       view === 'all' &&
       showCompleted &&
-      !deepLinkNotFoundHandled.current
+      notFoundHandledFor.current !== deepLinkId
     ) {
-      deepLinkNotFoundHandled.current = true;
+      notFoundHandledFor.current = deepLinkId;
       setSearchParams({}, { replace: true });
       notify.error('Task not found', { description: 'It may have been deleted.' });
     }
-  }, [deepLinkId, tasks, setSearchParams, isLoading, view, showCompleted]);
+  }, [deepLinkId, tasks, setSearchParams, isLoading, isFetching, isError, view, showCompleted]);
 
   // Clear any pending "claimed" undo timer on unmount.
   useEffect(() => {

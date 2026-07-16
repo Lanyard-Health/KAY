@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('../../hooks/useStaffTasks', () => ({
@@ -72,6 +72,49 @@ describe('TasksPage', () => {
     renderPage(['/tasks?taskId=t1']);
     const allTasksTab = screen.getByRole('tab', { name: /all tasks/i });
     expect(allTasksTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('a second deep link within the same mount re-forces the All Tasks tab (refs are keyed to the taskId, not latched forever)', async () => {
+    // Drives a second in-app navigation (e.g. clicking another task
+    // notification without leaving the page) inside the same MemoryRouter.
+    function DeepLinkDriver() {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/tasks?taskId=t2')}>
+          go-to-t2
+        </button>
+      );
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/tasks?taskId=t1']}>
+          <TasksPage />
+          <DeepLinkDriver />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    // First deep link: detail panel opened for t1 (the open Dialog marks the
+    // rest of the page aria-hidden, so close it before asserting on tabs).
+    await waitFor(() => expect(screen.getByLabelText('Close details')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('Close details'));
+    await waitFor(() => expect(screen.queryByLabelText('Close details')).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: /all tasks/i })).toHaveAttribute('aria-selected', 'true');
+
+    // User wanders off to another tab...
+    fireEvent.click(screen.getByRole('tab', { name: /my tasks/i }));
+    expect(screen.getByRole('tab', { name: /my tasks/i })).toHaveAttribute('aria-selected', 'true');
+
+    // ...then a SECOND deep link arrives. The old one-shot latch would leave
+    // the page inert; the taskId-keyed ref must treat it as brand new: the
+    // panel opens for the newly linked task...
+    fireEvent.click(screen.getByText('go-to-t2'));
+    await waitFor(() => expect(screen.getByLabelText('Close details')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('Close details'));
+    await waitFor(() => expect(screen.queryByLabelText('Close details')).not.toBeInTheDocument());
+    // ...and the All Tasks tab has been re-forced.
+    expect(screen.getByRole('tab', { name: /all tasks/i })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('pressing "n" opens the New Task modal', () => {
