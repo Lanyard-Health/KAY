@@ -97,6 +97,9 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
   useEffect(() => {
     if (linkType !== 'provider' || providerQuery.trim().length === 0) {
       setProviderResults([]);
+      // A cleared query cancels the pending debounce (cleanup below), so the
+      // loading flag must be reset here or "Searching…" sticks forever.
+      setProviderSearchLoading(false);
       return;
     }
     setProviderSearchLoading(true);
