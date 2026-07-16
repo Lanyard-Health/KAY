@@ -114,6 +114,21 @@ router.post(
       const providerId = req.params['providerId']!;
       const validated = createTaskSchema.parse(req.body);
 
+      if (validated.assignedToId) {
+        try {
+          await assertAssignableUser(validated.assignedToId);
+        } catch (err) {
+          if (err instanceof Error && err.message === 'ASSIGNEE_NOT_ALLOWED') {
+            res.status(400).json({
+              success: false,
+              error: { message: 'Tasks can only be assigned to Lanyard admin or credentialing staff' },
+            });
+            return;
+          }
+          throw err;
+        }
+      }
+
       const task = await createTask(
         {
           providerId,

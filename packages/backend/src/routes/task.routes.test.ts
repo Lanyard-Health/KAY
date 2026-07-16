@@ -186,6 +186,22 @@ describe('Task Routes', () => {
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
     });
+
+    it('returns 400 when assignedToId is not an assignable role', async () => {
+      // staff-task.service.js is NOT mocked here, so the real
+      // assertAssignableUser runs — feed it a practice_admin via prismaMock.
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: STAFF_USER_UUID, role: 'practice_admin', isActive: true,
+      } as any);
+
+      const res = await request(app)
+        .post(`/providers/${PROVIDER_ID}/tasks`)
+        .send({ title: 'Assign to the wrong role', assignedToId: STAFF_USER_UUID });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toBe('Tasks can only be assigned to Lanyard admin or credentialing staff');
+      expect(createTask).not.toHaveBeenCalled();
+    });
   });
 
   // ==========================================
