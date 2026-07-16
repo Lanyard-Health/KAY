@@ -390,16 +390,6 @@ router.patch(
         }
       }
 
-      // Notify on reassignment to someone other than the actor (any task)
-      if (
-        'assignedToId' in req.body &&
-        validated.assignedToId &&
-        validated.assignedToId !== existing.assignedToId &&
-        validated.assignedToId !== req.user!.id
-      ) {
-        notifyAssignee(validated.assignedToId, taskId, existing.title);
-      }
-
       const task = await prisma.task.update({
         where: { id: taskId },
         data: updateData,
@@ -411,6 +401,17 @@ router.patch(
           completedBy: { select: { id: true, firstName: true, lastName: true } },
         },
       });
+
+      // Notify on reassignment to someone other than the actor (any task) —
+      // fires only after the update has actually persisted.
+      if (
+        'assignedToId' in req.body &&
+        validated.assignedToId &&
+        validated.assignedToId !== existing.assignedToId &&
+        validated.assignedToId !== req.user!.id
+      ) {
+        notifyAssignee(validated.assignedToId, taskId, existing.title);
+      }
 
       res.json({ success: true, data: task });
     } catch (error) {
