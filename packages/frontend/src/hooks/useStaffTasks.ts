@@ -107,3 +107,29 @@ export function useDeleteTask() {
     onSuccess: invalidate,
   });
 }
+
+export interface PayerContactInfoData {
+  phone?: string | null;
+  email?: string | null;
+  bestWay?: string | null;
+  hours?: string | null;
+  notes?: string | null;
+}
+
+export function usePayerContactInfo(payerId: string | undefined) {
+  return useQuery({
+    queryKey: ['payer-contact-info', payerId],
+    queryFn: async () =>
+      (await api.get(`/enrollments/payers/${payerId}/contact-info`)).data.data as PayerContactInfoData | null,
+    enabled: !!payerId,
+  });
+}
+
+export function useSavePayerContactInfo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ payerId, data }: { payerId: string; data: PayerContactInfoData }) =>
+      (await api.put(`/enrollments/payers/${payerId}/contact-info`, data)).data.data as PayerContactInfoData,
+    onSuccess: (_data, { payerId }) => queryClient.invalidateQueries({ queryKey: ['payer-contact-info', payerId] }),
+  });
+}
