@@ -84,6 +84,7 @@ model User {
   tasksAssigned               Task[]                   @relation("TaskAssignedTo")
   tasksCompleted              Task[]                   @relation("TaskCompletedBy")
   tasksCreated                Task[]                   @relation("TaskCreatedBy")
+  payerContactInfoUpdates     PayerContactInfo[]       @relation("PayerContactInfoUpdatedBy")
   termLettersReviewed         TerminationLetter[]      @relation("TermLetterReviewedBy")
   practices                   UserPractice[]
   inAppNotifications          InAppNotification[]
@@ -1888,6 +1889,8 @@ model Payer {
   submissionConfig  PayerSubmissionConfig?
   practicePayers    PracticePayer[]
   portalCredentials PortalCredential[]
+  tasks             Task[]
+  contactInfo       PayerContactInfo?
 
   @@map("payers")
 }
@@ -1929,6 +1932,27 @@ model PracticePayer {
   @@unique([practiceId, payerId])
   @@index([payerId])
   @@map("practice_payers")
+}
+
+// Staff-maintained contact info for a payer (Tasks v2 contact card).
+// 1:1 with Payer; rows exist only where data exists (seeded once by
+// scripts/seed-payer-contact-info.ts, staff-entered from there on).
+model PayerContactInfo {
+  id          String   @id @default(uuid())
+  payerId     String   @unique @map("payer_id")
+  phone       String?
+  email       String?
+  bestWay     String?  @map("best_way")
+  hours       String?
+  notes       String?
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  payer     Payer @relation(fields: [payerId], references: [id], onDelete: Cascade)
+  updatedBy User? @relation("PayerContactInfoUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("payer_contact_info")
 }
 
 enum EnrollmentStatus {
@@ -2395,6 +2419,20 @@ enum TaskPriority {
   URGENT
 }
 
+// Guided-creation task groups (Tasks v2). CHECK_IN is system-only: written by
+// the practice check-in engine, rejected by the create API.
+enum TaskGroup {
+  FOLLOW_UP
+  CALL_BACK
+  SUBMIT_APPLICATION
+  REQUEST_DOCUMENTS
+  CAQH_UPDATE
+  VERIFY_INFORMATION
+  ESCALATION
+  OTHER
+  CHECK_IN
+}
+
 enum TerminationLetterStatus {
   DRAFT
   REVIEWED
@@ -2402,26 +2440,31 @@ enum TerminationLetterStatus {
 }
 
 model Task {
-  id            String       @id @default(uuid())
-  providerId    String?      @map("provider_id")
-  practiceId    String?      @map("practice_id")
-  enrollmentId  String?      @map("enrollment_id")
-  title         String
-  description   String?
-  type          TaskType
-  status        TaskStatus   @default(PENDING)
-  priority      TaskPriority @default(NORMAL)
-  assignedToId  String?      @map("assigned_to_id")
-  createdById   String?      @map("created_by_id")
-  dueDate       DateTime?    @map("due_date")
-  completedAt   DateTime?    @map("completed_at")
-  completedById String?      @map("completed_by_id")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id              String       @id @default(uuid())
+  providerId      String?      @map("provider_id")
+  practiceId      String?      @map("practice_id")
+  enrollmentId    String?      @map("enrollment_id")
+  payerId         String?      @map("payer_id")
+  title           String
+  description     String?
+  type            TaskType
+  taskGroup       TaskGroup?   @map("task_group")
+  status          TaskStatus   @default(PENDING)
+  priority        TaskPriority @default(NORMAL)
+  assignedToId    String?      @map("assigned_to_id")
+  createdById     String?      @map("created_by_id")
+  dueDate         DateTime?    @map("due_date")
+  overdueReason   String?      @map("overdue_reason")
+  overdueReasonAt DateTime?    @map("overdue_reason_at")
+  completedAt     DateTime?    @map("completed_at")
+  completedById   String?      @map("completed_by_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
   provider           ProviderProfile?    @relation(fields: [providerId], references: [id], onDelete: Cascade)
   practice           Practice?           @relation(fields: [practiceId], references: [id], onDelete: Cascade)
   enrollment         Enrollment?         @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  payer              Payer?              @relation(fields: [payerId], references: [id], onDelete: SetNull)
   assignedTo         User?               @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   createdBy          User?               @relation("TaskCreatedBy", fields: [createdById], references: [id])
   completedBy        User?               @relation("TaskCompletedBy", fields: [completedById], references: [id])
@@ -2434,6 +2477,8 @@ model Task {
   @@index([assignedToId])
   @@index([practiceId])
   @@index([priority])
+  @@index([payerId])
+  @@index([taskGroup])
   @@map("tasks")
 }
 
