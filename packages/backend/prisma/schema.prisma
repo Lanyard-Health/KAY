@@ -1950,9 +1950,9 @@ model PayerContactInfo {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   payer     Payer @relation(fields: [payerId], references: [id], onDelete: Cascade)
-  updatedBy User? @relation("PayerContactInfoUpdatedBy", fields: [updatedById], references: [id])
+  updatedBy User? @relation("PayerContactInfoUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  @@map("payer_contact_info")
+  @@map("payer_contact_infos")
 }
 
 enum EnrollmentStatus {
