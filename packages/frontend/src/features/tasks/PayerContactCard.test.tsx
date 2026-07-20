@@ -50,4 +50,21 @@ describe('PayerContactCard', () => {
     await waitFor(() => expect(mocks.notifyError).toHaveBeenCalled());
     expect(screen.getByLabelText('Phone')).toHaveValue('(800) 555-0111'); // values kept, task creation unaffected
   });
+
+  it('Enter inside a card input saves the card and never submits an enclosing form', async () => {
+    mocks.usePayerContactInfo.mockReturnValue({ data: null, isLoading: false, isError: false });
+    const mutate = vi.fn();
+    mocks.useSavePayerContactInfo.mockReturnValue({ mutate, isPending: false });
+    const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      // Mirrors NewTaskModal: the card renders inside the task <form>.
+      <form onSubmit={outerSubmit}>
+        <PayerContactCard payerId="p1" payerName="Molina Healthcare of Texas" />
+      </form>,
+    );
+    await userEvent.type(screen.getByLabelText('Phone'), '(800) 555-0111{Enter}');
+    expect(outerSubmit).not.toHaveBeenCalled(); // no implicit form submission
+    expect(mutate).toHaveBeenCalledTimes(1); // Enter routed to the card's own save
+    expect(mutate.mock.calls[0][0]).toMatchObject({ payerId: 'p1', data: expect.objectContaining({ phone: '(800) 555-0111' }) });
+  });
 });

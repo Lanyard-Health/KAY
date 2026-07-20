@@ -94,6 +94,14 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
                 className="input mt-0.5"
                 value={form[key]}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                onKeyDown={(e) => {
+                  // Inside NewTaskModal the card sits in the task <form>; Enter
+                  // here must save the card, never implicitly submit the task.
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSave();
+                  }
+                }}
               />
             </div>
           ))}
