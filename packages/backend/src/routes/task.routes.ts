@@ -10,6 +10,7 @@ import {
   createStaffTask, claimTask, assertAssignableUser, notifyAssignee,
 } from '../services/staff-task.service.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
+import { HUMAN_TASK_GROUPS, type HumanTaskGroup } from '@credential-management/shared';
 
 // Helper to check task access (staff/admin can access all, providers only their own)
 async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
@@ -160,6 +161,7 @@ const listTasksQuerySchema = z.object({
   status: z.enum(['open', 'completed', 'all']).default('open'),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
   practiceId: z.string().uuid().optional(),
+  taskGroup: z.enum(['FOLLOW_UP', 'CALL_BACK', 'SUBMIT_APPLICATION', 'REQUEST_DOCUMENTS', 'CAQH_UPDATE', 'VERIFY_INFORMATION', 'ESCALATION', 'OTHER', 'CHECK_IN']).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -184,35 +186,45 @@ router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, re
   } catch (error) { next(error); }
 });
 
-const staffCreateTaskSchema = z.object({
-  title: z.string().trim().min(1, 'Give the task a title').max(500),
-  description: z.string().max(2000).optional(),
+// Guided create (Tasks v2). NOT .strict(): a stray `title` from a
+// not-yet-refreshed client is silently dropped (deploy-skew tolerance).
+const guidedCreateTaskSchema = z.object({
+  taskGroup: z.enum(HUMAN_TASK_GROUPS as unknown as [HumanTaskGroup, ...HumanTaskGroup[]]),
+  note: z.string().max(2000).optional(),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
   dueDate: z.string().datetime().optional(),
   assignedToId: z.string().uuid().optional(),
+  payerId: z.string().uuid().optional(),
   providerId: z.string().uuid().optional(),
   practiceId: z.string().uuid().optional(),
   enrollmentId: z.string().uuid().optional(),
 });
 
+const CREATE_ERROR_MESSAGES: Record<string, string> = {
+  ENROLLMENT_LINK_EXCLUSIVE: 'A task can link to an enrollment or to a provider/practice, not both',
+  PROVIDER_PRACTICE_MISMATCH: "That provider isn't at the selected practice",
+  PAYER_NOT_FOUND: 'Payer not found',
+  PRACTICE_NOT_FOUND: 'Practice not found',
+  PROVIDER_NOT_FOUND: 'Provider not found',
+  ASSIGNEE_NOT_ALLOWED: 'Tasks can only be assigned to Lanyard admin or credentialing staff',
+};
+
 router.post('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const v = staffCreateTaskSchema.parse(req.body);
+    // CHECK_IN is system-only (D17): explicit 400 before Zod so the message is human, not a schema error.
+    if (req.body?.taskGroup === 'CHECK_IN') {
+      res.status(400).json({ success: false, error: { message: 'Check-in tasks are created automatically by the system — pick another task group' } });
+      return;
+    }
+    const v = guidedCreateTaskSchema.parse(req.body);
     const task = await createStaffTask(
       { ...v, dueDate: v.dueDate ? new Date(v.dueDate) : undefined },
       req.user!.id,
     );
     res.status(201).json({ success: true, data: task });
   } catch (error) {
-    if (error instanceof Error && (error.message === 'MULTIPLE_LINKS' || error.message === 'ASSIGNEE_NOT_ALLOWED')) {
-      res.status(400).json({
-        success: false,
-        error: {
-          message: error.message === 'MULTIPLE_LINKS'
-            ? 'A task can link to at most one record'
-            : 'Tasks can only be assigned to Lanyard admin or credentialing staff',
-        },
-      });
+    if (error instanceof Error && error.message in CREATE_ERROR_MESSAGES) {
+      res.status(400).json({ success: false, error: { message: CREATE_ERROR_MESSAGES[error.message] } });
       return;
     }
     next(error);

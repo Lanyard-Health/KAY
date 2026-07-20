@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -9,11 +9,13 @@ vi.mock('../../hooks/useStaffTasks', () => ({
       data: [
         {
           id: 't1',
-          title: 'Chase W-9',
+          title: 'Follow Up — Aetna Better Health',
           status: 'IN_PROGRESS',
           priority: 'URGENT',
           dueDate: '2026-07-12T00:00:00Z',
-          createdAt: '2026-07-01T00:00:00Z',
+          createdAt: '2026-07-10T00:00:00Z',
+          taskGroup: 'FOLLOW_UP',
+          payer: { id: 'p1', name: 'Aetna Better Health', phone: '(800) 555-0100', contactInfo: { phone: '(800) 555-0142' } },
           assignedTo: { id: 'u1', firstName: 'Kay', lastName: 'Ward' },
         },
         {
@@ -38,6 +40,8 @@ vi.mock('../../hooks/useStaffTasks', () => ({
   useUpdateStaffTask: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
   useCreateStaffTask: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useDeleteTask: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  usePayerContactInfo: vi.fn(() => ({ data: null, isLoading: false, isError: false })),
+  useSavePayerContactInfo: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock('./NewTaskModal', () => ({
@@ -64,7 +68,7 @@ describe('TasksPage', () => {
     expect(screen.getByRole('tab', { name: /my tasks/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /task pool/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /all tasks/i })).toBeInTheDocument();
-    expect(screen.getByText('Chase W-9')).toBeInTheDocument();
+    expect(screen.getByText('Follow Up — Aetna Better Health')).toBeInTheDocument();
     expect(screen.getByText(/overdue/i)).toBeInTheDocument();
   });
 
@@ -133,9 +137,27 @@ describe('TasksPage', () => {
 
   it('selecting two rows shows "2 selected" in the floating bulk-action bar', () => {
     renderPage();
-    fireEvent.click(screen.getByLabelText('Select Chase W-9'));
+    fireEvent.click(screen.getByLabelText('Select Follow Up — Aetna Better Health'));
     fireEvent.click(screen.getByLabelText('Select Verify NPI for Dr. Lee'));
     expect(screen.getByText('2 selected')).toBeInTheDocument();
+  });
+
+  it('renders the group pill and the payer tel link on rows', () => {
+    renderPage();
+    // Scoped to the row (not the group filter select, which also has a
+    // "Follow Up" option) — see the group-filter select added in this task.
+    const row = screen.getByText('Follow Up — Aetna Better Health').closest('.group') as HTMLElement;
+    expect(within(row).getByText('Follow Up')).toBeInTheDocument(); // TaskGroupPill
+    const tel = screen.getByRole('link', { name: 'Call Aetna Better Health credentialing, (800) 555-0142' });
+    expect(tel).toHaveAttribute('href', 'tel:(800) 555-0142'); // contactInfo.phone wins over the raw Stedi phone
+  });
+
+  it('offers a group filter with all nine groups', () => {
+    renderPage();
+    const filter = screen.getByLabelText('Filter by group');
+    expect(filter).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'CAQH Update / Re-attestation' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Check-in' })).toBeInTheDocument();
   });
 
   it('prunes a selection that disappears from the list (e.g. a filter change) and hides the bulk bar', async () => {
@@ -153,10 +175,10 @@ describe('TasksPage', () => {
     );
     const { rerender } = render(makeTree());
 
-    fireEvent.click(screen.getByLabelText('Select Chase W-9'));
+    fireEvent.click(screen.getByLabelText('Select Follow Up — Aetna Better Health'));
     expect(screen.getByText('1 selected')).toBeInTheDocument();
 
-    // Simulate a filter change that removes the selected task ("Chase W-9",
+    // Simulate a filter change that removes the selected task ("Follow Up — Aetna Better Health",
     // t1) from the visible list.
     vi.mocked(useStaffTasks).mockReturnValue({
       data: {

@@ -20,7 +20,7 @@ const MODELS = [
   'inAppNotification', 'license', 'malpracticeClaim', 'malpracticeInsurance',
   'malpracticePolicyLocation', 'notification', 'notificationPreference', 'organizationType',
   'patientAgeGroup', 'patientGenderIdentity', 'patientSexualOrientation',
-  'payer', 'payerContact', 'payerForm', 'payerFormField',
+  'payer', 'payerContact', 'payerContactInfo', 'payerForm', 'payerFormField',
   'payerFormFieldMapping', 'payerRequirement', 'payerStateRule',
   'payerSubmissionConfig', 'payerTimeline', 'payerTrack', 'pendingApproval',
   'practice', 'practiceInvitation', 'practiceLocation', 'practiceOwner', 'practicePayer', 'practiceSettings',

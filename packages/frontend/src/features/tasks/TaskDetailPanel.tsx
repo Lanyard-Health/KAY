@@ -5,6 +5,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import { useUpdateStaffTask, useDeleteTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
 import { PRIORITY_STYLES, isOverdue, linkedRecordLabel, linkedRecordHref } from './TaskRow';
+import PayerContactCard from './PayerContactCard';
 import { notify } from '../../utils/notify';
 
 const PRIORITY_LABELS: Record<StaffTask['priority'], string> = {
@@ -167,6 +168,13 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                         <p className="text-sm text-gray-400">No description</p>
                       )}
                     </div>
+
+                    {task.payer && (
+                      <div>
+                        <h3 className="label">Payer contact</h3>
+                        <PayerContactCard payerId={task.payer.id} payerName={task.payer.name} />
+                      </div>
+                    )}
 
                     {linkedRecordLabel(task) && linkedRecordHref(task) && (
                       <div>
