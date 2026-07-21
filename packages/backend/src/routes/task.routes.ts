@@ -389,7 +389,13 @@ router.patch(
         const patch: Record<string, unknown> = {};
         for (const k of guidedKeys) if (k in req.body) patch[k] = validated[k];
         const resolved = await resolveGuidedEdit(existing, patch);
-        Object.assign(updateData, resolved.data);
+        // Explicit per-field assignment (not Object.assign) so only these
+        // four known keys can ever reach the update — Semgrep flags a
+        // request-derived Object.assign as a data-exfiltration sink.
+        updateData['taskGroup'] = resolved.data.taskGroup;
+        updateData['payerId'] = resolved.data.payerId;
+        updateData['practiceId'] = resolved.data.practiceId;
+        updateData['providerId'] = resolved.data.providerId;
         if (resolved.title !== undefined) updateData['title'] = resolved.title;
       }
       if (validated.priority !== undefined) updateData['priority'] = validated.priority;
