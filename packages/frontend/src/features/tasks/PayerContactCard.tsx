@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { usePayerContactInfo, useSavePayerContactInfo, type PayerContactInfoData } from '../../hooks/useStaffTasks';
+import { usePayerContactInfo, useSavePayerContactInfo } from '../../hooks/useStaffTasks';
 import { notify } from '../../utils/notify';
 
 interface PayerContactCardProps {
@@ -7,15 +7,14 @@ interface PayerContactCardProps {
   payerName: string;
 }
 
-const EMPTY_FORM: Required<{ [K in keyof PayerContactInfoData]: string }> = {
-  phone: '', email: '', bestWay: '', hours: '', notes: '',
-};
+// "hours" stays in the API/DB but is deliberately absent from the UI —
+// payer hours are standard enough that the field was noise (Kay, 2026-07-20).
+const EMPTY_FORM = { phone: '', email: '', bestWay: '', notes: '' };
 
-const FIELD_LABELS: { key: keyof PayerContactInfoData; label: string }[] = [
+const FIELD_LABELS: { key: keyof typeof EMPTY_FORM; label: string }[] = [
   { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
   { key: 'bestWay', label: 'Best way to contact' },
-  { key: 'hours', label: 'Hours' },
   { key: 'notes', label: 'Notes' },
 ];
 
@@ -42,8 +41,8 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
   useEffect(() => {
     setEditing(false);
     setForm({
-      phone: info?.phone ?? '', email: info?.email ?? '', bestWay: info?.bestWay ?? '',
-      hours: info?.hours ?? '', notes: info?.notes ?? '',
+      phone: info?.phone ?? '', email: info?.email ?? '',
+      bestWay: info?.bestWay ?? '', notes: info?.notes ?? '',
     });
   }, [info, payerId]);
 
@@ -146,7 +145,6 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
             </>
           )}
           {info?.bestWay && (<><dt className="text-gray-500">Best way</dt><dd className="text-gray-800">{info.bestWay}</dd></>)}
-          {info?.hours && (<><dt className="text-gray-500">Hours</dt><dd className="text-gray-800">{info.hours}</dd></>)}
           {info?.notes && (<><dt className="text-gray-500">Notes</dt><dd className="text-gray-800">{info.notes}</dd></>)}
           <dt className="sr-only">Actions</dt>
           <dd className="col-span-2 pt-1">

@@ -47,7 +47,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   badge?: number;
-  badgeColor?: 'amber' | 'red';
+  badgeColor?: 'amber' | 'red' | 'neutral';
 }
 
 interface NavGroup {
@@ -160,7 +160,7 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
                     <span
                       className={clsx(
                         'ml-auto inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white min-w-[18px]',
-                        item.badgeColor === 'red' ? 'bg-red-600' : 'bg-amber-500',
+                        item.badgeColor === 'red' ? 'bg-red-600' : item.badgeColor === 'neutral' ? 'bg-white/25' : 'bg-amber-500',
                       )}
                     >
                       {item.badge > 99 ? '99+' : item.badge}
@@ -203,10 +203,13 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
       .filter((item) => !(item.name === 'Tasks' && role === 'credentialing_staff'))
       .map((item) => {
         if (item.name === 'OCR Review' && ocrReviewCount) return { ...item, badge: ocrReviewCount };
-        if (item.name === 'Tasks' && taskCounts && (taskCounts.overdue > 0 || taskCounts.open > 0)) {
+        if (item.name === 'Tasks' && taskCounts && (taskCounts.overdue > 0 || taskCounts.open > 0 || (taskCounts.pool ?? 0) > 0)) {
+          // Priority: my overdue (red) > my open (amber) > unassigned pool (neutral).
           return taskCounts.overdue > 0
             ? { ...item, badge: taskCounts.overdue, badgeColor: 'red' as const }
-            : { ...item, badge: taskCounts.open, badgeColor: 'amber' as const };
+            : taskCounts.open > 0
+              ? { ...item, badge: taskCounts.open, badgeColor: 'amber' as const }
+              : { ...item, badge: taskCounts.pool, badgeColor: 'neutral' as const };
         }
         return item;
       }),

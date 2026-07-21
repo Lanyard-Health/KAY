@@ -63,6 +63,35 @@ async function resolveLinks(input: Pick<CreateStaffTaskInput, 'payerId' | 'provi
   return { payerName, practiceName };
 }
 
+/**
+ * v2 guided edit (staging feedback 2026-07-20): merge the PATCH's guided
+ * fields over the existing row, re-validate links with the same rules as
+ * create, and recompose the title when a group is present. `patch` must
+ * contain only the keys actually present in the request body — absent keys
+ * keep the existing value, explicit null clears a link.
+ */
+export async function resolveGuidedEdit(
+  existing: { taskGroup: string | null; payerId: string | null; practiceId: string | null; providerId: string | null; enrollmentId: string | null },
+  patch: { taskGroup?: HumanTaskGroup; payerId?: string | null; practiceId?: string | null; providerId?: string | null },
+) {
+  const final = {
+    taskGroup: ('taskGroup' in patch ? patch.taskGroup : existing.taskGroup) as HumanTaskGroup | null,
+    payerId: 'payerId' in patch ? patch.payerId ?? null : existing.payerId,
+    practiceId: 'practiceId' in patch ? patch.practiceId ?? null : existing.practiceId,
+    providerId: 'providerId' in patch ? patch.providerId ?? null : existing.providerId,
+  };
+  const { payerName, practiceName } = await resolveLinks({
+    payerId: final.payerId ?? undefined,
+    practiceId: final.practiceId ?? undefined,
+    providerId: final.providerId ?? undefined,
+    enrollmentId: existing.enrollmentId ?? undefined,
+  });
+  return {
+    data: final,
+    title: final.taskGroup ? composeTaskTitle(final.taskGroup, payerName, practiceName) : undefined,
+  };
+}
+
 export function notifyAssignee(userId: string, taskId: string, title: string) {
   prisma.inAppNotification.create({
     data: {
@@ -144,11 +173,14 @@ export async function listStaffTasks(opts: ListStaffTasksOptions) {
 }
 
 export async function getMyTaskCounts(userId: string) {
-  const [open, overdue] = await Promise.all([
+  const [open, overdue, pool] = await Promise.all([
     prisma.task.count({ where: { assignedToId: userId, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
     prisma.task.count({ where: { assignedToId: userId, status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { lt: new Date() } } }),
+    // Unassigned open tasks were invisible everywhere (staging feedback
+    // 2026-07-20) — the nav badge now surfaces the pool as ambient signal.
+    prisma.task.count({ where: { assignedToId: null, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
   ]);
-  return { open, overdue };
+  return { open, overdue, pool };
 }
 
 export async function listAssignees() {

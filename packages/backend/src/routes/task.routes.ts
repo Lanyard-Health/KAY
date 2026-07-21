@@ -7,7 +7,7 @@ import { requirePracticeProvider, validateProviderPracticeAccess, getPracticeRel
 import { createTask } from '../services/task.service.js';
 import {
   listStaffTasks, getMyTaskCounts, listAssignees,
-  createStaffTask, claimTask, assertAssignableUser, notifyAssignee,
+  createStaffTask, claimTask, assertAssignableUser, notifyAssignee, resolveGuidedEdit,
 } from '../services/staff-task.service.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { HUMAN_TASK_GROUPS, type HumanTaskGroup } from '@credential-management/shared';
@@ -59,6 +59,12 @@ const updateTaskSchema = z.object({
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
   assignedToId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
+  // v2 guided edit: group/links editable after creation (internal roles only,
+  // enforced in the handler). Human groups only — CHECK_IN stays system-set.
+  taskGroup: z.enum(HUMAN_TASK_GROUPS as unknown as [HumanTaskGroup, ...HumanTaskGroup[]]).optional(),
+  payerId: z.string().uuid().nullable().optional(),
+  practiceId: z.string().uuid().nullable().optional(),
+  providerId: z.string().uuid().nullable().optional(),
 });
 
 // ==========================================
@@ -310,11 +316,12 @@ router.patch(
       const taskId = req.params['taskId']!;
       const validated = updateTaskSchema.parse(req.body);
 
-      // Staff-only fields: priority (new — internal triage concept) and
-      // assignedToId (reassignment — role-validated below for ALL tasks).
+      // Staff-only fields: priority (new — internal triage concept),
+      // assignedToId (reassignment — role-validated below for ALL tasks),
+      // and the v2 guided fields (group/links are internal concepts).
       // title/description/dueDate stay open to practice-side
       // credentialing_staff, unchanged from prior behavior.
-      const staffFields = ['priority', 'assignedToId'] as const;
+      const staffFields = ['priority', 'assignedToId', 'taskGroup', 'payerId', 'practiceId', 'providerId'] as const;
       const touchesStaffFields = staffFields.some((f) => f in req.body);
       if (touchesStaffFields && req.user!.role !== 'admin' && req.user!.role !== 'lanyard_staff') {
         throw new ForbiddenError('Insufficient permissions');
@@ -371,6 +378,20 @@ router.patch(
 
       if (validated.title !== undefined) updateData['title'] = validated.title;
       if (validated.description !== undefined) updateData['description'] = validated.description;
+
+      // v2 guided edit: merge patched group/links over the existing row,
+      // re-validate with the create rules, recompose the title. Key presence
+      // in the body decides intent (absent = keep, null = clear). Runs after
+      // the plain assignments so a composed title always wins over a stray
+      // client-sent title.
+      const guidedKeys = ['taskGroup', 'payerId', 'practiceId', 'providerId'] as const;
+      if (guidedKeys.some((k) => k in req.body)) {
+        const patch: Record<string, unknown> = {};
+        for (const k of guidedKeys) if (k in req.body) patch[k] = validated[k];
+        const resolved = await resolveGuidedEdit(existing, patch);
+        Object.assign(updateData, resolved.data);
+        if (resolved.title !== undefined) updateData['title'] = resolved.title;
+      }
       if (validated.priority !== undefined) updateData['priority'] = validated.priority;
       if (validated.assignedToId !== undefined) updateData['assignedToId'] = validated.assignedToId;
       if (validated.dueDate !== undefined) {
@@ -427,6 +448,11 @@ router.patch(
 
       res.json({ success: true, data: task });
     } catch (error) {
+      // Guided-edit link validation reuses the create-side error vocabulary.
+      if (error instanceof Error && error.message in CREATE_ERROR_MESSAGES) {
+        res.status(400).json({ success: false, error: { message: CREATE_ERROR_MESSAGES[error.message] } });
+        return;
+      }
       next(error);
     }
   }
