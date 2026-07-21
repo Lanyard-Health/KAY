@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import StatusBadge from '../../components/ui/StatusBadge';
 import type { StaffTask } from '../../hooks/useStaffTasks';
+import TaskGroupPill from './TaskGroupPill';
 
 export const PRIORITY_STYLES: Record<StaffTask['priority'], string> = {
   URGENT: 'bg-red-50 text-red-700 ring-red-600/30',
@@ -27,6 +28,10 @@ export function linkedRecordHref(task: StaffTask): string | null {
   if (task.practice) return `/practices/${task.practice.id}`;
   if (task.enrollment) return `/enrollments?enrollmentId=${task.enrollment.id}`; // verify the enrollments page's deep-link param before shipping
   return null;
+}
+
+export function payerPhone(task: StaffTask): string | null {
+  return task.payer?.contactInfo?.phone ?? task.payer?.phone ?? null;
 }
 
 function poolAgeLabel(task: StaffTask): string {
@@ -109,11 +114,29 @@ export default function TaskRow({
         >
           {task.title}
         </button>
-        {record ? (
-          <span className="mt-0.5 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{record}</span>
-        ) : (
-          <span className="text-[11px] text-gray-500">No linked record</span>
-        )}
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          {task.taskGroup && <TaskGroupPill group={task.taskGroup} />}
+          {record ? (
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{record}</span>
+          ) : (
+            <span className="text-[11px] text-gray-500">No linked record</span>
+          )}
+          {payerPhone(task) && task.payer && (
+            // D7: one click to call without opening the task. Full accessible
+            // name — activating this places a call.
+            <a
+              href={`tel:${payerPhone(task)}`}
+              aria-label={`Call ${task.payer.name} credentialing, ${payerPhone(task)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] font-semibold text-primary-700 underline decoration-dashed decoration-primary-700/40 underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            >
+              {payerPhone(task)}
+            </a>
+          )}
+          {task.taskGroup === 'CHECK_IN' && task.description && (
+            <span className="text-[11px] text-gray-500">{task.description} · added by Lanyard</span>
+          )}
+        </div>
         {view === 'pool' && <span className="mt-0.5 block text-[11px] text-gray-500">{poolAgeLabel(task)}</span>}
       </div>
       <span className={clsx('inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset', PRIORITY_STYLES[task.priority])}>{PRIORITY_LABELS[task.priority]}</span>

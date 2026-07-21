@@ -192,35 +192,51 @@ describe('Provider-less tasks (null providerId) fail closed to internal roles', 
   });
 });
 
-describe('POST /tasks', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+describe('POST /tasks (guided create)', () => {
+  beforeEach(() => vi.clearAllMocks());
 
-  it('creates a staff task without a provider', async () => {
-    vi.mocked(staffSvc.createStaffTask).mockResolvedValue({ id: 't1', title: 'Update payer sheet' } as any);
+  it('creates a guided task and returns 201', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockResolvedValue({ id: 't1', title: 'Follow Up — Aetna Better Health' } as any);
     const app = createTestApp(taskRoutes, adminUser);
-    const res = await request(app).post('/tasks').send({ title: 'Update payer sheet', priority: 'LOW' });
+    const res = await request(app).post('/tasks').send({ taskGroup: 'FOLLOW_UP', payerId: PROVIDER_ID });
     expect(res.status).toBe(201);
+    expect(res.body.data.title).toBe('Follow Up — Aetna Better Health');
   });
 
-  it('400s when two record links are sent', async () => {
-    vi.mocked(staffSvc.createStaffTask).mockRejectedValue(new Error('MULTIPLE_LINKS'));
+  it('400s on taskGroup CHECK_IN (system-only)', async () => {
     const app = createTestApp(taskRoutes, adminUser);
-    const res = await request(app).post('/tasks').send({ title: 'x', priority: 'NORMAL', providerId: PROVIDER_ID, practiceId: PROVIDER_ID });
+    const res = await request(app).post('/tasks').send({ taskGroup: 'CHECK_IN' });
     expect(res.status).toBe(400);
+    expect(vi.mocked(staffSvc.createStaffTask)).not.toHaveBeenCalled();
   });
 
-  it('400s when assignee is not admin/lanyard_staff', async () => {
+  it('ignores a stray title (deploy-skew tolerance) — 201, composed title wins', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockResolvedValue({ id: 't1', title: 'Escalation' } as any);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post('/tasks').send({ taskGroup: 'ESCALATION', title: 'typed title from a stale client' });
+    expect(res.status).toBe(201);
+    const svcInput = vi.mocked(staffSvc.createStaffTask).mock.calls[0][0] as Record<string, unknown>;
+    expect(svcInput['title']).toBeUndefined();
+  });
+
+  it('400s when the provider is not at the selected practice', async () => {
+    vi.mocked(staffSvc.createStaffTask).mockRejectedValue(new Error('PROVIDER_PRACTICE_MISMATCH'));
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).post('/tasks').send({ taskGroup: 'CALL_BACK', practiceId: PROVIDER_ID, providerId: STAFF_USER_UUID });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("That provider isn't at the selected practice");
+  });
+
+  it('400s when assignee is not admin/lanyard_staff (v1 rule unchanged)', async () => {
     vi.mocked(staffSvc.createStaffTask).mockRejectedValue(new Error('ASSIGNEE_NOT_ALLOWED'));
     const app = createTestApp(taskRoutes, adminUser);
-    const res = await request(app).post('/tasks').send({ title: 'x', priority: 'NORMAL', assignedToId: STAFF_USER_UUID });
+    const res = await request(app).post('/tasks').send({ taskGroup: 'FOLLOW_UP', assignedToId: STAFF_USER_UUID });
     expect(res.status).toBe(400);
   });
 
-  it('403s when a credentialing_staff (practice-side) user tries to create a staff task', async () => {
+  it('403s for practice-side credentialing_staff (fail closed)', async () => {
     const app = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
-    const res = await request(app).post('/tasks').send({ title: 'x' });
+    const res = await request(app).post('/tasks').send({ taskGroup: 'FOLLOW_UP' });
     expect(res.status).toBe(403);
   });
 });

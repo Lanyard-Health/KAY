@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { TaskGroup } from '@credential-management/shared';
 import { api } from '../services/api';
 
 // ===========================
@@ -20,6 +21,10 @@ export interface StaffTask {
   provider?: { id: string; firstName: string; lastName: string } | null;
   practice?: { id: string; name: string } | null;
   enrollment?: { id: string; payer?: { name: string } } | null;
+  taskGroup?: TaskGroup | null;
+  payer?: { id: string; name: string; phone?: string | null; contactInfo?: { phone?: string | null } | null } | null;
+  overdueReason?: string | null;
+  overdueReasonAt?: string | null;
 }
 
 // ===========================
@@ -28,7 +33,7 @@ export interface StaffTask {
 
 export function useStaffTasks(
   view: 'my' | 'pool' | 'all',
-  filters?: { status?: string; priority?: string; practiceId?: string },
+  filters?: { status?: string; priority?: string; practiceId?: string; taskGroup?: string },
   limit: number = 50
 ) {
   return useQuery({
@@ -38,6 +43,7 @@ export function useStaffTasks(
       if (filters?.status) params.set('status', filters.status);
       if (filters?.priority) params.set('priority', filters.priority);
       if (filters?.practiceId) params.set('practiceId', filters.practiceId);
+      if (filters?.taskGroup) params.set('taskGroup', filters.taskGroup);
       const response = await api.get(`/tasks?${params.toString()}`);
       return response.data; // { success, data: StaffTask[], meta: { total } }
     },
@@ -47,7 +53,7 @@ export function useStaffTasks(
 export function useTaskCounts(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['staff-tasks', 'counts'],
-    queryFn: async () => (await api.get('/tasks/counts')).data.data as { open: number; overdue: number },
+    queryFn: async () => (await api.get('/tasks/counts')).data.data as { open: number; overdue: number; pool: number },
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     enabled: options?.enabled ?? true, // Layout passes false for practice roles (403 otherwise)
@@ -99,5 +105,31 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (taskId: string) => api.delete(`/tasks/${taskId}`),
     onSuccess: invalidate,
+  });
+}
+
+export interface PayerContactInfoData {
+  phone?: string | null;
+  email?: string | null;
+  bestWay?: string | null;
+  hours?: string | null;
+  notes?: string | null;
+}
+
+export function usePayerContactInfo(payerId: string | undefined) {
+  return useQuery({
+    queryKey: ['payer-contact-info', payerId],
+    queryFn: async () =>
+      (await api.get(`/enrollments/payers/${payerId}/contact-info`)).data.data as PayerContactInfoData | null,
+    enabled: !!payerId,
+  });
+}
+
+export function useSavePayerContactInfo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ payerId, data }: { payerId: string; data: PayerContactInfoData }) =>
+      (await api.put(`/enrollments/payers/${payerId}/contact-info`, data)).data.data as PayerContactInfoData,
+    onSuccess: (_data, { payerId }) => queryClient.invalidateQueries({ queryKey: ['payer-contact-info', payerId] }),
   });
 }

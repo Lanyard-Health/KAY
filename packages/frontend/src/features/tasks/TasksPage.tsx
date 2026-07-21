@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { PlusIcon } from '@heroicons/react/24/outline';
+import { TASK_GROUP_LABELS } from '@credential-management/shared';
 import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
 import { api } from '../../services/api';
 import TaskRow from './TaskRow';
@@ -24,6 +25,7 @@ export default function TasksPage() {
   const [tabIndex, setTabIndex] = useState(0);
   const [priority, setPriority] = useState('');
   const [practiceId, setPracticeId] = useState('');
+  const [taskGroup, setTaskGroup] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
   const [limit, setLimit] = useState(50);
   const [selectedTask, setSelectedTask] = useState<StaffTask | null>(null);
@@ -40,7 +42,7 @@ export default function TasksPage() {
   const status = showCompleted ? 'all' : 'open';
   const { data, isLoading, isFetching, isError, refetch } = useStaffTasks(
     view,
-    { status, priority: priority || undefined, practiceId: practiceId || undefined },
+    { status, priority: priority || undefined, practiceId: practiceId || undefined, taskGroup: taskGroup || undefined },
     limit,
   );
   const { data: practices } = useQuery({
@@ -59,7 +61,7 @@ export default function TasksPage() {
   // land on an unrelated row.
   useEffect(() => {
     setFocusIndex(-1);
-  }, [tabIndex, priority, practiceId, showCompleted]);
+  }, [tabIndex, priority, practiceId, taskGroup, showCompleted]);
 
   // Bulk selection is scoped to a tab (selecting across My Tasks / Task
   // Pool / All Tasks would make "Assign to…" ambiguous), so clear it on
@@ -290,6 +292,12 @@ export default function TasksPage() {
           <option value="">Practice: All</option>
           {(practices ?? []).map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <select value={taskGroup} onChange={(e) => setTaskGroup(e.target.value)} className="input w-56" aria-label="Filter by group">
+          <option value="">Group: Any</option>
+          {Object.entries(TASK_GROUP_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
           ))}
         </select>
         <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">

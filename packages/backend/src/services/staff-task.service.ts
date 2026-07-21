@@ -1,17 +1,20 @@
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { composeTaskTitle, type HumanTaskGroup } from '@credential-management/shared';
 
 export const ASSIGNABLE_ROLES = ['admin', 'lanyard_staff'] as const;
 
 export interface CreateStaffTaskInput {
-  title: string; description?: string;
+  taskGroup: HumanTaskGroup;      // 8 human groups only — CHECK_IN rejected at the route
+  note?: string;                  // maps to Task.description
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   dueDate?: Date; assignedToId?: string;
-  providerId?: string; practiceId?: string; enrollmentId?: string;
+  payerId?: string; providerId?: string; practiceId?: string; enrollmentId?: string;
 }
 export interface ListStaffTasksOptions {
   view: 'my' | 'pool' | 'all'; userId: string;
   status?: 'open' | 'completed' | 'all'; priority?: string; practiceId?: string;
+  taskGroup?: string;             // filter by group (all 9 values legal, incl. CHECK_IN)
   limit: number; offset: number;
 }
 
@@ -22,6 +25,7 @@ const TASK_INCLUDE = {
   provider: { select: { id: true, firstName: true, lastName: true } },
   practice: { select: { id: true, name: true } },
   enrollment: { select: { id: true, payer: { select: { name: true } } } },
+  payer: { select: { id: true, name: true, phone: true, contactInfo: { select: { phone: true } } } },
 } as const;
 
 export async function assertAssignableUser(userId: string): Promise<void> {
@@ -31,9 +35,61 @@ export async function assertAssignableUser(userId: string): Promise<void> {
   }
 }
 
-function assertSingleLink(input: Pick<CreateStaffTaskInput, 'providerId' | 'practiceId' | 'enrollmentId'>) {
-  const links = [input.providerId, input.practiceId, input.enrollmentId].filter(Boolean);
-  if (links.length > 1) throw new Error('MULTIPLE_LINKS');
+/**
+ * v2 link rules (relaxes v1's assertSingleLink): payer link is independent of
+ * everything; provider+practice may coexist iff the provider belongs to that
+ * practice; enrollment stays exclusive of provider/practice.
+ * Returns the names needed for server-side title composition.
+ */
+async function resolveLinks(input: Pick<CreateStaffTaskInput, 'payerId' | 'providerId' | 'practiceId' | 'enrollmentId'>) {
+  if (input.enrollmentId && (input.providerId || input.practiceId)) throw new Error('ENROLLMENT_LINK_EXCLUSIVE');
+  let payerName: string | undefined;
+  let practiceName: string | undefined;
+  if (input.payerId) {
+    const payer = await prisma.payer.findUnique({ where: { id: input.payerId }, select: { name: true } });
+    if (!payer) throw new Error('PAYER_NOT_FOUND');
+    payerName = payer.name;
+  }
+  if (input.practiceId) {
+    const practice = await prisma.practice.findUnique({ where: { id: input.practiceId }, select: { name: true } });
+    if (!practice) throw new Error('PRACTICE_NOT_FOUND');
+    practiceName = practice.name;
+  }
+  if (input.providerId) {
+    const provider = await prisma.providerProfile.findUnique({ where: { id: input.providerId }, select: { practiceId: true } });
+    if (!provider) throw new Error('PROVIDER_NOT_FOUND');
+    if (input.practiceId && provider.practiceId !== input.practiceId) throw new Error('PROVIDER_PRACTICE_MISMATCH');
+  }
+  return { payerName, practiceName };
+}
+
+/**
+ * v2 guided edit (staging feedback 2026-07-20): merge the PATCH's guided
+ * fields over the existing row, re-validate links with the same rules as
+ * create, and recompose the title when a group is present. `patch` must
+ * contain only the keys actually present in the request body — absent keys
+ * keep the existing value, explicit null clears a link.
+ */
+export async function resolveGuidedEdit(
+  existing: { taskGroup: string | null; payerId: string | null; practiceId: string | null; providerId: string | null; enrollmentId: string | null },
+  patch: { taskGroup?: HumanTaskGroup; payerId?: string | null; practiceId?: string | null; providerId?: string | null },
+) {
+  const final = {
+    taskGroup: ('taskGroup' in patch ? patch.taskGroup : existing.taskGroup) as HumanTaskGroup | null,
+    payerId: 'payerId' in patch ? patch.payerId ?? null : existing.payerId,
+    practiceId: 'practiceId' in patch ? patch.practiceId ?? null : existing.practiceId,
+    providerId: 'providerId' in patch ? patch.providerId ?? null : existing.providerId,
+  };
+  const { payerName, practiceName } = await resolveLinks({
+    payerId: final.payerId ?? undefined,
+    practiceId: final.practiceId ?? undefined,
+    providerId: final.providerId ?? undefined,
+    enrollmentId: existing.enrollmentId ?? undefined,
+  });
+  return {
+    data: final,
+    title: final.taskGroup ? composeTaskTitle(final.taskGroup, payerName, practiceName) : undefined,
+  };
 }
 
 export function notifyAssignee(userId: string, taskId: string, title: string) {
@@ -49,20 +105,24 @@ export function notifyAssignee(userId: string, taskId: string, title: string) {
 }
 
 export async function createStaffTask(input: CreateStaffTaskInput, creatorId: string) {
-  assertSingleLink(input);
+  const { payerName, practiceName } = await resolveLinks(input);
   if (input.assignedToId) await assertAssignableUser(input.assignedToId);
+  const title = composeTaskTitle(input.taskGroup, payerName, practiceName); // server-side — preview === persisted
   const task = await prisma.task.create({
     data: {
-      title: input.title, description: input.description,
+      title,
+      description: input.note,
+      taskGroup: input.taskGroup,
       type: 'CUSTOM', priority: input.priority,
-      status: input.assignedToId ? 'IN_PROGRESS' : 'PENDING', // spec: auto-status on assignment
+      status: input.assignedToId ? 'IN_PROGRESS' : 'PENDING', // v1 behavior untouched
       dueDate: input.dueDate, assignedToId: input.assignedToId,
-      providerId: input.providerId, practiceId: input.practiceId, enrollmentId: input.enrollmentId,
+      payerId: input.payerId, providerId: input.providerId,
+      practiceId: input.practiceId, enrollmentId: input.enrollmentId,
       createdById: creatorId,
     },
     include: TASK_INCLUDE,
   });
-  if (input.assignedToId && input.assignedToId !== creatorId) notifyAssignee(input.assignedToId, task.id, input.title);
+  if (input.assignedToId && input.assignedToId !== creatorId) notifyAssignee(input.assignedToId, task.id, title);
   return task;
 }
 
@@ -85,6 +145,7 @@ export async function listStaffTasks(opts: ListStaffTasksOptions) {
   if (status === 'completed') where['status'] = { in: ['COMPLETED', 'SKIPPED'] };
   if (opts.priority) where['priority'] = opts.priority;
   if (opts.practiceId) where['practiceId'] = opts.practiceId;
+  if (opts.taskGroup) where['taskGroup'] = opts.taskGroup;
 
   // ponytail: full-window in-memory sort (bounded); switch to raw SQL ordering if open tasks ever exceed the window
   const MAX_SORT_WINDOW = 1000;
@@ -112,11 +173,14 @@ export async function listStaffTasks(opts: ListStaffTasksOptions) {
 }
 
 export async function getMyTaskCounts(userId: string) {
-  const [open, overdue] = await Promise.all([
+  const [open, overdue, pool] = await Promise.all([
     prisma.task.count({ where: { assignedToId: userId, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
     prisma.task.count({ where: { assignedToId: userId, status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { lt: new Date() } } }),
+    // Unassigned open tasks were invisible everywhere (staging feedback
+    // 2026-07-20) — the nav badge now surfaces the pool as ambient signal.
+    prisma.task.count({ where: { assignedToId: null, status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
   ]);
-  return { open, overdue };
+  return { open, overdue, pool };
 }
 
 export async function listAssignees() {

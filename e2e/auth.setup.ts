@@ -8,7 +8,7 @@ setup('authenticate as admin', async ({ page }) => {
 
   // Wait for redirect to dashboard
   await page.waitForURL('/', { timeout: 15000 });
-  await expect(page.getByText('Welcome to Lanyard Health')).toBeVisible();
+  await expect(page.getByText(/Good (morning|afternoon|evening), |Welcome to Lanyard Health/)).toBeVisible();
 
   await page.context().storageState({ path: 'e2e/.auth/admin.json' });
 });
@@ -21,7 +21,7 @@ setup('authenticate as practice admin', async ({ page }) => {
 
   // Wait for redirect to dashboard
   await page.waitForURL('/', { timeout: 15000 });
-  await expect(page.getByText('Welcome to Lanyard Health')).toBeVisible();
+  await expect(page.getByText(/Good (morning|afternoon|evening), |Welcome to Lanyard Health/)).toBeVisible();
 
   await page.context().storageState({ path: 'e2e/.auth/practice-admin.json' });
 });

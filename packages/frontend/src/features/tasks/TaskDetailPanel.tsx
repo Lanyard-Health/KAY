@@ -2,9 +2,14 @@ import { Fragment, useEffect, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Link } from 'react-router-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { HUMAN_TASK_GROUPS, TASK_GROUP_LABELS, type HumanTaskGroup } from '@credential-management/shared';
 import { useUpdateStaffTask, useDeleteTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
 import { PRIORITY_STYLES, isOverdue, linkedRecordLabel, linkedRecordHref } from './TaskRow';
+import PayerContactCard from './PayerContactCard';
+import PayerCombobox, { type PayerOption } from './PayerCombobox';
+import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
 
 const PRIORITY_LABELS: Record<StaffTask['priority'], string> = {
@@ -53,10 +58,79 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
   const [localStatus, setLocalStatus] = useState<StaffTask['status'] | undefined>(task?.status);
   const [localAssigneeId, setLocalAssigneeId] = useState<string>(task?.assignedTo?.id ?? '');
 
+  // Guided edit mode (staging feedback 2026-07-20): group/payer/practice/
+  // provider/note/priority/due date become editable after creation. Save
+  // sends one PATCH; the server re-validates links and recomposes the title.
+  const [editing, setEditing] = useState(false);
+  const [editGroup, setEditGroup] = useState<HumanTaskGroup | ''>('');
+  const [editPayer, setEditPayer] = useState<PayerOption | null>(null);
+  const [editPracticeId, setEditPracticeId] = useState('');
+  const [editProviderId, setEditProviderId] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editPriority, setEditPriority] = useState<StaffTask['priority']>('NORMAL');
+  const [editDueDate, setEditDueDate] = useState('');
+
   useEffect(() => {
     setLocalStatus(task?.status);
     setLocalAssigneeId(task?.assignedTo?.id ?? '');
+    setEditing(false);
   }, [task]);
+
+  const startEditing = () => {
+    if (!task) return;
+    setEditGroup(task.taskGroup && task.taskGroup !== 'CHECK_IN' ? (task.taskGroup as HumanTaskGroup) : '');
+    setEditPayer(task.payer ? { id: task.payer.id, name: task.payer.name } : null);
+    setEditPracticeId(task.practice?.id ?? '');
+    setEditProviderId(task.provider?.id ?? '');
+    setEditNote(task.description ?? '');
+    setEditPriority(task.priority);
+    setEditDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '');
+    setEditing(true);
+  };
+
+  const { data: practiceOptions } = useQuery({
+    queryKey: ['staff-tasks', 'practice-options'],
+    queryFn: async () => (await api.get('/practices')).data.data as { id: string; name: string }[],
+    staleTime: 5 * 60_000,
+    enabled: editing,
+  });
+  const { data: providerOptions = [] } = useQuery({
+    queryKey: ['staff-tasks', 'provider-options', editPracticeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ pageSize: '100' });
+      if (editPracticeId) params.set('practiceId', editPracticeId);
+      const response = await api.get(`/providers?${params.toString()}`);
+      return (response.data as { data: { data: { id: string; firstName: string; lastName: string }[] } }).data.data;
+    },
+    staleTime: 60_000,
+    enabled: editing,
+  });
+
+  const saveEdit = () => {
+    if (!task) return;
+    updateMutation.mutate(
+      {
+        taskId: task.id,
+        data: {
+          // Explicit keys: present = set, null = clear (server merges + recomposes title).
+          ...(editGroup ? { taskGroup: editGroup } : {}),
+          payerId: editPayer?.id ?? null,
+          practiceId: editPracticeId || null,
+          providerId: editProviderId || null,
+          description: editNote,
+          priority: editPriority,
+          dueDate: editDueDate ? new Date(editDueDate + 'T12:00:00Z').toISOString() : null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          notify.success('Task updated');
+        },
+        onError: handleMutationError,
+      },
+    );
+  };
 
   const handleMutationError = (error: any) =>
     notify.error('Could not update the task', {
@@ -124,7 +198,86 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                             } overdue`}
                         </span>
                       )}
+                      {!editing && (
+                        <button
+                          type="button"
+                          onClick={startEditing}
+                          className="ml-auto text-xs font-semibold text-primary-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                          Edit task
+                        </button>
+                      )}
                     </div>
+
+                    {editing && (
+                      <div className="space-y-3 rounded-xl border border-primary-100 bg-primary-50/40 p-3">
+                        <div>
+                          <label htmlFor="edit-task-group" className="label">Task group</label>
+                          <select id="edit-task-group" className="input" value={editGroup}
+                            onChange={(e) => setEditGroup(e.target.value as HumanTaskGroup | '')}>
+                            {!task.taskGroup && <option value="">Keep as is</option>}
+                            {HUMAN_TASK_GROUPS.map((g) => (
+                              <option key={g} value={g}>{TASK_GROUP_LABELS[g]}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="task-payer" className="label">Payer</label>
+                          <PayerCombobox value={editPayer} onChange={setEditPayer} />
+                        </div>
+                        <div>
+                          <label htmlFor="edit-task-practice" className="label">Practice</label>
+                          <select id="edit-task-practice" className="input" value={editPracticeId}
+                            onChange={(e) => { setEditPracticeId(e.target.value); setEditProviderId(''); }}>
+                            <option value="">None</option>
+                            {(practiceOptions ?? []).map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="edit-task-provider" className="label">Provider</label>
+                          <select id="edit-task-provider" className="input" value={editProviderId}
+                            onChange={(e) => setEditProviderId(e.target.value)}>
+                            <option value="">None</option>
+                            {providerOptions.map((p) => (
+                              <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor="edit-task-note" className="label">Note</label>
+                          <textarea id="edit-task-note" className="input" rows={2} value={editNote}
+                            onChange={(e) => setEditNote(e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="edit-task-priority" className="label">Priority</label>
+                            <select id="edit-task-priority" className="input" value={editPriority}
+                              onChange={(e) => setEditPriority(e.target.value as StaffTask['priority'])}>
+                              {(['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const).map((p) => (
+                                <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-task-due" className="label">Due date</label>
+                            <input id="edit-task-due" type="date" className="input" value={editDueDate}
+                              onChange={(e) => setEditDueDate(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button type="button" onClick={() => setEditing(false)}
+                            className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
+                            Cancel
+                          </button>
+                          <button type="button" onClick={saveEdit} disabled={updateMutation.isPending}
+                            className="rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">
+                            {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <label htmlFor="task-detail-status" className="label">
@@ -167,6 +320,13 @@ export default function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps)
                         <p className="text-sm text-gray-400">No description</p>
                       )}
                     </div>
+
+                    {task.payer && (
+                      <div>
+                        <h3 className="label">Payer contact</h3>
+                        <PayerContactCard payerId={task.payer.id} payerName={task.payer.name} />
+                      </div>
+                    )}
 
                     {linkedRecordLabel(task) && linkedRecordHref(task) && (
                       <div>
