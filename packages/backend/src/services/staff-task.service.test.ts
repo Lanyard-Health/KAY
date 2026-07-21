@@ -5,7 +5,7 @@ vi.mock('../utils/prisma.js', async () => {
 });
 vi.mock('../utils/logger.js', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { assertAssignableUser, createStaffTask, claimTask, listStaffTasks } from './staff-task.service.js';
+import { assertAssignableUser, createStaffTask, claimTask, listStaffTasks, resolveGuidedEdit, getMyTaskCounts } from './staff-task.service.js';
 
 const USER_ID = '00000000-0000-4000-a000-000000000001';
 const TASK_ID = '00000000-0000-4000-a000-000000000002';
@@ -116,5 +116,55 @@ describe('listStaffTasks', () => {
     const { tasks } = await listStaffTasks({ view: 'all', userId: 'u', limit: 2, offset: 0 });
     expect(tasks.map((t: any) => t.id)).toEqual(['o1', 'u1']); // overdue first, then urgent; NORMAL pushed to page 2
     expect(prismaMock.task.findMany.mock.calls[0][0]).not.toHaveProperty('skip'); // slicing happens after the sort, not in the DB
+  });
+});
+
+describe('resolveGuidedEdit', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const existing = {
+    taskGroup: 'FOLLOW_UP', payerId: 'payer-1', practiceId: null, providerId: null, enrollmentId: null,
+  };
+
+  it('keeps absent keys, applies present keys, and recomposes the title', async () => {
+    prismaMock.payer.findUnique.mockResolvedValue({ name: 'Aetna Better Health' } as any);
+    const result = await resolveGuidedEdit(existing, { taskGroup: 'CALL_BACK' });
+    expect(result.data).toEqual({ taskGroup: 'CALL_BACK', payerId: 'payer-1', practiceId: null, providerId: null });
+    expect(result.title).toBe('Call Back — Aetna Better Health');
+  });
+
+  it('explicit null clears a link and drops it from the recomposed title', async () => {
+    const result = await resolveGuidedEdit(existing, { payerId: null });
+    expect(result.data.payerId).toBeNull();
+    expect(result.title).toBe('Follow Up');
+    expect(prismaMock.payer.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('re-validates provider-practice membership on the merged state', async () => {
+    prismaMock.payer.findUnique.mockResolvedValue({ name: 'Aetna Better Health' } as any);
+    prismaMock.practice.findUnique.mockResolvedValue({ name: 'Sunrise' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ practiceId: 'other-practice' } as any);
+    await expect(resolveGuidedEdit(existing, { practiceId: 'practice-1', providerId: 'provider-1' }))
+      .rejects.toThrow('PROVIDER_PRACTICE_MISMATCH');
+  });
+
+  it('legacy task without a group: no title recomposition', async () => {
+    const legacy = { taskGroup: null, payerId: null, practiceId: null, providerId: null, enrollmentId: null };
+    const result = await resolveGuidedEdit(legacy, { practiceId: null });
+    expect(result.title).toBeUndefined();
+  });
+});
+
+describe('getMyTaskCounts', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('returns open/overdue scoped to me plus the unassigned pool count', async () => {
+    prismaMock.task.count
+      .mockResolvedValueOnce(3)  // my open
+      .mockResolvedValueOnce(1)  // my overdue
+      .mockResolvedValueOnce(5); // pool
+    const counts = await getMyTaskCounts(USER_ID);
+    expect(counts).toEqual({ open: 3, overdue: 1, pool: 5 });
+    expect(prismaMock.task.count).toHaveBeenNthCalledWith(3, {
+      where: { assignedToId: null, status: { in: ['PENDING', 'IN_PROGRESS'] } },
+    });
   });
 });

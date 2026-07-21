@@ -96,6 +96,22 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
     onClose();
   };
 
+  // Backdrop clicks are a no-op (stray clicks around a small modal kept
+  // triggering the discard prompt on staging). Only explicit intents close:
+  // Cancel, the X, and Escape — each still confirms when fields are filled.
+  // Dialog's own onClose (backdrop + its Esc handling) is therefore inert,
+  // and Escape is handled here instead. PayerCombobox stops Esc propagation
+  // while its listbox is open, so that Esc never reaches this listener.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') guardedClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isDirty]);
+
   const composedTitle = useMemo(
     () => (taskGroup ? composeTaskTitle(taskGroup, payer?.name, practiceName) : ''),
     [taskGroup, payer, practiceName],
@@ -134,7 +150,7 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={guardedClose}>
+      <Dialog as="div" className="relative z-50" onClose={() => { /* backdrop no-op; see Escape listener above */ }}>
         <Transition.Child as={Fragment}
           enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
           leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">

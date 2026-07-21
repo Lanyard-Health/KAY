@@ -53,7 +53,7 @@ export function useStaffTasks(
 export function useTaskCounts(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['staff-tasks', 'counts'],
-    queryFn: async () => (await api.get('/tasks/counts')).data.data as { open: number; overdue: number },
+    queryFn: async () => (await api.get('/tasks/counts')).data.data as { open: number; overdue: number; pool: number },
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     enabled: options?.enabled ?? true, // Layout passes false for practice roles (403 otherwise)

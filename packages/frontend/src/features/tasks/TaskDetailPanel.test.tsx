@@ -15,8 +15,20 @@ vi.mock('../../hooks/useStaffTasks', () => ({
       { id: 'u2', firstName: 'Sam', lastName: 'Lee', role: 'staff' },
     ],
   })),
+  usePayerContactInfo: vi.fn(() => ({ data: null, isLoading: false, isError: false })),
+  useSavePayerContactInfo: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}));
+vi.mock('../../services/api', () => ({
+  api: {
+    get: vi.fn(async (url: string) => {
+      if (url.startsWith('/practices')) return { data: { data: [{ id: 'practice-1', name: 'Sunrise Behavioral Health' }] } };
+      if (url.startsWith('/providers')) return { data: { data: { data: [] } } };
+      return { data: { data: [] } };
+    }),
+  },
 }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TaskDetailPanel from './TaskDetailPanel';
 
 const baseTask: StaffTask = {
@@ -37,10 +49,13 @@ const baseTask: StaffTask = {
 };
 
 function renderPanel(task: StaffTask | null = baseTask, onClose = vi.fn()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <TaskDetailPanel task={task} onClose={onClose} />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <TaskDetailPanel task={task} onClose={onClose} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -74,10 +89,13 @@ describe('TaskDetailPanel', () => {
     updateMutate.mockImplementation(() => {});
     const task = { ...baseTask };
     const onClose = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { rerender } = render(
-      <MemoryRouter>
-        <TaskDetailPanel task={task} onClose={onClose} />
-      </MemoryRouter>,
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <TaskDetailPanel task={task} onClose={onClose} />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     const statusSelect = screen.getByLabelText('Status');
@@ -86,9 +104,11 @@ describe('TaskDetailPanel', () => {
     // Re-render with the identical `task` reference to mimic a parent
     // re-render (e.g. isPending flipping) that does NOT bring fresh data.
     rerender(
-      <MemoryRouter>
-        <TaskDetailPanel task={task} onClose={onClose} />
-      </MemoryRouter>,
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <TaskDetailPanel task={task} onClose={onClose} />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect((statusSelect as HTMLSelectElement).value).toBe('COMPLETED');
@@ -107,5 +127,25 @@ describe('TaskDetailPanel', () => {
     const select = screen.getByLabelText('Assigned to') as HTMLSelectElement;
     expect(select).toHaveValue('ghost');
     expect(screen.getByText('Old Staffer (unavailable)')).toBeInTheDocument();
+  });
+});
+
+describe('TaskDetailPanel guided edit', () => {
+  it('Edit task opens the guided form and Save sends one PATCH with explicit link keys', async () => {
+    updateMutate.mockClear();
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit task' }));
+    fireEvent.change(screen.getByLabelText('Task group'), { target: { value: 'CALL_BACK' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    const { taskId, data } = updateMutate.mock.calls[0][0];
+    expect(taskId).toBe('t1');
+    expect(data.taskGroup).toBe('CALL_BACK');
+    // absent links are sent as explicit null (server: null = clear, absent = keep)
+    expect(data.payerId).toBeNull();
+    expect(data.practiceId).toBeNull();
+    expect(data.providerId).toBeNull();
+    expect(data.priority).toBe('URGENT');
+    expect(data.description).toBe('Follow up with the practice for the missing W-9.');
   });
 });

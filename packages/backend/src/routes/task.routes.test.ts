@@ -371,3 +371,69 @@ describe('Task Routes', () => {
     });
   });
 });
+
+// ==========================================
+// PATCH /tasks/:taskId — v2 guided edit
+// ==========================================
+describe('PATCH /tasks/:taskId guided edit', () => {
+  const app = createTestApp(taskRoutes, adminUser);
+  const PAYER_UUID = '00000000-0000-4000-a000-000000000077';
+  const internalTask = {
+    ...mockTask,
+    providerId: null, enrollmentId: null,
+    taskGroup: 'FOLLOW_UP', payerId: null, practiceId: null,
+    title: 'Follow Up',
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('recomposes the title when the group and payer change', async () => {
+    prismaMock.task.findUnique.mockResolvedValue(internalTask as any);
+    prismaMock.payer.findUnique.mockResolvedValue({ name: 'Aetna Better Health' } as any);
+    prismaMock.task.update.mockResolvedValue({ ...internalTask, taskGroup: 'CALL_BACK' } as any);
+
+    const res = await request(app)
+      .patch(`/tasks/${TASK_ID}`)
+      .send({ taskGroup: 'CALL_BACK', payerId: PAYER_UUID });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.task.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          taskGroup: 'CALL_BACK',
+          payerId: PAYER_UUID,
+          title: 'Call Back — Aetna Better Health',
+        }),
+      }),
+    );
+  });
+
+  it('rejects CHECK_IN as an edit target (system-only group)', async () => {
+    const res = await request(app)
+      .patch(`/tasks/${TASK_ID}`)
+      .send({ taskGroup: 'CHECK_IN' });
+    expect(res.status).toBe(400);
+    expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
+
+  it('403s a practice-side credentialing_staff touching guided fields', async () => {
+    const staffApp = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
+    prismaMock.task.findUnique.mockResolvedValue({ ...internalTask, providerId: PROVIDER_ID } as any);
+    const res = await request(staffApp)
+      .patch(`/tasks/${TASK_ID}`)
+      .send({ taskGroup: 'CALL_BACK' });
+    expect(res.status).toBe(403);
+    expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
+
+  it('400s with the mismatch message when the merged provider/practice disagree', async () => {
+    prismaMock.task.findUnique.mockResolvedValue(internalTask as any);
+    prismaMock.practice.findUnique.mockResolvedValue({ name: 'Sunrise' } as any);
+    prismaMock.providerProfile.findUnique.mockResolvedValue({ practiceId: 'another-practice' } as any);
+    const res = await request(app)
+      .patch(`/tasks/${TASK_ID}`)
+      .send({ practiceId: '00000000-0000-4000-a000-000000000010', providerId: '00000000-0000-4000-a000-000000000011' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe("That provider isn't at the selected practice");
+  });
+});
