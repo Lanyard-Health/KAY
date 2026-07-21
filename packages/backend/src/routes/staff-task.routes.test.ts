@@ -42,6 +42,8 @@ vi.mock('../services/staff-task.service.js', () => ({
   claimTask: vi.fn(),
   assertAssignableUser: vi.fn(),
   notifyAssignee: vi.fn(),
+  getReviewStats: vi.fn(),
+  listMyOverdueUnanswered: vi.fn(),
   ASSIGNABLE_ROLES: ['admin', 'lanyard_staff'],
 }));
 
@@ -380,5 +382,55 @@ describe('PATCH /tasks/:taskId (staff/pool task assignment)', () => {
     expect(res.status).toBe(400);
     expect(staffSvc.assertAssignableUser).toHaveBeenCalledWith(STAFF_USER_UUID);
     expect(prismaMock.task.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin gates (the recurring role-gate 403 bug class)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('403s lanyard_staff on view=needs_review', async () => {
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).get('/tasks?view=needs_review');
+    expect(res.status).toBe(403);
+    expect(vi.mocked(staffSvc.listStaffTasks)).not.toHaveBeenCalled();
+  });
+
+  it('200s admin on view=needs_review', async () => {
+    vi.mocked(staffSvc.listStaffTasks).mockResolvedValue({ tasks: [], total: 0 });
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).get('/tasks?view=needs_review');
+    expect(res.status).toBe(200);
+  });
+
+  it('403s lanyard_staff on /tasks/review-stats', async () => {
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).get('/tasks/review-stats');
+    expect(res.status).toBe(403);
+  });
+
+  it('200s admin on /tasks/review-stats', async () => {
+    vi.mocked(staffSvc.getReviewStats).mockResolvedValue({ needsReviewCount: 3, missedLast30: 7, mostMissedBy: { name: 'Dana R', count: 4 }, slowestPayer: { name: 'Molina TX', count: 3 } });
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).get('/tasks/review-stats');
+    expect(res.status).toBe(200);
+    expect(res.body.data.needsReviewCount).toBe(3);
+  });
+});
+
+describe('GET /tasks/overdue-mine', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('200s for lanyard_staff (their own dialog feed)', async () => {
+    vi.mocked(staffSvc.listMyOverdueUnanswered).mockResolvedValue([{ id: 't1', title: 'Call Back — Aetna Better Health — Sunrise', description: null, dueDate: new Date('2026-07-10') }] as any);
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).get('/tasks/overdue-mine');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+  });
+
+  it('403s practice-side credentialing_staff', async () => {
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
+    const res = await request(app).get('/tasks/overdue-mine');
+    expect(res.status).toBe(403);
   });
 });

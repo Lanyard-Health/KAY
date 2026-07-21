@@ -8,6 +8,7 @@ import { createTask } from '../services/task.service.js';
 import {
   listStaffTasks, getMyTaskCounts, listAssignees,
   createStaffTask, claimTask, assertAssignableUser, notifyAssignee, resolveGuidedEdit,
+  getReviewStats, listMyOverdueUnanswered,
 } from '../services/staff-task.service.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { HUMAN_TASK_GROUPS, type HumanTaskGroup } from '@credential-management/shared';
@@ -163,7 +164,7 @@ router.post(
 const staffOnly = authorize(...ADMIN_ROLES, 'lanyard_staff'); // internal team ONLY — not practice credentialing_staff
 
 const listTasksQuerySchema = z.object({
-  view: z.enum(['my', 'pool', 'all']).default('my'),
+  view: z.enum(['my', 'pool', 'all', 'needs_review']).default('my'),
   status: z.enum(['open', 'completed', 'all']).default('open'),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
   practiceId: z.string().uuid().optional(),
@@ -175,6 +176,11 @@ const listTasksQuerySchema = z.object({
 router.get('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const q = listTasksQuerySchema.parse(req.query);
+    // needs_review is admin-only (D16) — explicit route-level gate, the
+    // recurring role-gate 403 bug class. lanyard_staff sees My/Pool/All only.
+    if (q.view === 'needs_review' && req.user!.role !== 'admin') {
+      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+    }
     const { tasks, total } = await listStaffTasks({ ...q, userId: req.user!.id });
     res.json({ success: true, data: tasks, meta: { total } });
   } catch (error) { next(error); }
@@ -189,6 +195,21 @@ router.get('/tasks/counts', authenticate, staffOnly, async (req: Request, res: R
 router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     res.json({ success: true, data: await listAssignees() });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/review-stats', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (req.user!.role !== 'admin') {
+      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+    }
+    res.json({ success: true, data: await getReviewStats() });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/overdue-mine', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await listMyOverdueUnanswered(req.user!.id) });
   } catch (error) { next(error); }
 });
 

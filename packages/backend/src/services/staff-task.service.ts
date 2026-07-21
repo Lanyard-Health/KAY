@@ -12,7 +12,7 @@ export interface CreateStaffTaskInput {
   payerId?: string; providerId?: string; practiceId?: string; enrollmentId?: string;
 }
 export interface ListStaffTasksOptions {
-  view: 'my' | 'pool' | 'all'; userId: string;
+  view: 'my' | 'pool' | 'all' | 'needs_review'; userId: string;
   status?: 'open' | 'completed' | 'all'; priority?: string; practiceId?: string;
   taskGroup?: string;             // filter by group (all 9 values legal, incl. CHECK_IN)
   limit: number; offset: number;
@@ -137,6 +137,24 @@ export async function claimTask(taskId: string, userId: string): Promise<boolean
 const PRIORITY_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
 export async function listStaffTasks(opts: ListStaffTasksOptions) {
+  if (opts.view === 'needs_review') {
+    const where: Record<string, unknown> = {
+      status: { in: ['PENDING', 'IN_PROGRESS'] },
+      dueDate: { lt: new Date() },
+    };
+    if (opts.priority) where['priority'] = opts.priority;
+    if (opts.practiceId) where['practiceId'] = opts.practiceId;
+    if (opts.taskGroup) where['taskGroup'] = opts.taskGroup;
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where, include: TASK_INCLUDE,
+        orderBy: { dueDate: 'asc' }, // most overdue first
+        take: opts.limit, skip: opts.offset,
+      }),
+      prisma.task.count({ where }),
+    ]);
+    return { tasks, total };
+  }
   const where: Record<string, unknown> = {};
   if (opts.view === 'my') where['assignedToId'] = opts.userId;
   if (opts.view === 'pool') where['assignedToId'] = null;
@@ -188,5 +206,74 @@ export async function listAssignees() {
     where: { role: { in: [...ASSIGNABLE_ROLES] }, isActive: true },
     select: { id: true, firstName: true, lastName: true, role: true },
     orderBy: { firstName: 'asc' },
+  });
+}
+
+export interface ReviewStats {
+  needsReviewCount: number;
+  missedLast30: number;
+  mostMissedBy: { name: string; count: number } | null;
+  slowestPayer: { name: string; count: number } | null;
+}
+
+/**
+ * Patterns strip + tab badge (D12, D16, D21). "Missed" = dueDate in
+ * [now-30d, now) AND (open past due OR completed late). One findMany + JS
+ * derivation — Prisma can't compare two columns (completedAt > dueDate) and
+ * the volume is tiny (3-person team).
+ */
+export async function getReviewStats(now: Date = new Date()): Promise<ReviewStats> {
+  const windowStart = new Date(now.getTime() - 30 * 86_400_000);
+  const [needsReviewCount, windowTasks] = await Promise.all([
+    prisma.task.count({ where: { status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { lt: now } } }),
+    prisma.task.findMany({
+      where: { dueDate: { gte: windowStart, lt: now } },
+      select: {
+        id: true, status: true, dueDate: true, completedAt: true,
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
+        payer: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  const missed = windowTasks.filter((t) => {
+    const openPastDue = t.status === 'PENDING' || t.status === 'IN_PROGRESS';
+    const completedLate = t.completedAt != null && t.dueDate != null && t.completedAt.getTime() > t.dueDate.getTime();
+    return openPastDue || completedLate;
+  });
+
+  const top = (entries: Map<string, { name: string; count: number }>) => {
+    let best: { name: string; count: number } | null = null;
+    for (const value of entries.values()) if (!best || value.count > best.count) best = value;
+    return best;
+  };
+
+  const byAssignee = new Map<string, { name: string; count: number }>();
+  const byPayer = new Map<string, { name: string; count: number }>();
+  for (const t of missed) {
+    if (t.assignedTo) {
+      const entry = byAssignee.get(t.assignedTo.id) ?? { name: `${t.assignedTo.firstName} ${t.assignedTo.lastName}`, count: 0 };
+      entry.count++; byAssignee.set(t.assignedTo.id, entry);
+    }
+    if (t.payer) {
+      const entry = byPayer.get(t.payer.id) ?? { name: t.payer.name, count: 0 };
+      entry.count++; byPayer.set(t.payer.id, entry);
+    }
+  }
+
+  return { needsReviewCount, missedLast30: missed.length, mostMissedBy: top(byAssignee), slowestPayer: top(byPayer) };
+}
+
+/** Feeds the prompt-on-arrival dialog (D18): my open overdue tasks with no reason yet. */
+export async function listMyOverdueUnanswered(userId: string, now: Date = new Date()) {
+  return prisma.task.findMany({
+    where: {
+      assignedToId: userId,
+      status: { in: ['PENDING', 'IN_PROGRESS'] },
+      dueDate: { lt: now },
+      overdueReason: null,
+    },
+    select: { id: true, title: true, description: true, dueDate: true },
+    orderBy: { dueDate: 'asc' },
   });
 }
