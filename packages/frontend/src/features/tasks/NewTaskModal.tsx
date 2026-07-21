@@ -68,17 +68,22 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
 
   const practiceName = practiceOptions?.find((p) => p.id === practiceId)?.name;
 
-  const isDirty = !!(taskGroup || payer || practiceId || providerId || note || dueDate || assignedToId || priority !== 'NORMAL');
+  // Assign To defaults to the signed-in user (Kay, 2026-07-20: "I created a
+  // task and expected it to be mine"); "Leave in Task Pool" stays available.
+  const defaultAssigneeId = user?.id ?? '';
+
+  const isDirty = !!(taskGroup || payer || practiceId || providerId || note || dueDate || assignedToId !== defaultAssigneeId || priority !== 'NORMAL');
 
   // Clean slate on every open (modal stays mounted between opens).
   useEffect(() => {
     if (isOpen) {
       setTaskGroup(''); setGroupError(''); setPayer(null); setPracticeId('');
       setProviderId(''); setNote(''); setPriority('NORMAL'); setDueDate('');
-      setAssignedToId(''); setCascadeAnnouncement('');
+      setAssignedToId(defaultAssigneeId); setCascadeAnnouncement('');
       providerLabelRef.current = '';
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultAssigneeId]);
 
   // Cascade rule (3.2.2): changing Practice clears an incompatible Provider
   // selection and announces it — never a silent mutation of an untouched field.

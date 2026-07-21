@@ -79,6 +79,21 @@ describe('NewTaskModal (guided)', () => {
     expect(payload.title).toBeUndefined();
   });
 
+  it('Assign To defaults to the signed-in user, and picking Task Pool sends no assignee', async () => {
+    renderModal();
+    expect(screen.getByLabelText('Assign To')).toHaveValue('u1');
+    await userEvent.selectOptions(screen.getByLabelText('Task group *'), 'CALL_BACK');
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    await waitFor(() => expect(mocks.createMutate).toHaveBeenCalled());
+    expect(mocks.createMutate.mock.calls[0][0].assignedToId).toBe('u1');
+
+    mocks.createMutate.mockClear();
+    await userEvent.selectOptions(screen.getByLabelText('Assign To'), '');
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }));
+    await waitFor(() => expect(mocks.createMutate).toHaveBeenCalled());
+    expect(mocks.createMutate.mock.calls[0][0].assignedToId).toBeUndefined();
+  });
+
   it('cascade rule: changing Practice clears an incompatible Provider and announces it', async () => {
     renderModal();
     await userEvent.selectOptions(screen.getByLabelText('Task group *'), 'CALL_BACK');
