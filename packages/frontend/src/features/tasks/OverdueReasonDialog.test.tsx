@@ -43,6 +43,16 @@ describe('OverdueReasonDialog', () => {
     expect(input).toHaveValue('Waiting on documents — chased Friday');
   });
 
+  it('a successful save calls the mutation with the exact payload contract the backend expects', async () => {
+    mocks.mutateAsync.mockResolvedValueOnce({});
+    const onClose = vi.fn();
+    render(<OverdueReasonDialog tasks={[TASKS[0]]} onClose={onClose} />);
+    await userEvent.type(screen.getByRole('textbox', { name: /Call Back/ }), 'Payer went dark');
+    await userEvent.click(screen.getByRole('button', { name: 'Save reasons' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith('saved'));
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({ taskId: 't1', data: { overdueReason: 'Payer went dark' } });
+  });
+
   it('empty fields block submit with inline errors and an announced count — dialog stays open', async () => {
     const onClose = vi.fn();
     render(<OverdueReasonDialog tasks={TASKS} onClose={onClose} />);
