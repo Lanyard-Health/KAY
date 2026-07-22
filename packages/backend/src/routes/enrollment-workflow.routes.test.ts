@@ -135,20 +135,21 @@ describe('GET /:id/workflow', () => {
     expect(res.body.enrollment.providerName).toBe('Jane Doe');
   });
 
-  it('returns 403 (not 500, not 200) when the enrollment belongs to another practice', async () => {
+  it('returns 404 (not 500, not 200, not 403) when the enrollment belongs to another practice', async () => {
     // Production denial: enrollment exists (findUnique resolves) but
     // validateEnrollmentAccess returns false because the caller's practice
-    // scope doesn't include the enrollment's provider/practice. This route
-    // checks the result inline and responds 403 directly (unlike
-    // followup.routes.ts's shared checkEnrollmentPracticeAccess middleware,
-    // which maps the same false result to 404).
+    // scope doesn't include the enrollment's provider/practice. Cross-practice
+    // denials map to the same 404 as a missing enrollment everywhere in the
+    // API (see access-denial-consistency fix) — this route used to leak
+    // existence via 403; it now matches followup.routes.ts's
+    // checkEnrollmentPracticeAccess middleware.
     prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     vi.mocked(validateEnrollmentAccess).mockResolvedValue(false);
 
     const res = await request(app).get('/enrollment-1-id/workflow');
 
-    expect(res.status).toBe(403);
-    expect(res.body.error).toContain('Access denied');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain('not found');
   });
 });
 
@@ -373,6 +374,18 @@ describe('PUT /:id/workflow/:stepId', () => {
 
     expect(res.status).toBe(500);
   });
+
+  it('returns 404 (not 403) when the enrollment belongs to another practice', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
+    vi.mocked(validateEnrollmentAccess).mockResolvedValue(false);
+
+    const res = await request(app)
+      .put(`/${enrollmentId}/workflow/${stepId}`)
+      .send({ status: 'in_progress' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain('not found');
+  });
 });
 
 // ============================================================
@@ -589,5 +602,20 @@ describe('POST /:id/workflow/hydrate', () => {
       .send({});
 
     expect(res.status).toBe(500);
+  });
+
+  it('returns 404 (not 403) when the enrollment belongs to another practice', async () => {
+    prismaMock.enrollment.findUnique.mockResolvedValue({
+      ...mockEnrollmentWithPayer,
+      workflowSteps: [],
+    } as any);
+    vi.mocked(validateEnrollmentAccess).mockResolvedValue(false);
+
+    const res = await request(app)
+      .post('/enrollment-1-id/workflow/hydrate')
+      .send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain('not found');
   });
 });

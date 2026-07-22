@@ -4,7 +4,7 @@ import { nullablePartial } from '@credential-management/shared';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize, requireProviderAccess } from '../middleware/auth.middleware.js';
 import { STAFF_ROLES } from '../constants/roles.js';
-import { ForbiddenError } from '../middleware/error.middleware.js';
+import { ForbiddenError, NotFoundError } from '../middleware/error.middleware.js';
 import { requirePracticeProvider, getPracticeRelationFilter, validateProviderPracticeAccess, validateEnrollmentAccess, validatePracticeAccess } from '../middleware/practiceScope.middleware.js';
 import { triggerTerminationWorkflow } from '../services/terminationWorkflow.service.js';
 import { triggerAutomatedEmail } from '../services/automatedEmail.service.js';
@@ -24,7 +24,10 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   if (role === 'credentialing_staff' || role === 'lanyard_staff' || role === 'practice_admin') {
     const enr = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true, practiceId: true } });
     if (!enr) return;
-    if (!(await validateEnrollmentAccess(req, enr))) throw new ForbiddenError('Access denied to this enrollment');
+    // Cross-practice denial → 404, not 403: don't reveal that an enrollment
+    // exists to a caller outside its practice. See practiceScope.middleware.ts
+    // validateEnrollmentAccess and the access-denial-consistency fix.
+    if (!(await validateEnrollmentAccess(req, enr))) throw new NotFoundError('Enrollment');
     return;
   }
 

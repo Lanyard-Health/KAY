@@ -59,9 +59,11 @@ router.get('/:id/workflow', authenticate, authorize(...STAFF_ROLES), async (req:
       return res.status(404).json({ error: 'Enrollment not found' });
     }
 
-    // Verify user has access to this enrollment's subject (provider or practice)
+    // Verify user has access to this enrollment's subject (provider or practice).
+    // Cross-practice denial maps to the same 404 as a missing enrollment — don't
+    // reveal existence to a caller outside its practice.
     if (!(await validateEnrollmentAccess(req, enrollment))) {
-      return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
+      return res.status(404).json({ error: 'Enrollment not found' });
     }
 
     const steps = await prisma.enrollmentWorkflowStep.findMany({
@@ -119,8 +121,10 @@ router.put(
       if (!enrollment) {
         return res.status(404).json({ error: 'Enrollment not found' });
       }
+      // Cross-practice denial maps to the same 404 as a missing enrollment —
+      // don't reveal existence to a caller outside its practice.
       if (!(await validateEnrollmentAccess(req, enrollment))) {
-        return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
+        return res.status(404).json({ error: 'Enrollment not found' });
       }
 
       const step = await prisma.enrollmentWorkflowStep.findFirst({
@@ -206,9 +210,11 @@ router.post(
         return res.status(404).json({ error: 'Enrollment not found' });
       }
 
-      // Verify practice access via the enrollment's subject (provider or practice)
+      // Verify practice access via the enrollment's subject (provider or practice).
+      // Cross-practice denial maps to the same 404 as a missing enrollment — don't
+      // reveal existence to a caller outside its practice.
       if (!(await validateEnrollmentAccess(req, enrollment))) {
-        return res.status(403).json({ error: 'Access denied — enrollment not in your practice' });
+        return res.status(404).json({ error: 'Enrollment not found' });
       }
 
       if (enrollment.workflowSteps && enrollment.workflowSteps.length > 0) {

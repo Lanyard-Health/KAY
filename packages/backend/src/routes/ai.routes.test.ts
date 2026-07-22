@@ -15,6 +15,7 @@ vi.mock('../middleware/auth.middleware.js', () => ({
 
 vi.mock('../middleware/practiceScope.middleware.js', () => ({
   validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+  validateEnrollmentAccess: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('../services/ai.service.js', () => ({
@@ -46,6 +47,7 @@ import {
   getRecommendations,
   updateRecommendationStatus,
 } from '../services/ai.service.js';
+import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 
 describe('AI Routes', () => {
   const app = createTestApp(aiRoutes, adminUser);
@@ -65,6 +67,9 @@ describe('AI Routes', () => {
       id: 'enroll-1',
       providerId: 'provider-1-id',
     } as any);
+    // Re-set after clearAllMocks: practice scope middleware must allow access
+    // by default so other tests aren't affected by a prior test's denial mock.
+    vi.mocked(validateEnrollmentAccess).mockResolvedValue(true);
   });
 
   describe('GET /status', () => {
@@ -194,6 +199,22 @@ describe('AI Routes', () => {
         additionalContext: undefined,
       });
     });
+
+    it('returns 404 (not 403) for a credentialing_staff caller outside the enrollment practice', async () => {
+      // Cross-practice denial (assertEnrollmentAccess → validateEnrollmentAccess)
+      // maps to the same 404 as a missing enrollment. See access-denial-consistency fix.
+      const staffApp = createTestApp(aiRoutes, { ...adminUser, role: 'credentialing_staff' });
+      staffApp.set('trust proxy', 1);
+      vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
+
+      const res = await request(staffApp)
+        .post('/enrollment/enroll-1/generate-email')
+        .set('X-Forwarded-For', '10.1.0.99')
+        .send({});
+
+      expect(res.status).toBe(404);
+      expect(generateFollowUpEmail).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /enrollment/:id/analyze', () => {
@@ -218,6 +239,19 @@ describe('AI Routes', () => {
         .set('X-Forwarded-For', ip);
 
       expect(res.status).toBe(503);
+    });
+
+    it('returns 404 (not 403) for a credentialing_staff caller outside the enrollment practice', async () => {
+      const staffApp = createTestApp(aiRoutes, { ...adminUser, role: 'credentialing_staff' });
+      staffApp.set('trust proxy', 1);
+      vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
+
+      const res = await request(staffApp)
+        .post('/enrollment/enroll-1/analyze')
+        .set('X-Forwarded-For', '10.1.0.98');
+
+      expect(res.status).toBe(404);
+      expect(analyzeEnrollment).not.toHaveBeenCalled();
     });
   });
 

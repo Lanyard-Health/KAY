@@ -138,13 +138,16 @@ describe('Enrollment Routes', () => {
       expect(vi.mocked(validateEnrollmentAccess)).toHaveBeenCalled();
     });
 
-    it('rejects a practice admin outside the enrollment practice', async () => {
+    it('rejects a practice admin outside the enrollment practice with a 404, not 403', async () => {
+      // Cross-practice denial maps to the same 404 as a missing enrollment —
+      // don't reveal existence to a caller outside its practice. See
+      // access-denial-consistency fix.
       vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
       prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
 
       const res = await request(practiceAdminApp).get('/enrollment-1-id');
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
   });
 
@@ -505,6 +508,20 @@ describe('Enrollment Routes', () => {
 
       expect(vi.mocked(triggerTerminationWorkflow)).not.toHaveBeenCalled();
     });
+
+    it('rejects a practice admin outside the enrollment practice with a 404, not 403', async () => {
+      // Cross-practice denial (assertEnrollmentAccess → validateEnrollmentAccess)
+      // maps to the same 404 as a missing enrollment. See access-denial-consistency fix.
+      const practiceAdminApp = createTestApp(enrollmentRouter, { ...adminUser, role: 'practice_admin' });
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
+
+      const res = await request(practiceAdminApp)
+        .put('/enrollment-1-id')
+        .send({ notes: 'x' });
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe('POST /:id/status-correction', () => {
@@ -541,6 +558,21 @@ describe('Enrollment Routes', () => {
         .send({ toStatus: 'submitted' });
 
       expect(res.status).toBe(404);
+    });
+
+    it('rejects a credentialing_staff caller outside the enrollment practice with a 404, not 403', async () => {
+      // Cross-practice denial (assertEnrollmentAccess → validateEnrollmentAccess)
+      // maps to the same 404 as a missing enrollment. See access-denial-consistency fix.
+      const staffApp = createTestApp(enrollmentRouter, { ...adminUser, role: 'credentialing_staff' });
+      prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollment as any);
+      vi.mocked(validateEnrollmentAccess).mockResolvedValueOnce(false);
+
+      const res = await request(staffApp)
+        .post('/enrollment-1-id/status-correction')
+        .send({ toStatus: 'submitted' });
+
+      expect(res.status).toBe(404);
+      expect(mockedCorrectEnrollmentStatus).not.toHaveBeenCalled();
     });
   });
 

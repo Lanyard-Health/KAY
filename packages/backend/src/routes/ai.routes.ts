@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { ForbiddenError } from '../middleware/error.middleware.js';
+import { ForbiddenError, NotFoundError } from '../middleware/error.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import {
@@ -39,7 +39,10 @@ async function assertEnrollmentAccess(req: Request, enrollmentId: string): Promi
   if (role === 'credentialing_staff' || role === 'lanyard_staff') {
     const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { providerId: true, practiceId: true } });
     if (!enrollment) return;
-    if (!(await validateEnrollmentAccess(req, enrollment))) throw new ForbiddenError('Access denied to this enrollment');
+    // Cross-practice denial → 404, not 403: don't reveal that an enrollment
+    // exists to a caller outside its practice. See practiceScope.middleware.ts
+    // validateEnrollmentAccess and the access-denial-consistency fix.
+    if (!(await validateEnrollmentAccess(req, enrollment))) throw new NotFoundError('Enrollment');
     return;
   }
 
