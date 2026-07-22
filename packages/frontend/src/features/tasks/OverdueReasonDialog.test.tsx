@@ -78,6 +78,10 @@ describe('OverdueReasonDialog', () => {
     expect(onClose).not.toHaveBeenCalled(); // one failure → stays open for retry
     expect(screen.getByRole('textbox', { name: /Call Back/ })).toHaveValue('Payer went dark'); // text kept
     expect(screen.getByRole('button', { name: "I'll answer later" })).toBeEnabled(); // deferral always usable
+    // The failed field gets aria-invalid too, not just empty-field validation errors.
+    expect(screen.getByRole('textbox', { name: /Call Back/ })).toHaveAttribute('aria-invalid', 'true');
+    // The task that saved successfully is no longer a textbox at all (replaced by "Saved").
+    expect(screen.queryByRole('textbox', { name: /Follow Up/ })).not.toBeInTheDocument();
   });
 
   it('Esc performs the same deferral as the button', async () => {
