@@ -314,4 +314,14 @@ describe('Follow-up Routes', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe('checkEnrollmentPracticeAccess middleware error handling', () => {
+    it('returns 500 (not a hang) when validateEnrollmentAccess throws unexpectedly', async () => {
+      (validateEnrollmentAccess as any).mockRejectedValue(new Error('db down'));
+
+      const res = await request(app).get('/enrollment/enroll-1/preview');
+
+      expect(res.status).toBe(500);
+    });
+  });
 });
