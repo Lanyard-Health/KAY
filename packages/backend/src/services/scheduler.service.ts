@@ -13,11 +13,14 @@ import { mirrorRawJson } from './caqh-mirror.service.js';
 import { evaluateProviderReminder } from './caqh-reminder.service.js';
 import { runSignupReminders } from './signup-reminder.service.js';
 import { runWeeklyDigest } from './weekly-digest.service.js';
+import { runPracticeCheckInSweep } from './practice-checkin.service.js';
 
 /** Advisory lock key for the nightly CAQH sync (arbitrary stable int). */
 const CAQH_SYNC_LOCK_KEY = 73411001;
 /** Advisory lock key for the Monday weekly digest. */
 const WEEKLY_DIGEST_LOCK_KEY = 73411002;
+/** Advisory lock key for the daily practice check-in sweep. */
+const CHECK_IN_LOCK_KEY = 73411003;
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 
@@ -57,6 +60,8 @@ class SchedulerService {
   private isSignupReminderJobRunning = false;
   private weeklyDigestJob: cron.ScheduledTask | null = null;
   private isWeeklyDigestJobRunning = false;
+  private checkInJob: cron.ScheduledTask | null = null;
+  private isCheckInJobRunning = false;
   private expirationService = new ExpirationService();
   private caqhService = new CaqhService();
 
@@ -156,6 +161,14 @@ class SchedulerService {
       this.runStalledTaskJob();
     });
     logger.info(`[Scheduler] Stalled-task watchdog scheduled: ${stalledSchedule}`);
+
+    // Daily practice check-in sweep (6am) — creates pool tasks for practices
+    // untouched for 7 days. Tasks v2, D13/D17.
+    const checkInSchedule = process.env['CHECK_IN_SCHEDULE'] || '0 6 * * *';
+    this.checkInJob = cron.schedule(checkInSchedule, () => {
+      this.runCheckInJob();
+    });
+    logger.info(`[Scheduler] Practice check-in job scheduled: ${checkInSchedule}`);
   }
 
   /**
@@ -241,6 +254,39 @@ class SchedulerService {
       await prisma.$queryRaw`SELECT pg_advisory_unlock(${WEEKLY_DIGEST_LOCK_KEY})`
         .catch((err) => logger.error('[Scheduler] Weekly digest unlock failed:', err));
       this.isWeeklyDigestJobRunning = false;
+    }
+  }
+
+  /**
+   * Run one practice check-in sweep. Re-entrancy guarded in-process; session
+   * advisory lock guards across Render instances (never SETNX — its TTL can
+   * expire mid-run).
+   */
+  async runCheckInJob(): Promise<void> {
+    if (this.isCheckInJobRunning) {
+      logger.info('[Scheduler] Check-in job already running, skipping...');
+      return;
+    }
+    this.isCheckInJobRunning = true;
+
+    const lockRows = await prisma.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_lock(${CHECK_IN_LOCK_KEY}) AS locked`;
+    if (!lockRows[0]?.locked) {
+      logger.info('[Scheduler] Check-in lock held by another instance, skipping.');
+      this.isCheckInJobRunning = false;
+      return;
+    }
+
+    try {
+      const result = await runPracticeCheckInSweep();
+      logger.info(`[Scheduler] Check-in sweep: practicesChecked=${result.practicesChecked} created=${result.created}`);
+    } catch (err) {
+      logger.error('[Scheduler] Check-in job error:', err);
+      Sentry.captureException(err, { tags: { job: 'practice-checkin' } });
+    } finally {
+      await prisma.$queryRaw`SELECT pg_advisory_unlock(${CHECK_IN_LOCK_KEY})`
+        .catch((err) => logger.error('[Scheduler] Check-in unlock failed:', err));
+      this.isCheckInJobRunning = false;
     }
   }
 
