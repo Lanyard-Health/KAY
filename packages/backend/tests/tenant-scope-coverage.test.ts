@@ -113,6 +113,7 @@ const SCOPE_MARKERS = [
   'getPracticeProviderFilter',
   'getPracticeRelationFilter',
   'validateProviderPracticeAccess',
+  'validateEnrollmentAccess',
   'requirePracticeProvider',
   'assertDocumentAccess',
   'denialScopeFilter',     // local helper inside denial-triage.routes.ts

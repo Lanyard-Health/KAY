@@ -65,15 +65,19 @@ const upload = multer({
 
 // Practice-scope check for enrollment :id routes
 async function checkEnrollmentPracticeAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const id = req.params['id'];
-  if (!id) return next();
-  const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { providerId: true, practiceId: true } });
-  if (!enrollment) return next(); // Let route handle 404
-  if (!(await validateEnrollmentAccess(req, enrollment))) {
-    res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
-    return;
+  try {
+    const id = req.params['id'];
+    if (!id) return next();
+    const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { providerId: true, practiceId: true } });
+    if (!enrollment) return next(); // Let route handle 404
+    if (!(await validateEnrollmentAccess(req, enrollment))) {
+      res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 }
 
 // Get email service status and config

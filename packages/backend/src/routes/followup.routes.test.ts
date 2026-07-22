@@ -15,6 +15,7 @@ vi.mock('../middleware/auth.middleware.js', () => ({
 
 vi.mock('../middleware/practiceScope.middleware.js', () => ({
   validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+  validateEnrollmentAccess: vi.fn().mockResolvedValue(true),
   getPracticeRelationFilter: vi.fn(() => ({})),
 }));
 
@@ -53,7 +54,7 @@ import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { emailService } from '../services/email.service.js';
 import { followUpService } from '../services/followup.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
-import { validateProviderPracticeAccess } from '../middleware/practiceScope.middleware.js';
+import { validateProviderPracticeAccess, validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 
 describe('Follow-up Routes', () => {
   const app = createTestApp(followUpRoutes, adminUser);
@@ -62,6 +63,7 @@ describe('Follow-up Routes', () => {
     vi.clearAllMocks();
     // Re-set after clearAllMocks: practice scope middleware must allow access
     (validateProviderPracticeAccess as any).mockResolvedValue(true);
+    (validateEnrollmentAccess as any).mockResolvedValue(true);
     // Default: enrollment exists for checkEnrollmentPracticeAccess middleware
     prismaMock.enrollment.findUnique.mockResolvedValue({
       id: 'enroll-1',
@@ -310,6 +312,28 @@ describe('Follow-up Routes', () => {
       const res = await request(app).get('/enrollment/nonexistent/history');
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('checkEnrollmentPracticeAccess middleware error handling', () => {
+    it('returns 500 (not a hang) when validateEnrollmentAccess throws unexpectedly', async () => {
+      (validateEnrollmentAccess as any).mockRejectedValue(new Error('db down'));
+
+      const res = await request(app).get('/enrollment/enroll-1/preview');
+
+      expect(res.status).toBe(500);
+    });
+
+    it('returns 404 (not 500, not 200) when the enrollment belongs to another practice', async () => {
+      // Production denial: enrollment exists (findUnique resolves) but
+      // validateEnrollmentAccess returns false because the caller's practice
+      // scope doesn't include the enrollment's provider/practice.
+      (validateEnrollmentAccess as any).mockResolvedValue(false);
+
+      const res = await request(app).get('/enrollment/enroll-1/preview');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.message).toBe('Enrollment not found');
     });
   });
 });

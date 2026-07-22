@@ -78,6 +78,7 @@ describe('notifyEnrollmentStatusChange', () => {
     mockSendEmail.mockResolvedValue({ success: true });
     mockGetRecipients.mockResolvedValue(RECIPIENTS.map((r) => ({ ...r, preferences: { ...r.preferences } })));
     prismaMock.enrollment.findUnique.mockResolvedValue(enrollmentRow() as any);
+    prismaMock.enrollment.updateMany.mockResolvedValue({ count: 1 } as any);
   });
 
   it('does nothing for non-alert statuses or unchanged status', async () => {
@@ -108,6 +109,22 @@ describe('notifyEnrollmentStatusChange', () => {
     expect(sent.html).toContain('30–60 days');
     expect(sent.html).not.toContain('pending_review');
     expect(sent.html).toContain('unsubscribe?token=');
+  });
+
+  it('skips in-app and email when the atomic claim finds nothing to update (already notified)', async () => {
+    // Simulates a replayed transition (service, workflow auto-advance, webhook
+    // all racing/retrying): the status was already claimed by a prior call, so
+    // updateMany's conditional WHERE matches zero rows.
+    prismaMock.enrollment.updateMany.mockResolvedValue({ count: 0 } as any);
+
+    await notifyEnrollmentStatusChange({ enrollmentId: 'e1', oldStatus: 'in_progress', newStatus: 'submitted', actorUserId: null });
+
+    expect(prismaMock.enrollment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1', NOT: { notifiedStatuses: { has: 'submitted' } } },
+      data: { notifiedStatuses: { push: 'submitted' } },
+    });
+    expect(mockCreateNotification).not.toHaveBeenCalled();
+    expect(mockSendEmail).not.toHaveBeenCalled();
   });
 
   it('gates denied emails on denialAlerts and others on enrollmentStatusChanges', async () => {
