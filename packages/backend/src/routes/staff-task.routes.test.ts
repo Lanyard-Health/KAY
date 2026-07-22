@@ -9,11 +9,11 @@ vi.mock('../utils/prisma.js', async () => {
 vi.mock('../middleware/auth.middleware.js', () => ({
   authenticate: vi.fn((_req: any, _res: any, next: any) => next()),
   authorize: vi.fn((...allowedRoles: string[]) => (req: any, res: any, next: any) => {
-    if (!allowedRoles.includes(req.user?.role)) {
-      return res.status(403).json({
-        success: false,
-        error: { message: 'Forbidden' },
-      });
+    const role = req.user?.role;
+    // Mirror production: lanyard_staff inherits anywhere credentialing_staff is allowed.
+    const allowed = allowedRoles.includes(role) || (role === 'lanyard_staff' && allowedRoles.includes('credentialing_staff'));
+    if (!allowed) {
+      return res.status(403).json({ success: false, error: { message: 'Forbidden' } });
     }
     next();
   }),
@@ -432,5 +432,59 @@ describe('GET /tasks/overdue-mine', () => {
     const app = createTestApp(taskRoutes, { ...staffUser, role: 'credentialing_staff' });
     const res = await request(app).get('/tasks/overdue-mine');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('PATCH /tasks/:taskId — overdue reasons', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const baseTask = { id: TASK_ID, providerId: null, status: 'IN_PROGRESS', assignedToId: 'staff-user-id', title: 'Call Back — Aetna', overdueReason: null } as any;
+
+  it('assignee sets a reason; overdueReasonAt is stamped', async () => {
+    prismaMock.task.findUnique.mockResolvedValue(baseTask);
+    prismaMock.task.update.mockResolvedValue({ ...baseTask, overdueReason: 'Payer portal was down all week' } as any);
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' }); // fixture id = 'staff-user-id' = assignee
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ overdueReason: 'Payer portal was down all week' });
+    expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBe('Payer portal was down all week');
+    expect(data.overdueReasonAt).toBeInstanceOf(Date);
+  });
+
+  it('admin can set a reason on anyone\'s task', async () => {
+    prismaMock.task.findUnique.mockResolvedValue(baseTask);
+    prismaMock.task.update.mockResolvedValue(baseTask);
+    const app = createTestApp(taskRoutes, adminUser);
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ overdueReason: 'Resolved by email' });
+    expect(res.status).toBe(200);
+  });
+
+  it('403s a lanyard_staff user who is NOT the assignee', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ ...baseTask, assignedToId: 'someone-else' });
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' });
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ overdueReason: 'not my task' });
+    expect(res.status).toBe(403);
+  });
+
+  it('a FUTURE dueDate clears reason + timestamp (New deadline re-arms the dialog)', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ ...baseTask, overdueReason: 'was down' });
+    prismaMock.task.update.mockResolvedValue(baseTask);
+    const app = createTestApp(taskRoutes, adminUser);
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ dueDate: future });
+    expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBeNull();
+    expect(data.overdueReasonAt).toBeNull();
+  });
+
+  it('a PAST dueDate does NOT clear the reason', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ ...baseTask, overdueReason: 'was down' });
+    prismaMock.task.update.mockResolvedValue(baseTask);
+    const app = createTestApp(taskRoutes, adminUser);
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ dueDate: past });
+    expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBeUndefined(); // untouched
   });
 });

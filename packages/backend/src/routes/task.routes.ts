@@ -66,6 +66,7 @@ const updateTaskSchema = z.object({
   payerId: z.string().uuid().nullable().optional(),
   practiceId: z.string().uuid().nullable().optional(),
   providerId: z.string().uuid().nullable().optional(),
+  overdueReason: z.string().trim().min(1).max(500).nullable().optional(),
 });
 
 // ==========================================
@@ -394,6 +395,15 @@ router.patch(
         }
       }
 
+      // Overdue reasons (D18): only the task's assignee or an admin may write
+      // one. lanyard_staff can never answer for a teammate.
+      if ('overdueReason' in req.body) {
+        const isAssignee = existing.assignedToId != null && existing.assignedToId === req.user!.id;
+        if (req.user!.role !== 'admin' && !isAssignee) {
+          throw new ForbiddenError('Only the assignee or an admin can add an overdue reason');
+        }
+      }
+
       // Build update data
       const updateData: Record<string, unknown> = {};
 
@@ -423,6 +433,17 @@ router.patch(
       if (validated.assignedToId !== undefined) updateData['assignedToId'] = validated.assignedToId;
       if (validated.dueDate !== undefined) {
         updateData['dueDate'] = validated.dueDate ? new Date(validated.dueDate) : null;
+      }
+      if (validated.overdueReason !== undefined) {
+        updateData['overdueReason'] = validated.overdueReason;
+        updateData['overdueReasonAt'] = validated.overdueReason === null ? null : new Date();
+      }
+      // "New deadline" resolves the row and re-arms the dialog: a future due
+      // date clears the reason pair (explicit reason writes above still win —
+      // both keys in one request is not a supported UI path).
+      if (validated.dueDate !== undefined && validated.dueDate && new Date(validated.dueDate).getTime() > Date.now() && !('overdueReason' in req.body)) {
+        updateData['overdueReason'] = null;
+        updateData['overdueReasonAt'] = null;
       }
 
       // Handle status transitions — explicit, or auto-derived from a
