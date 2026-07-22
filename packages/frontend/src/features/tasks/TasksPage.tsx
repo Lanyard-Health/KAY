@@ -5,12 +5,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { TASK_GROUP_LABELS } from '@credential-management/shared';
-import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, useReviewStats, type StaffTask } from '../../hooks/useStaffTasks';
+import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, useReviewStats, useMyOverdueUnanswered, type StaffTask } from '../../hooks/useStaffTasks';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../stores/auth.store';
 import TaskRow from './TaskRow';
 import TaskDetailPanel from './TaskDetailPanel';
 import NeedsReviewTab from './NeedsReviewTab';
+import OverdueReasonDialog from './OverdueReasonDialog';
 import EmptyState from '../../components/ui/EmptyState';
 import LoadingState from '../../components/ui/LoadingState';
 import ErrorState from '../../components/ui/ErrorState';
@@ -37,6 +38,13 @@ export default function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [focusIndex, setFocusIndex] = useState(-1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [shortcutsOff, setShortcutsOff] = useState(() => localStorage.getItem('tasks-shortcuts-off') === '1');
+  const toggleShortcuts = () => setShortcutsOff((v) => {
+    const next = !v;
+    localStorage.setItem('tasks-shortcuts-off', next ? '1' : '0');
+    return next;
+  });
 
   const queryClient = useQueryClient();
 
@@ -156,6 +164,27 @@ export default function TasksPage() {
     }
   }, [deepLinkId, tasks, setSearchParams, isLoading, isFetching, isError, view, showCompleted]);
 
+  // Prompt-on-arrival reason dialog (D18, D24). Mounts only AFTER the overdue
+  // query resolves; if it errors the dialog simply doesn't fire — fail open,
+  // never fail locked. reasonDialogClosed is mount-scoped state, so the dialog
+  // re-arms on every Tasks-page arrival by construction. Deep link wins.
+  const overdueQuery = useMyOverdueUnanswered();
+  const [reasonDialogClosed, setReasonDialogClosed] = useState(false);
+  const [srMessage, setSrMessage] = useState('');
+  const overdueTasks = overdueQuery.data ?? [];
+  // `!selectedTask` matters as much as `!deepLinkId` here: the deep-link
+  // effect above clears the `taskId` search param the same instant it opens
+  // the detail panel, so `deepLinkId` alone goes falsy right when the panel
+  // opens — without the `selectedTask` check the dialog would pop up behind
+  // a just-opened deep-linked task instead of staying deferred.
+  const isReasonDialogOpen = overdueQuery.isSuccess && overdueTasks.length > 0 && !reasonDialogClosed && !deepLinkId && !selectedTask;
+
+  const handleReasonDialogClose = (outcome: 'saved' | 'deferred') => {
+    setReasonDialogClosed(true);
+    setSrMessage(outcome === 'saved' ? 'Reasons saved — thanks' : "Okay — we'll ask again next time you're here.");
+    headingRef.current?.focus(); // no trigger to return focus to → the page's main heading
+  };
+
   // Clear any pending "claimed" undo timer on unmount.
   useEffect(() => {
     return () => {
@@ -233,12 +262,14 @@ export default function TasksPage() {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (
+        shortcutsOff ||
         tag === 'INPUT' ||
         tag === 'TEXTAREA' ||
         tag === 'SELECT' ||
         target?.isContentEditable ||
         isNewTaskOpen ||
-        selectedTask
+        selectedTask ||
+        isReasonDialogOpen
       ) {
         return;
       }
@@ -254,13 +285,13 @@ export default function TasksPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, focusIndex, isNewTaskOpen, selectedTask]);
+  }, [tasks, focusIndex, isNewTaskOpen, selectedTask, shortcutsOff, isReasonDialogOpen]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
+          <h1 ref={headingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900 outline-none">Tasks</h1>
           <p className="text-sm text-gray-500">Everything the team is working on, across every practice.</p>
         </div>
         <button type="button" onClick={() => setIsNewTaskOpen(true)} className="btn-primary">
@@ -373,9 +404,17 @@ export default function TasksPage() {
               </>
             )}
           </div>
-          <p className="text-center text-xs text-gray-400">j/k move · e complete · c claim · n new task</p>
+          <p className="text-center text-xs text-gray-500">
+            {shortcutsOff ? 'Keyboard shortcuts are off' : 'j/k move · e complete · c claim · n new task'}
+            {' · '}
+            <button type="button" onClick={toggleShortcuts} className="font-medium text-primary-700 hover:underline">
+              {shortcutsOff ? 'Turn shortcuts on' : 'Turn shortcuts off'}
+            </button>
+          </p>
         </>
       )}
+      {isReasonDialogOpen && <OverdueReasonDialog tasks={overdueTasks} onClose={handleReasonDialogClose} />}
+      <div role="status" aria-live="polite" className="sr-only">{srMessage}</div>
       <NewTaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
       <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
       {selected.size > 0 && (

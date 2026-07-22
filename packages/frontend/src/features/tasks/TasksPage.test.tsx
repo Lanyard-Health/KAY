@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -58,10 +58,6 @@ vi.mock('./NewTaskModal', () => ({
 import { useStaffTasks, useMyOverdueUnanswered } from '../../hooks/useStaffTasks';
 import TasksPage from './TasksPage';
 
-// Imported (not yet retargeted in this file's tests) so Task 13 can call
-// vi.mocked(useMyOverdueUnanswered) without adding the import itself.
-void useMyOverdueUnanswered;
-
 function renderPage(initialEntries = ['/tasks']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -74,6 +70,30 @@ function renderPage(initialEntries = ['/tasks']) {
 }
 
 describe('TasksPage', () => {
+  beforeEach(() => {
+    vi.mocked(useStaffTasks).mockRestore();
+    // Shortcut-off toggle (Task 13) reads/writes localStorage on mount; stub
+    // it the same way Dashboard.test.tsx does, since the local Node runtime's
+    // built-in global `localStorage` stub has no-op methods.
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+      clear: () => {
+        Object.keys(store).forEach((k) => delete store[k]);
+      },
+      key: (i: number) => Object.keys(store)[i] ?? null,
+      get length() {
+        return Object.keys(store).length;
+      },
+    });
+  });
+
   it('renders tabs and an urgent overdue task', () => {
     renderPage();
     expect(screen.getByRole('tab', { name: /my tasks/i })).toBeInTheDocument();
@@ -226,5 +246,24 @@ describe('TasksPage', () => {
     renderPage();
     expect(screen.queryByRole('tab', { name: /needs review/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/admin only/i)).not.toBeInTheDocument();
+  });
+
+  it('mounts the reason dialog only after overdue-mine resolves with tasks', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: [{ id: 'o1', title: 'Follow Up — Aetna', description: null, dueDate: new Date(Date.now() - 86_400_000).toISOString() }], isSuccess: true, isError: false } as any);
+    renderPage();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('fails open — a failed overdue query never blocks the page', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: undefined, isSuccess: false, isError: true } as any);
+    renderPage();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /my tasks/i })).toBeInTheDocument();
+  });
+
+  it('deep link wins over the dialog', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: [{ id: 'o1', title: 'x', description: null, dueDate: new Date().toISOString() }], isSuccess: true, isError: false } as any);
+    renderPage(['/tasks?taskId=t1']);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

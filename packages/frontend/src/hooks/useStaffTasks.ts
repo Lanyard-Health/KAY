@@ -86,12 +86,22 @@ export function useReviewStats(enabled: boolean) {
   });
 }
 
-// Powers the "you have N overdue tasks with no reason yet" nudge (Task 13
-// consumes this on TasksPage); the endpoint already shipped in Task 10/11.
+// Powers the "you have N overdue tasks with no reason yet" nudge — the
+// prompt-on-arrival OverdueReasonDialog on TasksPage (Task 13). The endpoint
+// already shipped in Task 10/11. Invalidated by every task mutation because
+// they all invalidate the shared ['staff-tasks'] prefix (see
+// useInvalidateTasks below).
+export interface OverdueTaskItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  dueDate: string;
+}
+
 export function useMyOverdueUnanswered() {
   return useQuery({
     queryKey: ['staff-tasks', 'overdue-mine'],
-    queryFn: async () => (await api.get('/tasks/overdue-mine')).data.data as StaffTask[],
+    queryFn: async () => (await api.get('/tasks/overdue-mine')).data.data as OverdueTaskItem[],
   });
 }
 
