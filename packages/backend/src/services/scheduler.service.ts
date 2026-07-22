@@ -737,6 +737,11 @@ class SchedulerService {
       this.weeklyDigestJob = null;
       logger.info('[Scheduler] Weekly digest job stopped');
     }
+    if (this.checkInJob) {
+      this.checkInJob.stop();
+      this.checkInJob = null;
+      logger.info('[Scheduler] Practice check-in job stopped');
+    }
   }
 
   /**
@@ -752,11 +757,13 @@ class SchedulerService {
     caqhSyncConfigured: boolean;
     caqhSyncJobRunning: boolean;
     weeklyDigestJobRunning: boolean;
+    checkInJobRunning: boolean;
     followUpSchedule: string;
     followUpExecutorSchedule: string;
     expirationAlertSchedule: string;
     expirationEmailSchedule: string;
     caqhSyncSchedule: string;
+    checkInSchedule: string;
   } {
     return {
       emailConfigured: emailService.isConfigured(),
@@ -768,11 +775,13 @@ class SchedulerService {
       caqhSyncConfigured: this.caqhService.isConfigured(),
       caqhSyncJobRunning: this.isCaqhSyncJobRunning,
       weeklyDigestJobRunning: this.isWeeklyDigestJobRunning,
+      checkInJobRunning: this.isCheckInJobRunning,
       followUpSchedule: process.env['FOLLOWUP_SCHEDULE'] || '0 9 * * *',
       followUpExecutorSchedule: process.env['FOLLOW_UP_EXECUTOR_SCHEDULE'] || '0 9 * * *',
       expirationAlertSchedule: process.env['EXPIRATION_ALERT_SCHEDULE'] || '0 7 * * *',
       expirationEmailSchedule: process.env['EXPIRATION_EMAIL_SCHEDULE'] || '0 8 * * *',
       caqhSyncSchedule: process.env['CAQH_SYNC_SCHEDULE'] || '0 2 * * *',
+      checkInSchedule: process.env['CHECK_IN_SCHEDULE'] || '0 6 * * *',
     };
   }
 }
