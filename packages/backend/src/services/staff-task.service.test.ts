@@ -5,7 +5,7 @@ vi.mock('../utils/prisma.js', async () => {
 });
 vi.mock('../utils/logger.js', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
-import { assertAssignableUser, createStaffTask, claimTask, listStaffTasks, resolveGuidedEdit, getMyTaskCounts } from './staff-task.service.js';
+import { assertAssignableUser, createStaffTask, claimTask, listStaffTasks, resolveGuidedEdit, getMyTaskCounts, getReviewStats, listMyOverdueUnanswered } from './staff-task.service.js';
 
 const USER_ID = '00000000-0000-4000-a000-000000000001';
 const TASK_ID = '00000000-0000-4000-a000-000000000002';
@@ -166,5 +166,73 @@ describe('getMyTaskCounts', () => {
     expect(prismaMock.task.count).toHaveBeenNthCalledWith(3, {
       where: { assignedToId: null, status: { in: ['PENDING', 'IN_PROGRESS'] } },
     });
+  });
+});
+
+describe('listStaffTasks view=needs_review', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('filters to open past-due tasks and sorts most-overdue first', async () => {
+    prismaMock.task.findMany.mockResolvedValue([] as any);
+    prismaMock.task.count.mockResolvedValue(0);
+    await listStaffTasks({ view: 'needs_review', userId: USER_ID, limit: 50, offset: 0 });
+    const args = prismaMock.task.findMany.mock.calls[0][0];
+    expect(args.where.status).toEqual({ in: ['PENDING', 'IN_PROGRESS'] });
+    expect(args.where.dueDate.lt).toBeInstanceOf(Date);
+    expect(args.orderBy).toEqual({ dueDate: 'asc' }); // most overdue first
+  });
+});
+
+describe('getReviewStats', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const NOW = new Date('2026-07-17T12:00:00Z');
+  const days = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
+
+  it('window edges: [now-30d, now); open-past-due and completed-late count, completed-on-time does not', async () => {
+    prismaMock.task.count.mockResolvedValue(2); // needsReviewCount
+    prismaMock.task.findMany.mockResolvedValue([
+      // open past due in window → missed
+      { id: 'a', status: 'IN_PROGRESS', dueDate: days(5), completedAt: null,
+        assignedTo: { id: 'u-dana', firstName: 'Dana', lastName: 'R' }, payer: { id: 'p-molina', name: 'Molina TX' } },
+      // completed late → missed
+      { id: 'b', status: 'COMPLETED', dueDate: days(10), completedAt: days(8),
+        assignedTo: { id: 'u-dana', firstName: 'Dana', lastName: 'R' }, payer: { id: 'p-molina', name: 'Molina TX' } },
+      // completed on time → NOT missed
+      { id: 'c', status: 'COMPLETED', dueDate: days(3), completedAt: days(4),
+        assignedTo: { id: 'u-marcus', firstName: 'Marcus', lastName: 'T' }, payer: null },
+      // SKIPPED (closed by admin) open-state check: not PENDING/IN_PROGRESS and not completed late → NOT missed
+      { id: 'd', status: 'SKIPPED', dueDate: days(2), completedAt: null, assignedTo: null, payer: null },
+    ] as any);
+
+    const stats = await getReviewStats(NOW);
+    expect(stats.needsReviewCount).toBe(2);
+    expect(stats.missedLast30).toBe(2);
+    expect(stats.mostMissedBy).toEqual({ name: 'Dana R', count: 2 });
+    expect(stats.slowestPayer).toEqual({ name: 'Molina TX', count: 2 });
+    // the findMany where clause carries the rolling 30-day window (D21)
+    const where = prismaMock.task.findMany.mock.calls[0][0].where;
+    expect(where.dueDate.gte.getTime()).toBe(NOW.getTime() - 30 * 86_400_000);
+    expect(where.dueDate.lt.getTime()).toBe(NOW.getTime());
+  });
+
+  it('returns null leaders when nothing missed', async () => {
+    prismaMock.task.count.mockResolvedValue(0);
+    prismaMock.task.findMany.mockResolvedValue([] as any);
+    const stats = await getReviewStats(NOW);
+    expect(stats).toEqual({ needsReviewCount: 0, missedLast30: 0, mostMissedBy: null, slowestPayer: null });
+  });
+});
+
+describe('listMyOverdueUnanswered', () => {
+  it('scopes to my open past-due tasks with no reason yet', async () => {
+    prismaMock.task.findMany.mockResolvedValue([] as any);
+    await listMyOverdueUnanswered(USER_ID, new Date('2026-07-17T12:00:00Z'));
+    const args = prismaMock.task.findMany.mock.calls[0][0];
+    expect(args.where).toMatchObject({
+      assignedToId: USER_ID,
+      status: { in: ['PENDING', 'IN_PROGRESS'] },
+      overdueReason: null,
+    });
+    expect(args.where.dueDate.lt).toBeInstanceOf(Date);
+    expect(args.orderBy).toEqual({ dueDate: 'asc' });
   });
 });
