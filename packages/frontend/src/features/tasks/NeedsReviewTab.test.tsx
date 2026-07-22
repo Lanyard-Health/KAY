@@ -28,6 +28,7 @@ vi.mock('../../hooks/useStaffTasks', () => ({
 vi.mock('../../utils/notify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }));
 
 import NeedsReviewTab from './NeedsReviewTab';
+import { useStaffTasks } from '../../hooks/useStaffTasks';
 
 describe('NeedsReviewTab', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -54,5 +55,29 @@ describe('NeedsReviewTab', () => {
     );
     expect(screen.getByRole('button', { name: 'New deadline — Call Back — Aetna Better Health' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reassign — Call Back — Aetna Better Health' })).toBeInTheDocument();
+  });
+
+  it('pluralizes the overdue count: "N days overdue" for N > 1', () => {
+    render(<MemoryRouter><NeedsReviewTab onOpenDetail={vi.fn()} /></MemoryRouter>);
+    // t1 is 5 days overdue, t2 is 2 days overdue
+    expect(screen.getByText(/5 days overdue/)).toBeInTheDocument();
+    expect(screen.getByText(/2 days overdue/)).toBeInTheDocument();
+  });
+
+  it('uses singular "1 day overdue" (not "1 days") when exactly one day past due', () => {
+    vi.mocked(useStaffTasks).mockReturnValueOnce({
+      data: {
+        data: [
+          { id: 't9', title: 'Escalation — Aetna', status: 'PENDING', priority: 'NORMAL',
+            taskGroup: 'ESCALATION', dueDate: new Date(Date.now() - 1 * 86_400_000).toISOString(), createdAt: '2026-07-01T00:00:00Z',
+            assignedTo: null, overdueReason: null },
+        ],
+        meta: { total: 1 },
+      },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    } as any);
+    render(<MemoryRouter><NeedsReviewTab onOpenDetail={vi.fn()} /></MemoryRouter>);
+    expect(screen.getByText(/1 day overdue/)).toBeInTheDocument();
+    expect(screen.queryByText(/1 days overdue/)).not.toBeInTheDocument();
   });
 });

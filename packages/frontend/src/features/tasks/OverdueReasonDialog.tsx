@@ -134,7 +134,7 @@ export default function OverdueReasonDialog({ tasks, onClose }: OverdueReasonDia
                         <input
                           id={`reason-${task.id}`}
                           aria-label={`What got in the way? — ${task.title}`}
-                          aria-invalid={validationErrors[task.id] ? 'true' : undefined}
+                          aria-invalid={(validationErrors[task.id] || saveErrors[task.id]) ? 'true' : undefined}
                           aria-describedby={validationErrors[task.id] || saveErrors[task.id] ? `reason-error-${task.id}` : undefined}
                           className="input mt-1"
                           value={drafts[task.id] ?? ''}

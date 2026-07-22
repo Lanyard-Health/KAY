@@ -73,7 +73,7 @@ export default function NeedsReviewTab({ onOpenDetail }: { onOpenDetail: (task: 
                 </button>
                 {task.dueDate && (
                   <span className="text-xs font-semibold text-red-600">
-                    {daysOverdue(task.dueDate)} days overdue · {task.assignedTo ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` : 'Unassigned'}
+                    {daysOverdue(task.dueDate)} {daysOverdue(task.dueDate) === 1 ? 'day' : 'days'} overdue · {task.assignedTo ? `${task.assignedTo.firstName} ${task.assignedTo.lastName}` : 'Unassigned'}
                   </span>
                 )}
               </div>
