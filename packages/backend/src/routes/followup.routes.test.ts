@@ -323,5 +323,17 @@ describe('Follow-up Routes', () => {
 
       expect(res.status).toBe(500);
     });
+
+    it('returns 404 (not 500, not 200) when the enrollment belongs to another practice', async () => {
+      // Production denial: enrollment exists (findUnique resolves) but
+      // validateEnrollmentAccess returns false because the caller's practice
+      // scope doesn't include the enrollment's provider/practice.
+      (validateEnrollmentAccess as any).mockResolvedValue(false);
+
+      const res = await request(app).get('/enrollment/enroll-1/preview');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.message).toBe('Enrollment not found');
+    });
   });
 });

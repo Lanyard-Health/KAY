@@ -49,6 +49,7 @@ import {
   getActionTypeConfig,
 } from '../services/workflow-hydration.service.js';
 import { instantiateWorkflow } from '../services/workflow-instantiation.service.js';
+import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import router from './enrollment-workflow.routes.js';
 
 const mockedUpdateStep = vi.mocked(updateStepStatus);
@@ -64,6 +65,9 @@ beforeEach(() => {
   });
   mockedProgress.mockResolvedValue(null);
   mockedUpdateStep.mockResolvedValue(undefined);
+  // Re-set after clearAllMocks: practice scope middleware must allow access
+  // by default so other tests aren't affected by a prior test's denial mock.
+  vi.mocked(validateEnrollmentAccess).mockResolvedValue(true);
 });
 
 // ============================================================
@@ -129,6 +133,22 @@ describe('GET /:id/workflow', () => {
     const res = await request(app).get('/enrollment-1-id/workflow');
 
     expect(res.body.enrollment.providerName).toBe('Jane Doe');
+  });
+
+  it('returns 403 (not 500, not 200) when the enrollment belongs to another practice', async () => {
+    // Production denial: enrollment exists (findUnique resolves) but
+    // validateEnrollmentAccess returns false because the caller's practice
+    // scope doesn't include the enrollment's provider/practice. This route
+    // checks the result inline and responds 403 directly (unlike
+    // followup.routes.ts's shared checkEnrollmentPracticeAccess middleware,
+    // which maps the same false result to 404).
+    prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
+    vi.mocked(validateEnrollmentAccess).mockResolvedValue(false);
+
+    const res = await request(app).get('/enrollment-1-id/workflow');
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain('Access denied');
   });
 });
 

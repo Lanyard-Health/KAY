@@ -111,6 +111,22 @@ describe('notifyEnrollmentStatusChange', () => {
     expect(sent.html).toContain('unsubscribe?token=');
   });
 
+  it('skips in-app and email when the atomic claim finds nothing to update (already notified)', async () => {
+    // Simulates a replayed transition (service, workflow auto-advance, webhook
+    // all racing/retrying): the status was already claimed by a prior call, so
+    // updateMany's conditional WHERE matches zero rows.
+    prismaMock.enrollment.updateMany.mockResolvedValue({ count: 0 } as any);
+
+    await notifyEnrollmentStatusChange({ enrollmentId: 'e1', oldStatus: 'in_progress', newStatus: 'submitted', actorUserId: null });
+
+    expect(prismaMock.enrollment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1', NOT: { notifiedStatuses: { has: 'submitted' } } },
+      data: { notifiedStatuses: { push: 'submitted' } },
+    });
+    expect(mockCreateNotification).not.toHaveBeenCalled();
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
   it('gates denied emails on denialAlerts and others on enrollmentStatusChanges', async () => {
     mockGetRecipients.mockResolvedValue([
       { id: 'u1', email: 'a@greens.com', firstName: 'Ada', preferences: { ...PREFS_ON, denialAlerts: false } },
