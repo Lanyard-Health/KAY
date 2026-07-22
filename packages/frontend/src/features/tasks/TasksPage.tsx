@@ -5,10 +5,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { TASK_GROUP_LABELS } from '@credential-management/shared';
-import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, type StaffTask } from '../../hooks/useStaffTasks';
+import { useStaffTasks, useClaimTask, useUpdateStaffTask, useAssignees, useReviewStats, type StaffTask } from '../../hooks/useStaffTasks';
 import { api } from '../../services/api';
+import { useAuthStore } from '../../stores/auth.store';
 import TaskRow from './TaskRow';
 import TaskDetailPanel from './TaskDetailPanel';
+import NeedsReviewTab from './NeedsReviewTab';
 import EmptyState from '../../components/ui/EmptyState';
 import LoadingState from '../../components/ui/LoadingState';
 import ErrorState from '../../components/ui/ErrorState';
@@ -38,7 +40,11 @@ export default function TasksPage() {
 
   const queryClient = useQueryClient();
 
-  const view = VIEWS[tabIndex].key;
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
+  const views = isAdmin ? [...VIEWS, { key: 'needs_review' as const, label: 'Needs review' }] : VIEWS;
+  const { data: reviewStats } = useReviewStats(isAdmin);
+  const view = views[tabIndex].key;
   const status = showCompleted ? 'all' : 'open';
   const { data, isLoading, isFetching, isError, refetch } = useStaffTasks(
     view,
@@ -264,102 +270,112 @@ export default function TasksPage() {
 
       <Tab.Group selectedIndex={tabIndex} onChange={setTabIndex}>
         <Tab.List className="flex space-x-1 border-b border-gray-200">
-          {VIEWS.map((v) => (
+          {views.map((v) => (
             <Tab
               key={v.key}
-              className={({ selected }) =>
-                clsx(
-                  'border-b-2 px-4 py-2.5 text-sm font-medium outline-none transition-colors',
-                  selected ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
-                )
-              }
+              aria-label={v.key === 'needs_review' ? `Needs review, ${reviewStats?.needsReviewCount ?? 0} tasks` : undefined}
+              className={({ selected }) => clsx(
+                'flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium outline-none transition-colors',
+                selected ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+              )}
             >
               {v.label}
+              {v.key === 'needs_review' && (reviewStats?.needsReviewCount ?? 0) > 0 && (
+                <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700">
+                  {reviewStats!.needsReviewCount}
+                </span>
+              )}
             </Tab>
           ))}
         </Tab.List>
       </Tab.Group>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={priority} onChange={(e) => setPriority(e.target.value)} className="input w-40" aria-label="Filter by priority">
-          <option value="">Priority: Any</option>
-          <option value="URGENT">Urgent</option>
-          <option value="HIGH">High</option>
-          <option value="NORMAL">Normal</option>
-          <option value="LOW">Low</option>
-        </select>
-        <select value={practiceId} onChange={(e) => setPracticeId(e.target.value)} className="input w-48" aria-label="Filter by practice">
-          <option value="">Practice: All</option>
-          {(practices ?? []).map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <select value={taskGroup} onChange={(e) => setTaskGroup(e.target.value)} className="input w-56" aria-label="Filter by group">
-          <option value="">Group: Any</option>
-          {Object.entries(TASK_GROUP_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-          Show completed
-        </label>
-      </div>
+      {view === 'needs_review' ? (
+        <NeedsReviewTab onOpenDetail={setSelectedTask} />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={priority} onChange={(e) => setPriority(e.target.value)} className="input w-40" aria-label="Filter by priority">
+              <option value="">Priority: Any</option>
+              <option value="URGENT">Urgent</option>
+              <option value="HIGH">High</option>
+              <option value="NORMAL">Normal</option>
+              <option value="LOW">Low</option>
+            </select>
+            <select value={practiceId} onChange={(e) => setPracticeId(e.target.value)} className="input w-48" aria-label="Filter by practice">
+              <option value="">Practice: All</option>
+              {(practices ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <select value={taskGroup} onChange={(e) => setTaskGroup(e.target.value)} className="input w-56" aria-label="Filter by group">
+              <option value="">Group: Any</option>
+              {Object.entries(TASK_GROUP_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              Show completed
+            </label>
+          </div>
 
-      {justClaimed && (
-        <div className="flex items-center gap-3 rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-2.5 text-sm">
-          <span className="font-semibold text-primary-900">Claimed ✓</span>
-          <span className="truncate text-gray-700">{justClaimed.title}</span>
-          <button type="button" className="ml-auto font-semibold text-primary-700 underline underline-offset-2" onClick={handleUndoClaim}>
-            Undo
-          </button>
-        </div>
-      )}
-
-      <div className="card divide-y divide-gray-100">
-        {isLoading ? (
-          <LoadingState label="Loading tasks…" />
-        ) : isError ? (
-          <ErrorState title="Couldn't load tasks" message="Something went wrong on our end." onRetry={refetch} />
-        ) : tasks.length === 0 ? (
-          view === 'pool' ? (
-            <EmptyState illustration="inbox" title="Nothing waiting to be claimed" description="Every task has an owner. New unassigned work lands here." />
-          ) : view === 'my' ? (
-            <EmptyState
-              illustration="clipboard"
-              title="You're all caught up"
-              description="Nothing is assigned to you right now. If you've got room, grab something from the Task Pool."
-              action={{ label: 'Browse Task Pool', onClick: () => setTabIndex(1) }}
-            />
-          ) : (
-            <EmptyState illustration="search" title="No tasks match" description="Try clearing the filters." />
-          )
-        ) : (
-          <>
-            {tasks.map((task, index) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                view={view}
-                onOpenDetail={setSelectedTask}
-                onToggleComplete={handleToggleComplete}
-                onClaim={handleClaim}
-                claimPending={claimMutation.isPending}
-                focused={index === focusIndex}
-                selectable
-                selected={selected.has(task.id)}
-                onToggleSelect={handleToggleSelect}
-              />
-            ))}
-            {tasks.length < total && (
-              <button type="button" className="w-full py-2.5 text-sm font-semibold text-primary-700 hover:bg-gray-50" onClick={() => setLimit((l) => l + 50)}>
-                Load more ({total - tasks.length} more)
+          {justClaimed && (
+            <div className="flex items-center gap-3 rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-2.5 text-sm">
+              <span className="font-semibold text-primary-900">Claimed ✓</span>
+              <span className="truncate text-gray-700">{justClaimed.title}</span>
+              <button type="button" className="ml-auto font-semibold text-primary-700 underline underline-offset-2" onClick={handleUndoClaim}>
+                Undo
               </button>
+            </div>
+          )}
+
+          <div className="card divide-y divide-gray-100">
+            {isLoading ? (
+              <LoadingState label="Loading tasks…" />
+            ) : isError ? (
+              <ErrorState title="Couldn't load tasks" message="Something went wrong on our end." onRetry={refetch} />
+            ) : tasks.length === 0 ? (
+              view === 'pool' ? (
+                <EmptyState illustration="inbox" title="Nothing waiting to be claimed" description="Every task has an owner. New unassigned work lands here." />
+              ) : view === 'my' ? (
+                <EmptyState
+                  illustration="clipboard"
+                  title="You're all caught up"
+                  description="Nothing is assigned to you right now. If you've got room, grab something from the Task Pool."
+                  action={{ label: 'Browse Task Pool', onClick: () => setTabIndex(1) }}
+                />
+              ) : (
+                <EmptyState illustration="search" title="No tasks match" description="Try clearing the filters." />
+              )
+            ) : (
+              <>
+                {tasks.map((task, index) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    view={view}
+                    onOpenDetail={setSelectedTask}
+                    onToggleComplete={handleToggleComplete}
+                    onClaim={handleClaim}
+                    claimPending={claimMutation.isPending}
+                    focused={index === focusIndex}
+                    selectable
+                    selected={selected.has(task.id)}
+                    onToggleSelect={handleToggleSelect}
+                  />
+                ))}
+                {tasks.length < total && (
+                  <button type="button" className="w-full py-2.5 text-sm font-semibold text-primary-700 hover:bg-gray-50" onClick={() => setLimit((l) => l + 50)}>
+                    Load more ({total - tasks.length} more)
+                  </button>
+                )}
+              </>
             )}
-          </>
-        )}
-      </div>
-      <p className="text-center text-xs text-gray-400">j/k move · e complete · c claim · n new task</p>
+          </div>
+          <p className="text-center text-xs text-gray-400">j/k move · e complete · c claim · n new task</p>
+        </>
+      )}
       <NewTaskModal isOpen={isNewTaskOpen} onClose={() => setIsNewTaskOpen(false)} />
       <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
       {selected.size > 0 && (

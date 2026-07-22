@@ -32,7 +32,7 @@ export interface StaffTask {
 // ===========================
 
 export function useStaffTasks(
-  view: 'my' | 'pool' | 'all',
+  view: 'my' | 'pool' | 'all' | 'needs_review',
   filters?: { status?: string; priority?: string; practiceId?: string; taskGroup?: string },
   limit: number = 50
 ) {
@@ -66,6 +66,32 @@ export function useAssignees() {
     queryFn: async () =>
       (await api.get('/tasks/assignees')).data.data as { id: string; firstName: string; lastName: string; role: string }[],
     staleTime: 5 * 60_000,
+  });
+}
+
+export interface ReviewStats {
+  needsReviewCount: number;
+  missedLast30: number;
+  mostMissedBy: { name: string; count: number } | null;
+  slowestPayer: { name: string; count: number } | null;
+}
+
+export function useReviewStats(enabled: boolean) {
+  return useQuery({
+    queryKey: ['staff-tasks', 'review-stats'],
+    queryFn: async () => (await api.get('/tasks/review-stats')).data.data as ReviewStats,
+    enabled, // admin only — the endpoint 403s everyone else (fail closed)
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+// Powers the "you have N overdue tasks with no reason yet" nudge (Task 13
+// consumes this on TasksPage); the endpoint already shipped in Task 10/11.
+export function useMyOverdueUnanswered() {
+  return useQuery({
+    queryKey: ['staff-tasks', 'overdue-mine'],
+    queryFn: async () => (await api.get('/tasks/overdue-mine')).data.data as StaffTask[],
   });
 }
 

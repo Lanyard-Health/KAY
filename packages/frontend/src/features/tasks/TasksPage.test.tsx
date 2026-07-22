@@ -3,6 +3,11 @@ import { render, screen, within, fireEvent, waitFor } from '@testing-library/rea
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+vi.mock('../../stores/auth.store', () => ({
+  useAuthStore: vi.fn((sel: any) => sel({ user: { id: 'u1', role: 'admin' } })),
+}));
+import { useAuthStore } from '../../stores/auth.store';
+
 vi.mock('../../hooks/useStaffTasks', () => ({
   useStaffTasks: vi.fn(() => ({
     data: {
@@ -42,14 +47,20 @@ vi.mock('../../hooks/useStaffTasks', () => ({
   useDeleteTask: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   usePayerContactInfo: vi.fn(() => ({ data: null, isLoading: false, isError: false })),
   useSavePayerContactInfo: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useReviewStats: vi.fn(() => ({ data: { needsReviewCount: 3, missedLast30: 0, mostMissedBy: null, slowestPayer: null } })),
+  useMyOverdueUnanswered: vi.fn(() => ({ data: [], isSuccess: true, isError: false })),
 }));
 
 vi.mock('./NewTaskModal', () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="new-task-modal" /> : null),
 }));
 
-import { useStaffTasks } from '../../hooks/useStaffTasks';
+import { useStaffTasks, useMyOverdueUnanswered } from '../../hooks/useStaffTasks';
 import TasksPage from './TasksPage';
+
+// Imported (not yet retargeted in this file's tests) so Task 13 can call
+// vi.mocked(useMyOverdueUnanswered) without adding the import itself.
+void useMyOverdueUnanswered;
 
 function renderPage(initialEntries = ['/tasks']) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -203,5 +214,17 @@ describe('TasksPage', () => {
     rerender(makeTree());
 
     await waitFor(() => expect(screen.queryByText(/selected/i)).not.toBeInTheDocument());
+  });
+
+  it('admin sees the Needs review tab with its count in the accessible name', () => {
+    renderPage();
+    expect(screen.getByRole('tab', { name: 'Needs review, 3 tasks' })).toBeInTheDocument();
+  });
+
+  it('the tab does not render for lanyard_staff (no "admin only" text ships)', () => {
+    vi.mocked(useAuthStore).mockImplementation((sel: any) => sel({ user: { id: 'u9', role: 'lanyard_staff' } }));
+    renderPage();
+    expect(screen.queryByRole('tab', { name: /needs review/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/admin only/i)).not.toBeInTheDocument();
   });
 });
