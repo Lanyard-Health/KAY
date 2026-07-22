@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+vi.mock('../../stores/auth.store', () => ({
+  useAuthStore: vi.fn((sel: any) => sel({ user: { id: 'u1', role: 'admin' } })),
+}));
+import { useAuthStore } from '../../stores/auth.store';
 
 vi.mock('../../hooks/useStaffTasks', () => ({
   useStaffTasks: vi.fn(() => ({
@@ -42,13 +47,15 @@ vi.mock('../../hooks/useStaffTasks', () => ({
   useDeleteTask: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   usePayerContactInfo: vi.fn(() => ({ data: null, isLoading: false, isError: false })),
   useSavePayerContactInfo: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useReviewStats: vi.fn(() => ({ data: { needsReviewCount: 3, missedLast30: 0, mostMissedBy: null, slowestPayer: null } })),
+  useMyOverdueUnanswered: vi.fn(() => ({ data: [], isSuccess: true, isError: false })),
 }));
 
 vi.mock('./NewTaskModal', () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="new-task-modal" /> : null),
 }));
 
-import { useStaffTasks } from '../../hooks/useStaffTasks';
+import { useStaffTasks, useMyOverdueUnanswered } from '../../hooks/useStaffTasks';
 import TasksPage from './TasksPage';
 
 function renderPage(initialEntries = ['/tasks']) {
@@ -63,6 +70,30 @@ function renderPage(initialEntries = ['/tasks']) {
 }
 
 describe('TasksPage', () => {
+  beforeEach(() => {
+    vi.mocked(useStaffTasks).mockRestore();
+    // Shortcut-off toggle (Task 13) reads/writes localStorage on mount; stub
+    // it the same way Dashboard.test.tsx does, since the local Node runtime's
+    // built-in global `localStorage` stub has no-op methods.
+    const store: Record<string, string> = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k in store ? store[k] : null),
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+      clear: () => {
+        Object.keys(store).forEach((k) => delete store[k]);
+      },
+      key: (i: number) => Object.keys(store)[i] ?? null,
+      get length() {
+        return Object.keys(store).length;
+      },
+    });
+  });
+
   it('renders tabs and an urgent overdue task', () => {
     renderPage();
     expect(screen.getByRole('tab', { name: /my tasks/i })).toBeInTheDocument();
@@ -135,6 +166,17 @@ describe('TasksPage', () => {
     expect(screen.queryByTestId('new-task-modal')).not.toBeInTheDocument();
   });
 
+  it('the shortcuts-off toggle flips the hint/label, suppresses shortcut keys, and persists to localStorage', () => {
+    renderPage();
+    expect(screen.getByText(/j\/k move/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Turn shortcuts off' }));
+    expect(screen.getByText('Keyboard shortcuts are off', { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Turn shortcuts on' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'n' }); // previously opened New Task — now suppressed
+    expect(screen.queryByTestId('new-task-modal')).not.toBeInTheDocument();
+    expect(localStorage.getItem('tasks-shortcuts-off')).toBe('1');
+  });
+
   it('selecting two rows shows "2 selected" in the floating bulk-action bar', () => {
     renderPage();
     fireEvent.click(screen.getByLabelText('Select Follow Up — Aetna Better Health'));
@@ -203,5 +245,44 @@ describe('TasksPage', () => {
     rerender(makeTree());
 
     await waitFor(() => expect(screen.queryByText(/selected/i)).not.toBeInTheDocument());
+  });
+
+  it('admin sees the Needs review tab with its count in the accessible name', () => {
+    renderPage();
+    expect(screen.getByRole('tab', { name: 'Needs review, 3 tasks' })).toBeInTheDocument();
+  });
+
+  it('the tab does not render for lanyard_staff (no "admin only" text ships)', () => {
+    vi.mocked(useAuthStore).mockImplementation((sel: any) => sel({ user: { id: 'u9', role: 'lanyard_staff' } }));
+    renderPage();
+    expect(screen.queryByRole('tab', { name: /needs review/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/admin only/i)).not.toBeInTheDocument();
+  });
+
+  it('mounts the reason dialog only after overdue-mine resolves with tasks', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: [{ id: 'o1', title: 'Follow Up — Aetna', description: null, dueDate: new Date(Date.now() - 86_400_000).toISOString() }], isSuccess: true, isError: false } as any);
+    renderPage();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('suppresses shortcut keys while the overdue reason dialog is open', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: [{ id: 'o1', title: 'Follow Up — Aetna', description: null, dueDate: new Date(Date.now() - 86_400_000).toISOString() }], isSuccess: true, isError: false } as any);
+    renderPage();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'n' });
+    expect(screen.queryByTestId('new-task-modal')).not.toBeInTheDocument();
+  });
+
+  it('fails open — a failed overdue query never blocks the page', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: undefined, isSuccess: false, isError: true } as any);
+    renderPage();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /my tasks/i })).toBeInTheDocument();
+  });
+
+  it('deep link wins over the dialog', () => {
+    vi.mocked(useMyOverdueUnanswered).mockReturnValue({ data: [{ id: 'o1', title: 'x', description: null, dueDate: new Date().toISOString() }], isSuccess: true, isError: false } as any);
+    renderPage(['/tasks?taskId=t1']);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

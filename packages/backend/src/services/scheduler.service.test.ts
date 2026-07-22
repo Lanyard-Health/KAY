@@ -517,5 +517,14 @@ describe('SchedulerService — CAQH Sync Job', () => {
       expect(status).toHaveProperty('caqhSyncSchedule');
       expect(status.caqhSyncSchedule).toBe('0 2 * * *');
     });
+
+    it('includes practice check-in job status fields', () => {
+      const status = schedulerService.getStatus();
+
+      expect(status).toHaveProperty('checkInJobRunning');
+      expect(status).toHaveProperty('checkInSchedule');
+      expect(status.checkInJobRunning).toBe(false);
+      expect(status.checkInSchedule).toBe('0 6 * * *');
+    });
   });
 });

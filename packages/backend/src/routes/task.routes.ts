@@ -8,6 +8,7 @@ import { createTask } from '../services/task.service.js';
 import {
   listStaffTasks, getMyTaskCounts, listAssignees,
   createStaffTask, claimTask, assertAssignableUser, notifyAssignee, resolveGuidedEdit,
+  getReviewStats, listMyOverdueUnanswered,
 } from '../services/staff-task.service.js';
 import { ADMIN_ROLES } from '../constants/roles.js';
 import { HUMAN_TASK_GROUPS, type HumanTaskGroup } from '@credential-management/shared';
@@ -65,6 +66,7 @@ const updateTaskSchema = z.object({
   payerId: z.string().uuid().nullable().optional(),
   practiceId: z.string().uuid().nullable().optional(),
   providerId: z.string().uuid().nullable().optional(),
+  overdueReason: z.string().trim().min(1).max(500).nullable().optional(),
 });
 
 // ==========================================
@@ -163,7 +165,7 @@ router.post(
 const staffOnly = authorize(...ADMIN_ROLES, 'lanyard_staff'); // internal team ONLY — not practice credentialing_staff
 
 const listTasksQuerySchema = z.object({
-  view: z.enum(['my', 'pool', 'all']).default('my'),
+  view: z.enum(['my', 'pool', 'all', 'needs_review']).default('my'),
   status: z.enum(['open', 'completed', 'all']).default('open'),
   priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).optional(),
   practiceId: z.string().uuid().optional(),
@@ -175,6 +177,11 @@ const listTasksQuerySchema = z.object({
 router.get('/tasks', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const q = listTasksQuerySchema.parse(req.query);
+    // needs_review is admin-only (D16) — explicit route-level gate, the
+    // recurring role-gate 403 bug class. lanyard_staff sees My/Pool/All only.
+    if (q.view === 'needs_review' && req.user!.role !== 'admin') {
+      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+    }
     const { tasks, total } = await listStaffTasks({ ...q, userId: req.user!.id });
     res.json({ success: true, data: tasks, meta: { total } });
   } catch (error) { next(error); }
@@ -189,6 +196,21 @@ router.get('/tasks/counts', authenticate, staffOnly, async (req: Request, res: R
 router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, res: Response, next: NextFunction) => {
   try {
     res.json({ success: true, data: await listAssignees() });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/review-stats', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (req.user!.role !== 'admin') {
+      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+    }
+    res.json({ success: true, data: await getReviewStats() });
+  } catch (error) { next(error); }
+});
+
+router.get('/tasks/overdue-mine', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ success: true, data: await listMyOverdueUnanswered(req.user!.id) });
   } catch (error) { next(error); }
 });
 
@@ -373,6 +395,15 @@ router.patch(
         }
       }
 
+      // Overdue reasons (D18): only the task's assignee or an admin may write
+      // one. lanyard_staff can never answer for a teammate.
+      if ('overdueReason' in req.body) {
+        const isAssignee = existing.assignedToId != null && existing.assignedToId === req.user!.id;
+        if (req.user!.role !== 'admin' && !isAssignee) {
+          throw new ForbiddenError('Only the assignee or an admin can add an overdue reason');
+        }
+      }
+
       // Build update data
       const updateData: Record<string, unknown> = {};
 
@@ -402,6 +433,17 @@ router.patch(
       if (validated.assignedToId !== undefined) updateData['assignedToId'] = validated.assignedToId;
       if (validated.dueDate !== undefined) {
         updateData['dueDate'] = validated.dueDate ? new Date(validated.dueDate) : null;
+      }
+      if (validated.overdueReason !== undefined) {
+        updateData['overdueReason'] = validated.overdueReason;
+        updateData['overdueReasonAt'] = validated.overdueReason === null ? null : new Date();
+      }
+      // "New deadline" resolves the row and re-arms the dialog: a future due
+      // date clears the reason pair (explicit reason writes above still win —
+      // both keys in one request is not a supported UI path).
+      if (validated.dueDate !== undefined && validated.dueDate && new Date(validated.dueDate).getTime() > Date.now() && !('overdueReason' in req.body)) {
+        updateData['overdueReason'] = null;
+        updateData['overdueReasonAt'] = null;
       }
 
       // Handle status transitions — explicit, or auto-derived from a

@@ -53,3 +53,50 @@ test.describe('Tasks page', () => {
     await expect(completedRow.getByRole('button', { name: 'Completed: Escalation' })).toBeVisible();
   });
 });
+
+test.describe('Tasks v2 — needs review + reason dialog', () => {
+  test('overdue task → arrival dialog defer/save → admin needs-review flow', async ({ page }) => {
+    const note = `e2e overdue ${Date.now()}`;
+
+    // 1. Create a task assigned to ME with a due date in the past.
+    await page.goto('/tasks');
+    // Defer any dialog left over from previous runs so the page is usable.
+    const stale = page.getByRole('button', { name: "I'll answer later" });
+    if (await stale.isVisible().catch(() => false)) await stale.click();
+
+    await page.getByRole('button', { name: 'New Task' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Task group *').selectOption('VERIFY_INFORMATION');
+    await dialog.getByLabel(/note/i).fill(note);
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    await dialog.getByLabel('Due Date').fill(yesterday);
+    // Assign to myself: option 0 is "Leave in Task Pool", option 1 is the
+    // first assignee — the seeded admin running this session. (Playwright's
+    // selectOption label matcher takes exact strings only, and the admin's
+    // display name varies per environment, so select by index.)
+    await dialog.getByLabel('Assign To').selectOption({ index: 1 });
+    await dialog.getByRole('button', { name: 'Create task' }).click();
+    await expect(page.getByRole('heading', { name: 'New Task' })).toBeHidden();
+
+    // 2. Re-arrive → the prompt-on-arrival dialog fires. Esc = deferral.
+    await page.reload();
+    const reasonDialog = page.getByRole('alertdialog');
+    await expect(reasonDialog).toBeVisible();
+    await expect(reasonDialog.getByText(/Before you dive in — \d+ task/)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(reasonDialog).toBeHidden();
+
+    // 3. Re-arms on the next arrival; quick chip + edit + save.
+    await page.reload();
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Waiting on documents' }).first().click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Save reasons' }).click();
+    await expect(page.getByRole('alertdialog')).toBeHidden();
+
+    // 4. Admin Needs review tab: the reason sits on the row; Close resolves it.
+    await page.getByRole('tab', { name: /needs review/i }).click();
+    await expect(page.getByText('Reason: "Waiting on documents"').first()).toBeVisible();
+    await page.getByRole('button', { name: /^Close — Verify Information/ }).first().click();
+    await expect(page.getByText('Reason: "Waiting on documents"').first()).toBeHidden();
+  });
+});
