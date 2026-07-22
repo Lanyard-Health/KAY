@@ -25,11 +25,18 @@ export default function NeedsReviewTab({ onOpenDetail }: { onOpenDetail: (task: 
 
   const tasks: StaffTask[] = data?.data ?? [];
 
-  const act = (taskId: string, patch: Record<string, unknown>) =>
+  const act = (taskId: string, patch: Record<string, unknown>) => {
+    if (updateMutation.isPending) return; // dedup double-clicks; buttons stay enabled
     updateMutation.mutate(
       { taskId, data: patch },
       { onError: () => notify.error("Couldn't save that change", { description: 'The row is unchanged — try again in a moment.' }) },
     );
+  };
+
+  // Earliest pickable "new deadline" is tomorrow: the value maps to noon UTC,
+  // so "today" picked after 8am ET is already past — the server's future-only
+  // reset rule would silently not fire and the row would stay in the tab.
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   const statCards = [
     { label: 'Missed · last 30 days', value: String(stats?.missedLast30 ?? '—'), sr: `Missed: ${stats?.missedLast30 ?? 0} tasks in the last 30 days` },
@@ -103,7 +110,7 @@ export default function NeedsReviewTab({ onOpenDetail }: { onOpenDetail: (task: 
               {deadlineFor === task.id && (
                 <div className="flex items-center gap-2 pt-1">
                   <label htmlFor={`deadline-${task.id}`} className="text-xs text-gray-600">New due date</label>
-                  <input id={`deadline-${task.id}`} type="date" className="input w-40" value={deadlineValue}
+                  <input id={`deadline-${task.id}`} type="date" min={tomorrow} className="input w-40" value={deadlineValue}
                     onChange={(e) => setDeadlineValue(e.target.value)} />
                   <button type="button" disabled={!deadlineValue}
                     onClick={() => { act(task.id, { dueDate: new Date(deadlineValue + 'T12:00:00Z').toISOString() }); setDeadlineFor(null); }}

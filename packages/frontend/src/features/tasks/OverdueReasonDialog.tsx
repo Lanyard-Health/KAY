@@ -43,6 +43,7 @@ export default function OverdueReasonDialog({ tasks, onClose }: OverdueReasonDia
   };
 
   const handleSave = async () => {
+    if (saving) return; // dedup a double-click without disabling the button (D24)
     const pending = tasks.filter((t) => !savedIds.has(t.id));
     const missing = pending.filter((t) => !(drafts[t.id] ?? '').trim());
     if (missing.length > 0) {
