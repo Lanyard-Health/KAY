@@ -42,6 +42,8 @@ async function assertTaskAccess(req: Request, taskId: string): Promise<void> {
 
 const router = Router();
 
+const ADMIN_ONLY_REVIEW_MESSAGE = 'Only Lanyard admins can review missed deadlines';
+
 // Validation schemas
 const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
@@ -180,7 +182,7 @@ router.get('/tasks', authenticate, staffOnly, async (req: Request, res: Response
     // needs_review is admin-only (D16) — explicit route-level gate, the
     // recurring role-gate 403 bug class. lanyard_staff sees My/Pool/All only.
     if (q.view === 'needs_review' && req.user!.role !== 'admin') {
-      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+      throw new ForbiddenError(ADMIN_ONLY_REVIEW_MESSAGE);
     }
     const { tasks, total } = await listStaffTasks({ ...q, userId: req.user!.id });
     res.json({ success: true, data: tasks, meta: { total } });
@@ -202,7 +204,7 @@ router.get('/tasks/assignees', authenticate, staffOnly, async (_req: Request, re
 router.get('/tasks/review-stats', authenticate, staffOnly, async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (req.user!.role !== 'admin') {
-      throw new ForbiddenError('Only Lanyard admins can review missed deadlines');
+      throw new ForbiddenError(ADMIN_ONLY_REVIEW_MESSAGE);
     }
     res.json({ success: true, data: await getReviewStats() });
   } catch (error) { next(error); }

@@ -69,4 +69,32 @@ describe('runPracticeCheckInSweep', () => {
     expect(result.created).toBe(0);
     expect(prismaMock.task.create).not.toHaveBeenCalled();
   });
+
+  it('processes two eligible quiet practices in one sweep and creates a check-in for each', async () => {
+    const practiceB = { id: 'prac-2', name: 'Riverside Therapy', onboardedAt: daysAgo(60), createdAt: daysAgo(90) };
+    prismaMock.practice.findMany.mockResolvedValue([PRACTICE, practiceB] as any);
+    prismaMock.task.findFirst
+      .mockResolvedValueOnce(null) // practice 1: no completed task → quiet since onboardedAt
+      .mockResolvedValueOnce(null) // practice 1: no open check-in
+      .mockResolvedValueOnce(null) // practice 2: no completed task → quiet since onboardedAt
+      .mockResolvedValueOnce(null); // practice 2: no open check-in
+    const result = await runPracticeCheckInSweep(NOW);
+    expect(result).toEqual({ practicesChecked: 2, created: 2 });
+    expect(prismaMock.task.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('a practice whose only prior CHECK_IN task is SKIPPED still gets a new check-in (SKIPPED must not dedup)', async () => {
+    // The dedup lookup only matches open statuses — a SKIPPED check-in falls
+    // outside `status: { in: ['PENDING', 'IN_PROGRESS'] } }`, so Prisma would
+    // return null here even though a SKIPPED CHECK_IN task exists in the DB.
+    prismaMock.task.findFirst
+      .mockResolvedValueOnce(null) // no completed task → quiet since onboardedAt (60d)
+      .mockResolvedValueOnce(null); // dedup lookup: SKIPPED doesn't match the open-status filter
+    const result = await runPracticeCheckInSweep(NOW);
+    expect(result.created).toBe(1);
+    expect(prismaMock.task.create).toHaveBeenCalledTimes(1);
+    const dedupWhere = prismaMock.task.findFirst.mock.calls[1][0].where;
+    expect(dedupWhere.status).toEqual({ in: ['PENDING', 'IN_PROGRESS'] });
+    expect(dedupWhere.status.in).not.toContain('SKIPPED');
+  });
 });

@@ -182,6 +182,24 @@ describe('listStaffTasks view=needs_review', () => {
   });
 });
 
+describe('listStaffTasks view=needs_review with filters', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('combines priority + practiceId + taskGroup filters alongside the needs_review conditions', async () => {
+    prismaMock.task.findMany.mockResolvedValue([] as any);
+    prismaMock.task.count.mockResolvedValue(0);
+    await listStaffTasks({
+      view: 'needs_review', userId: USER_ID, limit: 50, offset: 0,
+      priority: 'HIGH', practiceId: 'practice-1', taskGroup: 'FOLLOW_UP',
+    });
+    const where = prismaMock.task.findMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ in: ['PENDING', 'IN_PROGRESS'] });
+    expect(where.dueDate.lt).toBeInstanceOf(Date);
+    expect(where.priority).toBe('HIGH');
+    expect(where.practiceId).toBe('practice-1');
+    expect(where.taskGroup).toBe('FOLLOW_UP');
+  });
+});
+
 describe('getReviewStats', () => {
   beforeEach(() => vi.clearAllMocks());
   const NOW = new Date('2026-07-17T12:00:00Z');
@@ -219,6 +237,36 @@ describe('getReviewStats', () => {
     prismaMock.task.findMany.mockResolvedValue([] as any);
     const stats = await getReviewStats(NOW);
     expect(stats).toEqual({ needsReviewCount: 0, missedLast30: 0, mostMissedBy: null, slowestPayer: null });
+  });
+
+  it('a missed task with no assignee and no payer still counts toward missedLast30 without crashing or skewing the leaders', async () => {
+    prismaMock.task.count.mockResolvedValue(1);
+    prismaMock.task.findMany.mockResolvedValue([
+      { id: 'unassigned', status: 'IN_PROGRESS', dueDate: days(2), completedAt: null, assignedTo: null, payer: null },
+    ] as any);
+    const stats = await getReviewStats(NOW);
+    expect(stats).toEqual({ needsReviewCount: 1, missedLast30: 1, mostMissedBy: null, slowestPayer: null });
+  });
+
+  it('breaks a two-way tie on mostMissedBy deterministically (first-encountered assignee wins)', async () => {
+    prismaMock.task.count.mockResolvedValue(0);
+    prismaMock.task.findMany.mockResolvedValue([
+      { id: 'a1', status: 'IN_PROGRESS', dueDate: days(5), completedAt: null,
+        assignedTo: { id: 'u-alice', firstName: 'Alice', lastName: 'A' }, payer: null },
+      { id: 'a2', status: 'IN_PROGRESS', dueDate: days(6), completedAt: null,
+        assignedTo: { id: 'u-alice', firstName: 'Alice', lastName: 'A' }, payer: null },
+      { id: 'b1', status: 'IN_PROGRESS', dueDate: days(7), completedAt: null,
+        assignedTo: { id: 'u-bob', firstName: 'Bob', lastName: 'B' }, payer: null },
+      { id: 'b2', status: 'IN_PROGRESS', dueDate: days(8), completedAt: null,
+        assignedTo: { id: 'u-bob', firstName: 'Bob', lastName: 'B' }, payer: null },
+      // no-assignee/no-payer task in the same window shouldn't perturb the tie
+      { id: 'unassigned', status: 'IN_PROGRESS', dueDate: days(2), completedAt: null, assignedTo: null, payer: null },
+    ] as any);
+    const stats = await getReviewStats(NOW);
+    expect(stats.missedLast30).toBe(5);
+    // Alice's tasks appear first in iteration order, so she wins the tie.
+    expect(stats.mostMissedBy).toEqual({ name: 'Alice A', count: 2 });
+    expect(stats.slowestPayer).toBeNull();
   });
 });
 

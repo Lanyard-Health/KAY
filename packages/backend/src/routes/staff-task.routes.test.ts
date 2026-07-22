@@ -456,6 +456,34 @@ describe('PATCH /tasks/:taskId — overdue reasons', () => {
     const app = createTestApp(taskRoutes, adminUser);
     const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ overdueReason: 'Resolved by email' });
     expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBe('Resolved by email');
+    expect(data.overdueReasonAt).toBeInstanceOf(Date);
+  });
+
+  it('assignee clears a reason with an explicit null — overdueReason and overdueReasonAt both cleared', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ ...baseTask, overdueReason: 'was down' });
+    prismaMock.task.update.mockResolvedValue({ ...baseTask, overdueReason: null } as any);
+    const app = createTestApp(taskRoutes, { ...staffUser, role: 'lanyard_staff' }); // fixture id = 'staff-user-id' = assignee
+    const res = await request(app).patch(`/tasks/${TASK_ID}`).send({ overdueReason: null });
+    expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBeNull();
+    expect(data.overdueReasonAt).toBeNull();
+  });
+
+  it('a future dueDate WITH an overdueReason in the same body writes the reason, not the auto-clear', async () => {
+    prismaMock.task.findUnique.mockResolvedValue({ ...baseTask, overdueReason: 'was down' });
+    prismaMock.task.update.mockResolvedValue(baseTask);
+    const app = createTestApp(taskRoutes, adminUser);
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const res = await request(app)
+      .patch(`/tasks/${TASK_ID}`)
+      .send({ dueDate: future, overdueReason: 'Payer confirmed new deadline' });
+    expect(res.status).toBe(200);
+    const data = prismaMock.task.update.mock.calls[0][0].data;
+    expect(data.overdueReason).toBe('Payer confirmed new deadline');
+    expect(data.overdueReasonAt).toBeInstanceOf(Date);
   });
 
   it('403s a lanyard_staff user who is NOT the assignee', async () => {
