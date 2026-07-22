@@ -78,6 +78,7 @@ describe('notifyEnrollmentStatusChange', () => {
     mockSendEmail.mockResolvedValue({ success: true });
     mockGetRecipients.mockResolvedValue(RECIPIENTS.map((r) => ({ ...r, preferences: { ...r.preferences } })));
     prismaMock.enrollment.findUnique.mockResolvedValue(enrollmentRow() as any);
+    prismaMock.enrollment.updateMany.mockResolvedValue({ count: 1 } as any);
   });
 
   it('does nothing for non-alert statuses or unchanged status', async () => {

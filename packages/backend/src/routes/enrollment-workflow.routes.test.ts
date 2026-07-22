@@ -25,6 +25,7 @@ vi.mock('../middleware/auth.middleware.js', () => ({
 // Mock practice scope (passes through)
 vi.mock('../middleware/practiceScope.middleware.js', () => ({
   validateProviderPracticeAccess: vi.fn().mockResolvedValue(true),
+  validateEnrollmentAccess: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock step-operations helpers (kept after Phase 6 cleanup)
@@ -145,6 +146,10 @@ describe('PUT /:id/workflow/:stepId', () => {
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([step] as any);
     prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.update.mockResolvedValue(step as any);
+    // Auto-advance path (syncEnrollmentStatus) fire-and-forget audit log —
+    // mock-prisma.ts only pre-stubs read methods, so `create` must be stubbed
+    // per-test or `.catch()` on the returned undefined throws.
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
     return step;
   }
 

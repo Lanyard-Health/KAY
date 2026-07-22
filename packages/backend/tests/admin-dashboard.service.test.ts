@@ -121,7 +121,7 @@ describe('getAdminDashboard', () => {
         nextFollowUpDate: null,
         practiceId: null,
         practice: null,
-        provider: { practiceId: 'prac9', practice: { id: 'prac9', name: 'Via Provider LLC' } },
+        provider: { practiceId: 'prac9', practice: { id: 'prac9', name: 'Via Provider LLC', isDemo: false, deletedAt: null } },
         payerTrack: { timelines: [{ minDays: 45, maxDays: 90 }] },
       },
     ] as any);
