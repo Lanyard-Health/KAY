@@ -293,7 +293,13 @@ export async function notifyEnrollmentStatusChange(params: {
       });
 
       await emailService
-        .sendEmail({ to: r.email, subject: copy.subject, html, notificationType: 'enrollment_status' })
+        .sendEmail({
+          to: r.email,
+          subject: copy.subject,
+          html,
+          notificationType: 'enrollment_status',
+          metadata: { practiceId: practice.id, enrollmentId },
+        })
         .catch((err) =>
           logger.error(`Enrollment alert email failed (enrollment ${enrollmentId}, user ${r.id}):`, err),
         );

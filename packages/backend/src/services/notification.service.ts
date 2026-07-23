@@ -49,6 +49,35 @@ export interface PracticeAdminRecipient {
   preferences: NotificationPreferences;
 }
 
+export type SentHistoryCategory = 'enrollments' | 'reminders' | 'account';
+
+export interface SentHistoryItem {
+  id: string;
+  channel: 'email' | 'in_app';
+  /** 'sent' / 'failed' for emails; 'in_app' for bell-only notifications. */
+  status: 'sent' | 'failed' | 'in_app';
+  subject: string;
+  recipientEmail: string | null;
+  recipientName: string | null;
+  errorMessage: string | null;
+  enrollmentId: string | null;
+  category: SentHistoryCategory;
+  createdAt: Date;
+}
+
+function historyCategory(type: string): SentHistoryCategory {
+  if (type.startsWith('enrollment')) return 'enrollments';
+  if (
+    type === 'expiration_reminder' ||
+    type === 'credential_expiring' ||
+    type === 'credential_expired' ||
+    type === 'caqh_import_stalled'
+  ) {
+    return 'reminders';
+  }
+  return 'account';
+}
+
 class NotificationService {
   /**
    * Create a single notification for a user
@@ -227,6 +256,119 @@ class NotificationService {
   /**
    * Delete read notifications older than N days
    */
+  /**
+   * Everything a practice has been sent, across both channels: email log rows
+   * (matched by member address or stamped practiceId metadata) merged with
+   * in-app notifications for the practice's members. Read-only; never returns
+   * email bodies. When an email and an in-app row announce the same enrollment
+   * event to the same person on the same day, only the email row is kept.
+   */
+  // ponytail: fetch-latest-and-merge, no cursor pagination — total email volume
+  // is tiny today; add cursors if a practice ever exceeds `limit` rows/day.
+  async getPracticeSentHistory(practiceId: string, limit = 50): Promise<SentHistoryItem[]> {
+    const memberships = await prisma.userPractice.findMany({
+      where: { practiceId },
+      select: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+    });
+    const members = memberships.map((m) => m.user);
+    if (members.length === 0) return [];
+    const byEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
+    const byId = new Map(members.map((m) => [m.id, m]));
+
+    const [emailRows, inAppRows] = await Promise.all([
+      prisma.notification.findMany({
+        where: {
+          status: { in: ['sent', 'failed'] },
+          OR: [
+            { recipientEmail: { in: members.map((m) => m.email), mode: 'insensitive' } },
+            { metadata: { path: ['practiceId'], equals: practiceId } },
+          ],
+        },
+        select: {
+          id: true,
+          recipientEmail: true,
+          type: true,
+          subject: true,
+          status: true,
+          errorMessage: true,
+          metadata: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+      prisma.inAppNotification.findMany({
+        where: { userId: { in: members.map((m) => m.id) } },
+        select: { id: true, userId: true, type: true, title: true, metadata: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    const enrollmentIdOf = (metadata: unknown): string | null => {
+      if (metadata && typeof metadata === 'object' && 'enrollmentId' in metadata) {
+        const v = (metadata as Record<string, unknown>)['enrollmentId'];
+        return typeof v === 'string' ? v : null;
+      }
+      return null;
+    };
+    const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+
+    const emailItems: SentHistoryItem[] = emailRows.map((row) => {
+      const member = byEmail.get(row.recipientEmail.toLowerCase());
+      return {
+        id: row.id,
+        channel: 'email',
+        status: row.status === 'failed' ? 'failed' : 'sent',
+        subject: row.subject,
+        recipientEmail: row.recipientEmail,
+        recipientName: member ? `${member.firstName} ${member.lastName}`.trim() : null,
+        errorMessage: row.errorMessage,
+        enrollmentId: enrollmentIdOf(row.metadata),
+        category: historyCategory(row.type),
+        createdAt: row.createdAt,
+      };
+    });
+
+    // Suppress in-app rows that duplicate a successful email about the same
+    // enrollment to the same person on the same day.
+    const covered = new Set(
+      emailItems
+        .filter((e) => e.status === 'sent' && e.enrollmentId)
+        .map((e) => `${e.enrollmentId}|${e.recipientEmail?.toLowerCase()}|${dayOf(e.createdAt)}`),
+    );
+
+    const inAppItems: SentHistoryItem[] = inAppRows
+      .map((row): SentHistoryItem | null => {
+        const member = byId.get(row.userId);
+        const enrollmentId = enrollmentIdOf(row.metadata);
+        if (
+          enrollmentId &&
+          member &&
+          covered.has(`${enrollmentId}|${member.email.toLowerCase()}|${dayOf(row.createdAt)}`)
+        ) {
+          return null;
+        }
+        return {
+          id: row.id,
+          channel: 'in_app',
+          status: 'in_app',
+          subject: row.title,
+          recipientEmail: member?.email ?? null,
+          recipientName: member ? `${member.firstName} ${member.lastName}`.trim() : null,
+          errorMessage: null,
+          enrollmentId,
+          category: historyCategory(row.type),
+          createdAt: row.createdAt,
+        };
+      })
+      .filter((item): item is SentHistoryItem => item !== null);
+
+    return [...emailItems, ...inAppItems]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
   async cleanupOldNotifications(daysToKeep: number = 90) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - daysToKeep);
