@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { ALL_AUTHENTICATED_ROLES } from '../constants/roles.js';
+import { ALL_AUTHENTICATED_ROLES, STAFF_ROLES } from '../constants/roles.js';
+import { prisma } from '../utils/prisma.js';
 import { notificationService } from '../services/notification.service.js';
 import { verifyUnsubscribeToken } from '../services/enrollment-alerts.service.js';
 import { markNotificationsReadSchema, notificationPreferencesSchema } from '@credential-management/shared';
@@ -86,6 +87,49 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     });
 
     res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/notifications/sent-history?practiceId=...&limit=...
+ * Read-only history of everything a practice has been sent (email + in-app).
+ * Staff pass ?practiceId; practice admins are always scoped to their own
+ * practice regardless of what they pass. Providers are excluded by the
+ * route-level role gate.
+ */
+const sentHistoryQuerySchema = z.object({
+  practiceId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+router.get('/sent-history', authorize(...STAFF_ROLES), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { practiceId: queryPracticeId, limit } = parseQuery(
+      req.query as Record<string, unknown>,
+      sentHistoryQuerySchema,
+    );
+
+    let practiceId = queryPracticeId;
+    if (req.user!.role === 'practice_admin') {
+      const membership = await prisma.userPractice.findFirst({
+        where: { userId: req.user!.id },
+        select: { practiceId: true },
+      });
+      if (!membership) {
+        res.status(404).json({ success: false, error: { message: 'No practice found for this user' } });
+        return;
+      }
+      practiceId = membership.practiceId;
+    }
+    if (!practiceId) {
+      res.status(400).json({ success: false, error: { message: 'practiceId is required' } });
+      return;
+    }
+
+    const items = await notificationService.getPracticeSentHistory(practiceId, limit);
+    res.json({ success: true, data: items });
   } catch (error) {
     next(error);
   }

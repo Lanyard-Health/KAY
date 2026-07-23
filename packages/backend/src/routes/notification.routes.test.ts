@@ -1,16 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createTestApp } from '../../tests/helpers/test-app.js';
-import { adminUser, providerUser } from '../../tests/helpers/fixtures.js';
+import { adminUser, practiceAdminUser, providerUser } from '../../tests/helpers/fixtures.js';
 
-const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead, mockGetPreferences, mockUpdatePreferences, mockVerifyToken } = vi.hoisted(() => ({
+const { mockGetNotifications, mockGetUnreadCount, mockMarkAsRead, mockGetPreferences, mockUpdatePreferences, mockVerifyToken, mockGetPracticeSentHistory } = vi.hoisted(() => ({
   mockGetNotifications: vi.fn(),
   mockGetUnreadCount: vi.fn(),
   mockMarkAsRead: vi.fn(),
   mockGetPreferences: vi.fn(),
   mockUpdatePreferences: vi.fn(),
   mockVerifyToken: vi.fn(),
+  mockGetPracticeSentHistory: vi.fn(),
 }));
+
+vi.mock('../utils/prisma.js', async () => {
+  const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
+  return { prisma: prismaMock };
+});
 
 vi.mock('../services/enrollment-alerts.service.js', () => ({
   verifyUnsubscribeToken: mockVerifyToken,
@@ -28,6 +34,7 @@ vi.mock('../services/notification.service.js', () => ({
     markAsRead: mockMarkAsRead,
     getPreferences: mockGetPreferences,
     updatePreferences: mockUpdatePreferences,
+    getPracticeSentHistory: mockGetPracticeSentHistory,
   },
 }));
 
@@ -136,6 +143,47 @@ describe('Notification Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /sent-history', () => {
+    it('requires practiceId for staff callers', async () => {
+      const res = await request(app).get('/sent-history');
+      expect(res.status).toBe(400);
+      expect(mockGetPracticeSentHistory).not.toHaveBeenCalled();
+    });
+
+    it('passes the requested practiceId through for staff', async () => {
+      mockGetPracticeSentHistory.mockResolvedValue([]);
+      const practiceId = '4c9e6d2a-0000-4000-8000-000000000001';
+
+      const res = await request(app).get(`/sent-history?practiceId=${practiceId}`);
+
+      expect(res.status).toBe(200);
+      expect(mockGetPracticeSentHistory).toHaveBeenCalledWith(practiceId, 50);
+    });
+
+    it('forces practice admins onto their own practice, ignoring the query param', async () => {
+      const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
+      prismaMock.userPractice.findFirst.mockResolvedValue({ practiceId: 'own-practice-id' } as any);
+      mockGetPracticeSentHistory.mockResolvedValue([]);
+      const paApp = createTestApp(notificationRouter, practiceAdminUser);
+
+      const res = await request(paApp).get('/sent-history?practiceId=4c9e6d2a-0000-4000-8000-00000000dead');
+
+      expect(res.status).toBe(200);
+      expect(mockGetPracticeSentHistory).toHaveBeenCalledWith('own-practice-id', 50);
+    });
+
+    it('404s a practice admin with no membership', async () => {
+      const { prismaMock } = await import('../../tests/helpers/mock-prisma.js');
+      prismaMock.userPractice.findFirst.mockResolvedValue(null);
+      const paApp = createTestApp(notificationRouter, practiceAdminUser);
+
+      const res = await request(paApp).get('/sent-history');
+
+      expect(res.status).toBe(404);
+      expect(mockGetPracticeSentHistory).not.toHaveBeenCalled();
     });
   });
 
