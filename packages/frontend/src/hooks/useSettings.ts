@@ -19,6 +19,30 @@ export interface PracticeProfile {
   updatedAt: string;
 }
 
+export interface SentHistoryItem {
+  id: string;
+  channel: 'email' | 'in_app';
+  status: 'sent' | 'failed' | 'in_app';
+  subject: string;
+  recipientEmail: string | null;
+  recipientName: string | null;
+  errorMessage: string | null;
+  enrollmentId: string | null;
+  category: 'enrollments' | 'reminders' | 'account';
+  createdAt: string;
+}
+
+export function useSentHistory(practiceId: string | undefined) {
+  return useQuery({
+    queryKey: ['sent-history', practiceId],
+    queryFn: async () => {
+      const response = await api.get(`/notifications/sent-history?practiceId=${encodeURIComponent(practiceId!)}`);
+      return response.data.data as SentHistoryItem[];
+    },
+    enabled: !!practiceId,
+  });
+}
+
 export interface PracticeUser {
   id: string;
   userId: string;

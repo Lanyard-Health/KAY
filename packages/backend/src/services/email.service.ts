@@ -17,6 +17,8 @@ interface SendEmailParams {
   attachments?: Attachment[];
   notificationType?: string;
   replyTo?: string;
+  /** Stamped onto the Notification log row so sends can be traced back to a practice/enrollment. */
+  metadata?: Record<string, unknown>;
 }
 
 type Transport = 'resend' | 'smtp' | 'none';
@@ -178,6 +180,7 @@ class EmailService {
           body: params.html,
           status: 'sent',
           sentAt: new Date(),
+          metadata: { ...(params.metadata ?? {}), ...(messageId ? { messageId } : {}) } as any,
         },
       });
 
@@ -194,6 +197,7 @@ class EmailService {
           body: params.html,
           status: 'failed',
           errorMessage: message,
+          ...(params.metadata ? { metadata: params.metadata as any } : {}),
         },
       });
 
