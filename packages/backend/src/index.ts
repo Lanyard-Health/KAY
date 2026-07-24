@@ -147,6 +147,9 @@ app.use(cors({
     } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       // In dev, allow any localhost port (Vite may pick a different port if 5190 is taken)
       callback(null, true);
+    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/[^.]+\.(replit\.dev|repl\.co)(:\d+)?$/.test(origin)) {
+      // In dev, allow Replit preview domains
+      callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
