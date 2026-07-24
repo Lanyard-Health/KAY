@@ -203,6 +203,35 @@ describe('Provider Routes', () => {
       );
     });
 
+    it('creates provider without dateOfBirth or email (staff NPI-add flow)', async () => {
+      prismaMock.providerProfile.create.mockResolvedValue(mockProvider as any);
+
+      const { dateOfBirth: _d, email: _e, ...minimal } = validProviderInput as any;
+      const res = await request(app).post('/').send(minimal);
+
+      expect(res.status).toBe(201);
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ dateOfBirth: null }),
+        })
+      );
+      const createArg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
+      expect(createArg.data.email).toBeUndefined();
+    });
+
+    it('normalizes empty-string dateOfBirth/email to absent', async () => {
+      prismaMock.providerProfile.create.mockResolvedValue(mockProvider as any);
+
+      const res = await request(app)
+        .post('/')
+        .send({ ...validProviderInput, dateOfBirth: '', email: '' });
+
+      expect(res.status).toBe(201);
+      const createArg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
+      expect(createArg.data.dateOfBirth).toBeNull();
+      expect(createArg.data.email).toBeUndefined();
+    });
+
     it('rejects create without practiceId with 400', async () => {
       const { practiceId: _omit, ...noPractice } = validProviderInput;
       const res = await request(app).post('/').send(noPractice);

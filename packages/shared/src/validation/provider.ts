@@ -38,9 +38,22 @@ export const createProviderProfileSchema = z.object({
   lastName: z.string().min(1, 'Last name is required').max(100),
   middleName: z.string().max(100).optional(),
   suffix: z.string().max(20).optional(),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  // DOB and email are optional at create: staff add providers from the NPI
+  // registry, which publishes neither. DOB is still required before a CAQH
+  // roster-add can run (readiness check names it); CAQH sync backfills DOB.
+  dateOfBirth: z
+    .union([
+      z.literal(''),
+      z.null(),
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    ])
+    .optional()
+    .transform((val) => (val === null || val === '' ? undefined : val)),
   gender: genderSchema,
-  email: z.string().email('Invalid email address'),
+  email: z
+    .union([z.literal(''), z.null(), z.string().email('Invalid email address')])
+    .optional()
+    .transform((val) => (val === null || val === '' ? undefined : val)),
   phone: phoneSchema,
   mobilePhone: optionalPhoneSchema,
   fax: optionalPhoneSchema,

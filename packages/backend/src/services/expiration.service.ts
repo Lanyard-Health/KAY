@@ -11,7 +11,7 @@ interface ExpiringCredential {
   daysUntilExpiration: number;
   providerId: string;
   providerName: string;
-  providerEmail: string;
+  providerEmail: string | null;
 }
 
 interface DashboardData {
@@ -279,6 +279,14 @@ export class ExpirationService {
       const expirations = await this.getExpiringOnDay(days);
 
       for (const expiration of expirations) {
+        // Providers created without an email (staff NPI-add flow) can't receive
+        // reminders — skip quietly with a log rather than logging a failed send.
+        if (!expiration.providerEmail) {
+          logger.warn(
+            `Skipping expiration reminder for ${expiration.type} ${expiration.id}: provider ${expiration.providerId} has no email`
+          );
+          continue;
+        }
         try {
           await this.sendReminderEmail(expiration, days);
           sent++;
@@ -346,7 +354,8 @@ export class ExpirationService {
     daysUntilExpiration: number
   ): Promise<void> {
     const result = await emailService.sendEmail({
-      to: expiration.providerEmail,
+      // Callers filter out null-email providers before invoking (see the loop guard)
+      to: expiration.providerEmail!,
       subject: `Action Required: ${expiration.name} Expires in ${daysUntilExpiration} Days`,
       html: this.getEmailBody(expiration, daysUntilExpiration),
       notificationType: 'expiration_reminder',

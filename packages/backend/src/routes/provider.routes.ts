@@ -291,7 +291,7 @@ providerRoutes.post(
       const provider = await prisma.providerProfile.create({
         data: {
           ...providerData,
-          dateOfBirth: new Date(providerData.dateOfBirth),
+          dateOfBirth: providerData.dateOfBirth ? new Date(providerData.dateOfBirth) : null,
           specialties: providerData.specialties || [],
           languages: providerData.languages || [],
           createdById: req.user?.id,
