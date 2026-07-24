@@ -40,20 +40,20 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd packages/shared && npx tsc --noEmit 2>/dev/null; npx tsc; cd ../.. && npm run dev --workspace=packages/backend"
+args = "cd packages/shared && npx tsc --noEmit 2>/dev/null; npx tsc; cd ../.. && env -u REDIS_URL -u REDIS_HOST -u REDIS_PORT -u REDIS_PASSWORD npm run dev --workspace=packages/backend"
 waitForPort = 3002
 
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev --workspace=packages/frontend"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "env -u VITE_API_URL npm run dev --workspace=packages/frontend"
+waitForPort = 5000
 
 [[ports]]
 localPort = 3002
