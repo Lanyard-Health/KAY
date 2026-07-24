@@ -9,12 +9,18 @@ services:
     name: kay-backend
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npx playwright install --with-deps chromium && npm run build
+    # playwright chromium = submission engine; puppeteer chrome = CAQH credential
+    # verifier (separate binaries — puppeteer cannot see playwright's install).
+    # PUPPETEER_CACHE_DIR must point inside the project so the browser downloaded
+    # at build time survives into the runtime filesystem.
+    buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npx playwright install --with-deps chromium && npx puppeteer browsers install chrome && npm run build
     startCommand: cd packages/backend && npx prisma migrate deploy && node dist/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/.cache/puppeteer
       - key: DATABASE_URL
         fromDatabase:
           name: kay-db
