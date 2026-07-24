@@ -87,6 +87,21 @@ export function useVerifyCaqhCredentials() {
   });
 }
 
+/**
+ * Hook to email the provider a secure link to submit corrected CAQH credentials
+ * (used after a failed verification).
+ */
+export function useRequestCaqhCredentials() {
+  return useMutation({
+    mutationFn: async (providerId: string) => {
+      const response = await api.post<{ success: boolean; data: { resent: boolean } }>(
+        `/caqh/credential-requests/${providerId}`
+      );
+      return response.data;
+    },
+  });
+}
+
 interface TestCredentialsParams {
   username: string;
   password: string;

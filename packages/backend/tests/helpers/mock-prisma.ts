@@ -12,7 +12,7 @@ export const prismaMock = mockDeep<PrismaClient>();
 const MODELS = [
   'adminNotification', 'agentAction', 'agentEvent', 'agentTask', 'agentWorkflow',
   'aiRecommendation', 'auditLog', 'boardCertification', 'caqhAttestationTracker', 'caqhSyncLog',
-  'cdsRegistration', 'chatConversation', 'chatMessage', 'continuingEducation',
+  'caqhCredentialRequest', 'cdsRegistration', 'chatConversation', 'chatMessage', 'continuingEducation',
   'coveringColleague', 'customService', 'deaRegistration', 'denialTriage',
   'document', 'education', 'emailLog', 'emailTemplate', 'enrollment',
   'enrollmentOutcome', 'enrollmentRun', 'enrollmentWorkflowStep', 'enterpriseQueue', 'followUpRun',
