@@ -18,35 +18,9 @@ import {
 
 export const caqhCredentialRequestRoutes = Router();
 
-// POST /api/v1/caqh/credential-requests/:providerId - staff: send (or re-send) the email
-caqhCredentialRequestRoutes.post(
-  '/credential-requests/:providerId',
-  authenticate,
-  authorize('admin', 'credentialing_staff'),
-  requireProviderAccess,
-  requirePracticeProvider,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await createCredentialRequest(req.params['providerId']!, req.user?.id ?? null);
-      res.status(201).json({ success: true, data: result });
-    } catch (error) {
-      if (error instanceof Error) {
-        const map: Record<string, { code: number; message: string }> = {
-          PROVIDER_NOT_FOUND: { code: 404, message: 'Provider does not exist' },
-          NO_EMAIL: { code: 400, message: 'This provider has no email on file. Add one to their profile first.' },
-          NO_CREDENTIALS: { code: 400, message: 'No CAQH username is saved for this provider yet. Save credentials first.' },
-          EMAIL_SEND_FAILED: { code: 502, message: 'The email could not be sent. Try again in a minute.' },
-        };
-        const known = map[error.message];
-        if (known) {
-          res.status(known.code).json({ success: false, error: { message: known.message, code: error.message } });
-          return;
-        }
-      }
-      next(error);
-    }
-  }
-);
+// Public routes MUST be registered before the staff POST below: Express matches
+// in order, and '/credential-requests/:providerId' would otherwise swallow
+// '/credential-requests/complete' (providerId = 'complete') and 401 it.
 
 // Public: GET /api/v1/caqh/credential-requests/token/:token - render data for the update form
 caqhCredentialRequestRoutes.get(
@@ -91,6 +65,36 @@ caqhCredentialRequestRoutes.post(
           error: { code: 'LINK_INVALID', message: 'This link has expired or was already used. Ask your Lanyard contact to send a fresh one.' },
         });
         return;
+      }
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/caqh/credential-requests/:providerId - staff: send (or re-send) the email
+caqhCredentialRequestRoutes.post(
+  '/credential-requests/:providerId',
+  authenticate,
+  authorize('admin', 'credentialing_staff'),
+  requireProviderAccess,
+  requirePracticeProvider,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await createCredentialRequest(req.params['providerId']!, req.user?.id ?? null);
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      if (error instanceof Error) {
+        const map: Record<string, { code: number; message: string }> = {
+          PROVIDER_NOT_FOUND: { code: 404, message: 'Provider does not exist' },
+          NO_EMAIL: { code: 400, message: 'This provider has no email on file. Add one to their profile first.' },
+          NO_CREDENTIALS: { code: 400, message: 'No CAQH username is saved for this provider yet. Save credentials first.' },
+          EMAIL_SEND_FAILED: { code: 502, message: 'The email could not be sent. Try again in a minute.' },
+        };
+        const known = map[error.message];
+        if (known) {
+          res.status(known.code).json({ success: false, error: { message: known.message, code: error.message } });
+          return;
+        }
       }
       next(error);
     }
