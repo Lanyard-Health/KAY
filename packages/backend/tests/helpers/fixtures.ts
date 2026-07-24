@@ -53,6 +53,9 @@ export const validProviderInput = {
   email: 'jane.doe@example.com',
   phone: '(555) 123-4567',
   providerType: 'psychiatrist' as const,
+  // POST /providers requires a practice link — unassigned providers are invisible
+  // to practice-scoped roles.
+  practiceId: '11111111-1111-4111-8111-111111111111',
 };
 
 export const validEnrollmentInput = {

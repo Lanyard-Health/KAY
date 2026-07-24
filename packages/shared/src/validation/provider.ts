@@ -53,6 +53,10 @@ export const createProviderProfileSchema = z.object({
   // Manually-added providers default to active — matches bulk import. Portal
   // applications set status explicitly (pending until approved).
   status: providerStatusSchema.default('active'),
+  // Optional here because practice_admin gets it auto-set server-side; the route
+  // rejects creates that resolve to no practice (unassigned providers are
+  // invisible to practice-scoped roles).
+  practiceId: z.string().uuid().optional(),
 });
 
 // Backward-compat alias — prefer createProviderProfileSchema for new code

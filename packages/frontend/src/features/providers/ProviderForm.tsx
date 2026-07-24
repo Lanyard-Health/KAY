@@ -20,7 +20,7 @@ import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { useAuthStore } from '../../stores/auth.store';
-import { usePractice } from '../../hooks/usePractices';
+import { usePractice, usePractices } from '../../hooks/usePractices';
 
 interface NPILookupResult {
   found: boolean;
@@ -151,6 +151,7 @@ interface ProviderFormData {
   status?: 'active' | 'pending' | 'inactive';
   groupNpi?: string;
   taxId?: string;
+  practiceId?: string;
 }
 
 export default function ProviderForm() {
@@ -163,6 +164,11 @@ export default function ProviderForm() {
   const user = useAuthStore((s) => s.user);
   const userPracticeId = user?.practices?.[0]?.practiceId;
   const { data: userPractice } = usePractice(userPracticeId ?? '');
+
+  // practice_admin gets practiceId auto-set server-side; everyone else must pick
+  // one, or the provider is created unlinked and invisible to practice-scoped roles.
+  const needsPracticePicker = !isEditing && user?.role !== 'practice_admin';
+  const { data: practiceOptions } = usePractices({ enabled: needsPracticePicker });
 
   const persistKey = `provider-form:new:${user?.id ?? 'anon'}`;
 
@@ -439,6 +445,7 @@ export default function ProviderForm() {
         break;
       case 2:
         fieldsToValidate = ['firstName', 'lastName', 'email', 'phone', 'providerType', 'dateOfBirth', 'gender'];
+        if (needsPracticePicker) fieldsToValidate.push('practiceId');
         break;
     }
 
@@ -908,6 +915,22 @@ export default function ProviderForm() {
             </p>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {needsPracticePicker && (
+                <div className="sm:col-span-2">
+                  <label className="label">Practice *</label>
+                  <select
+                    {...register('practiceId', { required: 'Practice is required' })}
+                    className="input"
+                  >
+                    <option value="">Select the provider's practice...</option>
+                    {(practiceOptions ?? []).map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {errors.practiceId && <p className="mt-1 text-sm text-red-600">{errors.practiceId.message}</p>}
+                </div>
+              )}
+
               {/* Row 1: Names */}
               <div>
                 <label className="label">First Name *</label>

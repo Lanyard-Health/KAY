@@ -248,12 +248,29 @@ providerRoutes.post(
       // groupNpi and taxId belong on PracticeLocation, not ProviderProfile.
       // They are echoed in the response so the frontend can forward them
       // to the POST /practice-locations/provider/:id call that follows.
-      const { groupNpi, taxId, ...providerData } = validatedData;
+      const { groupNpi, taxId, practiceId: bodyPracticeId, ...providerData } = validatedData;
 
-      // Auto-set practiceId for practice_admin
+      // Every provider must be created linked to a practice: unassigned providers
+      // are invisible to practice-scoped roles (their list filter is
+      // `practiceId IN (...)`, which never matches null). practice_admin keeps the
+      // auto-set; everyone else must say which practice the provider belongs to.
       const practiceId = req.user?.role === 'practice_admin'
         ? req.practiceScope?.practiceIds[0]
-        : undefined;
+        : bodyPracticeId;
+      if (!practiceId) {
+        res.status(400).json({
+          success: false,
+          error: { message: 'practiceId is required — every provider must belong to a practice', field: 'practiceId' },
+        });
+        return;
+      }
+      if (!req.practiceScope?.isSuperAdmin && !req.practiceScope?.practiceIds.includes(practiceId)) {
+        res.status(403).json({
+          success: false,
+          error: { message: 'You do not have access to that practice' },
+        });
+        return;
+      }
 
       // Pre-flight collision check on the unique fields (npi, caqhProviderId).
       // Catches the case where the admin is re-keying a soft-deleted provider; surfaces

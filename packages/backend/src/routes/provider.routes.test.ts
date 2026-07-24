@@ -203,6 +203,38 @@ describe('Provider Routes', () => {
       );
     });
 
+    it('rejects create without practiceId with 400', async () => {
+      const { practiceId: _omit, ...noPractice } = validProviderInput;
+      const res = await request(app).post('/').send(noPractice);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.field).toBe('practiceId');
+      expect(prismaMock.providerProfile.create).not.toHaveBeenCalled();
+    });
+
+    it('links the created provider to the requested practice', async () => {
+      prismaMock.providerProfile.create.mockResolvedValue(mockProvider as any);
+
+      await request(app).post('/').send(validProviderInput);
+
+      expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ practiceId: validProviderInput.practiceId }),
+        })
+      );
+    });
+
+    it('rejects out-of-scope practiceId for non-superadmin with 403', async () => {
+      const staffApp = createTestApp(providerRoutes, {
+        ...adminUser,
+        role: 'credentialing_staff',
+      });
+      const res = await request(staffApp).post('/').send(validProviderInput);
+
+      expect(res.status).toBe(403);
+      expect(prismaMock.providerProfile.create).not.toHaveBeenCalled();
+    });
+
     it('returns error on validation failure', async () => {
       const res = await request(app)
         .post('/')
