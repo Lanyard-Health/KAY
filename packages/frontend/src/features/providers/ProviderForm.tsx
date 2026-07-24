@@ -424,9 +424,11 @@ export default function ProviderForm() {
       setValue('gender', npiLookupResult.gender as any, { shouldValidate: true });
     }
 
-    // Import phone from practice location
-    if (npiLookupResult.practiceLocation?.phone) {
-      const formatted = formatPhoneNumber(npiLookupResult.practiceLocation.phone);
+    // Import phone from practice location, falling back to the mailing address
+    // (NPPES phone lives on either block, or neither)
+    const npiPhone = npiLookupResult.practiceLocation?.phone || npiLookupResult.mailingAddress?.phone;
+    if (npiPhone) {
+      const formatted = formatPhoneNumber(npiPhone);
       setValue('phone', formatted, { shouldValidate: true });
     }
 
@@ -444,7 +446,9 @@ export default function ProviderForm() {
         fieldsToValidate = ['npi'];
         break;
       case 2:
-        fieldsToValidate = ['firstName', 'lastName', 'email', 'phone', 'providerType', 'dateOfBirth', 'gender'];
+        // dateOfBirth/email are optional (CAQH fills DOB later; NPPES publishes
+        // neither) — validated only for format via their registered patterns.
+        fieldsToValidate = ['firstName', 'lastName', 'email', 'phone', 'providerType', 'gender'];
         if (needsPracticePicker) fieldsToValidate.push('practiceId');
         break;
     }
@@ -978,12 +982,13 @@ export default function ProviderForm() {
 
               {/* Row 3: DOB and Gender */}
               <div>
-                <label className="label">Date of Birth *</label>
+                <label className="label">Date of Birth</label>
                 <input
                   type="date"
-                  {...register('dateOfBirth', { required: 'Date of birth is required' })}
+                  {...register('dateOfBirth')}
                   className="input"
                 />
+                <p className="mt-1 text-xs text-gray-500">Optional — but required before CAQH sync can run</p>
                 {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth.message}</p>}
               </div>
               <div>
@@ -1000,16 +1005,16 @@ export default function ProviderForm() {
 
               {/* Row 4: Contact */}
               <div>
-                <label className="label">Email *</label>
+                <label className="label">Email</label>
                 <input
                   type="email"
                   {...register('email', {
-                    required: 'Email is required',
                     pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Invalid email address' },
                   })}
                   className="input"
                   placeholder="provider@example.com"
                 />
+                <p className="mt-1 text-xs text-gray-500">Optional — needed for portal invites and expiring-credential reminders</p>
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
               </div>
               <div>

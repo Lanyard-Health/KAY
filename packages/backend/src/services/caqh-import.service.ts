@@ -133,7 +133,7 @@ function waitingEmailContent(
  */
 async function parkInWaitingState(params: {
   providerId: string;
-  providerEmail: string;
+  providerEmail: string | null;
   providerFirstName: string;
   previousStatus: CaqhImportStatus | null;
   reason: WaitingReason;
@@ -162,7 +162,11 @@ async function parkInWaitingState(params: {
   await setImportStatus(providerId, reason);
 
   // Email only when entering the state — rechecks that find the same blocker stay quiet.
-  if (params.previousStatus !== reason && emailService.isConfigured()) {
+  // Providers created without an email (staff NPI-add flow) can't be nudged directly;
+  // the waiting state still parks and admins still get the stall alert.
+  if (!params.providerEmail) {
+    logger.warn({ event: 'caqh_waiting_nudge_skipped_no_email', providerId, reason });
+  } else if (params.previousStatus !== reason && emailService.isConfigured()) {
     const { subject, html } = waitingEmailContent(reason, params.providerFirstName);
     emailService
       // notificationType must be a valid NotificationType enum value — the email log

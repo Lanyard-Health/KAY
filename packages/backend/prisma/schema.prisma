@@ -503,7 +503,9 @@ model ProviderProfile {
   ssnEncrypted String?  @map("ssn_encrypted") // Encrypted SSN
 
   // Contact
-  email       String
+  // email optional: staff-created providers may have no email until entered
+  // manually (NPPES doesn't publish it; CAQH sync doesn't backfill it)
+  email       String?
   phone       String
   mobilePhone String? @map("mobile_phone")
   fax         String?
