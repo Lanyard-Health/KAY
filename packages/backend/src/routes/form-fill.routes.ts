@@ -176,6 +176,8 @@ router.get(
           filledArtifacts: true,
           errorDetails: true,
           triggeredBy: true,
+          externalReference: true,
+          confirmationNumber: true,
         },
       });
 

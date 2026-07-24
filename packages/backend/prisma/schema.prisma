@@ -475,6 +475,68 @@ enum WorkflowStepOwner {
   cvo
 }
 
+// Per-provider "Payer Submission Details" — the fields payer portals (currently
+// Aetna's RFP wizard) ask for that the core profile doesn't store. One row per
+// provider, edited from the provider profile's Payer Submission Details section.
+model PayerSubmissionDetail {
+  id         String          @id @default(uuid())
+  providerId String          @unique @map("provider_id")
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // Location / contact
+  fax                  String?
+  county               String?
+  placeOfService       String? @map("place_of_service") // 'Office based' | 'Hospital / facility based'
+  adaAccessible        Boolean @default(false) @map("ada_accessible")
+  accessAccommodations String? @map("access_accommodations")
+  workingDays          String? @map("working_days") // e.g. "DAILY (S,M,T,W,TH,F,S)"
+  officeHours          String? @map("office_hours")
+  facilityFee          Boolean @default(false) @map("facility_fee")
+
+  // Telehealth
+  telehealth              Boolean  @default(false)
+  telehealthServices      String?  @map("telehealth_services") // e.g. "Hybrid services"
+  telehealthMethods       String[] @default([]) @map("telehealth_methods")
+  telehealthTypes         String[] @default([]) @map("telehealth_types")
+  telehealthHipaaAttested Boolean  @default(false) @map("telehealth_hipaa_attested")
+
+  // Submitter contact (who files the RFP)
+  submitterFirstName String? @map("submitter_first_name")
+  submitterLastName  String? @map("submitter_last_name")
+  submitterRole      String? @map("submitter_role")
+  submitterEmail     String? @map("submitter_email")
+  submitterPhone     String? @map("submitter_phone")
+
+  // Languages
+  staffLanguages       String[] @default([]) @map("staff_languages")
+  interpreterLanguages String[] @default([]) @map("interpreter_languages")
+  providerLanguages    String[] @default([]) @map("provider_languages")
+  aslOffered           Boolean  @default(false) @map("asl_offered")
+
+  // Certifications / participation
+  medicareCertified Boolean @default(false) @map("medicare_certified")
+  medicarePtan      String? @map("medicare_ptan")
+  medicaidCertified Boolean @default(false) @map("medicaid_certified")
+  eapParticipation  Boolean @default(false) @map("eap_participation")
+
+  // Admitting privileges
+  hospitalAdmittingPrivileges Boolean @default(false) @map("hospital_admitting_privileges")
+  facilityAdmittingPrivileges Boolean @default(false) @map("facility_admitting_privileges")
+
+  // Behavioral-health multiselects, stored as the EXACT Aetna option labels.
+  bhAgeGroups     String[] @default([]) @map("bh_age_groups")
+  bhPracticeFocus String[] @default([]) @map("bh_practice_focus")
+
+  // W9 attachment
+  w9DocumentId String?   @map("w9_document_id")
+  w9Document   Document? @relation("PayerSubmissionW9", fields: [w9DocumentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("payer_submission_details")
+}
+
 enum AetnaRunStatus {
   pending
   filling
@@ -605,6 +667,7 @@ model ProviderProfile {
   continuingEducations   ContinuingEducation[]
   documents              Document[]
   enrollments            Enrollment[]
+  payerSubmissionDetail  PayerSubmissionDetail?
   checklist              ProviderChecklist?
   applications           ProviderApplication[]
   tasks                  Task[]
@@ -1793,6 +1856,7 @@ model Document {
   createdBy             User?                  @relation("DocumentCreatedBy", fields: [createdById], references: [id])
   ocrReviewer           User?                  @relation("DocumentReviewedBy", fields: [ocrReviewedBy], references: [id])
   documentReviewer      User?                  @relation("DocumentReviewer", fields: [reviewedById], references: [id])
+  payerSubmissionW9For  PayerSubmissionDetail[] @relation("PayerSubmissionW9")
 
   @@index([providerId])
   @@index([practiceId])

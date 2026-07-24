@@ -19,6 +19,43 @@ import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWo
 import AiSidebar from '../../components/AiSidebar';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
 import { SubmitToPortalPanel } from '../../components/enrollments/SubmitToPortalPanel';
+
+/** Shows the payer-assigned tracking/confirmation number (e.g. the Aetna
+ * Request ID) captured by the most recent submission run. */
+function PayerReferenceCard({ enrollmentId }: { enrollmentId: string }) {
+  const { data: runs } = useQuery({
+    queryKey: ['enrollment-runs', enrollmentId],
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: Array<{ id: string; status: string; startedAt: string; submittedAt?: string | null; externalReference?: string | null; confirmationNumber?: string | null }> }>(
+        `/enrollments/${enrollmentId}/runs`
+      );
+      return res.data.data ?? [];
+    },
+  });
+  const withRef = (runs ?? []).find((r) => r.confirmationNumber || (r as any).externalReference);
+  if (!withRef) return null;
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900">Payer Reference</h2>
+      </div>
+      <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p className="text-gray-500">Request ID</p>
+          <p className="font-mono font-medium text-gray-900">{withRef.confirmationNumber || (withRef as any).externalReference}</p>
+        </div>
+        <div>
+          <p className="text-gray-500">Run status</p>
+          <p className="text-gray-900">{withRef.status.replace(/_/g, ' ')}</p>
+        </div>
+        <div>
+          <p className="text-gray-500">Submitted</p>
+          <p className="text-gray-900">{withRef.submittedAt ? new Date(withRef.submittedAt).toLocaleString() : '—'}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
 
 // Dev-only demo payer lookup. The endpoint returns 404 in production, so the
@@ -249,6 +286,9 @@ export default function EnrollmentDetail() {
           </div>
         </div>
       )}
+
+      {/* Payer reference from submission runs (e.g. Aetna Request ID) */}
+      <PayerReferenceCard enrollmentId={enrollment.id} />
 
       {/* Workflow Tracker */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">

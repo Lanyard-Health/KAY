@@ -1,0 +1,120 @@
+Skip to Main Content
+Important: Personal Identifiable Information (PII) is displayed. When saving and printing, please take into account
+any security considerations.
+Request for Participation has been submitted
+Request ID for this submission: 06412261
+Participation Type: Medical or Behavioral Health
+NPI Type: Type 1 NPI
+Submitter(s) Information
+Primary Contact
+Last Name: Ward
+First Name: Kay
+Role: Credentialing / Enrollment (Director, Manager, Coordinator)
+Email: credentialing@lanyardhealth.com
+Phone Number: 302-440-4147
+Fax Number:
+Email Acknowledgement: Agree
+I agree that the above information is correct: Agree
+Network Participation Check
+Provide telehealth services: Yes
+I provide: Hybrid services
+I am joining: A provider group applying under a SSN or TaxID/EIN that is not currently participating with Aetna
+Situation: I want to be contracted in the state selected below
+State: Kansas
+Primary ZIP Code: 67202
+Tax ID Type: E - Employer identification number
+Tax ID applying under: XXXXXXXXX
+Tax ID Name: Great Plains Cognition
+Individual Type 1 NPI Number: 1407290497
+Practitioner Name: Rambo, Philip
+I agree that the above information is correct: Agree
+1/21/26, 10:24 AM 	about:blank
+about:blank 	1/4
+
+-- 1 of 4 --
+
+Participation Details
+Is your TIN a Group or Individual Tax ID?: Individual
+I am joining as a: Behavioral Health Professional (Specialist)
+Specialty Details
+Degree Type: PhD
+Primary Specialty: Clinical Psychology
+Provider Role: Specialist
+Agree to all information included in the behavioral health provider manual: Agree
+I agree that the above information is correct: Agree
+Practitioner Information
+Last Name: Rambo
+First Name: Philip
+Middle Initial:
+Date of Birth: XXXXXXXXX
+State Medical License Was Issued In: Kansas
+Medical License Number: LP02893
+Medical License Expiration Date: 06/30/2026
+CAQH ID: 15835157
+Website URL:
+Is the provider a hospitalist or exclusively facility/hospital-based, including Radiology, Emergency, Anesthesiology and Pathology? No
+Is electronic prescribing offered? Yes
+Contracting Information
+Contact Person for Contracting: Submitter
+Preferred Contact Method: Email
+Contract Authority Signature Information
+Contract Authority Signature 1: Submitter
+Primary Service Location Information
+Primary Place of Service: Office Based
+1/21/26, 10:24 AM 	about:blank
+about:blank 	2/4
+
+-- 2 of 4 --
+
+Street: 801 E Douglas Ave Ste 200
+Street 2:
+City: Wichita
+State: Kansas
+Primary Location ZIP Code: 67202
+County: Sedgwick
+Phone Number: 316-361-6885
+Fax Number: 000-000-0001
+Languages spoken by Office Staff: English
+Languages spoken by an Interpreter: English
+Facility Fee: No
+Is this location ADA accessible for physical, developmental or intellectual disabilities?: Yes
+Access Accommodations:
+Frequency of Practice:
+Working days for providers: DAILY (S,M,T,W,TH,F,S)
+Office Hours Days and Times:
+Telehealth services at this location: Yes
+Telehealth services provided: Hybrid services
+Methods of service for telehealth: Video Conference, Telephone, Remote Patient Monitoring, Three Way Calling, Online Adaptive Interviews
+Types of services for telehealth: Behavioral Health Services, Chronic condition support/monitoring/management, Virtual office visits / Lab
+results / Radiology results
+Other telehealth services:
+I attest that the services are performed on a HIPAA compliant platform: Yes
+Primary Service Location Mailing Address
+Primary Service Location Mailing Address: Same as primary service location address
+Primary Service Location Billing Address
+Primary Service Location Billing Address: Same as primary service location address
+Other Information
+Hospital Admitting Privileges: No
+Facility Admitting Privileges: No
+Special populations you work with:
+1/21/26, 10:24 AM 	about:blank
+about:blank 	3/4
+
+-- 3 of 4 --
+
+W9 Attachment: W9-compressed.pdf
+Additional Behavioral Health Provider Details
+* Age groups you work with: Infants/Toddlers Ages: 5 and under, Elementary School Ages: 6-12, Adolescents Ages: 13-17, Adults Ages: 18-64,
+Seniors Ages: 65+
+* Is the provider Medicare certified for your state?: Yes
+Medicare certification number/provider transaction access number (PTAN): KA7026
+* Is the provider Medicaid certified for your state?: No
+* Do you wish to participate in Aetna's employee assistance program (EAP)?: Yes
+* American sign language: No
+* Languages spoken by the Provider: English
+* Provider Practice Focus: Cognitive Behavioral Therapy, Group Therapy, Neuropsych Testing, Psychological Testing, Psychotic Disorders
+1/21/26, 10:24 AM 	about:blank
+about:blank 	4/4
+
+-- 4 of 4 --
+

@@ -1,5 +1,5 @@
 import { chromium, type Browser, type Page, type BrowserContext } from 'playwright';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../../utils/logger.js';
 import type {
   SubmissionPortalAdapter,
@@ -224,7 +224,15 @@ function getS3Client(): S3Client {
   return s3ClientSingleton;
 }
 
-async function uploadToS3(key: string, body: Uint8Array, contentType: string): Promise<void> {
+export async function downloadFromS3(key: string): Promise<Buffer> {
+  const bucket = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
+  const res = await getS3Client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const bytes = await res.Body?.transformToByteArray();
+  if (!bytes) throw new Error(`S3 object '${key}' has no body`);
+  return Buffer.from(bytes);
+}
+
+export async function uploadToS3(key: string, body: Uint8Array, contentType: string): Promise<void> {
   const bucket = process.env['S3_BUCKET_NAME'] || 'credentials-documents';
   await getS3Client().send(
     new PutObjectCommand({
@@ -238,7 +246,7 @@ async function uploadToS3(key: string, body: Uint8Array, contentType: string): P
 
 // ─── Browser launch ─────────────────────────────────────────────────────
 
-async function launchBrowser(): Promise<Browser> {
+export async function launchBrowser(): Promise<Browser> {
   const headless = process.env['NODE_ENV'] === 'production' || process.env['CI'] === 'true';
   return chromium.launch({
     headless,

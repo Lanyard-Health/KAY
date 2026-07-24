@@ -259,6 +259,80 @@ describe('buildAetnaRfpProviderData', () => {
     );
   });
 
+  it('uses PayerSubmissionDetail for telehealth, W9, PTAN and BH lists when present', async () => {
+    const records = fakeRecords();
+    (records.provider as Record<string, unknown>)['payerSubmissionDetail'] = {
+      fax: '316-555-0199',
+      county: 'Sedgwick',
+      placeOfService: 'Office based',
+      adaAccessible: true,
+      accessAccommodations: null,
+      workingDays: 'DAILY (S,M,T,W,TH,F,S)',
+      officeHours: '8am - 5pm',
+      facilityFee: false,
+      telehealth: true,
+      telehealthServices: 'Hybrid services',
+      telehealthMethods: ['Video Conference', 'Telephone'],
+      telehealthTypes: ['Behavioral Health Services'],
+      telehealthHipaaAttested: true,
+      submitterFirstName: null,
+      submitterLastName: null,
+      submitterRole: null,
+      submitterEmail: null,
+      submitterPhone: null,
+      staffLanguages: ['English'],
+      interpreterLanguages: [],
+      providerLanguages: ['English'],
+      aslOffered: false,
+      medicareCertified: true,
+      medicarePtan: 'PTAN123',
+      medicaidCertified: false,
+      eapParticipation: true,
+      hospitalAdmittingPrivileges: false,
+      facilityAdmittingPrivileges: false,
+      bhAgeGroups: ['Adults Ages: 18-64'],
+      bhPracticeFocus: ['Group Therapy'],
+      w9DocumentId: 'doc-1',
+      w9Document: { id: 'doc-1', s3Key: 'documents/w9.pdf', fileName: 'w9.pdf' },
+    };
+    const packet = await buildAetnaRfpProviderData(IDS, fakePrisma(records));
+
+    expect(packet.telehealth).toBe(true);
+    expect(packet.telehealthDetail).toEqual({
+      services: 'Hybrid services',
+      methods: ['Video Conference', 'Telephone'],
+      types: ['Behavioral Health Services'],
+      hipaaAttested: true,
+    });
+    expect(packet.w9).toEqual({ s3Key: 'documents/w9.pdf', fileName: 'w9.pdf' });
+    expect(packet.medicarePtan).toBe('PTAN123');
+    expect(packet.medicareCertified).toBe(true); // detail overrides provider flag
+    expect(packet.location.fax).toBe('316-555-0199');
+    // Exact Aetna labels from the detail take precedence over the (mapped) maps
+    expect(packet.behavioralHealth?.ageGroup).toEqual(['Adults Ages: 18-64']);
+    expect(packet.behavioralHealth?.practiceFocus).toEqual(['Group Therapy']);
+  });
+
+  it('fails closed on telehealth=Yes with an incomplete telehealth branch', async () => {
+    const records = fakeRecords();
+    (records.provider as Record<string, unknown>)['payerSubmissionDetail'] = {
+      telehealth: true,
+      telehealthServices: null,
+      telehealthMethods: [],
+      telehealthTypes: [],
+      telehealthHipaaAttested: false,
+      staffLanguages: [], interpreterLanguages: [], providerLanguages: [],
+      bhAgeGroups: [], bhPracticeFocus: [],
+      adaAccessible: false, facilityFee: false, aslOffered: false,
+      medicareCertified: false, medicaidCertified: false, eapParticipation: false,
+      hospitalAdmittingPrivileges: false, facilityAdmittingPrivileges: false,
+      w9Document: null,
+    };
+    await expect(buildAetnaRfpProviderData(IDS, fakePrisma(records))).rejects.toThrow(
+      /telehealth=Yes but missing/
+    );
+  });
+
   it('throws naming which record is missing', async () => {
     const prisma = {
       providerProfile: { findUnique: vi.fn(async () => null) },

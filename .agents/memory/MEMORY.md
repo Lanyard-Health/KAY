@@ -1,1 +1,3 @@
 - [Dev vs prod secrets](dev-vs-prod-secrets.md) — user's prod secrets (Render REDIS_URL, VITE_API_URL) break dev; workflows unset them via `env -u`, never delete the secrets.
+- [Render DB migrations](render-db-migrations.md) — app DB user has no DDL rights; hand-write migration SQL and `migrate deploy` via DATABASE_URL_ADMIN + `.oregon-postgres.render.com` suffix.
+- [Aetna RFP automation](aetna-rfp-automation.md) — network check files a REAL Aetna application; telehealth/W9 selectors are candidate-based (fail loudly), review sessions are in-memory only.

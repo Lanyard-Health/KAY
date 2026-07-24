@@ -61,6 +61,7 @@ import ProviderEnrollments from './ProviderEnrollments';
 import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { CaqhCard } from '../../components/CaqhCard';
+import PayerSubmissionDetailsSection from './PayerSubmissionDetailsSection';
 import { CaqhImportPanel } from '../../components/CaqhImportPanel';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
@@ -1724,6 +1725,11 @@ export default function ProviderDetail() {
                 {/* Additional Demographics */}
                 <CollapsibleSection title="Additional Demographics">
                   <DemographicsForm providerId={id!} />
+                </CollapsibleSection>
+
+                {/* Payer Submission Details (Aetna etc.) */}
+                <CollapsibleSection title="Payer Submission Details">
+                  <PayerSubmissionDetailsSection providerId={id!} />
                 </CollapsibleSection>
 
                 {/* Malpractice Claims */}

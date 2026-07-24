@@ -24,6 +24,7 @@ const EnrollmentDetail = lazy(() => import('./features/enrollments/EnrollmentDet
 const RosterPage = lazy(() => import('./features/roster/RosterPage'));
 const AiAgentDashboard = lazy(() => import('./features/ai-agent/AiAgentDashboard'));
 const EnrollmentStrategyPage = lazy(() => import('./features/enrollment-strategy/EnrollmentStrategyPage'));
+const AetnaEnrollmentPage = lazy(() => import('./features/aetna/AetnaEnrollmentPage'));
 const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
 const PracticeSignupPage = lazy(() => import('./features/practice/PracticeSignupPage'));
 const AcceptInvitationPage = lazy(() => import('./features/invitations/AcceptInvitationPage'));
@@ -264,6 +265,7 @@ export default function App() {
           <Route path="roster" element={<AdminOnlyRoute><RosterPage /></AdminOnlyRoute>} />
           <Route path="ai-agent" element={<AdminOnlyRoute><AiAgentDashboard /></AdminOnlyRoute>} />
           <Route path="enrollment-strategy" element={<AdminOnlyRoute><EnrollmentStrategyPage /></AdminOnlyRoute>} />
+          <Route path="aetna-enrollment" element={<AetnaEnrollmentPage />} />
           <Route path="payer-intelligence" element={<Navigate to="/enrollment-strategy" replace />} />
           <Route path="practices" element={<AdminOnlyRoute><PracticesList /></AdminOnlyRoute>} />
           <Route path="practices/:practiceId" element={<AdminOnlyRoute><PracticeDetail /></AdminOnlyRoute>} />

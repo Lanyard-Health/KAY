@@ -97,6 +97,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
       { name: 'Enrollment Strategy', href: '/enrollment-strategy', icon: ChartBarSquareIcon },
+      { name: 'Aetna Enrollment', href: '/aetna-enrollment', icon: ClipboardDocumentListIcon },
       { name: 'Users', href: '/users', icon: UserGroupIcon },
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Customer Communications', href: '/admin/communications', icon: ChatBubbleLeftRightIcon },

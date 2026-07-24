@@ -4,6 +4,8 @@ import type {
   Practice,
   PracticePayer,
   PayerSubmissionConfig,
+  PayerSubmissionDetail,
+  Document,
   License,
   Education,
   ProviderType,
@@ -408,6 +410,222 @@ function pickPrimaryLicense(licenses: License[]): License | null {
   );
 }
 
+// ─── Readiness checklist ──────────────────────────────────────────────────────
+
+export interface AetnaReadinessItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  message?: string;
+}
+
+export interface AetnaReadiness {
+  ready: boolean;
+  checklist: AetnaReadinessItem[];
+}
+
+type DetailWithW9 = PayerSubmissionDetail & { w9Document: Document | null };
+
+/**
+ * Pre-flight readiness check: evaluates a provider against everything the
+ * Aetna RFP wizard requires and returns a per-field checklist instead of
+ * throwing. `buildAetnaRfpProviderData` remains the fail-closed gate the
+ * worker uses; this shares its rules so the UI can show green/missing BEFORE
+ * a run is launched (Aetna's network check creates a real footprint).
+ */
+export async function evaluateAetnaReadiness(
+  ids: { providerId: string; practiceId: string; payerId: string },
+  prisma: PrismaClient
+): Promise<AetnaReadiness> {
+  const checklist: AetnaReadinessItem[] = [];
+  const push = (key: string, label: string, ok: boolean, message?: string) => {
+    checklist.push({ key, label, ok, ...(message ? { message } : {}) });
+  };
+
+  const provider = (await prisma.providerProfile.findUnique({
+    where: { id: ids.providerId },
+    include: { licenses: true, educations: true, payerSubmissionDetail: { include: { w9Document: true } } },
+  })) as
+    | (ProviderProfile & {
+        licenses: License[];
+        educations: Education[];
+        payerSubmissionDetail: DetailWithW9 | null;
+      })
+    | null;
+  const practice = await prisma.practice.findUnique({ where: { id: ids.practiceId } });
+  const practicePayer = await prisma.practicePayer.findFirst({
+    where: { practiceId: ids.practiceId, payerId: ids.payerId },
+  });
+  const config = await prisma.payerSubmissionConfig.findUnique({ where: { payerId: ids.payerId } });
+
+  push('records.provider', 'Provider profile on file', Boolean(provider));
+  push('records.practice', 'Practice on file', Boolean(practice));
+  push('records.practicePayer', 'Practice is linked to this payer', Boolean(practicePayer));
+  push('records.config', 'Payer submission config (AETNA_RFP)', Boolean(config));
+  if (!provider || !practice || !practicePayer || !config) {
+    return { ready: false, checklist };
+  }
+
+  // Line of business — only Behavioral Health is implemented.
+  try {
+    deriveLineOfBusiness(provider);
+    push('lineOfBusiness', 'Line of business supported (Behavioral Health)', true);
+  } catch (err) {
+    push('lineOfBusiness', 'Line of business supported (Behavioral Health)', false,
+      err instanceof Error ? err.message : 'unsupported');
+  }
+  try {
+    deriveJoining(provider);
+    push('joining', 'Joining type derivable (individual/group)', true);
+  } catch (err) {
+    push('joining', 'Joining type derivable (individual/group)', false,
+      err instanceof Error ? err.message : 'unknown');
+  }
+
+  const primaryLicense = pickPrimaryLicense(provider.licenses ?? []);
+  const records: LoadedRecords = { provider, practice, practicePayer, config, primaryLicense };
+
+  // Declared required fields.
+  const required = normalizeRequiredFields(config.requiredFields);
+  push('config.requiredFields', 'Required-fields list configured', required.length > 0,
+    required.length === 0 ? 'Aetna requiredFields not configured on PayerSubmissionConfig' : undefined);
+  for (const key of required) {
+    const accessor = REQUIRED_FIELD_ACCESSORS[key];
+    if (!accessor) {
+      push(key, key, false, 'unrecognized required field');
+      continue;
+    }
+    push(key, key, isPresent(accessor(records)));
+  }
+
+  // Submitter — payer-submission details override, else payer config.
+  const detail = provider.payerSubmissionDetail;
+  const cfg = (config.config ?? {}) as AetnaRfpConfig;
+  const submitter = resolveSubmitter(detail, cfg);
+  push('submitter', 'Submitter contact (name, role, email, phone)', Boolean(submitter),
+    submitter ? undefined : 'Fill the submitter fields in Payer Submission Details (or payer config)');
+
+  // Degree/specialty pair.
+  try {
+    const degree = resolveDegree(provider.degree, provider.educations, provider.providerType);
+    const specialty = resolveSpecialty(provider.taxonomy);
+    assertValidPair(degree, specialty);
+    push('degreeSpecialty', `Degree + specialty valid for Aetna`, true);
+  } catch (err) {
+    push('degreeSpecialty', 'Degree + specialty valid for Aetna', false,
+      err instanceof Error ? err.message : 'invalid');
+  }
+
+  // State code.
+  try {
+    toFullStateName(practice.state);
+    push('practice.stateMappable', 'Practice state recognized', true);
+  } catch (err) {
+    push('practice.stateMappable', 'Practice state recognized', false,
+      err instanceof Error ? err.message : 'invalid');
+  }
+
+  push('license', 'Active license on file', Boolean(primaryLicense));
+
+  // BH multiselects — exact Aetna labels from details, else mapped values.
+  try {
+    resolveBhLists(provider, detail);
+    push('behavioralHealth', 'Age groups + practice focus (Aetna labels)', true);
+  } catch (err) {
+    push('behavioralHealth', 'Age groups + practice focus (Aetna labels)', false,
+      err instanceof Error ? err.message : 'unmapped');
+  }
+
+  // Payer submission details block.
+  push('payerSubmissionDetail', 'Payer Submission Details filled in', Boolean(detail),
+    detail ? undefined : "Open the provider's Payer Submission Details section and complete it");
+  if (detail) {
+    if (detail.telehealth) {
+      const t = resolveTelehealth(detail);
+      push('telehealth', 'Telehealth branch complete (services, methods, types, HIPAA attested)',
+        t.ok, t.ok ? undefined : t.message);
+    } else {
+      push('telehealth', 'Telehealth: not participating (branch not required)', true);
+    }
+    push('w9', 'W9 document attached', Boolean(detail.w9Document),
+      detail.w9Document ? undefined : 'Upload a W9 document and select it in Payer Submission Details');
+  }
+
+  return { ready: checklist.every((c) => c.ok), checklist };
+}
+
+function resolveSubmitter(
+  detail: PayerSubmissionDetail | null | undefined,
+  cfg: AetnaRfpConfig
+): { lastName: string; firstName: string; role: string; email: string; phone: string } | null {
+  if (
+    detail &&
+    isPresent(detail.submitterFirstName) &&
+    isPresent(detail.submitterLastName) &&
+    isPresent(detail.submitterRole) &&
+    isPresent(detail.submitterEmail) &&
+    isPresent(detail.submitterPhone)
+  ) {
+    return {
+      firstName: detail.submitterFirstName!,
+      lastName: detail.submitterLastName!,
+      role: detail.submitterRole!,
+      email: detail.submitterEmail!,
+      phone: detail.submitterPhone!,
+    };
+  }
+  const sub = cfg.submitter;
+  if (
+    sub &&
+    isPresent(sub.lastName) &&
+    isPresent(sub.firstName) &&
+    isPresent(sub.role) &&
+    isPresent(sub.email) &&
+    isPresent(sub.phone)
+  ) {
+    return {
+      lastName: sub.lastName!,
+      firstName: sub.firstName!,
+      role: sub.role!,
+      email: sub.email!,
+      phone: sub.phone!,
+    };
+  }
+  return null;
+}
+
+/** Telehealth branch completeness — the adapter needs all four pieces. */
+function resolveTelehealth(detail: PayerSubmissionDetail): { ok: boolean; message?: string } {
+  const missing: string[] = [];
+  if (!isPresent(detail.telehealthServices)) missing.push('services provided (e.g. "Hybrid services")');
+  if ((detail.telehealthMethods ?? []).length === 0) missing.push('service methods');
+  if ((detail.telehealthTypes ?? []).length === 0) missing.push('service types');
+  if (!detail.telehealthHipaaAttested) missing.push('HIPAA-compliant-platform attestation');
+  return missing.length === 0
+    ? { ok: true }
+    : { ok: false, message: `telehealth=Yes but missing: ${missing.join(', ')}` };
+}
+
+/** BH age-group/practice-focus lists: PayerSubmissionDetail stores the exact
+ * Aetna option labels; when absent fall back to mapping the clinical-profile
+ * values through the (fail-closed) label maps. */
+function resolveBhLists(
+  provider: ProviderProfile,
+  detail: PayerSubmissionDetail | null | undefined
+): { ageGroup: string[]; practiceFocus: string[] } {
+  const ageGroup =
+    detail && (detail.bhAgeGroups ?? []).length > 0
+      ? detail.bhAgeGroups
+      : (provider.ageGroup ?? []).map((v) => mapOrThrow(AETNA_AGE_GROUP_MAP, v, 'AETNA_AGE_GROUP_MAP'));
+  const practiceFocus =
+    detail && (detail.bhPracticeFocus ?? []).length > 0
+      ? detail.bhPracticeFocus
+      : (provider.practiceFocus ?? []).map((v) =>
+          mapOrThrow(AETNA_PRACTICE_FOCUS_MAP, v, 'AETNA_PRACTICE_FOCUS_MAP')
+        );
+  return { ageGroup, practiceFocus };
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export async function buildAetnaRfpProviderData(
@@ -420,8 +638,18 @@ export async function buildAetnaRfpProviderData(
   //    record throws an error naming exactly which one.
   const provider = (await prisma.providerProfile.findUnique({
     where: { id: providerId },
-    include: { licenses: true, educations: true },
-  })) as (ProviderProfile & { licenses: License[]; educations: Education[] }) | null;
+    include: {
+      licenses: true,
+      educations: true,
+      payerSubmissionDetail: { include: { w9Document: true } },
+    },
+  })) as
+    | (ProviderProfile & {
+        licenses: License[];
+        educations: Education[];
+        payerSubmissionDetail?: DetailWithW9 | null;
+      })
+    | null;
   if (!provider) {
     throw new Error(`Aetna RFP: ProviderProfile not found for providerId '${providerId}'`);
   }
@@ -462,17 +690,11 @@ export async function buildAetnaRfpProviderData(
     );
   }
 
-  // 2b) submitter is required and lives entirely in payer config.
+  // 2b) submitter is required — from PayerSubmissionDetail, else payer config.
   const cfg = (config.config ?? {}) as AetnaRfpConfig;
-  const sub = cfg.submitter;
-  const submitterMissing =
-    !sub ||
-    !isPresent(sub.lastName) ||
-    !isPresent(sub.firstName) ||
-    !isPresent(sub.role) ||
-    !isPresent(sub.email) ||
-    !isPresent(sub.phone);
-  if (submitterMissing) {
+  const detail = provider.payerSubmissionDetail ?? null;
+  const submitter = resolveSubmitter(detail, cfg);
+  if (!submitter) {
     throw new Error(
       'Aetna RFP submitter not configured in PayerSubmissionConfig.config.submitter (fail-closed).'
     );
@@ -527,13 +749,21 @@ export async function buildAetnaRfpProviderData(
   // selects each one in the multiselect.
   let behavioralHealth: AetnaRfpProviderData['behavioralHealth'];
   if (lineOfBusiness === 'BEHAVIORAL_HEALTH') {
-    behavioralHealth = {
-      ageGroup: (provider.ageGroup ?? []).map((v) =>
-        mapOrThrow(AETNA_AGE_GROUP_MAP, v, 'AETNA_AGE_GROUP_MAP')
-      ),
-      practiceFocus: (provider.practiceFocus ?? []).map((v) =>
-        mapOrThrow(AETNA_PRACTICE_FOCUS_MAP, v, 'AETNA_PRACTICE_FOCUS_MAP')
-      ),
+    behavioralHealth = resolveBhLists(provider, detail);
+  }
+
+  // Telehealth — from PayerSubmissionDetail; fail-closed on an incomplete
+  // branch (the adapter would otherwise break mid-run AFTER the footprint).
+  const telehealth = detail?.telehealth ?? false;
+  let telehealthDetail: AetnaRfpProviderData['telehealthDetail'];
+  if (telehealth) {
+    const t = resolveTelehealth(detail!);
+    if (!t.ok) throw new Error(`Aetna RFP: ${t.message}`);
+    telehealthDetail = {
+      services: detail!.telehealthServices!,
+      methods: detail!.telehealthMethods,
+      types: detail!.telehealthTypes,
+      hipaaAttested: detail!.telehealthHipaaAttested,
     };
   }
 
@@ -544,13 +774,7 @@ export async function buildAetnaRfpProviderData(
     lineOfBusiness,
     joining,
 
-    submitter: {
-      lastName: sub!.lastName!,
-      firstName: sub!.firstName!,
-      role: sub!.role!,
-      email: sub!.email!,
-      phone: sub!.phone!,
-    },
+    submitter,
 
     provider: {
       lastName: provider.lastName,
@@ -573,24 +797,46 @@ export async function buildAetnaRfpProviderData(
       street: practice.addressLine1 ?? '',
       city: practice.city ?? '',
       phone: practice.phone ?? '',
-      fax: '', // No fax source on Practice.
-      // TODO: no per-provider source for these; safe defaults until sourced.
-      placeOfService: cfg.placeOfService ?? 'Office based',
-      adaAccessible: cfg.adaAccessible ?? false,
+      fax: detail?.fax ?? provider.fax ?? '',
+      placeOfService:
+        (detail?.placeOfService as 'Office based' | 'Hospital / facility based' | null) ??
+        cfg.placeOfService ??
+        'Office based',
+      adaAccessible: detail ? detail.adaAccessible : cfg.adaAccessible ?? false,
+      ...(detail?.accessAccommodations ? { accessAccommodations: detail.accessAccommodations } : {}),
+      ...(detail && detail.staffLanguages.length > 0 ? { staffLanguages: detail.staffLanguages } : {}),
+      ...(detail && detail.interpreterLanguages.length > 0
+        ? { interpreterLanguages: detail.interpreterLanguages }
+        : {}),
+      ...(detail ? { facilityFee: detail.facilityFee } : {}),
     },
 
     behavioralHealth,
 
-    medicareCertified: provider.acceptingMedicare,
-    medicaidCertified: provider.acceptingMedicaid,
+    medicareCertified: detail?.medicareCertified ?? provider.acceptingMedicare,
+    medicaidCertified: detail?.medicaidCertified ?? provider.acceptingMedicaid,
     hospitalist: provider.hospitalist,
-    aslOffered,
+    aslOffered: aslOffered || (detail?.aslOffered ?? false),
     ePrescribing: provider.ePrescribing,
-    aetnaEapParticipation: cfg.aetnaEapParticipation ?? false,
+    aetnaEapParticipation: detail?.eapParticipation ?? cfg.aetnaEapParticipation ?? false,
 
-    // telehealth=Yes reveals an unbuilt conditional branch in the adapter, so
-    // hardcode false until that path is walked live.
-    telehealth: false,
+    telehealth,
+    ...(telehealthDetail ? { telehealthDetail } : {}),
+    ...(detail?.medicarePtan ? { medicarePtan: detail.medicarePtan } : {}),
+    ...(detail?.w9Document
+      ? { w9: { s3Key: detail.w9Document.s3Key, fileName: detail.w9Document.fileName } }
+      : {}),
+    ...(detail
+      ? {
+          hospitalAdmittingPrivileges: detail.hospitalAdmittingPrivileges,
+          facilityAdmittingPrivileges: detail.facilityAdmittingPrivileges,
+        }
+      : {}),
+    ...(detail && detail.providerLanguages.length > 0
+      ? { providerLanguages: detail.providerLanguages }
+      : provider.languages && provider.languages.length > 0
+        ? { providerLanguages: provider.languages }
+        : {}),
   };
 
   return packet;
