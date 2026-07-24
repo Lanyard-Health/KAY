@@ -85,9 +85,11 @@ export async function auditMiddleware(
     const isWrite = req.method !== 'GET';
     const auditableRead = isSensitiveRead(req.method, req.path);
     if ((isWrite || auditableRead) && res.statusCode < 400) {
-      const action = methodToAction[req.method] || 'read';
-      const resourceType = extractResourceType(req.path);
-      const resourceId = extractResourceId(req.path);
+      // Prefer the explicit audit context set by route handlers (it knows the
+      // true resource + old→new values); fall back to path parsing.
+      const action = req.auditContext?.action ?? (methodToAction[req.method] || 'read');
+      const resourceType = req.auditContext?.resourceType ?? extractResourceType(req.path);
+      const resourceId = req.auditContext?.resourceId ?? extractResourceId(req.path);
 
       // Fire and forget - don't block response
       createAuditLog({

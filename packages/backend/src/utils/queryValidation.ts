@@ -24,6 +24,7 @@ export const auditQuerySchema = paginationSchema.extend({
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
   userId: z.string().optional(),
   resourceType: z.string().optional(),
+  resourceId: z.string().optional(),
   action: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
