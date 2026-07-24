@@ -80,3 +80,4 @@ packages/backend/fixtures/caqh/*
 # Local personal tooling + planning scratch (kept on-machine, not in repo)
 ask-all.sh
 docs/plans/
+.agents/outputs/
