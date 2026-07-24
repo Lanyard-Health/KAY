@@ -26,9 +26,19 @@ function restore(keys: readonly string[]) {
 const TRACKED = [
   'NODE_ENV',
   'DATABASE_URL',
+  'ENCRYPTION_KEY',
   ...CAQH_REQUIRED,
   ...CAQH_OPTIONAL,
 ];
+
+const VALID_ENCRYPTION_KEY = 'a'.repeat(64);
+
+function setAllCaqh() {
+  process.env['CAQH_API_URL'] = 'https://proview.caqh.org';
+  process.env['CAQH_ORG_ID'] = '1873';
+  process.env['CAQH_USERNAME'] = 'user';
+  process.env['CAQH_PASSWORD'] = 'pass';
+}
 
 describe('validateEnv — CAQH startup assertion', () => {
   beforeEach(() => {
@@ -45,6 +55,7 @@ describe('validateEnv — CAQH startup assertion', () => {
   describe('production', () => {
     beforeEach(() => {
       process.env['NODE_ENV'] = 'production';
+      process.env['ENCRYPTION_KEY'] = VALID_ENCRYPTION_KEY;
     });
 
     it('throws when any required CAQH var is missing', () => {
@@ -124,6 +135,58 @@ describe('validateEnv — CAQH startup assertion', () => {
         expect.stringContaining('CAQH integration env vars missing')
       );
     });
+  });
+});
+
+describe('validateEnv — ENCRYPTION_KEY enforcement (PII encryption)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    snapshot(TRACKED);
+    process.env['DATABASE_URL'] = 'postgresql://test';
+    setAllCaqh(); // satisfy CAQH production assertion so it doesn't mask ENCRYPTION_KEY failures
+    delete process.env['ENCRYPTION_KEY'];
+  });
+
+  afterEach(() => {
+    restore(TRACKED);
+  });
+
+  it('production: throws (fail-closed) when ENCRYPTION_KEY is missing', () => {
+    process.env['NODE_ENV'] = 'production';
+    expect(() => validateEnv()).toThrow(/ENCRYPTION_KEY is required in production/);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('ENCRYPTION_KEY'));
+  });
+
+  it('production: throws when ENCRYPTION_KEY is not 64 hex chars', () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['ENCRYPTION_KEY'] = 'tooshort';
+    expect(() => validateEnv()).toThrow(/ENCRYPTION_KEY must be a 64-character hex string/);
+  });
+
+  it('production: throws when ENCRYPTION_KEY is 64 chars but not hex', () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['ENCRYPTION_KEY'] = 'z'.repeat(64);
+    expect(() => validateEnv()).toThrow(/ENCRYPTION_KEY must be a 64-character hex string/);
+  });
+
+  it('production: boots and logs confirmation when ENCRYPTION_KEY is valid', () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['ENCRYPTION_KEY'] = VALID_ENCRYPTION_KEY;
+    expect(() => validateEnv()).not.toThrow();
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('PII encryption enabled'));
+  });
+
+  it('development: warns but does not throw when ENCRYPTION_KEY is missing', () => {
+    process.env['NODE_ENV'] = 'development';
+    expect(() => validateEnv()).not.toThrow();
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ENCRYPTION_KEY not set'));
+  });
+
+  it('development: logs confirmation when ENCRYPTION_KEY is set', () => {
+    process.env['NODE_ENV'] = 'development';
+    process.env['ENCRYPTION_KEY'] = VALID_ENCRYPTION_KEY;
+    validateEnv();
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('PII encryption enabled'));
   });
 });
 

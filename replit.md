@@ -53,6 +53,21 @@ npm run db:migrate --workspace=packages/backend
 npm run db:studio --workspace=packages/backend
 ```
 
+## PII Encryption & Key Rotation
+
+Sensitive fields (SSN, tax IDs, banking data, CAQH/portal credentials) are encrypted with AES-256-GCM using the `ENCRYPTION_KEY` Replit Secret (64-char hex = 32 random bytes). `packages/backend/src/utils/crypto.ts` also derives per-tenant keys from it via HKDF, so rotating the master key invalidates all tenant-derived keys too.
+
+**Generate a key:** `openssl rand -hex 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+
+**Rotation procedure** (there is no built-in multi-key support — data must be re-encrypted):
+1. Generate a new 64-char hex key; do NOT overwrite the old secret yet.
+2. Write/run a one-off script that, for every encrypted column (see `packages/backend/src/services/` — credential, CAQH mirror, portal credential fields), decrypts with the old key and re-encrypts with the new key inside a transaction.
+3. Update the `ENCRYPTION_KEY` secret to the new value and restart the Backend workflow (and update the production env before the next deploy).
+4. Verify: backend starts with no ENCRYPTION_KEY warnings and a spot-check decrypt of a re-encrypted record succeeds.
+5. Securely discard the old key only after verification and backups made with the old key are no longer needed (restoring an old backup requires the key that encrypted it).
+
+If the old key is lost, encrypted data is unrecoverable — treat the key like a database backup.
+
 ## Build Notes
 
 - `packages/shared` must be compiled before `packages/backend` can TypeScript-compile. The Backend workflow handles this automatically.

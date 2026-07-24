@@ -15,8 +15,12 @@ const envSchema = z.object({
   COGNITO_USER_POOL_ID: z.string().optional(),
   COGNITO_CLIENT_ID: z.string().optional(),
 
-  // Encryption (required in production for CAQH credential storage)
-  ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be a 64-character hex string').optional(),
+  // Encryption (required in production — SSNs, tax IDs, banking data, and CAQH
+  // credentials are AES-256-GCM encrypted with this key; see utils/crypto.ts)
+  ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'ENCRYPTION_KEY must be a 64-character hex string (32 bytes)')
+    .optional(),
 
   // S3 / R2 storage (optional in dev with LocalStack)
   S3_ENDPOINT: z.string().optional(),
@@ -152,11 +156,26 @@ export function validateEnv(): Env {
     throw new Error(`Environment validation failed:\n${messages}`);
   }
 
+  // PII encryption — fail closed in production, warn in dev/test. Without the
+  // key, SSNs/tax IDs/banking data would be written to the database in
+  // plaintext (SOC 2 violation), so a misconfigured production deploy must die
+  // at boot rather than run unencrypted.
+  if (!result.data.ENCRYPTION_KEY) {
+    if (result.data.NODE_ENV === 'production') {
+      const msg =
+        'FATAL: ENCRYPTION_KEY is required in production — PII fields (SSN, tax IDs, banking data, CAQH credentials) cannot be encrypted without it. Generate one with: openssl rand -hex 32';
+      logger.error(msg);
+      throw new Error(msg);
+    }
+    logger.warn(
+      'WARNING: ENCRYPTION_KEY not set — PII field encryption is unavailable; encrypt() calls will throw'
+    );
+  } else {
+    logger.info('PII encryption enabled (ENCRYPTION_KEY present, AES-256-GCM)');
+  }
+
   // Production warnings for missing optional vars
   if (result.data.NODE_ENV === 'production') {
-    if (!result.data.ENCRYPTION_KEY) {
-      logger.warn('WARNING: ENCRYPTION_KEY not set — CAQH credential encryption will be unavailable');
-    }
     if (!result.data.COGNITO_USER_POOL_ID || !result.data.COGNITO_CLIENT_ID) {
       logger.warn('WARNING: Cognito env vars not set — authentication will fail without DEV_AUTH_BYPASS');
     }
