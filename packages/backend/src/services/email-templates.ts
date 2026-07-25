@@ -54,6 +54,16 @@ export interface ProviderActionEmailParams {
   steps?: string[];
   /** Heading for the steps panel. Defaults to "What to do". */
   stepsTitle?: string;
+  /**
+   * Optional label/value rows rendered in the tinted panel (e.g. "what we have
+   * on file"). Mutually exclusive with steps in practice; if both are given,
+   * facts render in their own panel below the steps.
+   */
+  facts?: Array<{ label: string; value: string }>;
+  /** Heading for the facts panel. Defaults to "What we have on file". */
+  factsTitle?: string;
+  /** Small muted note under the facts rows. Plain text (escaped). */
+  factsNote?: string;
   cta?: { label: string; url: string };
   /** Small muted helper link rendered under the CTA (e.g. login recovery). */
   secondaryLink?: { label: string; url: string };
@@ -86,6 +96,30 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
               )
               .join('\n')}
           </ol>
+        </td></tr>
+      </table>`
+    : '';
+
+  const factsHtml = params.facts?.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${COLOR.panel}; border: 1px solid ${COLOR.panelBorder}; border-radius: 8px; margin: 8px 0 24px 0;">
+        <tr><td style="padding: 18px 22px;">
+          <p style="margin: 0 0 10px 0; font-family: ${FONT_STACK}; font-size: 14px; font-weight: 600; color: ${COLOR.heading};">${escapeHtml(params.factsTitle ?? 'What we have on file')}</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${params.facts
+              .map(
+                (f) =>
+                  `<tr>
+                    <td style="padding: 4px 0; font-family: ${FONT_STACK}; font-size: 13px; color: ${COLOR.muted}; width: 190px; vertical-align: top;">${escapeHtml(f.label)}</td>
+                    <td style="padding: 4px 0; font-family: ${FONT_STACK}; font-size: 14.5px; font-weight: 600; color: ${COLOR.heading}; letter-spacing: 0.02em;">${escapeHtml(f.value)}</td>
+                  </tr>`
+              )
+              .join('\n')}
+            ${
+              params.factsNote
+                ? `<tr><td colspan="2" style="padding: 8px 0 0 0; font-family: ${FONT_STACK}; font-size: 12.5px; line-height: 1.5; color: ${COLOR.muted};">${escapeHtml(params.factsNote)}</td></tr>`
+                : ''
+            }
+          </table>
         </td></tr>
       </table>`
     : '';
@@ -133,6 +167,7 @@ export function renderProviderActionEmail(params: ProviderActionEmailParams): st
           <p style="margin: 0 0 16px 0; font-family: ${FONT_STACK}; font-size: 15px; line-height: 1.6; color: ${COLOR.body};">Hi ${firstName},</p>
           ${paragraphsHtml}
           ${stepsHtml}
+          ${factsHtml}
           ${ctaHtml}
           ${secondaryLinkHtml}
           ${reassuranceHtml}

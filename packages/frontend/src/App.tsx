@@ -27,6 +27,7 @@ const EnrollmentStrategyPage = lazy(() => import('./features/enrollment-strategy
 const RegisterPage = lazy(() => import('./features/portal/RegisterPage'));
 const PracticeSignupPage = lazy(() => import('./features/practice/PracticeSignupPage'));
 const AcceptInvitationPage = lazy(() => import('./features/invitations/AcceptInvitationPage'));
+const UpdateCaqhCredentialsPage = lazy(() => import('./features/providers/UpdateCaqhCredentialsPage'));
 const PendingProviders = lazy(() => import('./features/admin/PendingProviders'));
 const PracticesList = lazy(() => import('./features/practices/PracticesList'));
 const PracticeDetail = lazy(() => import('./features/practices/PracticeDetail'));
@@ -213,6 +214,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/practice-signup" element={<PracticeSignupPage />} />
         <Route path="/accept-invitation/:token" element={<AcceptInvitationPage />} />
+        <Route path="/update-caqh-credentials/:token" element={<UpdateCaqhCredentialsPage />} />
         <Route path="/registration-success" element={<RegistrationSuccess />} />
 
         {/* Portal routes (provider role) */}

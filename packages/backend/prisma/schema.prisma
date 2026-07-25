@@ -144,6 +144,7 @@ model User {
   practiceOwnersCreated       PracticeOwner[]         @relation("PracticeOwnerCreatedBy")
   practiceOwnersUpdated       PracticeOwner[]         @relation("PracticeOwnerUpdatedBy")
   practiceInvitationsSent     PracticeInvitation[]    @relation("PracticeInvitationInvitedBy")
+  caqhCredentialRequestsSent  CaqhCredentialRequest[] @relation("CaqhCredentialRequestRequestedBy")
 
   @@map("users")
 }
@@ -374,6 +375,35 @@ model PracticeInvitation {
   @@map("practice_invitations")
 }
 
+enum CaqhCredentialRequestStatus {
+  pending
+  completed
+  revoked
+  expired
+}
+
+// Staff-initiated request for a provider to submit corrected CAQH login
+// credentials after a failed verification. Mirrors PracticeInvitation: the
+// raw token is emailed; only its SHA-256 hash is stored; single-use; 7-day TTL.
+model CaqhCredentialRequest {
+  id            String                      @id @default(uuid())
+  providerId    String                      @map("provider_id")
+  tokenHash     String                      @unique @map("token_hash")
+  status        CaqhCredentialRequestStatus @default(pending)
+  expiresAt     DateTime                    @map("expires_at")
+  completedAt   DateTime?                   @map("completed_at")
+  requestedById String?                     @map("requested_by_id")
+  requestedBy   User?                       @relation("CaqhCredentialRequestRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("caqh_credential_requests")
+}
+
 // ==========================================
 // PROVIDER
 // ==========================================
@@ -536,6 +566,7 @@ model ProviderProfile {
   caqhPassword               String?     @map("caqh_password") // Encrypted
   caqhCredentialsValid       Boolean?    @map("caqh_credentials_valid")
   caqhCredentialsLastChecked DateTime?   @map("caqh_credentials_last_checked")
+  caqhCredentialRequests     CaqhCredentialRequest[]
 
   // CAQH-first onboarding import state machine (set by caqh-import job)
   caqhImportStatus    CaqhImportStatus? @map("caqh_import_status")
@@ -2354,6 +2385,7 @@ enum InAppNotificationType {
   enrollment_status_change
   system_announcement
   caqh_import_stalled
+  caqh_credentials_updated
 }
 
 model InAppNotification {

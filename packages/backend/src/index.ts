@@ -33,6 +33,7 @@ import { credentialRoutes } from './routes/credential.routes.js';
 import { credentialExtendedRoutes } from './routes/credentialExtended.routes.js';
 import { userRoutes } from './routes/user.routes.js';
 import { caqhRoutes } from './routes/caqh.routes.js';
+import { caqhCredentialRequestRoutes } from './routes/caqhCredentialRequest.routes.js';
 import { integrationsRoutes } from './routes/integrations.routes.js';
 import { payerRoutes } from './routes/payer.routes.js';
 import { expirationRoutes } from './routes/expiration.routes.js';
@@ -270,6 +271,10 @@ app.use('/api/v1/credentials', credentialRoutes);
 app.use('/api/v1/credentials', credentialExtendedRoutes);
 app.use('/api/v1/credentials', payerEnrollmentDataRoutes);
 app.use('/api/v1/users', userRoutes);
+// Mounted before caqhRoutes: contains public token endpoints (no auth — the
+// emailed token is the credential) that must not hit caqhRoutes' router-wide
+// authenticate. Non-matching paths fall through to caqhRoutes as usual.
+app.use('/api/v1/caqh', caqhCredentialRequestRoutes);
 app.use('/api/v1/caqh', caqhRoutes);
 app.use('/api/v1/integrations', integrationsRoutes);
 app.use('/api/v1/payers', payerRoutes);

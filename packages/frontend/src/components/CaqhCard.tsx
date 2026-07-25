@@ -11,6 +11,7 @@ import {
   useCaqhCredentialStatus,
   useSaveCaqhCredentials,
   useVerifyCaqhCredentials,
+  useRequestCaqhCredentials,
   getCredentialStatusLabel,
   getCredentialStatusColor,
   CAQH_PROVIEW_URL,
@@ -38,6 +39,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
   const { data: credentialStatusData, isLoading: isLoadingCredentials } = useCaqhCredentialStatus(providerId);
   const saveCredentials = useSaveCaqhCredentials();
   const verifyCredentials = useVerifyCaqhCredentials();
+  const requestCredentials = useRequestCaqhCredentials();
 
   const { data: syncHistoryData } = useCaqhSyncHistory(providerId, syncHistoryPage, 5);
   const { data: caqhConfig } = useCaqhConfig();
@@ -338,6 +340,28 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                   <span className="block mt-1 text-yellow-600">
                     MFA required — credentials not fully verified
                   </span>
+                )}
+                {['invalid_credentials', 'account_locked'].includes(
+                  verifyCredentials.data.data.errorType ?? ''
+                ) && (
+                  <button
+                    onClick={() =>
+                      requestCredentials.mutate(providerId, {
+                        onSuccess: (res) =>
+                          toast.success(
+                            res.data?.resent
+                              ? 'Email re-sent — the previous link no longer works.'
+                              : 'Email sent. The provider has a secure link to submit their correct login.'
+                          ),
+                        onError: (error: any) =>
+                          toast.error(error.response?.data?.error?.message || 'Could not send the email.'),
+                      })
+                    }
+                    disabled={requestCredentials.isPending}
+                    className="block mt-2 px-2.5 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 font-medium disabled:opacity-50"
+                  >
+                    {requestCredentials.isPending ? 'Sending…' : 'Ask provider for updated login'}
+                  </button>
                 )}
               </div>
             )}
