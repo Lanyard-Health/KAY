@@ -41,6 +41,7 @@ import practiceLocationRoutes from './routes/practiceLocation.routes.js';
 import practicePayerRoutes from './routes/practicePayer.routes.js';
 import formFillRoutes from './routes/form-fill.routes.js';
 import aetnaWorkflowRoutes from './routes/aetna-workflow.routes.js';
+import devMockAetnaRoutes from './routes/dev-mock-aetna.routes.js';
 import checklistRoutes from './routes/checklist.routes.js';
 import enrollmentRoutes from './routes/enrollment.routes.js';
 import enrollmentWorkflowRoutes from './routes/enrollment-workflow.routes.js';
@@ -284,6 +285,11 @@ app.use('/api/v1/practice-payers', practicePayerRoutes);
 app.use('/api/v1/practices/:practiceId/documents', practiceDocumentRoutes);
 app.use('/api/v1', formFillRoutes);
 app.use('/api/v1', aetnaWorkflowRoutes);
+// Dev-only Aetna wizard mock (no auth, mirrors Aetna's public form) — used to
+// exercise the enrollment workflow end-to-end with zero real-world footprint.
+if (process.env['NODE_ENV'] !== 'production') {
+  app.use(devMockAetnaRoutes);
+}
 app.use('/api/v1/checklist', checklistRoutes);
 app.use('/api/v1/enrollments', enrollmentWorkflowRoutes);
 app.use('/api/v1/enrollments', payerContactInfoRoutes);

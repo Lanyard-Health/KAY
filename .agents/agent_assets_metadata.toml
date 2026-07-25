@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Si29DMNUz5Xkq5ZnaIltz"
+uri = "file://screenshots/aetna-readiness-checklist.png"
+type = "image"
+title = "Aetna Enrollment — pre-flight readiness checklist"

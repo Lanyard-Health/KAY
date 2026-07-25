@@ -15,6 +15,12 @@ description: Operational hard constraints for the Aetna Join-the-Network automat
 - Human review sessions hold a live browser in process memory; restarts or the
   TTL kill them, and relaunching files another real Aetna Request ID — warn
   users before restarting the backend while a review is pending.
+- A dev-only local mock of the full wizard exists at `/dev/mock-aetna-rfp`
+  (backend, non-production only) for safe E2E runs via the start-URL env
+  override. **How to apply:** the backend's helmet CSP blocks inline scripts
+  and fetch on served pages — mock pages need external JS plus a per-route CSP
+  header; nodemon watches `dist/`, so copying files into dist mid-run restarts
+  the server and orphans in-memory review sessions (runs stuck FILLING).
 - Never commit real enrollment/submission artifacts (PDF extractions etc.) —
   `.agents/outputs/` is git-ignored for this reason; keep any real-data
   scratch output there or in /tmp.

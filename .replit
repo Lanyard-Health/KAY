@@ -15,6 +15,11 @@ NODE_ENV = "development"
 PORT = "3002"
 VITE_DEV_AUTH_BYPASS = "true"
 
+[userenv.development]
+AETNA_RFP_START_URL = "http://localhost:3002/dev/mock-aetna-rfp"
+CHROMIUM_EXECUTABLE_PATH = "/nix/store/43y6k6fj85l4kcd1yan43hpdld6nmjmp-ungoogled-chromium-131.0.6778.204/bin/chromium"
+PLAYWRIGHT_HEADLESS = "true"
+
 [workflows]
 runButton = "Project"
 

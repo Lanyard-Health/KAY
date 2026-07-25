@@ -247,9 +247,15 @@ export async function uploadToS3(key: string, body: Uint8Array, contentType: str
 // ─── Browser launch ─────────────────────────────────────────────────────
 
 export async function launchBrowser(): Promise<Browser> {
-  const headless = process.env['NODE_ENV'] === 'production' || process.env['CI'] === 'true';
+  const headless =
+    process.env['NODE_ENV'] === 'production' ||
+    process.env['CI'] === 'true' ||
+    process.env['PLAYWRIGHT_HEADLESS'] === 'true';
   return chromium.launch({
     headless,
+    // Dev containers without Playwright's bundled Chromium can point this at a
+    // system Chromium build (e.g. the Nix one in the Replit workspace).
+    executablePath: process.env['CHROMIUM_EXECUTABLE_PATH'] || undefined,
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   });
 }

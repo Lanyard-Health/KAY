@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Join the Aetna network (MOCK)</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; margin: 0; background: #f7f7f7; color: #2b2b2b; }
+  header { background: #7d3f98; color: #fff; padding: 14px 28px; font-size: 20px; font-weight: bold; }
+  header .mock { background: #ffcc00; color: #000; font-size: 12px; padding: 2px 8px; border-radius: 4px; margin-left: 12px; vertical-align: middle; }
+  .container { max-width: 880px; margin: 24px auto; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 28px 36px; }
+  h2 { color: #7d3f98; margin-top: 0; }
+  .field { margin: 14px 0; }
+  label.f { display: block; font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+  input[type=text], input[type=email], select { padding: 8px; border: 1px solid #bbb; border-radius: 4px; width: 320px; font-size: 14px; }
+  button { background: #7d3f98; color: #fff; border: none; padding: 10px 22px; border-radius: 20px; font-size: 15px; cursor: pointer; margin-top: 16px; }
+  button.secondary { background: #fff; color: #7d3f98; border: 2px solid #7d3f98; }
+  a.text-links { color: #7d3f98; text-decoration: underline; cursor: pointer; }
+  mat-radio-group { display: block; margin: 6px 0; }
+  mat-radio-group span.opt { display: inline-block; border: 1px solid #999; border-radius: 16px; padding: 6px 18px; margin-right: 10px; cursor: pointer; user-select: none; }
+  mat-radio-group span.opt.sel { background: #7d3f98; color: #fff; border-color: #7d3f98; }
+  mat-select { display: inline-block; min-width: 320px; border: 1px solid #bbb; border-radius: 4px; padding: 8px; cursor: pointer; background: #fff; font-size: 14px; }
+  mat-select .placeholder { color: #777; }
+  .cdk-overlay-pane { position: fixed; background: #fff; border: 1px solid #999; border-radius: 4px; box-shadow: 0 4px 18px rgba(0,0,0,.25); z-index: 1000; padding: 6px 0; max-height: 320px; overflow: auto; min-width: 340px; }
+  .overlay-center { left: 50%; top: 18%; transform: translateX(-50%); padding: 24px 30px; }
+  mat-option { display: block; padding: 8px 16px; cursor: pointer; font-size: 14px; }
+  mat-option:hover { background: #eee; }
+  mat-option[aria-selected="true"] { background: #ead9f2; font-weight: bold; }
+  mat-option[aria-selected="true"]::before { content: "\2713\0020"; color: #7d3f98; }
+  .note { font-size: 12px; color: #777; }
+  .banner { background: #fff8dc; border: 1px solid #e0c860; padding: 8px 12px; font-size: 12px; margin-bottom: 16px; }
+  .summary td { padding: 4px 12px 4px 0; font-size: 13px; }
+  .summary td:first-child { color: #666; }
+  .reqid { font-size: 22px; font-weight: bold; color: #7d3f98; }
+</style>
+</head>
+<body>
+<header>&#10084; aetna &mdash; Join the Aetna network <span class="mock">LOCAL MOCK &mdash; no data leaves this machine</span></header>
+<div class="container" id="app"></div>
+
+<script src="/dev/mock-aetna-rfp.js"></script>
+</body>
+</html>
