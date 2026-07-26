@@ -171,11 +171,14 @@ export default function PayerSubmissionDetailsSection({ providerId }: { provider
     },
   });
 
+  // Reset the form whenever the provider changes or their saved details load.
+  // Without the providerId dependency (and the null branch), switching between
+  // providers keeps the previous provider's values on screen — looking saved
+  // when they are not.
   useEffect(() => {
-    if (detail) {
-      setForm({ ...EMPTY, ...detail });
-    }
-  }, [detail]);
+    setForm(detail ? { ...EMPTY, ...detail } : EMPTY);
+    setSavedAt(null);
+  }, [detail, providerId]);
 
   const save = useMutation({
     mutationFn: async () => {
