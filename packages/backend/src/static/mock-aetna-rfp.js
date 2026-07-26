@@ -201,9 +201,9 @@ function stepSpecialty() {
   render(`
     <h2>Step 2 &mdash; Specialty details</h2>
     <div class="field"><label class="f">Degree type</label>
-      <select id="degreeType"><option value="">Select</option><option>MD</option><option>DO</option><option>PhD</option><option>PsyD</option><option>LCSW</option><option>LPC</option><option>LMFT</option><option>APRN</option></select></div>
+      <select id="degreeType"><option value="">Select</option><option>MD</option><option>DO</option><option>PhD</option><option>PsyD</option><option>MSW</option><option>MA</option><option>MS</option><option>MED</option><option>MSN</option><option>DNP</option><option>BS</option></select></div>
     <div class="field"><label class="f">Specialty</label>
-      <select id="specialty"><option value="">Select</option><option>Psychiatry</option><option>Addiction Psychiatry</option><option>Child and Adolescent Psychiatry</option><option>Clinical Psychology</option><option>Clinical Social Worker</option><option>Professional Counselor</option><option>Marriage and Family Therapist</option><option>Psychiatric Nurse Practitioner</option></select></div>
+      <select id="specialty"><option value="">Select</option><option>Psychiatry</option><option>Addiction Psychiatry</option><option>Child and Adolescent Psychiatry</option><option>Child Psychiatry</option><option>Psychiatry Geriatric</option><option>Forensic Psychiatry</option><option>Clinical Psychology</option><option>Clinical Social Worker</option><option>Licensed Professional Counselor</option><option>Marriage and Family Therapist</option><option>Drug and Alcohol Counselor</option><option>Applied Behavioral Analyst</option><option>Art Therapist</option><option>Pastoral Counselor</option><option>Psychoanalyst</option><option>Psychological Examiner</option><option>Psychiatric Nurse</option><option>Nurse Practitioner</option><option>Physician Assistant</option></select></div>
     <div class="field"><a class="text-links">Behavioral Health Provider Manual</a>
       <div class="note">Review the manual to enable Agree.</div></div>
     <mat-radio-group formcontrolname="bhManualAck">

@@ -509,7 +509,7 @@ export async function evaluateAetnaReadiness(
   }
 
   // Submitter — payer-submission details override, else payer config.
-  const detail = provider.payerSubmissionDetail;
+  const detail = normalizeDetail(provider.payerSubmissionDetail);
   const cfg = (config.config ?? {}) as AetnaRfpConfig;
   const submitter = resolveSubmitter(detail, cfg);
   push('submitter', 'Submitter contact (name, role, email, phone)', Boolean(submitter),
@@ -562,6 +562,21 @@ export async function evaluateAetnaReadiness(
   }
 
   return { ready: checklist.every((c) => c.ok), checklist };
+}
+
+/**
+ * PayerSubmissionDetail string columns default to '' (the UI saves blanks as
+ * empty strings, not null). `??` fallbacks treat '' as present, so an empty
+ * placeOfService/fax/etc. would leak through and break the form fill. Normalize
+ * every blank string to null before resolving.
+ */
+function normalizeDetail<T extends Record<string, unknown> | null | undefined>(detail: T): T {
+  if (!detail) return detail;
+  const out: Record<string, unknown> = { ...detail };
+  for (const [k, v] of Object.entries(out)) {
+    if (typeof v === 'string' && v.trim() === '') out[k] = null;
+  }
+  return out as T;
 }
 
 function resolveSubmitter(
@@ -702,7 +717,7 @@ export async function buildAetnaRfpProviderData(
 
   // 2b) submitter is required — from PayerSubmissionDetail, else payer config.
   const cfg = (config.config ?? {}) as AetnaRfpConfig;
-  const detail = provider.payerSubmissionDetail ?? null;
+  const detail = normalizeDetail(provider.payerSubmissionDetail) ?? null;
   const submitter = resolveSubmitter(detail, cfg);
   if (!submitter) {
     throw new Error(
