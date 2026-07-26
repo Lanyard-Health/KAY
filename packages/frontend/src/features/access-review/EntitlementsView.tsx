@@ -5,7 +5,9 @@ import toast from 'react-hot-toast';
 import { useEntitlements, downloadEntitlementsCsv } from './hooks';
 import type { EntitlementFilters } from './hooks';
 import { RoleBadge, StatusBadge, PermissionChips, Pagination } from './shared';
+import EntitlementActions from './EntitlementActions';
 import EmptyState from '../../components/ui/EmptyState';
+import { useAuthStore } from '../../stores/auth.store';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'All Roles' },
@@ -46,6 +48,9 @@ export default function EntitlementsView() {
   };
 
   const { data, isLoading } = useEntitlements(filters);
+  const { user: currentUser } = useAuthStore();
+  // Only users:write holders can manage access from this page; others get a read-only report.
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'lanyard_staff';
 
   const handleExport = async () => {
     setExporting(true);
@@ -117,7 +122,7 @@ export default function EntitlementsView() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50/80">
                 <tr>
-                  {['User', 'Role', 'Status', 'Practices', 'Effective Permissions'].map((h) => (
+                  {['User', 'Role', 'Status', 'Practices', 'Effective Permissions', ...(canManage ? ['Actions'] : [])].map((h) => (
                     <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {h}
                     </th>
@@ -143,6 +148,15 @@ export default function EntitlementsView() {
                     <td className="px-6 py-4">
                       <PermissionChips permissions={user.effectivePermissions} />
                     </td>
+                    {canManage && (
+                      <td className="px-6 py-4">
+                        {user.id === currentUser?.id ? (
+                          <span className="text-xs text-gray-400">You</span>
+                        ) : (
+                          <EntitlementActions user={user} />
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
