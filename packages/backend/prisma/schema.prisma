@@ -2418,6 +2418,7 @@ enum InAppNotificationType {
   enrollment_status_change
   system_announcement
   caqh_import_stalled
+  caqh_credentials_updated
 }
 
 model InAppNotification {
