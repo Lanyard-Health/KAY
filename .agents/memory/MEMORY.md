@@ -1,0 +1,1 @@
+- [Dev vs prod secrets](dev-vs-prod-secrets.md) — user's prod secrets (Render REDIS_URL, VITE_API_URL) break dev; workflows unset them via `env -u`, never delete the secrets.
