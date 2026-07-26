@@ -62,7 +62,17 @@ export const AETNA_DEGREE_MAP: Record<string, string> = {
  * "#degreeType" label. Coarser than the academic degree (a psychiatrist could be
  * a DO), so used only when educations is empty. */
 export const PROVIDER_TYPE_DEGREE_FALLBACK: Record<string, string> = {
+  // Coarse last-resort map, used only when the provider has neither an
+  // authoritative degree nor Education rows. Each value is the typical
+  // degree for the type AND forms a valid AETNA_VALID_PAIRS combination
+  // with that type's usual specialties — if the real degree differs, add
+  // it to the provider profile instead of relying on this fallback.
   psychiatrist: 'MD',
+  psychologist: 'PhD',
+  lcsw: 'MSW',
+  lpc: 'MA',
+  lmft: 'MA',
+  pmhnp: 'MSN',
 };
 
 /** NUCC taxonomy code -> Aetna "#specialty" label, longest-prefix-match (mirrors
