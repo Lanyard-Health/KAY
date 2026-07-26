@@ -71,7 +71,8 @@ function historyCategory(type: string): SentHistoryCategory {
     type === 'expiration_reminder' ||
     type === 'credential_expiring' ||
     type === 'credential_expired' ||
-    type === 'caqh_import_stalled'
+    type === 'caqh_import_stalled' ||
+    type === 'caqh_credentials_updated'
   ) {
     return 'reminders';
   }
