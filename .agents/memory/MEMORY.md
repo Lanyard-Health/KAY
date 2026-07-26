@@ -1,1 +1,2 @@
 - [Dev vs prod secrets](dev-vs-prod-secrets.md) — user's prod secrets (Render REDIS_URL, VITE_API_URL) break dev; workflows unset them via `env -u`, never delete the secrets.
+- [Lockfile regeneration breaks CI](lockfile-regeneration-breaks-ci.md) — Replit-regenerated package-lock.json can drop packages and crash CI's npm ci; repair from last-good lock with --package-lock-only.
