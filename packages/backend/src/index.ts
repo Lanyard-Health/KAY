@@ -148,7 +148,8 @@ app.use(cors({
     } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       // In dev, allow any localhost port (Vite may pick a different port if 5190 is taken)
       callback(null, true);
-    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/[^.]+\.(replit\.dev|repl\.co)(:\d+)?$/.test(origin)) {
+    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/([A-Za-z0-9-]+\.)+(replit\.dev|repl\.co)(:\d+)?$/.test(origin)) {
+      // Preview domains have multiple labels (e.g. xyz-uuid.picard.replit.dev)
       // In dev, allow Replit preview domains
       callback(null, true);
     } else {
