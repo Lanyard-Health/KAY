@@ -62,6 +62,7 @@ import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { CaqhCard } from '../../components/CaqhCard';
 import PayerSubmissionDetailsSection from './PayerSubmissionDetailsSection';
+import AetnaReadinessCard from '../aetna/AetnaReadinessCard';
 import { CaqhImportPanel } from '../../components/CaqhImportPanel';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
@@ -1730,6 +1731,11 @@ export default function ProviderDetail() {
                 {/* Payer Submission Details (Aetna etc.) */}
                 <CollapsibleSection title="Payer Submission Details">
                   <PayerSubmissionDetailsSection providerId={id!} />
+                </CollapsibleSection>
+
+                {/* Aetna enrollment readiness + launch (review happens on the enrollment page) */}
+                <CollapsibleSection title="Aetna Enrollment">
+                  <AetnaReadinessCard providerId={id!} />
                 </CollapsibleSection>
 
                 {/* Malpractice Claims */}

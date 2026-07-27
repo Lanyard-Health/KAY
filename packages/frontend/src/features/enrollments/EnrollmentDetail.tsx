@@ -57,6 +57,7 @@ function PayerReferenceCard({ enrollmentId }: { enrollmentId: string }) {
   );
 }
 import AgentWorkflowPanel from '../../components/enrollments/AgentWorkflowPanel';
+import AetnaRunsSection from '../aetna/AetnaRunsSection';
 
 // Dev-only demo payer lookup. The endpoint returns 404 in production, so the
 // query gracefully resolves to undefined and the demo button stays hidden.
@@ -289,6 +290,9 @@ export default function EnrollmentDetail() {
 
       {/* Payer reference from submission runs (e.g. Aetna Request ID) */}
       <PayerReferenceCard enrollmentId={enrollment.id} />
+
+      {/* Aetna automated application runs — review & approve (renders only when runs exist) */}
+      <AetnaRunsSection enrollmentId={enrollment.id} />
 
       {/* Workflow Tracker */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">

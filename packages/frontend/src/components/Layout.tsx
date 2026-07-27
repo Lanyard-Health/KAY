@@ -28,6 +28,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../services/api';
 import { useAuthStore } from '../stores/auth.store';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './ui/CommandPalette';
@@ -97,7 +99,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
       { name: 'Enrollment Strategy', href: '/enrollment-strategy', icon: ChartBarSquareIcon },
-      { name: 'Aetna Enrollment', href: '/aetna-enrollment', icon: ClipboardDocumentListIcon },
+      { name: 'Aetna Submissions', href: '/aetna-enrollment', icon: ClipboardDocumentListIcon },
       { name: 'Users', href: '/users', icon: UserGroupIcon },
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Customer Communications', href: '/admin/communications', icon: ChatBubbleLeftRightIcon },
@@ -196,6 +198,18 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
   const isTaskUser = role === 'admin' || role === 'lanyard_staff';
   const { data: taskCounts } = useTaskCounts({ enabled: isTaskUser });
 
+  // Aetna runs paused for review are time-boxed (25 min), so surface them
+  // prominently: amber badge on the Aetna Submissions nav item.
+  const { data: aetnaAwaitingCount } = useQuery({
+    queryKey: ['aetna-awaiting-count'],
+    enabled: isInternalStaff,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: Array<{ status: string }> }>('/aetna-runs');
+      return res.data.data.filter((r) => r.status === 'AWAITING_REVIEW').length;
+    },
+  });
+
   // Inject OCR review count badge into OCR Review nav item; inject Tasks badge
   // (red overdue count wins, else amber open count); hide Tasks from credentialing_staff.
   const activeGroups = baseGroups.map(group => ({
@@ -204,6 +218,9 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
       .filter((item) => !(item.name === 'Tasks' && role === 'credentialing_staff'))
       .map((item) => {
         if (item.name === 'OCR Review' && ocrReviewCount) return { ...item, badge: ocrReviewCount };
+        if (item.name === 'Aetna Submissions' && aetnaAwaitingCount) {
+          return { ...item, badge: aetnaAwaitingCount, badgeColor: 'amber' as const };
+        }
         if (item.name === 'Tasks' && taskCounts && (taskCounts.overdue > 0 || taskCounts.open > 0 || (taskCounts.pool ?? 0) > 0)) {
           // Priority: my overdue (red) > my open (amber) > unassigned pool (neutral).
           return taskCounts.overdue > 0
