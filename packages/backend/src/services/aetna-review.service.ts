@@ -240,6 +240,22 @@ export async function approveAetnaRun(
       },
     });
 
+    // Reflect the submission on the parent enrollment: stamp the application
+    // date (first submission wins) and the payer tracking ID.
+    if (reference) {
+      const enrollment = await prisma.enrollment.findUnique({
+        where: { id: run.enrollmentId },
+        select: { applicationDate: true },
+      });
+      await prisma.enrollment.update({
+        where: { id: run.enrollmentId },
+        data: {
+          applicationDate: enrollment?.applicationDate ?? new Date(),
+          confirmationNumber: reference,
+        },
+      });
+    }
+
     logger.info('aetna-review: approved and submitted', {
       runId,
       requestId,

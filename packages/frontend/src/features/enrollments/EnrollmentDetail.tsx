@@ -273,6 +273,10 @@ export default function EnrollmentDetail() {
             <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Last Follow-up</dt>
             <dd className="mt-1 text-sm text-gray-900">{formatDate(enrollment.lastFollowUpDate)}</dd>
           </div>
+          <div>
+            <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Tracking ID</dt>
+            <dd className="mt-1 text-sm text-gray-900 font-mono">{enrollment.confirmationNumber || '—'}</dd>
+          </div>
         </div>
       </div>
 
