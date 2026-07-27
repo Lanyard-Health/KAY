@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ChevronRightIcon } from '@heroicons/react/20/solid';
+import clsx from 'clsx';
 import AetnaRunPanel from './AetnaRunPanel';
 import { ACTIVE_STATUSES, StatusBadge, useAetnaRuns } from './shared';
 
@@ -14,27 +16,51 @@ export default function AetnaRunsSection({ enrollmentId }: { enrollmentId: strin
   const [selectedRunId, setSelectedRunId] = useState<string | null>(searchParams.get('aetnaRun'));
 
   const runs = (allRuns ?? []).filter((r) => r.enrollmentId === enrollmentId);
+  const activeRun = runs.find((r) => ACTIVE_STATUSES.includes(r.status));
+
+  // Open by default only when there's something to act on: an active run, or
+  // an explicit ?aetnaRun= link from the launch flow.
+  const [isOpen, setIsOpen] = useState(Boolean(searchParams.get('aetnaRun')));
+  useEffect(() => {
+    if (activeRun) setIsOpen(true);
+  }, [activeRun?.id]);
 
   // Auto-select the active (or most recent) run when nothing is selected yet.
   useEffect(() => {
     if (!selectedRunId && runs.length > 0) {
-      const active = runs.find((r) => ACTIVE_STATUSES.includes(r.status));
-      setSelectedRunId((active ?? runs[0]!).id);
+      setSelectedRunId((activeRun ?? runs[0]!).id);
     }
   }, [selectedRunId, runs]);
 
   if (runs.length === 0) return null;
 
+  const latest = runs[0]!;
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm" data-testid="aetna-runs-section">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Aetna Application Runs</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Automated “Join the Network” submissions for this enrollment — review and approve here.
-        </p>
+      <div
+        className="px-6 py-4 flex items-center justify-between cursor-pointer select-none"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <ChevronRightIcon className={clsx('h-4 w-4 text-gray-400 transition-transform duration-200', isOpen && 'rotate-90')} />
+          <h2 className="text-lg font-semibold text-gray-900">Aetna Application Runs</h2>
+          <span className="text-sm text-gray-400">({runs.length})</span>
+        </div>
+        {!isOpen && <StatusBadge status={(activeRun ?? latest).status} />}
       </div>
 
-      <div className="px-6 py-4 space-y-6">
+      {isOpen && (
+      <div className="px-6 py-4 border-t border-gray-100 space-y-6">
         {selectedRunId && <AetnaRunPanel runId={selectedRunId} />}
 
         {runs.length > 1 && (
@@ -66,6 +92,7 @@ export default function AetnaRunsSection({ enrollmentId }: { enrollmentId: strin
           </table>
         )}
       </div>
+      )}
     </div>
   );
 }
