@@ -78,4 +78,4 @@ If the old key is lost, encrypted data is unrecoverable — treat the key like a
 
 - Keep the project's existing monorepo structure (turbo + npm workspaces).
 - Do not migrate the database away from Prisma or restructure packages.
-- Never merge work to the main version/branch automatically — the user decides when changes are merged.
+- Never merge work to the main version/branch automatically — the user decides when changes are merged. Work can be pushed to production from its own branch instead.
