@@ -300,6 +300,12 @@ export default function LoginPage() {
       setResetNewPassword('');
     } catch (error) {
       notify.error('Reset failed', { description: mapCognitoError(error) });
+      // Clear the code boxes only when the code itself was rejected; keep
+      // them filled for password-policy failures and other errors.
+      const name = error instanceof Error ? error.name : '';
+      if (name === 'CodeMismatchException' || name === 'ExpiredCodeException') {
+        setResetCode('');
+      }
     } finally {
       setIsLoading(false);
     }
