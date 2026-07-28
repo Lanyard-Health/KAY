@@ -20,7 +20,7 @@
 import type { Browser, BrowserContext, Page } from 'playwright';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
-import { AetnaRfpAdapter, type AetnaRfpProviderData } from '../agents/portal/aetna-rfp-adapter.js';
+import { AetnaRfpAdapter, getRfpStartUrl, type AetnaRfpProviderData } from '../agents/portal/aetna-rfp-adapter.js';
 import { buildAetnaRfpProviderData } from '../agents/portal/aetna-rfp-resolver.js';
 import { launchBrowser, uploadToS3 } from '../agents/portal/playwright-base-adapter.js';
 
@@ -58,6 +58,15 @@ export async function launchAetnaReviewRun(args: {
   payerId: string;
   triggeredBy?: string;
 }): Promise<{ runId: string }> {
+  // Verify the RFP target is explicitly configured (mock URL or deliberate
+  // live opt-in) so a forgotten env var surfaces here as a clear API error
+  // instead of an accidental live submission. Throws with a 4xx-worthy message.
+  try {
+    getRfpStartUrl();
+  } catch (err) {
+    throw Object.assign(err as Error, { statusCode: 409 });
+  }
+
   // Resolve the packet FIRST — fail-closed before any run row or footprint.
   const data = await buildAetnaRfpProviderData(
     { providerId: args.providerId, practiceId: args.practiceId, payerId: args.payerId },

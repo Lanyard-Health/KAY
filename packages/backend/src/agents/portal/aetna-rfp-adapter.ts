@@ -39,9 +39,28 @@ import type { ResolvedCredential } from '../../services/credential.service.js';
 // Env-overridable so end-to-end tests can point at a local mock instead of
 // creating a real saved application on Aetna's side (their network-check step
 // files a real Request ID the moment it passes).
-const RFP_START_URL =
-  process.env['AETNA_RFP_START_URL'] ||
-  'https://extaz-oci.aetna.com/pocui/join-the-aetna-network';
+const LIVE_RFP_URL = 'https://extaz-oci.aetna.com/pocui/join-the-aetna-network';
+
+/**
+ * Resolve the RFP start URL with a live-portal safety latch.
+ *
+ * Aetna's network-check step files a REAL saved application (with a Request
+ * ID) the moment it passes, so hitting the live portal must be an explicit,
+ * deliberate choice — never a fallback someone forgot to configure. Rules:
+ * - AETNA_RFP_START_URL set → use it (mock or live, your call).
+ * - Unset + AETNA_RFP_ALLOW_LIVE=true → live portal (supervised runs).
+ * - Unset otherwise → fail fast before the browser ever launches.
+ */
+export function getRfpStartUrl(): string {
+  const explicit = process.env['AETNA_RFP_START_URL'];
+  if (explicit) return explicit;
+  if (process.env['AETNA_RFP_ALLOW_LIVE'] === 'true') return LIVE_RFP_URL;
+  throw new Error(
+    'Aetna RFP target not configured. Set AETNA_RFP_START_URL (e.g. the local mock form) ' +
+      'or explicitly set AETNA_RFP_ALLOW_LIVE=true to submit to the REAL Aetna portal. ' +
+      'This guard prevents accidental live submissions.'
+  );
+}
 
 /** Line of business -> the "I am applying for" dropdown label. */
 const APPLYING_FOR_LABEL: Record<AetnaLineOfBusiness, string> = {
@@ -200,7 +219,7 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
         void this.captureConfirmationFromResponse(res);
       }
     });
-    await page.goto(RFP_START_URL, { waitUntil: 'domcontentloaded' });
+    await page.goto(getRfpStartUrl(), { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
   }
 
@@ -275,7 +294,7 @@ export class AetnaRfpAdapter extends PlaywrightBaseAdapter {
       }
     });
 
-    await page.goto(RFP_START_URL, { waitUntil: 'domcontentloaded' });
+    await page.goto(getRfpStartUrl(), { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
   }
 
