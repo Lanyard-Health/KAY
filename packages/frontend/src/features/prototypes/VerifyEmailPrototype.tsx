@@ -16,8 +16,9 @@
  *   - warm paper background #faf7f2 instead of stark white
  *   - placeholder gradient + ghost rings on the dark brand panel
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckIcon, ClipboardIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import CodeInput from '../../components/CodeInput';
 
 const MOCK_EMAIL = 'jordan@brightpathbehavioral.com'; // mock data only
 
@@ -151,71 +152,20 @@ export default function VerifyEmailPrototype() {
 /* ------------------------------ code variant ------------------------------ */
 
 function CodeVariant({ onVerified }: { onVerified: () => void }) {
-  const [digits, setDigits] = useState<string[]>(Array(6).fill(''));
+  // Uses the shared production CodeInput (light tone), so this page doubles
+  // as a live visual testbed for the exact component shipped in LoginPage.
+  const [code, setCode] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [pasteNote, setPasteNote] = useState('');
-  const inputs = useRef<Array<HTMLInputElement | null>>([]);
-  const complete = digits.every(Boolean);
-
-  useEffect(() => {
-    inputs.current[0]?.focus();
-  }, []);
+  const complete = code.length === 6;
 
   /** Fill all boxes from any text containing 6 consecutive digits. */
   const fillFrom = (text: string): boolean => {
     const match = text.match(/\d{6}/);
     if (!match) return false;
-    setDigits(match[0].split(''));
+    setCode(match[0]);
     setPasteNote('');
-    inputs.current[5]?.focus();
     return true;
-  };
-
-  const handleChange = (i: number, raw: string) => {
-    const ds = raw.replace(/\D/g, '');
-    const next = [...digits];
-    if (!ds) {
-      next[i] = '';
-      setDigits(next);
-      return;
-    }
-    // Handles single keystrokes and multi-digit input (OS autofill) alike
-    let j = i;
-    for (const ch of ds) {
-      if (j > 5) break;
-      next[j] = ch;
-      j += 1;
-    }
-    setDigits(next);
-    inputs.current[Math.min(j, 5)]?.focus();
-  };
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      const next = [...digits];
-      if (next[i]) {
-        next[i] = '';
-        setDigits(next);
-      } else if (i > 0) {
-        next[i - 1] = '';
-        setDigits(next);
-        inputs.current[i - 1]?.focus();
-      }
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      e.preventDefault();
-      inputs.current[i - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && i < 5) {
-      e.preventDefault();
-      inputs.current[i + 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    if (!fillFrom(e.clipboardData.getData('text'))) {
-      setPasteNote('That did not look like a 6-digit code.');
-    }
   };
 
   // Clipboard API is permission-gated; fall back to a plain-English hint.
@@ -241,22 +191,6 @@ function CodeVariant({ onVerified }: { onVerified: () => void }) {
     window.setTimeout(onVerified, 900);
   };
 
-  const box = (i: number) => (
-    <input
-      key={i}
-      ref={(el) => (inputs.current[i] = el)}
-      inputMode="numeric"
-      pattern="[0-9]*"
-      autoComplete={i === 0 ? 'one-time-code' : 'off'}
-      value={digits[i]}
-      onChange={(e) => handleChange(i, e.target.value)}
-      onKeyDown={(e) => handleKeyDown(i, e)}
-      onFocus={(e) => e.target.select()}
-      aria-label={`Digit ${i + 1} of 6`}
-      className="h-14 w-11 rounded-xl border border-[#e3ddd2] bg-white text-center text-xl font-medium shadow-sm outline-none transition focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15"
-    />
-  );
-
   return (
     <div className="animate-fade-in">
       <h1 className="text-center text-2xl font-semibold text-[#171b17]">
@@ -269,15 +203,8 @@ function CodeVariant({ onVerified }: { onVerified: () => void }) {
         folder.
       </p>
 
-      <div
-        role="group"
-        aria-label="6-digit verification code"
-        onPaste={handlePaste}
-        className="mt-8 flex items-center justify-center gap-2"
-      >
-        {[0, 1, 2].map(box)}
-        <span className="mx-1 h-px w-4 bg-[#c9c2b4]" />
-        {[3, 4, 5].map(box)}
+      <div className="mt-8">
+        <CodeInput tone="light" value={code} onChange={setCode} autoFocus />
       </div>
 
       <div className="mt-4 text-center">
@@ -307,9 +234,8 @@ function CodeVariant({ onVerified }: { onVerified: () => void }) {
       <button
         type="button"
         onClick={() => {
-          setDigits(Array(6).fill(''));
+          setCode('');
           setPasteNote('');
-          inputs.current[0]?.focus();
         }}
         className="mt-3 h-12 w-full rounded-full border border-[#e3ddd2] bg-white text-sm font-medium text-[#3f3a33] shadow-sm transition hover:bg-[#f3eee5] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]"
       >

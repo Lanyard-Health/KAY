@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
 import { mapCognitoError } from '../../utils/cognito-errors';
+import CodeInput from '../../components/CodeInput';
 import QRCode from 'qrcode';
 
 type AuthStep =
@@ -284,6 +285,7 @@ export default function LoginPage() {
 
   const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (resetCode.length !== 6) return;
     if (resetNewPassword.length < 12) {
       notify.error('Invalid password', { description: 'Password must be at least 12 characters' });
       return;
@@ -408,18 +410,7 @@ export default function LoginPage() {
               We sent a 6-digit code to your registered email. Enter it below.
             </p>
             <form onSubmit={handleMfaEmailSubmit} className="space-y-4">
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                autoFocus
-                className="appearance-none relative block w-full px-3 py-3 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 text-center text-2xl tracking-widest"
-                placeholder="000000"
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
+              <CodeInput value={mfaCode} onChange={setMfaCode} autoFocus />
               <button
                 type="submit"
                 disabled={isLoading || mfaCode.length !== 6}
@@ -442,18 +433,7 @@ export default function LoginPage() {
               Enter the 6-digit code from your authenticator app.
             </p>
             <form onSubmit={handleMfaSubmit} className="space-y-4">
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                autoFocus
-                className="appearance-none relative block w-full px-3 py-3 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 text-center text-2xl tracking-widest"
-                placeholder="000000"
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
+              <CodeInput value={mfaCode} onChange={setMfaCode} autoFocus />
               <button
                 type="submit"
                 disabled={isLoading || mfaCode.length !== 6}
@@ -496,17 +476,8 @@ export default function LoginPage() {
                     <label className="block text-sm font-medium text-white/80 mb-1">
                       Enter the 6-digit code from your app
                     </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      required
-                      className="appearance-none relative block w-full px-3 py-3 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 text-center text-2xl tracking-widest"
-                      placeholder="000000"
-                      value={mfaCode}
-                      onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    />
+                    {/* No autoFocus: the user is mid-QR-scan when this renders */}
+                    <CodeInput value={mfaCode} onChange={setMfaCode} />
                   </div>
                   <button
                     type="submit"
@@ -567,14 +538,7 @@ export default function LoginPage() {
               Check your email for a verification code.
             </p>
             <form onSubmit={handleConfirmReset} className="space-y-4">
-              <input
-                type="text"
-                required
-                className="appearance-none relative block w-full px-3 py-2 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 sm:text-sm"
-                placeholder="Verification code"
-                value={resetCode}
-                onChange={(e) => setResetCode(e.target.value)}
-              />
+              <CodeInput value={resetCode} onChange={setResetCode} />
               <input
                 type="password"
                 required
@@ -586,7 +550,7 @@ export default function LoginPage() {
               />
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || resetCode.length !== 6}
                 className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
               >
                 {isLoading ? 'Resetting...' : 'Reset Password'}
