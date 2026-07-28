@@ -1,1 +1,2 @@
 - [Dev vs prod secrets](dev-vs-prod-secrets.md) — user's prod secrets (Render REDIS_URL, VITE_API_URL) break dev; workflows unset them via `env -u`, never delete the secrets.
+- [CORS vs preview writes](cors-preview-writes.md) — same-origin GETs send no Origin header, so a bad origin regex breaks only writes; preview domains are multi-label.

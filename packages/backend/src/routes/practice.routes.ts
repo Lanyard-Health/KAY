@@ -523,6 +523,9 @@ router.post(
       setAuditContext(req, {
         resourceType: 'user_practice',
         action: 'create',
+        changes: {
+          after: { userId: validated.userId, practiceId, practiceRole: validated.role },
+        },
       });
 
       const assignment = await prisma.userPractice.create({
@@ -580,6 +583,9 @@ router.delete(
         resourceType: 'user_practice',
         resourceId: existing.id,
         action: 'delete',
+        changes: {
+          before: { userId, practiceId, practiceRole: existing.role },
+        },
       });
 
       await prisma.userPractice.delete({
