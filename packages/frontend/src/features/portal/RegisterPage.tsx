@@ -281,18 +281,18 @@ export default function RegisterPage() {
   };
 
   const inputClass = (field: string) =>
-    `mt-1 block w-full rounded-xl bg-white/[0.08] border px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 ${
+    `mt-1 block w-full rounded-xl bg-white border px-4 py-3 text-[#1f2721] placeholder-[#a49d8f] shadow-sm sm:text-sm outline-none transition focus:ring-4 ${
       // eslint-disable-next-line security/detect-object-injection
       errors[field]
-        ? 'border-red-400/60 focus:border-red-400'
-        : 'border-white/[0.15] focus:border-emerald-400/60'
+        ? 'border-red-300 focus:border-red-400 focus:ring-red-400/15'
+        : 'border-[#e3ddd2] focus:border-[#2d8b6a] focus:ring-[#2d8b6a]/15'
     }`;
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#faf7f2] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow-sm sm:rounded-2xl border border-gray-200/60 sm:px-10">
+          <div className="bg-white py-8 px-4 shadow-sm sm:rounded-2xl border border-[#e3ddd2] sm:px-10">
             <div className="text-center">
               <CheckCircleIcon className="mx-auto h-16 w-16 text-green-500" />
               <h2 className="mt-4 text-2xl font-bold text-gray-900">Application Submitted!</h2>
@@ -322,13 +322,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#faf7f2] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <img src="/logo.png" alt="Lanyard Health" className="h-12 mx-auto brightness-0 invert" />
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-white">
+        <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] mx-auto" />
+        <h2 className="mt-6 text-center text-3xl font-semibold tracking-tight text-[#1f2721]">
           Provider Registration
         </h2>
-        <p className="mt-2 text-center text-sm text-white/70">
+        <p className="mt-2 text-center text-sm text-[#6b665c]">
           {isSelfServe
             ? 'Create your account and get instant access'
             : 'Join our provider network by completing the form below'}
@@ -336,8 +336,8 @@ export default function RegisterPage() {
         {isSelfServe && (
           <div className="mt-5 flex flex-col items-center gap-2">
             {['Complete profile & upload documents', 'Track license expirations', 'NPI auto-lookup from NPPES'].map((feature) => (
-              <div key={feature} className="flex items-center gap-2.5 text-sm text-white/80">
-                <svg className="w-4 h-4 text-emerald-300 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <div key={feature} className="flex items-center gap-2.5 text-sm text-[#57534a]">
+                <svg className="w-4 h-4 text-[#2d8b6a] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
                 {feature}
@@ -346,28 +346,28 @@ export default function RegisterPage() {
           </div>
         )}
         {reapplyParam && (
-          <div className="mt-4 mx-auto max-w-lg bg-white/[0.08] border border-white/[0.15] rounded-lg px-4 py-3 text-center">
-            <p className="text-sm text-amber-200">
+          <div className="mt-4 mx-auto max-w-lg bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-amber-800">
               You are submitting a new application. Previous feedback from our team has been noted.
             </p>
           </div>
         )}
         {practiceInfo && (
-          <div className="mt-4 mx-auto max-w-lg bg-white/[0.08] border border-white/[0.15] rounded-lg px-4 py-3 text-center">
-            <p className="text-sm text-white/80">
-              Registering with <span className="text-emerald-300 font-semibold">{practiceInfo.name}</span>
+          <div className="mt-4 mx-auto max-w-lg bg-white border border-[#e3ddd2] rounded-lg px-4 py-3 text-center">
+            <p className="text-sm text-[#57534a]">
+              Registering with <span className="text-[#0A3D2E] font-semibold">{practiceInfo.name}</span>
             </p>
           </div>
         )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
-        <div className="bg-white/[0.1] backdrop-blur-2xl border border-white/[0.15] shadow-2xl shadow-black/10 py-8 px-4 sm:rounded-2xl sm:px-10">
+        <div className="bg-white border border-[#e3ddd2] shadow-sm py-8 px-4 sm:rounded-2xl sm:px-10">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* NPI */}
             <div>
-              <label htmlFor="npi" className="block text-sm font-medium text-white/80">
-                NPI <span className="text-emerald-300">*</span>
+              <label htmlFor="npi" className="block text-sm font-medium text-[#57534a]">
+                NPI <span className="text-[#2d8b6a]">*</span>
               </label>
               <div className="relative">
                 <input
@@ -389,81 +389,81 @@ export default function RegisterPage() {
                   </div>
                 )}
               </div>
-              {errors.npi && <p className="mt-1 text-sm text-red-300">{errors.npi}</p>}
+              {errors.npi && <p className="mt-1 text-sm text-red-600">{errors.npi}</p>}
               {npiLookupStatus === 'found' && (
-                <p className="mt-1 text-sm text-emerald-300">NPI found — fields pre-filled from NPPES</p>
+                <p className="mt-1 text-sm text-[#2d8b6a]">NPI found — fields pre-filled from NPPES</p>
               )}
               {npiLookupStatus === 'not-found' && (
-                <p className="mt-1 text-sm text-amber-300">NPI not found in NPPES registry</p>
+                <p className="mt-1 text-sm text-amber-600">NPI not found in NPPES registry</p>
               )}
             </div>
 
             {/* Name Fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-white/80">
-                  First Name <span className="text-emerald-300">*</span>
+                <label htmlFor="firstName" className="block text-sm font-medium text-[#57534a]">
+                  First Name <span className="text-[#2d8b6a]">*</span>
                 </label>
                 <input type="text" name="firstName" id="firstName" value={formData.firstName} onChange={handleChange} className={inputClass('firstName')} />
-                {errors.firstName && <p className="mt-1 text-sm text-red-300">{errors.firstName}</p>}
+                {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
               </div>
               <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-white/80">
-                  Last Name <span className="text-emerald-300">*</span>
+                <label htmlFor="lastName" className="block text-sm font-medium text-[#57534a]">
+                  Last Name <span className="text-[#2d8b6a]">*</span>
                 </label>
                 <input type="text" name="lastName" id="lastName" value={formData.lastName} onChange={handleChange} className={inputClass('lastName')} />
-                {errors.lastName && <p className="mt-1 text-sm text-red-300">{errors.lastName}</p>}
+                {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
               </div>
             </div>
 
             {/* Middle Name & Suffix */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="middleName" className="block text-sm font-medium text-white/80">Middle Name</label>
-                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
+                <label htmlFor="middleName" className="block text-sm font-medium text-[#57534a]">Middle Name</label>
+                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white border border-[#e3ddd2] px-4 py-3 text-[#1f2721] placeholder-[#a49d8f] shadow-sm sm:text-sm outline-none transition focus:ring-4 focus:ring-[#2d8b6a]/15 focus:border-[#2d8b6a]" />
               </div>
               <div>
-                <label htmlFor="suffix" className="block text-sm font-medium text-white/80">Suffix</label>
-                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
+                <label htmlFor="suffix" className="block text-sm font-medium text-[#57534a]">Suffix</label>
+                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-xl bg-white border border-[#e3ddd2] px-4 py-3 text-[#1f2721] placeholder-[#a49d8f] shadow-sm sm:text-sm outline-none transition focus:ring-4 focus:ring-[#2d8b6a]/15 focus:border-[#2d8b6a]" />
               </div>
             </div>
 
             {/* Contact Fields */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-white/80">Email <span className="text-emerald-300">*</span></label>
+                <label htmlFor="email" className="block text-sm font-medium text-[#57534a]">Email <span className="text-[#2d8b6a]">*</span></label>
                 <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} className={inputClass('email')} />
-                {errors.email && <p className="mt-1 text-sm text-red-300">{errors.email}</p>}
+                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
               </div>
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-white/80">Phone <span className="text-emerald-300">*</span></label>
+                <label htmlFor="phone" className="block text-sm font-medium text-[#57534a]">Phone <span className="text-[#2d8b6a]">*</span></label>
                 <input type="tel" name="phone" id="phone" value={formData.phone} onChange={handleChange} placeholder="(555) 123-4567" className={inputClass('phone')} />
-                {errors.phone && <p className="mt-1 text-sm text-red-300">{errors.phone}</p>}
+                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
               </div>
             </div>
 
             {/* Date of Birth & Gender */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-white/80">Date of Birth <span className="text-emerald-300">*</span></label>
+                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-[#57534a]">Date of Birth <span className="text-[#2d8b6a]">*</span></label>
                 <input type="date" name="dateOfBirth" id="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className={inputClass('dateOfBirth')} />
-                {errors.dateOfBirth && <p className="mt-1 text-sm text-red-300">{errors.dateOfBirth}</p>}
+                {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>}
               </div>
               <div>
-                <label htmlFor="gender" className="block text-sm font-medium text-white/80">Gender <span className="text-emerald-300">*</span></label>
+                <label htmlFor="gender" className="block text-sm font-medium text-[#57534a]">Gender <span className="text-[#2d8b6a]">*</span></label>
                 <select name="gender" id="gender" value={formData.gender} onChange={handleChange} className={inputClass('gender')}>
                   {GENDER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                {errors.gender && <p className="mt-1 text-sm text-red-300">{errors.gender}</p>}
+                {errors.gender && <p className="mt-1 text-sm text-red-600">{errors.gender}</p>}
               </div>
             </div>
 
             {/* Provider Type */}
             <div>
-              <label htmlFor="providerType" className="block text-sm font-medium text-white/80">Provider Type</label>
-              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60">
+              <label htmlFor="providerType" className="block text-sm font-medium text-[#57534a]">Provider Type</label>
+              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white border border-[#e3ddd2] px-4 py-3 text-[#1f2721] placeholder-[#a49d8f] shadow-sm sm:text-sm outline-none transition focus:ring-4 focus:ring-[#2d8b6a]/15 focus:border-[#2d8b6a]">
                 {PROVIDER_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
@@ -472,7 +472,7 @@ export default function RegisterPage() {
 
             {/* CAQH Provider ID */}
             <div>
-              <label htmlFor="caqhProviderId" className="block text-sm font-medium text-white/80">CAQH Provider ID</label>
+              <label htmlFor="caqhProviderId" className="block text-sm font-medium text-[#57534a]">CAQH Provider ID</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -484,9 +484,9 @@ export default function RegisterPage() {
                 className={inputClass('caqhProviderId')}
               />
               {errors.caqhProviderId ? (
-                <p className="mt-1 text-sm text-red-300">{errors.caqhProviderId}</p>
+                <p className="mt-1 text-sm text-red-600">{errors.caqhProviderId}</p>
               ) : (
-                <p className="mt-1 text-xs text-white/50">
+                <p className="mt-1 text-xs text-[#8a8478]">
                   With your CAQH ID we'll import your profile and documents automatically
                   once your account is approved — no need to re-enter them.
                   Don't have one? Leave blank — we'll help you set it up later.
@@ -498,8 +498,8 @@ export default function RegisterPage() {
             {isSelfServe && (
               <>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-white/80">
-                    Password <span className="text-emerald-300">*</span>
+                  <label htmlFor="password" className="block text-sm font-medium text-[#57534a]">
+                    Password <span className="text-[#2d8b6a]">*</span>
                   </label>
                   <input
                     type="password"
@@ -510,12 +510,12 @@ export default function RegisterPage() {
                     placeholder="Minimum 12 characters"
                     className={inputClass('password')}
                   />
-                  {errors.password && <p className="mt-1 text-sm text-red-300">{errors.password}</p>}
+                  {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
                   <PasswordStrength password={formData.password || ''} />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-white/80">
-                    Confirm Password <span className="text-emerald-300">*</span>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#57534a]">
+                    Confirm Password <span className="text-[#2d8b6a]">*</span>
                   </label>
                   <input
                     type="password"
@@ -526,7 +526,7 @@ export default function RegisterPage() {
                     placeholder="Re-enter your password"
                     className={inputClass('confirmPassword')}
                   />
-                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-300">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
                 </div>
               </>
             )}
@@ -536,7 +536,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={mutation.isPending}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-400 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-400/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-white"
               >
                 {mutation.isPending
                   ? (isSelfServe ? 'Creating Account...' : 'Submitting...')
@@ -545,9 +545,9 @@ export default function RegisterPage() {
             </div>
           </form>
 
-          <p className="mt-6 text-center text-sm text-white/70 hover:text-white">
+          <p className="mt-6 text-center text-sm text-[#6b665c]">
             Already have an account?{' '}
-            <a href="/login" className="text-emerald-300 hover:text-emerald-200 font-semibold transition-colors">
+            <a href="/login" className="text-[#0A3D2E] hover:text-[#1a6b4e] font-semibold transition-colors">
               Sign in
             </a>
           </p>

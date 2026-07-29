@@ -96,7 +96,7 @@ export default function LoginPrototype() {
           navigating, so the near-white app backdrop is never exposed and the
           cut to the identically-colored register pages is invisible */}
       <motion.div
-        className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500"
+        className="pointer-events-none fixed inset-0 z-50 bg-[#faf7f2]"
         initial={{ opacity: 0 }}
         animate={{ opacity: leavingTo ? 1 : 0 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
