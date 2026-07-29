@@ -65,8 +65,9 @@ const FollowUpMonitor = lazy(() => import('./features/follow-up/FollowUpMonitor'
 const Settings = lazy(() => import('./features/settings/Settings'));
 const ClinicalProfileWizard = lazy(() => import('./features/clinical-profile/ClinicalProfileWizard'));
 const TasksPage = lazy(() => import('./features/tasks/TasksPage'));
-// Design prototype — mock only, not wired to auth (see file header comment)
+// Design prototypes — mock only, not wired to auth (see file header comments)
 const VerifyEmailPrototype = lazy(() => import('./features/prototypes/VerifyEmailPrototype'));
+const LoginPrototype = lazy(() => import('./features/prototypes/LoginPrototype'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -219,6 +220,7 @@ export default function App() {
         <Route path="/update-caqh-credentials/:token" element={<UpdateCaqhCredentialsPage />} />
         <Route path="/registration-success" element={<RegistrationSuccess />} />
         <Route path="/prototypes/verify-email" element={<VerifyEmailPrototype />} />
+        <Route path="/prototypes/login" element={<LoginPrototype />} />
 
         {/* Portal routes (provider role) */}
         <Route
