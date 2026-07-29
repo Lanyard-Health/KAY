@@ -100,14 +100,9 @@ export default function LoginPrototype() {
         };
 
   return (
-    <motion.div
+    <div
       className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
       style={{ fontFamily: POPPINS }}
-      animate={{ opacity: leavingTo ? 0 : 1 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      onAnimationComplete={() => {
-        if (leavingTo) navigate(leavingTo);
-      }}
     >
       {/* Leave wash: fades IN the destination pages' exact gradient before
           navigating, so the near-white app backdrop is never exposed and the
@@ -274,7 +269,7 @@ export default function LoginPrototype() {
         <div className="absolute left-1/2 top-1/2 h-[540px] w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
         <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]" />
       </div>
-    </motion.div>
+    </div>
   );
 }
 
