@@ -228,7 +228,14 @@ userRoutes.post(
         lastName: data.lastName,
       });
 
-      setAuditContext(req, { resourceType: 'users', action: 'create' });
+      // Record what access was granted (role/status/practice placement follows below)
+      setAuditContext(req, {
+        resourceType: 'users',
+        action: 'create',
+        changes: {
+          after: { email: data.email, role: data.role, isActive: true },
+        },
+      });
 
       const user = await prisma.user.create({
         data: {
@@ -299,12 +306,26 @@ userRoutes.put(
         }
       }
 
-      setAuditContext(req, { resourceType: 'users', resourceId: req.params['id'], action: 'update' });
-
       // Sync changes to Cognito
       const existingUser = await prisma.user.findUnique({
         where: { id: req.params['id'] },
-        select: { email: true },
+        select: { email: true, firstName: true, lastName: true, phone: true, role: true },
+      });
+
+      // Audit with old → new values so privilege history is traceable
+      const changedKeys = (Object.keys(data) as (keyof typeof data)[]).filter(
+        (k) => data[k] !== undefined && existingUser && data[k] !== (existingUser as Record<string, unknown>)[k]
+      );
+      setAuditContext(req, {
+        resourceType: 'users',
+        resourceId: req.params['id'],
+        action: 'update',
+        changes: existingUser
+          ? {
+              before: Object.fromEntries(changedKeys.map((k) => [k, (existingUser as Record<string, unknown>)[k]])),
+              after: Object.fromEntries(changedKeys.map((k) => [k, data[k]])),
+            }
+          : undefined,
       });
       if (existingUser) {
         await updateCognitoUser(existingUser.email, {
@@ -356,12 +377,17 @@ userRoutes.put(
         }
       }
 
-      setAuditContext(req, { resourceType: 'users', resourceId: req.params['id'], action: 'update' });
-
       // Disable user in Cognito (prevents login)
       const targetUser = await prisma.user.findUnique({
         where: { id: req.params['id'] },
-        select: { email: true },
+        select: { email: true, isActive: true },
+      });
+
+      setAuditContext(req, {
+        resourceType: 'users',
+        resourceId: req.params['id'],
+        action: 'update',
+        changes: { before: { isActive: targetUser?.isActive ?? true }, after: { isActive: false } },
       });
       if (targetUser) {
         await disableCognitoUser(targetUser.email);
@@ -404,12 +430,17 @@ userRoutes.put(
         }
       }
 
-      setAuditContext(req, { resourceType: 'users', resourceId: req.params['id'], action: 'update' });
-
       // Re-enable user in Cognito
       const targetUser = await prisma.user.findUnique({
         where: { id: req.params['id'] },
-        select: { email: true },
+        select: { email: true, isActive: true },
+      });
+
+      setAuditContext(req, {
+        resourceType: 'users',
+        resourceId: req.params['id'],
+        action: 'update',
+        changes: { before: { isActive: targetUser?.isActive ?? false }, after: { isActive: true } },
       });
       if (targetUser) {
         await enableCognitoUser(targetUser.email);

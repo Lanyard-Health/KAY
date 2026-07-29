@@ -25,6 +25,8 @@ import {
   ShieldExclamationIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
+  ShieldCheckIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 import clsx from 'clsx';
@@ -98,6 +100,8 @@ const adminNavGroups: NavGroup[] = [
       { name: 'AI Agent', href: '/ai-agent', icon: SparklesIcon },
       { name: 'Enrollment Strategy', href: '/enrollment-strategy', icon: ChartBarSquareIcon },
       { name: 'Users', href: '/users', icon: UserGroupIcon },
+      { name: 'Access Review', href: '/access-review', icon: ShieldCheckIcon },
+      { name: 'Audit Log', href: '/audit-log', icon: DocumentTextIcon },
       { name: 'Pending Providers', href: '/pending-providers', icon: UserPlusIcon },
       { name: 'Customer Communications', href: '/admin/communications', icon: ChatBubbleLeftRightIcon },
       { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
@@ -120,6 +124,10 @@ const customerNavGroups: NavGroup[] = [
     items: [
       { name: 'Documents', href: '/documents', icon: DocumentDuplicateIcon },
       { name: 'Expirations', href: '/expirations', icon: ClockIcon },
+      // Access Review + Audit Log render for practice_admin only (filtered in
+      // SidebarContent) — credentialing_staff and providers have no access.
+      { name: 'Access Review', href: '/access-review', icon: ShieldCheckIcon },
+      { name: 'Audit Log', href: '/audit-log', icon: DocumentTextIcon },
       { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
     ],
   },
@@ -201,6 +209,11 @@ function SidebarContent({ pathname, role }: { pathname: string; role: string | u
     ...group,
     items: group.items
       .filter((item) => !(item.name === 'Tasks' && role === 'credentialing_staff'))
+      // Access Review + Audit Log: admin, lanyard_staff, practice_admin only —
+      // matches the backend authorize() contract on those routes.
+      .filter((item) =>
+        !(['Access Review', 'Audit Log'].includes(item.name) &&
+          role !== 'admin' && role !== 'lanyard_staff' && role !== 'practice_admin'))
       .map((item) => {
         if (item.name === 'OCR Review' && ocrReviewCount) return { ...item, badge: ocrReviewCount };
         if (item.name === 'Tasks' && taskCounts && (taskCounts.overdue > 0 || taskCounts.open > 0 || (taskCounts.pool ?? 0) > 0)) {

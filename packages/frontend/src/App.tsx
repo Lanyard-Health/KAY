@@ -33,6 +33,8 @@ const PracticesList = lazy(() => import('./features/practices/PracticesList'));
 const PracticeDetail = lazy(() => import('./features/practices/PracticeDetail'));
 const UsersList = lazy(() => import('./features/users/UsersList'));
 const UserDetail = lazy(() => import('./features/users/UserDetail'));
+const AccessReviewPage = lazy(() => import('./features/access-review/AccessReviewPage'));
+const AuditLogPage = lazy(() => import('./features/audit-log/AuditLogPage'));
 const PortalDashboard = lazy(() => import('./features/portal/PortalDashboard'));
 const PortalProfile = lazy(() => import('./features/portal/PortalProfile'));
 const PortalLicenses = lazy(() => import('./features/portal/PortalLicenses'));
@@ -137,6 +139,31 @@ function InternalOnlyRoute({ children }: { children: React.ReactNode }) {
 
   if (user?.role !== 'admin' && user?.role !== 'lanyard_staff') {
     return <RedirectWithToast to="/" message="You don't have access to Tasks" />;
+  }
+
+  return <>{children}</>;
+}
+
+// Governance pages (Access Review, Audit Log): admin + lanyard_staff see
+// everything; practice_admin sees their own practice (scoped server-side).
+// provider and credentialing_staff are rejected — mirrors the backend contract.
+function GovernanceRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== 'admin' && user?.role !== 'lanyard_staff' && user?.role !== 'practice_admin') {
+    return <RedirectWithToast to="/" message="You don't have permission to view that page" />;
   }
 
   return <>{children}</>;
@@ -276,6 +303,8 @@ export default function App() {
           <Route path="practices/:practiceId" element={<AdminOnlyRoute><PracticeDetail /></AdminOnlyRoute>} />
           <Route path="users" element={<AdminOnlyRoute><UsersList /></AdminOnlyRoute>} />
           <Route path="users/:userId" element={<AdminOnlyRoute><UserDetail /></AdminOnlyRoute>} />
+          <Route path="access-review" element={<GovernanceRoute><AccessReviewPage /></GovernanceRoute>} />
+          <Route path="audit-log" element={<GovernanceRoute><AuditLogPage /></GovernanceRoute>} />
           <Route path="pending-providers" element={<AdminOnlyRoute><PendingProviders /></AdminOnlyRoute>} />
           <Route path="onboarding-progress" element={<AdminOnlyRoute><PracticeOnboarding /></AdminOnlyRoute>} />
           <Route path="provider-onboarding" element={<AdminOnlyRoute><OnboardingProgress /></AdminOnlyRoute>} />
