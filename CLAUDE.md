@@ -322,10 +322,15 @@ npm run lint
 ## Do-Not-Touch List
 
 ### Login Page (`packages/frontend/src/features/auth/LoginPage.tsx`)
-- **NEVER remove** the green gradient background: `bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500`
-- **NEVER replace** the logo with text/SVG: `<img src="/logo.png" className="h-16 mx-auto brightness-0 invert" />`
-- Logo is the interlocking "S" curve symbol — NEVER substitute
-- This has been accidentally reverted multiple times — always preserve it
+- **Current protected design (Kay-approved 2026-07-29, warm-paper redesign):**
+  - Split panel: warm paper `#faf7f2` content panel left, dark green gradient brand panel right (hidden on mobile)
+  - Logo is `<img src="/logo-full.svg" className="h-[72px] w-auto" />` in its natural green — NEVER invert, shrink, or substitute it
+  - NO stats bar, testimonial, or quote — these were deliberately removed; do not re-add
+  - Footer links to https://lanyardhealth.com/terms and /privacy — keep them
+  - Segmented 6-digit CodeInput (light tone) on all code steps
+- Reference design lives at `/prototypes/login`; Poppins + warm neutrals are provisional pending brand identity work, but changes still require Kay's explicit approval
+- The previous design (full green gradient + inverted logo.png) is RETIRED as of this redesign — do not restore it
+- This page has been accidentally reverted multiple times in the past — always preserve the approved design
 
 ### Files Requiring Explicit Approval
 - `packages/backend/prisma/schema.prisma` — always needs migration
