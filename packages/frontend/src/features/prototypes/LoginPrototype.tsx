@@ -100,15 +100,22 @@ export default function LoginPrototype() {
         };
 
   return (
-    <motion.div
+    <div
       className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
       style={{ fontFamily: POPPINS }}
-      animate={{ opacity: leavingTo ? 0 : 1 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      onAnimationComplete={() => {
-        if (leavingTo) navigate(leavingTo);
-      }}
     >
+      {/* Leave wash: fades IN the destination pages' exact gradient before
+          navigating, so the near-white app backdrop is never exposed and the
+          cut to the identically-colored register pages is invisible */}
+      <motion.div
+        className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: leavingTo ? 1 : 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        onAnimationComplete={() => {
+          if (leavingTo) navigate(leavingTo);
+        }}
+      />
       {/* Left: content panel */}
       <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
         <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
@@ -262,7 +269,7 @@ export default function LoginPrototype() {
         <div className="absolute left-1/2 top-1/2 h-[540px] w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
         <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]" />
       </div>
-    </motion.div>
+    </div>
   );
 }
 
