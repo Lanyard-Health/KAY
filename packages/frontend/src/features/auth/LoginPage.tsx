@@ -85,8 +85,8 @@ export default function LoginPage() {
     void import('../practice/PracticeSignupPage');
   }, []);
 
-  // Fade IN the registration pages' exact gradient before navigating, so the
-  // near-white app backdrop is never exposed (reduced motion: navigate now)
+  // Fade IN the registration pages' paper backdrop before navigating, so no
+  // mismatched frame is exposed (reduced motion: navigate now)
   const leaveTo = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
     if (reduceMotion) {
@@ -669,10 +669,10 @@ export default function LoginPage() {
       className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
       style={{ fontFamily: POPPINS }}
     >
-      {/* Leave wash: fades IN the registration pages' exact gradient before
-          navigating, so the near-white app backdrop is never exposed */}
+      {/* Leave wash: fades IN the registration pages' paper backdrop before
+          navigating, so no mismatched frame is exposed */}
       <motion.div
-        className="pointer-events-none fixed inset-0 z-50 bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500"
+        className="pointer-events-none fixed inset-0 z-50 bg-[#faf7f2]"
         initial={{ opacity: 0 }}
         animate={{ opacity: leavingTo ? 1 : 0 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
