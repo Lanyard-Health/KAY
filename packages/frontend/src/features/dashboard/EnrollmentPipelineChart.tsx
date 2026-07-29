@@ -17,13 +17,13 @@ import EmptyState from '../../components/ui/EmptyState';
 import { downloadCsv } from '../../utils/downloadCsv';
 
 const STATUS_CONFIG = [
-  { key: 'not_started', label: 'Not Started', color: '#9CA3AF' },
+  { key: 'not_started', label: 'Not Started', color: '#a49d8f' },
   { key: 'in_progress', label: 'In Progress', color: '#3B82F6' },
   { key: 'submitted', label: 'Submitted', color: '#F59E0B' },
   { key: 'pending_review', label: 'Pending Review', color: '#8B5CF6' },
   { key: 'approved', label: 'Approved', color: '#22C55E' },
   { key: 'denied', label: 'Denied', color: '#EF4444' },
-  { key: 'terminated', label: 'Terminated', color: '#6B7280' },
+  { key: 'terminated', label: 'Terminated', color: '#8a8478' },
 ];
 
 const DATE_RANGES = [

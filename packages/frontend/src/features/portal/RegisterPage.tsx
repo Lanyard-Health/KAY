@@ -281,7 +281,7 @@ export default function RegisterPage() {
   };
 
   const inputClass = (field: string) =>
-    `mt-1 block w-full rounded-xl bg-white/[0.08] border text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 ${
+    `mt-1 block w-full rounded-xl bg-white/[0.08] border px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 ${
       // eslint-disable-next-line security/detect-object-injection
       errors[field]
         ? 'border-red-400/60 focus:border-red-400'
@@ -420,11 +420,11 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="middleName" className="block text-sm font-medium text-white/80">Middle Name</label>
-                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
+                <input type="text" name="middleName" id="middleName" value={formData.middleName} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
               </div>
               <div>
                 <label htmlFor="suffix" className="block text-sm font-medium text-white/80">Suffix</label>
-                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
+                <input type="text" name="suffix" id="suffix" value={formData.suffix} onChange={handleChange} placeholder="MD, DO, NP, etc." className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60" />
               </div>
             </div>
 
@@ -463,7 +463,7 @@ export default function RegisterPage() {
             {/* Provider Type */}
             <div>
               <label htmlFor="providerType" className="block text-sm font-medium text-white/80">Provider Type</label>
-              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60">
+              <select name="providerType" id="providerType" value={formData.providerType} onChange={handleChange} className="mt-1 block w-full rounded-xl bg-white/[0.08] border border-white/[0.15] px-4 py-3 text-white placeholder-white/40 shadow-sm sm:text-sm focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400/60">
                 {PROVIDER_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}

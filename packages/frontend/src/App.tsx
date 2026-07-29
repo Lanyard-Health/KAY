@@ -80,8 +80,8 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }
@@ -102,8 +102,8 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }
@@ -127,8 +127,8 @@ function InternalOnlyRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }
@@ -152,8 +152,8 @@ function GovernanceRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }
@@ -176,8 +176,8 @@ function PracticeAdminOnlyRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }
@@ -218,8 +218,8 @@ function ProviderRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f9fafb' }}>
-        <p style={{ color: '#4b5563', fontSize: '18px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#faf7f2' }}>
+        <p style={{ color: '#6b665c', fontSize: '18px' }}>Loading...</p>
       </div>
     );
   }

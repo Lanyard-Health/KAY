@@ -49,18 +49,6 @@ export default function LoginPrototype() {
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
 
-  // Page-scoped Poppins load so the prototype doesn't change the app's fonts
-  useEffect(() => {
-    const id = 'prototype-poppins-font';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap';
-    document.head.appendChild(link);
-  }, []);
-
   // Warm the lazy-loaded registration pages while the user reads this screen,
   // so Register here / Sign up your practice open without a blank flash.
   // Vite dedupes these with App.tsx's lazy() imports — same chunk either way.

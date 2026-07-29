@@ -26,16 +26,24 @@ export default {
           info: '#2563eb',
           neutral: '#6b7280',
         },
-        // Surface hierarchy
-        surface: {
-          0: '#ffffff',
-          1: '#f9fafb',
-          2: '#f3f4f6',
-          3: '#e5e7eb',
+        // Warm neutral ramp matching the login's paper palette (provisional
+        // pending brand identity work) — replaces Tailwind's cool grays app-wide.
+        gray: {
+          50:  '#faf7f2',
+          100: '#f3eee5',
+          200: '#e3ddd2',
+          300: '#cfc8ba',
+          400: '#a49d8f',
+          500: '#8a8478',
+          600: '#6b665c',
+          700: '#57534a',
+          800: '#3f3a33',
+          900: '#1f2721',
+          950: '#171b17',
         },
       },
       fontFamily: {
-        sans: ['Inter', ...defaultTheme.fontFamily.sans],
+        sans: ['Poppins', 'Inter', ...defaultTheme.fontFamily.sans],
       },
       boxShadow: {
         sm: '0 1px 2px 0 rgb(0 0 0 / 0.03)',
