@@ -24,13 +24,13 @@ interface StatusMeta {
 // Single source of truth — labels + hexes per DESIGN.md (dashboards). Never
 // render a raw enum; never use the legacy hexes (#F59E0B submitted, #22C55E approved).
 export const STATUS_META: Record<EnrollmentStatus, StatusMeta> = {
-  not_started:    { label: 'Not started',        dotHex: '#9CA3AF', chip: 'bg-gray-100 text-gray-800',     Glyph: null, hollow: true },
+  not_started:    { label: 'Not started',        dotHex: '#a49d8f', chip: 'bg-gray-100 text-gray-800',     Glyph: null, hollow: true },
   in_progress:    { label: 'In progress',        dotHex: '#3B82F6', chip: 'bg-yellow-100 text-yellow-800', Glyph: EllipsisHorizontalIcon },
   submitted:      { label: 'Submitted to payer', dotHex: '#0E7490', chip: 'bg-cyan-50 text-cyan-800',      Glyph: ArrowUpIcon },
   pending_review: { label: 'Payer reviewing',    dotHex: '#8B5CF6', chip: 'bg-purple-100 text-purple-800', Glyph: ClockIcon },
   approved:       { label: 'Approved',           dotHex: '#15803D', chip: 'bg-green-100 text-green-800',   Glyph: CheckIcon },
   denied:         { label: 'Denied',             dotHex: '#EF4444', chip: 'bg-red-100 text-red-800',       Glyph: XMarkIcon },
-  terminated:     { label: 'No longer active',   dotHex: '#6B7280', chip: 'bg-gray-100 text-gray-800',     Glyph: null },
+  terminated:     { label: 'No longer active',   dotHex: '#8a8478', chip: 'bg-gray-100 text-gray-800',     Glyph: null },
 };
 
 // Client-facing surfaces say "Running long" (two-vocabulary rule) — never "Delayed" here.
