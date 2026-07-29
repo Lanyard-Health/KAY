@@ -19,6 +19,7 @@
  * extract a shared shell only if a third prototype appears.
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import CodeInput from '../../components/CodeInput';
 
@@ -64,13 +65,7 @@ export default function LoginPrototype() {
       {/* Left: content panel */}
       <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
         <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
-          {/* Wordmark placeholder — real logo lands with the brand work */}
-          <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#0A3D2E] text-sm font-semibold text-white">
-              L
-            </div>
-            <span className="text-sm font-semibold tracking-tight">lanyard</span>
-          </div>
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-9 w-auto" />
           <div className="flex items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm">
             You are signing into
             <span className="font-semibold text-[#1f2721]">Lanyard</span>
@@ -211,12 +206,26 @@ function SignInScreen({ onSubmit }: { onSubmit: () => void }) {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-[#8a8478]">
-        New to Lanyard?{' '}
-        <a href="#" className="font-medium text-[#1a6b4e] underline-offset-2 hover:underline">
-          Set up your practice
-        </a>
-      </p>
+      <div className="mt-6 space-y-1.5 text-center text-xs text-[#8a8478]">
+        <p>
+          New provider?{' '}
+          <Link
+            to="/register"
+            className="font-medium text-[#1a6b4e] underline-offset-2 hover:underline"
+          >
+            Register here
+          </Link>
+        </p>
+        <p>
+          Manage a practice?{' '}
+          <Link
+            to="/practice-signup"
+            className="font-medium text-[#1a6b4e] underline-offset-2 hover:underline"
+          >
+            Sign up your practice
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
