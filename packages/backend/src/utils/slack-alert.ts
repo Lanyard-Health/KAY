@@ -1,3 +1,4 @@
+import os from 'os';
 import { logger } from './logger.js';
 import { scrubMessage, redactValue } from './log-sanitizer.js';
 import { getRequestId } from './request-context.js';
@@ -78,7 +79,7 @@ export async function sendSlackAlert(opts: SlackAlertOptions): Promise<boolean> 
 
     const env = process.env['NODE_ENV'] || 'development';
     const requestId = getRequestId();
-    const fields: string[] = [`*env:* ${env}`];
+    const fields: string[] = [`*env:* ${env}`, `*host:* ${os.hostname()}`];
     if (opts.source) fields.push(`*source:* ${opts.source}`);
     if (requestId) fields.push(`*request:* ${requestId}`);
     if (err.name) fields.push(`*error:* ${err.name}`);

@@ -38,6 +38,7 @@ import { integrationsRoutes } from './routes/integrations.routes.js';
 import { payerRoutes } from './routes/payer.routes.js';
 import { expirationRoutes } from './routes/expiration.routes.js';
 import { auditRoutes } from './routes/audit.routes.js';
+import { accessReviewRoutes } from './modules/access-review/accessReview.routes.js';
 import practiceLocationRoutes from './routes/practiceLocation.routes.js';
 import practicePayerRoutes from './routes/practicePayer.routes.js';
 import formFillRoutes from './routes/form-fill.routes.js';
@@ -148,7 +149,8 @@ app.use(cors({
     } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       // In dev, allow any localhost port (Vite may pick a different port if 5190 is taken)
       callback(null, true);
-    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/[^.]+\.(replit\.dev|repl\.co)(:\d+)?$/.test(origin)) {
+    } else if (process.env['NODE_ENV'] !== 'production' && /^https?:\/\/([A-Za-z0-9-]+\.)+(replit\.dev|repl\.co)(:\d+)?$/.test(origin)) {
+      // Preview domains have multiple labels (e.g. xyz-uuid.picard.replit.dev)
       // In dev, allow Replit preview domains
       callback(null, true);
     } else {
@@ -283,6 +285,7 @@ app.use('/api/v1/integrations', integrationsRoutes);
 app.use('/api/v1/payers', payerRoutes);
 app.use('/api/v1/expirations', expirationRoutes);
 app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/access-review', accessReviewRoutes);
 app.use('/api/v1/practice-locations', practiceLocationRoutes);
 app.use('/api/v1/practice-payers', practicePayerRoutes);
 app.use('/api/v1/practices/:practiceId/documents', practiceDocumentRoutes);
