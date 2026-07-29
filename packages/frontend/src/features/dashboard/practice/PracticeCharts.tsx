@@ -1,6 +1,6 @@
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, LabelList, ResponsiveContainer } from 'recharts';
 
-const PAYER_RAMP = ['#0A3D2E', '#2d8b6a', '#7ccaab', '#b0e0cb', '#E5E7EB']; // brand ramp + neutral for "Other"
+const PAYER_RAMP = ['#0A3D2E', '#2d8b6a', '#7ccaab', '#b0e0cb', '#e3ddd2']; // brand ramp + neutral for "Other"
 const prefersReducedMotion =
   typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
@@ -72,12 +72,12 @@ export default function PracticeCharts({ approvedByPayer, approvalsByMonth }: Pr
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthData} margin={{ top: 20, right: 8, left: 8, bottom: 0 }}>
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#8a8478' }} />
               <Bar dataKey="count" radius={[6, 6, 0, 0]} isAnimationActive={!prefersReducedMotion}>
                 {monthData.map((m, i) => (
                   <Cell key={m.month} fill={i === currentIdx ? '#1A6B4E' : '#d6f0e4'} />
                 ))}
-                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#6B7280', fontVariantNumeric: 'tabular-nums' }} />
+                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#8a8478', fontVariantNumeric: 'tabular-nums' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

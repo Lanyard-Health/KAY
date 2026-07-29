@@ -31,18 +31,6 @@ export default function VerifyEmailPrototype() {
   const [variant, setVariant] = useState<Variant>('code');
   const [verified, setVerified] = useState(false);
 
-  // Page-scoped Poppins load so the prototype doesn't change the app's fonts
-  useEffect(() => {
-    const id = 'prototype-poppins-font';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap';
-    document.head.appendChild(link);
-  }, []);
-
   const switchTo = (v: Variant) => {
     setVariant(v);
     setVerified(false);

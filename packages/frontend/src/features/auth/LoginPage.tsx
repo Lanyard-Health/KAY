@@ -78,18 +78,6 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Page-scoped Poppins load (provisional pending brand work)
-  useEffect(() => {
-    const id = 'login-poppins-font';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap';
-    document.head.appendChild(link);
-  }, []);
-
   // Warm the lazy-loaded registration pages so their links open without a
   // blank flash. Vite dedupes these with App.tsx's lazy() imports.
   useEffect(() => {
