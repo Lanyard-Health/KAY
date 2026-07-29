@@ -65,7 +65,7 @@ export default function LoginPrototype() {
       {/* Left: content panel */}
       <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
         <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
-          <img src="/logo-full.svg" alt="Lanyard Health" className="h-9 w-auto" />
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] w-auto" />
           <div className="flex items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm">
             You are signing into
             <span className="font-semibold text-[#1f2721]">Lanyard</span>
@@ -107,7 +107,10 @@ export default function LoginPrototype() {
             {verified ? (
               <SignedInState onReset={() => setVerified(false)} />
             ) : screen === 'signin' ? (
-              <SignInScreen onSubmit={() => setScreen('code')} />
+              <SignInScreen
+                onSubmit={() => setScreen('code')}
+                onForgotPassword={() => setScreen('reset')}
+              />
             ) : screen === 'code' ? (
               <MfaCodeScreen onVerified={() => setVerified(true)} />
             ) : (
@@ -157,7 +160,13 @@ export default function LoginPrototype() {
 
 /* ------------------------------ sign-in screen ---------------------------- */
 
-function SignInScreen({ onSubmit }: { onSubmit: () => void }) {
+function SignInScreen({
+  onSubmit,
+  onForgotPassword,
+}: {
+  onSubmit: () => void;
+  onForgotPassword: () => void;
+}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -196,6 +205,7 @@ function SignInScreen({ onSubmit }: { onSubmit: () => void }) {
         <div className="flex justify-end">
           <button
             type="button"
+            onClick={onForgotPassword}
             className="text-xs font-medium text-[#1a6b4e] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a]"
           >
             Forgot password?

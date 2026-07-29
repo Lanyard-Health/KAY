@@ -56,7 +56,7 @@ export default function VerifyEmailPrototype() {
       {/* Left: content panel */}
       <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
         <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
-          <img src="/logo-full.svg" alt="Lanyard Health" className="h-9 w-auto" />
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] w-auto" />
           <div className="flex items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm">
             You are signing into
             <span className="font-semibold text-[#1f2721]">Lanyard</span>
