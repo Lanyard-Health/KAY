@@ -189,23 +189,23 @@ export default function ClinicalProfileWizard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4">
+    <div className="min-h-screen bg-[#faf7f2] py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <img
-            src="/logo.png"
+            src="/logo-full.svg"
             alt="Lanyard Health"
-            className="h-16 mx-auto brightness-0 invert"
+            className="h-[72px] mx-auto"
           />
-          <h2 className="mt-6 text-2xl font-bold text-white">
+          <h2 className="mt-6 text-2xl font-semibold text-[#1f2721]">
             Set up your clinical profile
           </h2>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 text-sm text-[#6b665c]">
             Tell us about your practice so we can customize your experience
           </p>
         </div>
 
-        <div className="bg-white/95 backdrop-blur rounded-2xl p-8 shadow-xl">
+        <div className="bg-white border border-[#e3ddd2] rounded-2xl p-8 shadow-sm">
           {/* Progress indicator */}
           {!isReview && (
             <>
@@ -281,7 +281,7 @@ export default function ClinicalProfileWizard() {
                     type="button"
                     onClick={() => setCurrentStep((s) => s + 1)}
                     disabled={isNextDisabled}
-                    className="px-6 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="px-6 py-2.5 bg-[#0A3D2E] text-white text-sm font-medium rounded-full hover:bg-[#082f23] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next
                   </button>

@@ -97,19 +97,19 @@ export default function AcceptInvitationPage() {
   };
 
   const inputClassName =
-    'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm';
+    'appearance-none relative block w-full px-4 py-3 rounded-xl border border-[#e3ddd2] bg-white text-[#1f2721] placeholder-[#a49d8f] shadow-sm outline-none transition focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15 sm:text-sm';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-[#faf7f2] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <img src="/logo.png" alt="Lanyard Health" className="h-16 mx-auto brightness-0 invert" />
-          <h2 className="mt-6 text-center text-2xl font-bold text-white">
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] mx-auto" />
+          <h2 className="mt-6 text-center text-2xl font-semibold text-[#1f2721]">
             {state.kind === 'pending' ? `Join ${state.practiceName}` : 'Accept your invitation'}
           </h2>
         </div>
 
-        <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl">
+        <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm">
           {state.kind === 'loading' && (
             <p className="text-center text-sm text-gray-500 py-6">Checking your invitation…</p>
           )}
@@ -153,16 +153,16 @@ export default function AcceptInvitationPage() {
                 <input id="confirmPassword" type="password" required minLength={12} className={inputClassName} placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </div>
 
-              <button type="submit" disabled={submitting} className="w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition-colors">
+              <button type="submit" disabled={submitting} className="h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]">
                 {submitting ? 'Setting up your account…' : 'Create account & join'}
               </button>
             </form>
           )}
         </div>
 
-        <p className="text-center text-sm text-white/70">
+        <p className="text-center text-sm text-[#6b665c]">
           Already have an account?{' '}
-          <Link to="/login" className="text-white hover:text-white/90 font-medium">Sign in</Link>
+          <Link to="/login" className="text-[#0A3D2E] hover:text-[#1a6b4e] font-semibold">Sign in</Link>
         </p>
       </div>
     </div>

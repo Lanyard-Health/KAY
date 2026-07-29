@@ -828,7 +828,7 @@ export default function ProviderDetail() {
     <div>
       {/* Hero Header */}
       <div className="card overflow-hidden mb-6">
-        <div className="h-20 bg-gradient-to-r from-primary-800 via-primary-600 to-emerald-500" />
+        <div className="h-20 bg-gradient-to-r from-[#040f0b] via-[#0A3D2E] to-[#1a6b4e]" />
         <div className="px-6 pb-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between -mt-8">
             <div className="flex items-start gap-4">
