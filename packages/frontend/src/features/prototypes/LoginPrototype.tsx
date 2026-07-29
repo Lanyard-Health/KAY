@@ -52,6 +52,14 @@ export default function LoginPrototype() {
     document.head.appendChild(link);
   }, []);
 
+  // Warm the lazy-loaded registration pages while the user reads this screen,
+  // so Register here / Sign up your practice open without a blank flash.
+  // Vite dedupes these with App.tsx's lazy() imports — same chunk either way.
+  useEffect(() => {
+    void import('../portal/RegisterPage');
+    void import('../practice/PracticeSignupPage');
+  }, []);
+
   const switchTo = (s: Screen) => {
     setScreen(s);
     setVerified(false);
