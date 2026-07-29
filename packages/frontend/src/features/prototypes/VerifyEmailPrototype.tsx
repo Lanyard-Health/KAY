@@ -106,12 +106,21 @@ export default function VerifyEmailPrototype() {
 
         <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#8a8478]">
           By continuing, you agree to Lanyard Health's{' '}
-          {/* placeholder links — swap for real ToS/Privacy URLs */}
-          <a href="#" className="font-medium text-[#1f2721] underline underline-offset-2">
+          <a
+            href="https://lanyardhealth.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#1f2721] underline underline-offset-2"
+          >
             Terms of Service
           </a>{' '}
           and{' '}
-          <a href="#" className="font-medium text-[#1f2721] underline underline-offset-2">
+          <a
+            href="https://lanyardhealth.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#1f2721] underline underline-offset-2"
+          >
             Privacy Policy
           </a>
           .
