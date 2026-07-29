@@ -4,7 +4,20 @@ import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
 import { mapCognitoError } from '../../utils/cognito-errors';
 import CodeInput from '../../components/CodeInput';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
+
+// Approved warm-paper login design (Kay, 2026-07-29; prototype at /prototypes/login).
+// Poppins + warm neutrals are PROVISIONAL pending the brand identity work.
+const POPPINS =
+  "'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const FIELD_CLASSES =
+  'h-12 w-full rounded-xl border border-[#e3ddd2] bg-white px-4 text-sm text-[#1f2721] shadow-sm outline-none transition placeholder:text-[#a49d8f] focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15';
+const LABEL_CLASSES = 'block text-sm font-medium text-[#57534a] mb-1.5';
+const PRIMARY_BUTTON_CLASSES =
+  'h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]';
+const GHOST_BUTTON_CLASSES =
+  'w-full text-sm text-[#6b665c] transition hover:text-[#1f2721] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] rounded';
 
 type AuthStep =
   | 'login'
@@ -30,7 +43,8 @@ export default function LoginPage() {
   const [qrUri, setQrUri] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [secretCode, setSecretCode] = useState('');
-  const [statCount, setStatCount] = useState(0);
+  const [leavingTo, setLeavingTo] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const navigate = useNavigate();
   const {
@@ -64,20 +78,23 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Animated count-up for the "10x" stat
+  // Warm the lazy-loaded registration pages so their links open without a
+  // blank flash. Vite dedupes these with App.tsx's lazy() imports.
   useEffect(() => {
-    const end = 10;
-    const duration = 1500;
-    const startTime = performance.now();
-    const step = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      setStatCount(Math.round(eased * end));
-      if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+    void import('../portal/RegisterPage');
+    void import('../practice/PracticeSignupPage');
   }, []);
+
+  // Fade IN the registration pages' paper backdrop before navigating, so no
+  // mismatched frame is exposed (reduced motion: navigate now)
+  const leaveTo = (e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    if (reduceMotion) {
+      navigate(path);
+      return;
+    }
+    setLeavingTo(path);
+  };
 
   // React to challenge changes from the auth store
   useEffect(() => {
@@ -316,13 +333,13 @@ export default function LoginPage() {
       case 'new-password':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Set New Password</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Set a new password</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               Your temporary password has expired. Please set a new password.
             </p>
-            <form onSubmit={handleNewPassword} className="space-y-4">
+            <form onSubmit={handleNewPassword} className="mt-8 space-y-4">
               <div>
-                <label htmlFor="new-password" className="block text-sm font-medium text-white/80 mb-1">
+                <label htmlFor="new-password" className={LABEL_CLASSES}>
                   New Password
                 </label>
                 <input
@@ -330,14 +347,14 @@ export default function LoginPage() {
                   type="password"
                   required
                   minLength={12}
-                  className="appearance-none relative block w-full px-3 py-2 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 sm:text-sm"
+                  className={FIELD_CLASSES}
                   placeholder="Minimum 12 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="confirm-password" className="block text-sm font-medium text-white/80 mb-1">
+                <label htmlFor="confirm-password" className={LABEL_CLASSES}>
                   Confirm Password
                 </label>
                 <input
@@ -345,20 +362,16 @@ export default function LoginPage() {
                   type="password"
                   required
                   minLength={12}
-                  className="appearance-none relative block w-full px-3 py-2 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 sm:text-sm"
+                  className={FIELD_CLASSES}
                   placeholder="Re-enter your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
-              <p className="text-xs text-white/50">
+              <p className="text-xs text-[#8a8478]">
                 Must contain uppercase, lowercase, number, and symbol.
               </p>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-              >
+              <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON_CLASSES}>
                 {isLoading ? 'Setting password...' : 'Set Password'}
               </button>
             </form>
@@ -368,20 +381,20 @@ export default function LoginPage() {
       case 'mfa-select':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Choose verification method</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Choose verification method</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               How would you like to receive your verification code?
             </p>
-            <div className="space-y-3">
+            <div className="mt-8 space-y-3">
               {availableMfaTypes.includes('TOTP') && (
                 <button
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleMfaSelectClick('TOTP')}
-                  className="w-full text-left px-4 py-3 border border-white/[0.15] bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-50"
+                  className="w-full rounded-xl border border-[#e3ddd2] bg-white px-4 py-3 text-left shadow-sm transition hover:bg-[#f3eee5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a]"
                 >
-                  <div className="font-medium">Authenticator app</div>
-                  <div className="text-xs text-white/60 mt-0.5">
+                  <div className="text-sm font-medium text-[#1f2721]">Authenticator app</div>
+                  <div className="mt-0.5 text-xs text-[#6b665c]">
                     Use a 6-digit code from Google Authenticator, 1Password, Authy, etc.
                   </div>
                 </button>
@@ -391,16 +404,16 @@ export default function LoginPage() {
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleMfaSelectClick('EMAIL')}
-                  className="w-full text-left px-4 py-3 border border-white/[0.15] bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/30 disabled:opacity-50"
+                  className="w-full rounded-xl border border-[#e3ddd2] bg-white px-4 py-3 text-left shadow-sm transition hover:bg-[#f3eee5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a]"
                 >
-                  <div className="font-medium">Email</div>
-                  <div className="text-xs text-white/60 mt-0.5">
+                  <div className="text-sm font-medium text-[#1f2721]">Email</div>
+                  <div className="mt-0.5 text-xs text-[#6b665c]">
                     Receive a 6-digit code at your registered email address.
                   </div>
                 </button>
               )}
               {availableMfaTypes.length === 0 && (
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-[#6b665c]">
                   No verification methods are available. Contact support.
                 </p>
               )}
@@ -411,20 +424,20 @@ export default function LoginPage() {
       case 'mfa-email':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Check your email</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Check your email</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               We sent a 6-digit code to your registered email. Enter it below.
             </p>
-            <form onSubmit={handleMfaEmailSubmit} className="space-y-4">
-              <CodeInput value={mfaCode} onChange={setMfaCode} autoFocus />
+            <form onSubmit={handleMfaEmailSubmit} className="mt-8 space-y-4">
+              <CodeInput tone="light" value={mfaCode} onChange={setMfaCode} autoFocus />
               <button
                 type="submit"
                 disabled={isLoading || mfaCode.length !== 6}
-                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                className={PRIMARY_BUTTON_CLASSES}
               >
                 {isLoading ? 'Verifying...' : 'Verify'}
               </button>
-              <p className="text-xs text-white/50 text-center">
+              <p className="text-center text-xs text-[#8a8478]">
                 Code didn't arrive? Check spam, then try logging in again.
               </p>
             </form>
@@ -434,16 +447,16 @@ export default function LoginPage() {
       case 'mfa-totp':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Verification Code</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Verification code</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               Enter the 6-digit code from your authenticator app.
             </p>
-            <form onSubmit={handleMfaSubmit} className="space-y-4">
-              <CodeInput value={mfaCode} onChange={setMfaCode} autoFocus />
+            <form onSubmit={handleMfaSubmit} className="mt-8 space-y-4">
+              <CodeInput tone="light" value={mfaCode} onChange={setMfaCode} autoFocus />
               <button
                 type="submit"
                 disabled={isLoading || mfaCode.length !== 6}
-                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                className={PRIMARY_BUTTON_CLASSES}
               >
                 {isLoading ? 'Verifying...' : 'Verify'}
               </button>
@@ -454,41 +467,41 @@ export default function LoginPage() {
       case 'mfa-setup':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Set Up Authenticator</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Set up authenticator</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               Scan this QR code with Google Authenticator, Authy, or a similar app.
             </p>
             {qrUri ? (
-              <div className="space-y-4">
-                <div className="flex justify-center p-4 bg-white rounded-lg border">
+              <div className="mt-8 space-y-4">
+                <div className="flex justify-center rounded-xl border border-[#e3ddd2] bg-white p-4 shadow-sm">
                   {qrDataUrl ? (
                     <img src={qrDataUrl} alt="MFA QR Code" className="w-48 h-48" />
                   ) : (
-                    <div className="w-48 h-48 flex items-center justify-center text-white/50 text-sm">
+                    <div className="flex h-48 w-48 items-center justify-center text-sm text-[#a49d8f]">
                       Generating QR code...
                     </div>
                   )}
                 </div>
                 <details className="text-sm">
-                  <summary className="text-white/50 cursor-pointer hover:text-white/70">
+                  <summary className="cursor-pointer text-[#6b665c] hover:text-[#1f2721]">
                     Can't scan? Enter code manually
                   </summary>
-                  <code className="block mt-2 p-2 bg-white/[0.08] rounded text-xs break-all text-white/80">
+                  <code className="mt-2 block break-all rounded-lg border border-[#e3ddd2] bg-white p-2 text-xs text-[#1f2721]">
                     {secretCode}
                   </code>
                 </details>
                 <form onSubmit={handleMfaSetupSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-white/80 mb-1">
+                    <label className={LABEL_CLASSES}>
                       Enter the 6-digit code from your app
                     </label>
                     {/* No autoFocus: the user is mid-QR-scan when this renders */}
-                    <CodeInput value={mfaCode} onChange={setMfaCode} />
+                    <CodeInput tone="light" value={mfaCode} onChange={setMfaCode} />
                   </div>
                   <button
                     type="submit"
                     disabled={isLoading || mfaCode.length !== 6}
-                    className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                    className={PRIMARY_BUTTON_CLASSES}
                   >
                     {isLoading ? 'Verifying...' : 'Verify & Complete Setup'}
                   </button>
@@ -496,7 +509,7 @@ export default function LoginPage() {
               </div>
             ) : (
               <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-emerald-400" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e3ddd2] border-t-[#2d8b6a]" />
               </div>
             )}
           </div>
@@ -505,30 +518,26 @@ export default function LoginPage() {
       case 'forgot-password':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Reset Password</h3>
-            <p className="text-sm text-white/60 mb-4">
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Reset your password</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
               Enter your email and we'll send you a verification code.
             </p>
-            <form onSubmit={handleForgotPassword} className="space-y-4">
+            <form onSubmit={handleForgotPassword} className="mt-8 space-y-4">
               <input
                 type="email"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 sm:text-sm"
+                className={FIELD_CLASSES}
                 placeholder="Email address"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-              >
+              <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON_CLASSES}>
                 {isLoading ? 'Sending...' : 'Send Reset Code'}
               </button>
               <button
                 type="button"
                 onClick={() => setAuthStep('login')}
-                className="w-full text-sm text-white/50 hover:text-white/80"
+                className={GHOST_BUTTON_CLASSES}
               >
                 Back to sign in
               </button>
@@ -539,17 +548,17 @@ export default function LoginPage() {
       case 'confirm-reset':
         return (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Enter Reset Code</h3>
-            <p className="text-sm text-white/60 mb-4">
-              Check your email for a verification code.
+            <h3 className="text-center text-2xl font-semibold text-[#171b17]">Enter reset code</h3>
+            <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
+              Check your email for a verification code, then pick a new password.
             </p>
-            <form onSubmit={handleConfirmReset} className="space-y-4">
-              <CodeInput value={resetCode} onChange={setResetCode} />
+            <form onSubmit={handleConfirmReset} className="mt-8 space-y-4">
+              <CodeInput tone="light" value={resetCode} onChange={setResetCode} />
               <input
                 type="password"
                 required
                 minLength={12}
-                className="appearance-none relative block w-full px-3 py-2 border border-white/[0.15] bg-white/[0.08] placeholder-white/40 text-white rounded-xl focus:outline-none focus:ring-emerald-400/30 focus:border-emerald-400/50 sm:text-sm"
+                className={FIELD_CLASSES}
                 placeholder="New password (min 12 characters)"
                 value={resetNewPassword}
                 onChange={(e) => setResetNewPassword(e.target.value)}
@@ -557,14 +566,14 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading || resetCode.length !== 6}
-                className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                className={PRIMARY_BUTTON_CLASSES}
               >
                 {isLoading ? 'Resetting...' : 'Reset Password'}
               </button>
               <button
                 type="button"
                 onClick={() => setAuthStep('login')}
-                className="w-full text-sm text-white/50 hover:text-white/80"
+                className={GHOST_BUTTON_CLASSES}
               >
                 Back to sign in
               </button>
@@ -574,9 +583,9 @@ export default function LoginPage() {
 
       default: // 'login'
         return (
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-1.5">
+              <label htmlFor="email" className={LABEL_CLASSES}>
                 Email
               </label>
               <input
@@ -585,14 +594,14 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none block w-full px-4 py-3 bg-white/[0.08] border border-white/[0.15] text-white rounded-xl placeholder-white/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400/50 focus:bg-white/[0.12] hover:border-white/25 sm:text-sm"
+                className={FIELD_CLASSES}
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-1.5">
+              <label htmlFor="password" className={LABEL_CLASSES}>
                 Password
               </label>
               <input
@@ -601,7 +610,7 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none block w-full px-4 py-3 bg-white/[0.08] border border-white/[0.15] text-white rounded-xl placeholder-white/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400/50 focus:bg-white/[0.12] hover:border-white/25 sm:text-sm"
+                className={FIELD_CLASSES}
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -612,17 +621,13 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setAuthStep('forgot-password')}
-                className="text-sm text-white/50 hover:text-white/80 transition-colors duration-200"
+                className="text-xs font-medium text-[#1a6b4e] underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a]"
               >
                 Forgot your password?
               </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="login-btn-press w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-primary-700 hover:bg-primary-800 hover:shadow-lg hover:shadow-primary-700/25 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:hover:transform-none"
-            >
+            <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON_CLASSES}>
               {isLoading ? (
                 <span className="flex items-center">
                   <svg
@@ -656,219 +661,181 @@ export default function LoginPage() {
     }
   };
 
-  {/* IMPORTANT: Do NOT remove the green gradient background, logo, or white text styling.
-      See PR #41. The gradient (from-primary-800 via-primary-600 to-emerald-500) and
-      brightness-0 invert logo are intentional brand design. — now on left panel. */}
+  // Approved warm-paper redesign (Kay, 2026-07-29; reference at /prototypes/login).
+  // Protected design: logo-full.svg in natural green, warm paper split panel,
+  // no stats bar / testimonial / quote. See CLAUDE.md Do-Not-Touch list.
   return (
-    <>
-      <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeSlideRight {
-          from { opacity: 0; transform: translateX(-30px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(14px, -18px) scale(1.06); }
-          66% { transform: translate(-10px, 10px) scale(0.96); }
-        }
-        @keyframes gradientShift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        @keyframes subtlePulse {
-          0%, 100% { opacity: 0.07; }
-          50% { opacity: 0.12; }
-        }
-        .login-fade-up { animation: fadeSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
-        .login-fade-up-d1 { animation: fadeSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
-        .login-fade-up-d2 { animation: fadeSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
-        .login-fade-up-d3 { animation: fadeSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
-        .login-fade-left { animation: fadeSlideRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
-        .login-fade-left-d1 { animation: fadeSlideRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
-        .login-fade-left-d2 { animation: fadeSlideRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both; }
-        .login-fade-left-d3 { animation: fadeSlideRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both; }
-        .login-float { animation: float 22s ease-in-out infinite; }
-        .login-float-slow { animation: float 30s ease-in-out infinite reverse; }
-        .login-float-mid { animation: float 26s ease-in-out 3s infinite; }
-        .login-pulse { animation: subtlePulse 8s ease-in-out infinite; }
-        .login-gradient-bg {
-          background:
-            radial-gradient(ellipse 80% 60% at 10% 90%, rgba(16, 185, 129, 0.4) 0%, transparent 60%),
-            radial-gradient(ellipse 60% 80% at 80% 10%, rgba(5, 46, 22, 0.5) 0%, transparent 50%),
-            radial-gradient(ellipse 50% 50% at 50% 50%, rgba(10, 61, 46, 0.3) 0%, transparent 70%),
-            linear-gradient(135deg, #052e16 0%, #0A3D2E 25%, #0f766e 55%, #10b981 85%, #34d399 100%);
-          background-size: 200% 200%, 200% 200%, 100% 100%, 100% 100%;
-          animation: gradientShift 16s ease-in-out infinite;
-        }
-        .login-btn-press { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-        .login-btn-press:hover { transform: translateY(-1px); }
-        .login-btn-press:active { transform: translateY(1px) scale(0.98); }
-      `}</style>
-      <div className="min-h-screen flex login-gradient-bg relative p-4 sm:p-6 lg:p-0">
-        <div className="w-full flex rounded-2xl lg:rounded-none overflow-hidden">
-          {/* Left Panel — Brand */}
-          <div className="hidden lg:flex lg:w-1/2 min-h-screen relative flex-col justify-between p-12 overflow-hidden">
-            {/* Decorative floating orbs */}
-            <div className="absolute top-[15%] -right-20 w-72 h-72 rounded-full bg-white/[0.07] blur-3xl login-float" />
-            <div className="absolute bottom-[20%] left-[15%] w-56 h-56 rounded-full bg-emerald-300/[0.08] blur-2xl login-float-slow" />
-            <div className="absolute top-[55%] right-[25%] w-40 h-40 rounded-full bg-white/[0.05] blur-2xl login-float-mid" />
-            <div className="absolute top-[10%] left-[40%] w-24 h-24 rounded-full bg-emerald-200/[0.06] blur-xl login-float-slow" />
+    <div
+      className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
+      style={{ fontFamily: POPPINS }}
+    >
+      {/* Leave wash: fades IN the registration pages' paper backdrop before
+          navigating, so no mismatched frame is exposed */}
+      <motion.div
+        className="pointer-events-none fixed inset-0 z-50 bg-[#faf7f2]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: leavingTo ? 1 : 0 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        onAnimationComplete={() => {
+          if (leavingTo) navigate(leavingTo);
+        }}
+      />
 
-            {/* Subtle grid texture overlay */}
-            <div
-              className="absolute inset-0 login-pulse"
-              style={{
-                backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)',
-                backgroundSize: '32px 32px',
-              }}
-            />
+      {/* Left: content panel */}
+      <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
+        <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] w-auto" />
+          <div className="hidden items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm sm:flex">
+            You are signing into
+            <span className="font-semibold text-[#1f2721]">Lanyard</span>
+          </div>
+        </header>
 
-            {/* Logo */}
-            <img src="/logo-full.svg" alt="Lanyard Health" className="h-20 brightness-0 invert self-start relative z-10 login-fade-left" />
-
-            {/* Middle — Proof bar */}
-            <div className="relative z-10 login-fade-left-d1">
-              <div className="bg-white/[0.08] backdrop-blur-md border border-white/[0.15] rounded-2xl p-6">
-                <div className="grid grid-cols-3 divide-x divide-white/20">
-                  <div className="text-center px-4">
-                    <p className="text-3xl font-bold text-white tracking-tight">{statCount}x</p>
-                    <p className="text-white/60 text-xs mt-1">Faster turnaround</p>
-                  </div>
-                  <div className="text-center px-4">
-                    <p className="text-3xl font-bold text-white tracking-tight">200+</p>
-                    <p className="text-white/60 text-xs mt-1">Practices onboarded</p>
-                  </div>
-                  <div className="text-center px-4">
-                    <p className="text-3xl font-bold text-white tracking-tight">99.9%</p>
-                    <p className="text-white/60 text-xs mt-1">Uptime</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom — Tagline + Testimonial */}
-            <div className="relative z-10 space-y-8">
-              <div className="login-fade-left-d2">
-                <p className="text-4xl font-bold text-white leading-tight tracking-tight">
-                  Streamlining Credentialing,<br />Empowering Providers.
+        <main className="flex flex-1 items-center justify-center overflow-x-hidden px-6 py-10">
+          <div className="w-full max-w-sm">
+            {authStep === 'login' && (
+              <div className="mb-8 text-center">
+                <h2 className="text-2xl font-semibold text-[#171b17]">Welcome back</h2>
+                <p className="mt-2 text-sm text-[#6b665c]">
+                  Sign in to pick up where you left off
                 </p>
               </div>
+            )}
 
-              {/* Social proof */}
-              <div className="login-fade-left-d3">
-                <div className="border-t border-white/15 pt-6">
-                  <blockquote className="text-white/80 text-sm leading-relaxed italic">
-                    &ldquo;Lanyard Health cut our credentialing time from weeks to days. It&rsquo;s the platform we wish we had years ago.&rdquo;
-                  </blockquote>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-semibold">
-                      DR
-                    </div>
-                    <div>
-                      <p className="text-white/90 text-sm font-medium">Dr. Rachel Simmons</p>
-                      <p className="text-white/50 text-xs">Practice Director, BrightPath Behavioral</p>
-                    </div>
-                  </div>
+            {/* Development Mode Login */}
+            {isDevMode && authStep === 'login' && (
+              <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+                <div className="flex items-center mb-3">
+                  <span className="bg-yellow-200 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                    DEV MODE
+                  </span>
+                </div>
+                <p className="text-sm text-yellow-700 mb-3">
+                  Development authentication bypass is enabled. Click below to login as an admin or provider user.
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleDevLogin}
+                    disabled={isLoading}
+                    className="w-full flex justify-center py-2 px-4 border border-yellow-400 text-sm font-medium rounded-xl text-yellow-800 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? 'Logging in...' : 'Login as Dev Admin'}
+                  </button>
+                  <button
+                    onClick={handleDevProviderLogin}
+                    disabled={isLoading}
+                    className="w-full flex justify-center py-2 px-4 border border-primary-400 text-sm font-medium rounded-xl text-primary-800 bg-primary-50 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? 'Logging in...' : 'Login as Dev Provider'}
+                  </button>
+                  <button
+                    onClick={handleDevPracticeAdminLogin}
+                    disabled={isLoading}
+                    className="w-full flex justify-center py-2 px-4 border border-emerald-400 text-sm font-medium rounded-xl text-emerald-800 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? 'Logging in...' : 'Login as Dev Practice Admin'}
+                  </button>
+                  <button
+                    onClick={handleDevStaffLogin}
+                    disabled={isLoading}
+                    className="w-full flex justify-center py-2 px-4 border border-cyan-400 text-sm font-medium rounded-xl text-cyan-800 bg-cyan-100 hover:bg-cyan-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoading ? 'Logging in...' : 'Login as Dev Staff'}
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Right Panel — Form (glass over gradient) */}
-          <div className="w-full lg:w-1/2 lg:min-h-screen bg-white/[0.12] backdrop-blur-2xl border-l border-white/[0.15] p-8 sm:p-12 lg:p-16 flex flex-col justify-center items-center">
-            <div className="w-full max-w-md">
-              {/* Mobile-only logo */}
-              <div className="lg:hidden flex justify-center mb-8 login-fade-up">
-                <img src="/logo-full.svg" alt="Lanyard Health" className="h-14 brightness-0 invert" />
+            {isDevMode && authStep === 'login' && (
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex-1 border-t border-[#e3ddd2]" />
+                <span className="text-sm text-[#8a8478]">Or use Cognito</span>
+                <div className="flex-1 border-t border-[#e3ddd2]" />
               </div>
+            )}
 
-              {authStep === 'login' && (
-                <div className="mb-8 login-fade-up-d1">
-                  <h2 className="text-3xl font-bold text-white tracking-tight">Welcome back</h2>
-                  <p className="mt-2 text-base text-white/60">Sign in to pick up where you left off</p>
-                </div>
-              )}
-
-              {/* Development Mode Login */}
-              {isDevMode && authStep === 'login' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4 login-fade-up-d2">
-                  <div className="flex items-center mb-3">
-                    <span className="bg-yellow-200 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                      DEV MODE
-                    </span>
-                  </div>
-                  <p className="text-sm text-yellow-700 mb-3">
-                    Development authentication bypass is enabled. Click below to login as an admin or provider user.
-                  </p>
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleDevLogin}
-                      disabled={isLoading}
-                      className="w-full flex justify-center py-2 px-4 border border-yellow-400 text-sm font-medium rounded-xl text-yellow-800 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 transition-colors"
-                    >
-                      {isLoading ? 'Logging in...' : 'Login as Dev Admin'}
-                    </button>
-                    <button
-                      onClick={handleDevProviderLogin}
-                      disabled={isLoading}
-                      className="w-full flex justify-center py-2 px-4 border border-primary-400 text-sm font-medium rounded-xl text-primary-800 bg-primary-50 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition-colors"
-                    >
-                      {isLoading ? 'Logging in...' : 'Login as Dev Provider'}
-                    </button>
-                    <button
-                      onClick={handleDevPracticeAdminLogin}
-                      disabled={isLoading}
-                      className="w-full flex justify-center py-2 px-4 border border-emerald-400 text-sm font-medium rounded-xl text-emerald-800 bg-emerald-50 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 transition-colors"
-                    >
-                      {isLoading ? 'Logging in...' : 'Login as Dev Practice Admin'}
-                    </button>
-                    <button
-                      onClick={handleDevStaffLogin}
-                      disabled={isLoading}
-                      className="w-full flex justify-center py-2 px-4 border border-cyan-400 text-sm font-medium rounded-xl text-cyan-800 bg-cyan-50 hover:bg-cyan-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 transition-colors"
-                    >
-                      {isLoading ? 'Logging in...' : 'Login as Dev Staff'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {isDevMode && authStep === 'login' && (
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 border-t border-white/20" />
-                  <span className="text-sm text-white/50">Or use Cognito</span>
-                  <div className="flex-1 border-t border-white/20" />
-                </div>
-              )}
-
-              <div className="login-fade-up-d2">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={authStep}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+              >
                 {renderAuthForm()}
-              </div>
+              </motion.div>
+            </AnimatePresence>
 
-              {authStep === 'login' && (
-                <div className="mt-8 space-y-2 login-fade-up-d3">
-                  <p className="text-center text-sm text-white/70">
-                    New provider?{' '}
-                    <Link to="/register" className="text-white font-medium underline underline-offset-2 decoration-white/40 hover:decoration-white transition-colors">
-                      Register here
-                    </Link>
-                  </p>
-                  <p className="text-center text-sm text-white/70">
-                    Manage a practice?{' '}
-                    <Link to="/practice-signup" className="text-white font-medium underline underline-offset-2 decoration-white/40 hover:decoration-white transition-colors">
-                      Sign up your practice
-                    </Link>
-                  </p>
-                </div>
-              )}
-            </div>
+            {authStep === 'login' && (
+              <div className="mt-8 space-y-1.5 text-center text-xs text-[#8a8478]">
+                <p>
+                  New provider?{' '}
+                  <Link
+                    to="/register"
+                    onClick={(e) => leaveTo(e, '/register')}
+                    className="font-medium text-[#1a6b4e] underline-offset-2 transition hover:underline active:opacity-50"
+                  >
+                    Register here
+                  </Link>
+                </p>
+                <p>
+                  Manage a practice?{' '}
+                  <Link
+                    to="/practice-signup"
+                    onClick={(e) => leaveTo(e, '/practice-signup')}
+                    className="font-medium text-[#1a6b4e] underline-offset-2 transition hover:underline active:opacity-50"
+                  >
+                    Sign up your practice
+                  </Link>
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        </main>
+
+        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#8a8478]">
+          By continuing, you agree to Lanyard Health's{' '}
+          <a
+            href="https://lanyardhealth.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#1f2721] underline underline-offset-2"
+          >
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a
+            href="https://lanyardhealth.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#1f2721] underline underline-offset-2"
+          >
+            Privacy Policy
+          </a>
+          .
+        </footer>
       </div>
-    </>
+
+      {/* Right: dark brand panel (placeholder art pending brand work; hidden on mobile) */}
+      <div
+        className="relative hidden overflow-hidden lg:block lg:w-1/2"
+        aria-hidden="true"
+        style={{
+          background: 'linear-gradient(150deg, #040f0b 0%, #0A3D2E 62%, #1a6b4e 105%)',
+        }}
+      >
+        <div
+          className="absolute -right-44 top-0 h-full w-[26rem]"
+          style={{
+            background:
+              'radial-gradient(closest-side, rgba(250,247,242,0.26), transparent 72%)',
+            filter: 'blur(46px)',
+          }}
+        />
+        {/* ghost mark placeholder — replace with the real brand mark */}
+        <div className="absolute left-1/2 top-1/2 h-[540px] w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
+        <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]" />
+      </div>
+    </div>
   );
 }

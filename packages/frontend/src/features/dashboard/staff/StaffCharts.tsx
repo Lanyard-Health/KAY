@@ -46,10 +46,10 @@ export default function StaffCharts({ pipelineByStage, submissionsByWeek }: Staf
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={pipeline} layout="vertical" margin={{ top: 4, right: 28, left: 8, bottom: 0 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="label" width={104} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
+              <YAxis type="category" dataKey="label" width={104} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#8a8478' }} />
               <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={!prefersReducedMotion}>
                 {pipeline.map((s) => <Cell key={s.stage} fill={s.hex} />)}
-                <LabelList dataKey="count" position="right" style={{ fontSize: 12, fill: '#6B7280', fontVariantNumeric: 'tabular-nums' }} />
+                <LabelList dataKey="count" position="right" style={{ fontSize: 12, fill: '#8a8478', fontVariantNumeric: 'tabular-nums' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -69,12 +69,12 @@ export default function StaffCharts({ pipelineByStage, submissionsByWeek }: Staf
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weeks} margin={{ top: 20, right: 8, left: 8, bottom: 0 }}>
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#6B7280' }} interval={1} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#8a8478' }} interval={1} />
               <Bar dataKey="count" radius={[6, 6, 0, 0]} isAnimationActive={!prefersReducedMotion}>
                 {weeks.map((w, i) => (
                   <Cell key={w.weekStart} fill={i === currentIdx ? STATUS_META.submitted.dotHex : '#cfe8ee'} />
                 ))}
-                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#6B7280', fontVariantNumeric: 'tabular-nums' }} />
+                <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: '#8a8478', fontVariantNumeric: 'tabular-nums' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

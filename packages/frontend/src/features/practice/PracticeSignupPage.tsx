@@ -385,24 +385,24 @@ export default function PracticeSignupPage() {
   const truncatedPayerCount = matchingPayers.length - filteredPayers.length;
 
   const inputClassName =
-    'appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-xl focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm';
+    'appearance-none relative block w-full px-4 py-3 rounded-xl border border-[#e3ddd2] bg-white text-[#1f2721] placeholder-[#a49d8f] shadow-sm outline-none transition focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15 sm:text-sm';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-600 to-emerald-500 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-[#faf7f2] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg w-full space-y-8">
         <div>
-          <img src="/logo.png" alt="Lanyard Health" className="h-16 mx-auto brightness-0 invert" />
-          <h2 className="mt-6 text-center text-2xl font-bold text-white">
+          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] mx-auto" />
+          <h2 className="mt-6 text-center text-2xl font-semibold text-[#1f2721]">
             Sign up your practice
           </h2>
-          <p className="mt-2 text-center text-sm text-white/70">
+          <p className="mt-2 text-center text-sm text-[#6b665c]">
             Start managing your credentialing workflow today
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           {/* Owner vs joining branch */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
               Are you the practice owner, or joining a practice?
             </h3>
@@ -435,7 +435,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {ownerBranch === 'joining' && (
-            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3 text-center">
+            <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3 text-center">
               <p className="text-sm text-gray-700">
                 To join an existing practice, open the invitation link your practice admin sent you.
                 It will set up your account and add you to the practice automatically.
@@ -451,7 +451,7 @@ export default function PracticeSignupPage() {
 
           {ownerBranch === 'owner' && (
           <>
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-4">
             <div>
               <label htmlFor="practiceName" className="block text-sm font-medium text-gray-700 mb-1">
                 Practice Name
@@ -617,7 +617,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Practice Address */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Practice Address</h3>
 
             <div>
@@ -741,7 +741,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Group Details */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Group Details</h3>
               <p className="text-xs text-gray-500 mt-1">Optional, but it speeds up your enrollments later.</p>
@@ -837,7 +837,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Billing Address */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Billing Address</h3>
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
@@ -899,7 +899,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Mailing Address */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Mailing Address</h3>
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
@@ -961,7 +961,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Operating States */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
               Which states does your practice operate in?
             </h3>
@@ -1011,7 +1011,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Target Payers */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
               Which insurance payers do you want to enroll with?
             </h3>
@@ -1072,7 +1072,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Enterprise */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-3">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-3">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -1090,7 +1090,7 @@ export default function PracticeSignupPage() {
           </div>
 
           {/* Practice Ownership */}
-          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="bg-white border border-[#e3ddd2] rounded-2xl p-6 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Practice Ownership</h3>
               <p className="text-xs text-gray-500 mt-1">
@@ -1237,7 +1237,7 @@ export default function PracticeSignupPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 transition-colors"
+            className="h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]"
           >
             {isLoading ? (
               <span className="flex items-center">
@@ -1264,9 +1264,9 @@ export default function PracticeSignupPage() {
           )}
         </form>
 
-        <p className="text-center text-sm text-white/70">
+        <p className="text-center text-sm text-[#6b665c]">
           Already have an account?{' '}
-          <Link to="/login" className="text-white hover:text-white/90 font-medium">
+          <Link to="/login" className="text-[#0A3D2E] hover:text-[#1a6b4e] font-semibold">
             Sign in
           </Link>
         </p>
