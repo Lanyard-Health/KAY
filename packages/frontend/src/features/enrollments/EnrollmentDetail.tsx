@@ -15,6 +15,8 @@ import {
   PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import EnrollmentEditModal from './EnrollmentEditModal';
+import EnrollmentNotes from './EnrollmentNotes';
+import { isPracticeEnrollment } from './enrollmentSubject';
 import EnrollmentWorkflowTracker from '../../components/enrollments/EnrollmentWorkflowTracker';
 import AiSidebar from '../../components/AiSidebar';
 import { PopulateFormsPanel } from '../../components/enrollments/PopulateFormsPanel';
@@ -142,6 +144,15 @@ export default function EnrollmentDetail() {
                 {enrollment.provider.npi && <span className="ml-2 text-gray-400">NPI: {enrollment.provider.npi}</span>}
               </p>
             )}
+            {isPracticeEnrollment(enrollment) && (
+              <p className="text-sm text-gray-500 mt-1">
+                Practice:{' '}
+                <span className="font-medium text-gray-700">
+                  {enrollment.practice?.name ?? 'Unknown practice'}
+                </span>
+                <span className="ml-2 text-gray-400">Practice (group) enrollment</span>
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${status.color}`}>
@@ -208,7 +219,7 @@ export default function EnrollmentDetail() {
         </div>
         <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
           <div>
-            <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Application Date</dt>
+            <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Application Submission Date</dt>
             <dd className="mt-1 text-sm text-gray-900">{formatDate(enrollment.applicationDate)}</dd>
           </div>
           <div>
@@ -238,17 +249,9 @@ export default function EnrollmentDetail() {
         </div>
       </div>
 
-      {/* Notes */}
-      {enrollment.notes && (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Notes</h2>
-          </div>
-          <div className="px-6 py-4">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{enrollment.notes}</p>
-          </div>
-        </div>
-      )}
+      {/* Notes — timestamped, authored feed (legacy free-text notes were
+          migrated into it as the first entry) */}
+      <EnrollmentNotes enrollmentId={enrollment.id} notes={enrollment.noteEntries ?? []} />
 
       {/* Workflow Tracker */}
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">

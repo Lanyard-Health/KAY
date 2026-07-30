@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useAuthStore } from '../../stores/auth.store';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { isPracticeEnrollment } from './enrollmentSubject';
 
 // Mirrors ProviderEnrollments.tsx (module-private there; duplicating a few
 // constants beats refactoring a 1,500-line file).
@@ -45,6 +46,8 @@ const STATUS_RANK: Record<string, number> = {
 const TERMINAL_STATUSES = ['denied', 'terminated'];
 const CONFIRM_STATUSES = ['approved', 'denied', 'terminated'];
 const CORRECTION_ROLES = ['admin', 'lanyard_staff', 'credentialing_staff'];
+// Mirrors the backend gate: payer/subject reassignment only before submission.
+const REASSIGNABLE_STATUSES = ['not_started', 'in_progress'];
 
 function allowedStatusValues(current: string): string[] {
   if (TERMINAL_STATUSES.includes(current)) return [current];
@@ -92,11 +95,10 @@ interface EnrollmentEditFormData {
   recredentialingDate: string;
   providerNumber: string;
   groupNumber: string;
-  notes: string;
 }
 
 const DATE_FIELDS: Array<{ key: keyof EnrollmentEditFormData; label: string }> = [
-  { key: 'applicationDate', label: 'Application Date' },
+  { key: 'applicationDate', label: 'Application Submission Date' },
   { key: 'effectiveDate', label: 'Effective Date' },
   { key: 'terminationDate', label: 'Termination Date' },
   { key: 'dateContractReceived', label: 'Contract Received' },
@@ -128,12 +130,55 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
     recredentialingDate: '',
     providerNumber: '',
     groupNumber: '',
-    notes: '',
   });
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionTarget, setCorrectionTarget] = useState('');
   const [correctionConfirmOpen, setCorrectionConfirmOpen] = useState(false);
+
+  // Reassignment (payer / provider / practice) — pre-submission only.
+  const isPractice = enrollment ? isPracticeEnrollment(enrollment) : false;
+  const reassignable = REASSIGNABLE_STATUSES.includes(enrollment?.status ?? '');
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [newPayer, setNewPayer] = useState<{ id: string; name: string } | null>(null);
+  const [payerSearch, setPayerSearch] = useState('');
+  const [debouncedPayerSearch, setDebouncedPayerSearch] = useState('');
+  const [targetProviderId, setTargetProviderId] = useState('');
+  const [targetPracticeId, setTargetPracticeId] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPayerSearch(payerSearch.trim()), 200);
+    return () => clearTimeout(t);
+  }, [payerSearch]);
+
+  const { data: payerResults } = useQuery({
+    queryKey: ['payers', debouncedPayerSearch],
+    enabled: isOpen && reassignOpen && debouncedPayerSearch.length > 1,
+    queryFn: async () => {
+      const res = await api.get<{ success: boolean; data: { id: string; name: string }[] }>(
+        `/enrollments/payers?q=${encodeURIComponent(debouncedPayerSearch)}`
+      );
+      return res.data.data;
+    },
+  });
+
+  const { data: providerOptions } = useQuery({
+    queryKey: ['all-providers'],
+    enabled: isOpen && reassignOpen && !isPractice,
+    queryFn: async () => {
+      const res = await api.get<{
+        success: boolean;
+        data: { data: { id: string; firstName: string; lastName: string; practiceId: string | null }[] };
+      }>('/providers?pageSize=100');
+      return res.data.data.data;
+    },
+  });
+
+  const { data: practiceOptions } = useQuery({
+    queryKey: ['practices-options'],
+    enabled: isOpen && reassignOpen && isPractice,
+    queryFn: async () => (await api.get('/practices')).data.data as { id: string; name: string }[],
+  });
 
   useEffect(() => {
     if (isOpen && enrollment) {
@@ -149,12 +194,16 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
         recredentialingDate: enrollment.recredentialingDate?.split('T')[0] || '',
         providerNumber: enrollment.providerNumber || '',
         groupNumber: enrollment.groupNumber || '',
-        notes: enrollment.notes || '',
       });
       setConfirmStatus(null);
       setCorrectionOpen(false);
       setCorrectionTarget('');
       setCorrectionConfirmOpen(false);
+      setReassignOpen(false);
+      setNewPayer(null);
+      setPayerSearch('');
+      setTargetProviderId(enrollment.providerId || '');
+      setTargetPracticeId(enrollment.practiceId || '');
     }
   }, [isOpen, enrollment]);
 
@@ -168,8 +217,20 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
     }
   };
 
+  const buildPayload = (): Record<string, unknown> => {
+    const payload: Record<string, unknown> = { ...formData };
+    if (newPayer && newPayer.id !== enrollment.payerId) payload['payerId'] = newPayer.id;
+    if (!isPractice && targetProviderId && targetProviderId !== enrollment.providerId) {
+      payload['providerId'] = targetProviderId;
+    }
+    if (isPractice && targetPracticeId && targetPracticeId !== enrollment.practiceId) {
+      payload['practiceId'] = targetPracticeId;
+    }
+    return payload;
+  };
+
   const updateMutation = useMutation({
-    mutationFn: (data: EnrollmentEditFormData) => api.put(`/enrollments/${enrollment.id}`, data),
+    mutationFn: (data: Record<string, unknown>) => api.put(`/enrollments/${enrollment.id}`, data),
     onSuccess: () => {
       invalidateAll();
       notify.success('Enrollment updated');
@@ -203,7 +264,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
       setConfirmStatus(formData.status);
       return;
     }
-    updateMutation.mutate(formData);
+    updateMutation.mutate(buildPayload());
   };
 
   if (!enrollment) return null;
@@ -236,10 +297,22 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                 leaveTo="opacity-0 scale-95"
               >
                 <Dialog.Panel className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <Dialog.Title className="text-lg font-semibold text-gray-900">
-                      Edit Enrollment
-                    </Dialog.Title>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <Dialog.Title className="text-lg font-semibold text-gray-900">
+                        Edit Enrollment
+                      </Dialog.Title>
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        <span className="font-medium text-gray-700">
+                          {enrollment.payer?.name || 'Unknown payer'}
+                        </span>
+                        {' · '}
+                        {isPractice
+                          ? `${enrollment.practice?.name ?? 'Unknown practice'} (practice/group enrollment)`
+                          : `${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim() ||
+                            'Unknown provider'}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={onClose}
@@ -319,6 +392,120 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                       </div>
                     )}
 
+                    {/* Reassignment: payer / provider / practice */}
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      {!reassignable ? (
+                        <p className="text-xs text-gray-500">
+                          The payer and {isPractice ? 'practice' : 'provider'} are locked once an
+                          application is submitted. Staff can use a status correction if the
+                          submission itself was recorded by mistake.
+                        </p>
+                      ) : !reassignOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => setReassignOpen(true)}
+                          className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                        >
+                          Change payer or {isPractice ? 'practice' : 'provider'}…
+                        </button>
+                      ) : (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Payer
+                            </label>
+                            {newPayer ? (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-medium text-gray-900">{newPayer.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewPayer(null)}
+                                  className="text-xs text-gray-500 hover:text-gray-700"
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  type="text"
+                                  value={payerSearch}
+                                  onChange={(e) => setPayerSearch(e.target.value)}
+                                  placeholder={`Search payers to replace ${enrollment.payer?.name ?? 'the current payer'}…`}
+                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                                />
+                                {debouncedPayerSearch.length > 1 && (payerResults?.length ?? 0) > 0 && (
+                                  <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-sm">
+                                    {payerResults!.slice(0, 8).map((p) => (
+                                      <li key={p.id}>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setNewPayer(p);
+                                            setPayerSearch('');
+                                          }}
+                                          className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                                        >
+                                          {p.name}
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          {!isPractice ? (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Provider
+                              </label>
+                              <select
+                                value={targetProviderId}
+                                onChange={(e) => setTargetProviderId(e.target.value)}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                              >
+                                {(providerOptions ?? [])
+                                  .filter(
+                                    (p) =>
+                                      !enrollment.provider?.practice?.id ||
+                                      p.practiceId === enrollment.provider.practice.id ||
+                                      p.id === enrollment.providerId
+                                  )
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.firstName} {p.lastName}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Practice
+                              </label>
+                              <select
+                                value={targetPracticeId}
+                                onChange={(e) => setTargetPracticeId(e.target.value)}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
+                              >
+                                {(practiceOptions ?? []).map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <p className="text-xs text-gray-500">
+                            Changes apply when you save. Every change is audit-logged.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Dates */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {DATE_FIELDS.map(({ key, label }) => (
@@ -390,16 +577,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                       </div>
                     </div>
 
-                    {/* Notes */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                      <textarea
-                        rows={3}
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
-                      />
-                    </div>
+                    {/* Notes moved to the timestamped feed on the detail page */}
 
                     <div className="flex justify-end gap-3 pt-2">
                       <button
@@ -431,7 +609,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
         onClose={() => setConfirmStatus(null)}
         onConfirm={() => {
           setConfirmStatus(null);
-          updateMutation.mutate(formData);
+          updateMutation.mutate(buildPayload());
         }}
         title={confirmStatus ? confirmCopy(confirmStatus).title : ''}
         message={confirmStatus ? confirmCopy(confirmStatus).message : ''}
