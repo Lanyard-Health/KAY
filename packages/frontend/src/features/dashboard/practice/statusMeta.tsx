@@ -30,7 +30,7 @@ export const STATUS_META: Record<EnrollmentStatus, StatusMeta> = {
   pending_review: { label: 'Payer reviewing',    dotHex: '#8B5CF6', chip: 'bg-purple-100 text-purple-800', Glyph: ClockIcon },
   approved:       { label: 'Approved',           dotHex: '#15803D', chip: 'bg-green-100 text-green-800',   Glyph: CheckIcon },
   denied:         { label: 'Denied',             dotHex: '#EF4444', chip: 'bg-red-100 text-red-800',       Glyph: XMarkIcon },
-  terminated:     { label: 'No longer active',   dotHex: '#8a8478', chip: 'bg-gray-100 text-gray-800',     Glyph: null },
+  terminated:     { label: 'No longer active',   dotHex: '#75705f', chip: 'bg-gray-100 text-gray-800',     Glyph: null },
 };
 
 // Client-facing surfaces say "Running long" (two-vocabulary rule) — never "Delayed" here.

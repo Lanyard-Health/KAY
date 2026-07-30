@@ -58,7 +58,7 @@ export default function AdminDashboard({ onViewPractice }: { onViewPractice: (pr
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Practices needing attention</h2>
         {data.churnRisk.length === 0 ? (
           <p className="mt-4 text-sm text-gray-700">
-            No practices need attention right now — nothing delayed, no overdue follow-ups.
+            No practices need attention right now: nothing delayed, no overdue follow-ups.
           </p>
         ) : (
           <table className="mt-3 w-full border-collapse text-sm">

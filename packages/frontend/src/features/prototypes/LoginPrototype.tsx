@@ -213,7 +213,7 @@ export default function LoginPrototype() {
           </div>
         </main>
 
-        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#8a8478]">
+        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
           By continuing, you agree to Lanyard Health's{' '}
           <a
             href="https://lanyardhealth.com/terms"
@@ -321,7 +321,7 @@ function SignInScreen({
         </button>
       </form>
 
-      <div className="mt-6 space-y-1.5 text-center text-xs text-[#8a8478]">
+      <div className="mt-6 space-y-1.5 text-center text-xs text-[#75705f]">
         <p>
           New provider?{' '}
           <Link

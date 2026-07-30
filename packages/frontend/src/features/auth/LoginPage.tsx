@@ -368,7 +368,7 @@ export default function LoginPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
-              <p className="text-xs text-[#8a8478]">
+              <p className="text-xs text-[#75705f]">
                 Must contain uppercase, lowercase, number, and symbol.
               </p>
               <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON_CLASSES}>
@@ -437,7 +437,7 @@ export default function LoginPage() {
               >
                 {isLoading ? 'Verifying...' : 'Verify'}
               </button>
-              <p className="text-center text-xs text-[#8a8478]">
+              <p className="text-center text-xs text-[#75705f]">
                 Code didn't arrive? Check spam, then try logging in again.
               </p>
             </form>
@@ -749,7 +749,7 @@ export default function LoginPage() {
             {isDevMode && authStep === 'login' && (
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex-1 border-t border-[#e3ddd2]" />
-                <span className="text-sm text-[#8a8478]">Or use Cognito</span>
+                <span className="text-sm text-[#75705f]">Or use Cognito</span>
                 <div className="flex-1 border-t border-[#e3ddd2]" />
               </div>
             )}
@@ -767,7 +767,7 @@ export default function LoginPage() {
             </AnimatePresence>
 
             {authStep === 'login' && (
-              <div className="mt-8 space-y-1.5 text-center text-xs text-[#8a8478]">
+              <div className="mt-8 space-y-1.5 text-center text-xs text-[#75705f]">
                 <p>
                   New provider?{' '}
                   <Link
@@ -793,7 +793,7 @@ export default function LoginPage() {
           </div>
         </main>
 
-        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#8a8478]">
+        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
           By continuing, you agree to Lanyard Health's{' '}
           <a
             href="https://lanyardhealth.com/terms"

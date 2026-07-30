@@ -391,7 +391,7 @@ export default function RegisterPage() {
               </div>
               {errors.npi && <p className="mt-1 text-sm text-red-600">{errors.npi}</p>}
               {npiLookupStatus === 'found' && (
-                <p className="mt-1 text-sm text-[#2d8b6a]">NPI found — fields pre-filled from NPPES</p>
+                <p className="mt-1 text-sm text-[#2d8b6a]">NPI found; fields pre-filled from NPPES</p>
               )}
               {npiLookupStatus === 'not-found' && (
                 <p className="mt-1 text-sm text-amber-600">NPI not found in NPPES registry</p>
@@ -486,10 +486,10 @@ export default function RegisterPage() {
               {errors.caqhProviderId ? (
                 <p className="mt-1 text-sm text-red-600">{errors.caqhProviderId}</p>
               ) : (
-                <p className="mt-1 text-xs text-[#8a8478]">
+                <p className="mt-1 text-xs text-[#75705f]">
                   With your CAQH ID we'll import your profile and documents automatically
-                  once your account is approved — no need to re-enter them.
-                  Don't have one? Leave blank — we'll help you set it up later.
+                  once your account is approved, so there's no need to re-enter them.
+                  Don't have one? Leave blank and we'll help you set it up later.
                 </p>
               )}
             </div>
