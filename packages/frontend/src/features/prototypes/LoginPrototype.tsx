@@ -152,16 +152,21 @@ export default function LoginPrototype() {
         </div>
       </div>
 
-      <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
+      <header className="relative z-10 w-full px-5 pt-6 sm:px-8">
+        <div className="mx-auto w-full max-w-6xl">
+          <img
+            src="/logo-full.svg"
+            alt="Lanyard Health"
+            className="mx-auto h-24 w-auto lg:mx-0"
+          />
+        </div>
+      </header>
+
+      <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 sm:px-8">
         <div className="grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16">
-          {/* Brand statement: logo + thesis quote, LangSmith-style */}
+          {/* Brand statement: the thesis quote, LangSmith-style */}
           <div className="text-center lg:text-left">
-            <img
-              src="/logo-full.svg"
-              alt="Lanyard Health"
-              className="mx-auto h-[72px] w-auto lg:mx-0"
-            />
-            <p className="mx-auto mt-6 max-w-xl text-2xl font-semibold leading-snug text-[#171b17] sm:text-3xl lg:mx-0 lg:mt-10 lg:text-4xl lg:leading-tight">
+            <p className="mx-auto max-w-xl text-2xl font-semibold leading-snug text-[#171b17] sm:text-3xl lg:mx-0 lg:text-4xl lg:leading-tight">
               &ldquo;{QUOTES[quoteIdx]}&rdquo;
             </p>
           </div>
