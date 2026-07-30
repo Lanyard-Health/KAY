@@ -322,14 +322,16 @@ npm run lint
 ## Do-Not-Touch List
 
 ### Login Page (`packages/frontend/src/features/auth/LoginPage.tsx`)
-- **Current protected design (Kay-approved 2026-07-29, warm-paper redesign):**
-  - Split panel: warm paper `#faf7f2` content panel left, dark green gradient brand panel right (hidden on mobile)
+- **Current protected design (Kay-approved 2026-07-30, login v2):**
+  - Single warm-paper `#faf7f2` page with a repeated faded-submark wallpaper (staggered tile from `lanyardMarkTileUrl()` in `components/LanyardMark.tsx`, fill `#f4efe6`)
+  - Left: logo + the thesis quote as a large brand statement: "The fastest path from credentialed to paid, with nothing hidden along the way." — this quote IS part of the approved design (Kay 2026-07-30, supersedes the earlier no-quote decision); do not remove it
+  - Right: white rounded card holding the form; card heading is "Welcome to Lanyard" / "We're glad you're here." (deliberately first-time-user-friendly — do NOT change back to "Welcome back")
+  - Mobile stacks logo → quote → card; the quote stays visible on mobile
   - Logo is `<img src="/logo-full.svg" className="h-[72px] w-auto" />` in its natural green — NEVER invert, shrink, or substitute it
-  - NO stats bar, testimonial, or quote — these were deliberately removed; do not re-add
   - Footer links to https://lanyardhealth.com/terms and /privacy — keep them
   - Segmented 6-digit CodeInput (light tone) on all code steps
 - Reference design lives at `/prototypes/login`; Poppins + warm neutrals are provisional pending brand identity work, but changes still require Kay's explicit approval
-- The previous design (full green gradient + inverted logo.png) is RETIRED as of this redesign — do not restore it
+- The previous designs (full green gradient + inverted logo.png; 2026-07-29 split panel with dark green brand panel) are RETIRED — do not restore either
 - This page has been accidentally reverted multiple times in the past — always preserve the approved design
 
 ### Files Requiring Explicit Approval
