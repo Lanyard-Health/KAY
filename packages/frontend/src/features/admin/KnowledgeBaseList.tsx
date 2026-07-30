@@ -158,7 +158,7 @@ export default function KnowledgeBaseList() {
                 type="text"
                 placeholder={mode === 'filter'
                   ? 'Search by payer name, track, or state...'
-                  : 'Ask anything — e.g. "what payers require NPI verification in Texas?"'}
+                  : 'Ask anything, e.g. "what payers require NPI verification in Texas?"'}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"

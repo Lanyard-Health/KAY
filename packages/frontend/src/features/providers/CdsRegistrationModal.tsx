@@ -174,7 +174,7 @@ export default function CdsRegistrationModal({
                         <input
                           {...register('cdsNumber', { required: isEditing ? false : 'Required' })}
                           className="input"
-                          placeholder={isEditing ? `Current: ${registration?.cdsNumber ?? ''} — leave blank to keep` : 'State CDS number'}
+                          placeholder={isEditing ? `Current: ${registration?.cdsNumber ?? ''} (leave blank to keep)` : 'State CDS number'}
                         />
                         {errors.cdsNumber && (
                           <p className="mt-1 text-sm text-red-600">{errors.cdsNumber.message}</p>

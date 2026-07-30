@@ -371,7 +371,7 @@ function FieldRow({
           </button>
         </div>
         {field.mappings.length === 0 ? (
-          <p className="text-xs italic text-gray-400">No mappings yet — this field won't be filled.</p>
+          <p className="text-xs italic text-gray-400">No mappings yet; this field won't be filled.</p>
         ) : (
           <div className="space-y-1.5">
             {field.mappings.map((m) => (
@@ -464,7 +464,7 @@ function TestFillPanel({ formId }: { formId: string }) {
       </div>
       <p className="mt-1 text-xs text-gray-600">
         Resolve every field against a chosen provider's credentialing packet.
-        Nothing is submitted — use this to validate mappings before running a real fill.
+        Nothing is submitted; use this to validate mappings before running a real fill.
       </p>
 
       <div className="mt-3 flex items-center gap-2">

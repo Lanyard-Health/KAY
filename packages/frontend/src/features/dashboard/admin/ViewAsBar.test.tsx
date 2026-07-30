@@ -72,7 +72,7 @@ describe('ViewAsBar', () => {
     wrap(<ViewAsBar {...idleProps} viewing={{ kind: 'practice', id: 'p1', name: 'Greens Health' }} onExit={onExit} />);
 
     const banner = screen.getByRole('status');
-    expect(banner).toHaveTextContent('Now viewing as Practice Admin — Greens Health. Read-only preview.');
+    expect(banner).toHaveTextContent('Now viewing as Practice Admin: Greens Health. Read-only preview.');
     fireEvent.click(screen.getByRole('button', { name: /exit/i }));
     expect(onExit).toHaveBeenCalled();
   });
@@ -82,7 +82,7 @@ describe('ViewAsBar', () => {
     wrap(<ViewAsBar {...idleProps} viewing={{ kind: 'staff' }} onExit={onExit} />);
 
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Now viewing as Credentialing Staff — all practices. Read-only preview.',
+      'Now viewing as Credentialing Staff: all practices. Read-only preview.',
     );
     fireEvent.click(screen.getByRole('button', { name: /exit/i }));
     expect(onExit).toHaveBeenCalled();

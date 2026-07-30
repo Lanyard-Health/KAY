@@ -146,7 +146,7 @@ export default function PracticeProvidersTab({ practiceId }: PracticeProvidersTa
                           }
                           disabled={deleteProvider.isPending}
                           className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                          title="Delete provider (archive — retained for records, restorable)"
+                          title="Delete provider (archive; retained for records, restorable)"
                           aria-label={`Delete provider ${provider.firstName} ${provider.lastName}`}
                         >
                           <ArchiveBoxXMarkIcon className="h-4 w-4" />

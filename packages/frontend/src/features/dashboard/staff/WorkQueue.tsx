@@ -37,7 +37,7 @@ export default function WorkQueue({ items }: { items: QueueItemView[] }) {
 
   return (
     <div id="queue" className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Work queue — sorted by urgency</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Work queue, sorted by urgency</h2>
 
       {items.length === 0 ? (
         <p className="mt-4 text-sm font-semibold text-[#15803D]">{EMPTY_COPY}</p>

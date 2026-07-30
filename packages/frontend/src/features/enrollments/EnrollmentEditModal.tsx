@@ -73,7 +73,7 @@ function confirmCopy(status: string): { title: string; message: string; variant:
   const label = statusLabel(status);
   return {
     title: `Mark as ${label}?`,
-    message: `This is a final status — remaining workflow steps will be skipped${
+    message: `This is a final status: remaining workflow steps will be skipped${
       status === 'denied' ? ' and your team will be notified (first time only)' : ''
     }. A mistake here needs a staff status correction to undo.`,
     variant: 'danger',

@@ -265,7 +265,7 @@ export default function StatusDotGrid({ payers, rows }: StatusDotGridProps) {
   return (
     <div className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-        Enrollment status — every provider, every payer
+        Enrollment status: every provider, every payer
       </h2>
 
       {/* Desktop grid (lg and up) */}

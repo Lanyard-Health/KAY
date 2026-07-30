@@ -64,7 +64,7 @@ describe('NewTaskModal (guided)', () => {
   it('requires a task group — validation keeps the modal open', async () => {
     renderModal();
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }));
-    expect(await screen.findByText("Pick a task group — it's the only required field.")).toBeInTheDocument();
+    expect(await screen.findByText("Pick a task group; it's the only required field.")).toBeInTheDocument();
     expect(mocks.createMutate).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'New Task' })).toBeInTheDocument();
   });
@@ -103,7 +103,7 @@ describe('NewTaskModal (guided)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/provider/i), 'prov-1');
     await userEvent.selectOptions(screen.getByLabelText(/practice/i), 'practice-2');
     await waitFor(() =>
-      expect(screen.getByTestId('cascade-announcement')).toHaveTextContent("Provider cleared — Dana Reyes isn't at Lakeside Counseling"));
+      expect(screen.getByTestId('cascade-announcement')).toHaveTextContent("Provider cleared: Dana Reyes isn't at Lakeside Counseling"));
     expect(screen.getByLabelText(/provider/i)).toHaveValue('');
   });
 });

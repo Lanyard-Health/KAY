@@ -37,8 +37,8 @@ export default function ViewAsBar({ viewing, onEnterPractice, onEnterStaff, onEx
           <p role="status" className="text-sm">
             <span className="mr-2 inline-block rounded-lg bg-amber-400/20 px-2 py-0.5 text-xs font-semibold text-amber-300">Viewing as</span>
             {viewing.kind === 'practice'
-              ? `Now viewing as Practice Admin — ${viewing.name}. Read-only preview.`
-              : 'Now viewing as Credentialing Staff — all practices. Read-only preview.'}
+              ? `Now viewing as Practice Admin: ${viewing.name}. Read-only preview.`
+              : 'Now viewing as Credentialing Staff: all practices. Read-only preview.'}
           </p>
           <button
             type="button"
