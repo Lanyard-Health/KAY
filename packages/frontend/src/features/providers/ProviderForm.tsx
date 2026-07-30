@@ -988,7 +988,7 @@ export default function ProviderForm() {
                   {...register('dateOfBirth')}
                   className="input"
                 />
-                <p className="mt-1 text-xs text-gray-500">Optional — but required before CAQH sync can run</p>
+                <p className="mt-1 text-xs text-gray-500">Optional, but required before CAQH sync can run</p>
                 {errors.dateOfBirth && <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth.message}</p>}
               </div>
               <div>
@@ -1014,7 +1014,7 @@ export default function ProviderForm() {
                   className="input"
                   placeholder="provider@example.com"
                 />
-                <p className="mt-1 text-xs text-gray-500">Optional — needed for portal invites and expiring-credential reminders</p>
+                <p className="mt-1 text-xs text-gray-500">Optional; needed for portal invites and expiring-credential reminders</p>
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
               </div>
               <div>

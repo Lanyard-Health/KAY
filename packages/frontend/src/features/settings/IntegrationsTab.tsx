@@ -122,7 +122,7 @@ export default function IntegrationsTab() {
           name="CAQH ProView"
           description="Automated credential verification and roster management"
           configured={caqhConfigured}
-          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Not configured — contact support to connect your CAQH account.'}
+          details={caqhConfigured && caqhLastSync ? `Last sync: ${new Date(caqhLastSync).toLocaleString()}` : 'Not configured. Contact support to connect your CAQH account.'}
         />
 
         <IntegrationCard
@@ -130,7 +130,7 @@ export default function IntegrationsTab() {
           name="Retell AI"
           description="AI-powered phone follow-ups with payers"
           configured={retellConfigured}
-          details={retellConfigured ? undefined : 'Not configured — contact support to enable AI voice calls.'}
+          details={retellConfigured ? undefined : 'Not configured. Contact support to enable AI voice calls.'}
         />
 
         <IntegrationCard
@@ -138,7 +138,7 @@ export default function IntegrationsTab() {
           name="Email (Resend)"
           description="Automated email follow-ups and notifications"
           configured={emailConfigured}
-          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Not configured — contact support to enable email sending.'}
+          details={emailConfigured && emailUser ? `From: ${emailUser}` : 'Not configured. Contact support to enable email sending.'}
         />
 
         <IntegrationCard
@@ -149,7 +149,7 @@ export default function IntegrationsTab() {
           details={
             documentStorageConfigured && documentStorageBucket
               ? `Bucket: ${documentStorageBucket}`
-              : 'Not configured — contact support to enable document storage.'
+              : 'Not configured. Contact support to enable document storage.'
           }
         />
       </div>

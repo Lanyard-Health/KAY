@@ -34,7 +34,7 @@ describe('PayerContactCard', () => {
     mocks.useSavePayerContactInfo.mockReturnValue({ mutate: vi.fn(), isPending: false });
     render(<PayerContactCard payerId="p1" payerName="Molina Healthcare of Texas" />);
     expect(screen.getByText('Nothing on file')).toBeInTheDocument();
-    expect(screen.getByText('Be the first to add it — every teammate after you gets this automatically.')).toBeInTheDocument();
+    expect(screen.getByText('Be the first to add it; every teammate after you gets this automatically.')).toBeInTheDocument();
     expect(screen.getByLabelText('Phone')).toBeInTheDocument();
     expect(screen.getByLabelText('Best way to contact')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save contact info' })).toBeInTheDocument();

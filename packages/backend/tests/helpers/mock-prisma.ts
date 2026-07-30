@@ -15,7 +15,7 @@ const MODELS = [
   'caqhCredentialRequest', 'cdsRegistration', 'chatConversation', 'chatMessage', 'continuingEducation',
   'coveringColleague', 'customService', 'deaRegistration', 'denialTriage',
   'document', 'education', 'emailLog', 'emailTemplate', 'enrollment',
-  'enrollmentOutcome', 'enrollmentRun', 'enrollmentWorkflowStep', 'enterpriseQueue', 'followUpRun',
+  'enrollmentNote', 'enrollmentOutcome', 'enrollmentRun', 'enrollmentWorkflowStep', 'enterpriseQueue', 'followUpRun',
   'followUpTemplate', 'followUpTemplateStep', 'hospitalAffiliation',
   'inAppNotification', 'license', 'malpracticeClaim', 'malpracticeInsurance',
   'malpracticePolicyLocation', 'notification', 'notificationPreference', 'organizationType',

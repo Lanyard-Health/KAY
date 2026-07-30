@@ -61,7 +61,7 @@ export default function AuditLogPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Who did what, when — every recorded change and sensitive read
+            Who did what, when: every recorded change and sensitive read
           </p>
         </div>
 

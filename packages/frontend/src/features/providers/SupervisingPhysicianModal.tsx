@@ -348,7 +348,7 @@ export default function SupervisingPhysicianModal({
                       <div>
                         <label className="label">Practice Location</label>
                         <select {...register('practiceLocationId')} className="input">
-                          <option value="">— Not linked to a specific location —</option>
+                          <option value="">Not linked to a specific location</option>
                           {practiceLocations.map((loc) => (
                             <option key={loc.id} value={loc.id}>
                               {loc.locationName}

@@ -181,7 +181,7 @@ export default function TasksPage() {
 
   const handleReasonDialogClose = (outcome: 'saved' | 'deferred') => {
     setReasonDialogClosed(true);
-    setSrMessage(outcome === 'saved' ? 'Reasons saved — thanks' : "Okay — we'll ask again next time you're here.");
+    setSrMessage(outcome === 'saved' ? 'Reasons saved, thanks' : "Okay, we'll ask again next time you're here.");
     headingRef.current?.focus(); // no trigger to return focus to → the page's main heading
   };
 

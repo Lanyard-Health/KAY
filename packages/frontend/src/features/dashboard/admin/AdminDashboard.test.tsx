@@ -55,7 +55,7 @@ describe('AdminDashboard', () => {
     wrap(<AdminDashboard onViewPractice={() => {}} />);
 
     expect(await screen.findByText(
-      'No practices need attention right now — nothing delayed, no overdue follow-ups.',
+      'No practices need attention right now: nothing delayed, no overdue follow-ups.',
     )).toBeInTheDocument();
   });
 

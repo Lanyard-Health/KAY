@@ -195,7 +195,7 @@ export default function DeaRegistrationModal({
                         <input
                           {...register('deaNumber', { required: isEditing ? false : 'Required' })}
                           className="input"
-                          placeholder={isEditing ? `Current: ${registration?.deaNumber ?? ''} — leave blank to keep` : 'e.g. AB1234567'}
+                          placeholder={isEditing ? `Current: ${registration?.deaNumber ?? ''} (leave blank to keep)` : 'e.g. AB1234567'}
                         />
                         {errors.deaNumber && (
                           <p className="mt-1 text-sm text-red-600">{errors.deaNumber.message}</p>

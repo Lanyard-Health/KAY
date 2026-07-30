@@ -93,7 +93,18 @@ const createEnrollmentSchema = z.object({
   payerTrackId: z.string().uuid().optional().nullable(),
 });
 
-const updateEnrollmentSchema = nullablePartial(createEnrollmentSchema);
+// providerId/practiceId are update-only (creates take the subject from the URL).
+// Reassignment of payer/provider/practice is gated to pre-submission statuses.
+const updateEnrollmentSchema = nullablePartial(
+  createEnrollmentSchema.extend({
+    providerId: z.string().uuid().optional(),
+    practiceId: z.string().uuid().optional(),
+  })
+);
+
+// Statuses in which the payer/subject may still be reassigned. After submission
+// the payer and subject are facts of the application, not settings.
+const REASSIGNABLE_STATUSES: string[] = ['not_started', 'in_progress'];
 
 // nullablePartial maps JSON null → undefined, so after parsing, date fields are
 // string | undefined. The frontend sends '' for a cleared date input; treat ''
@@ -323,7 +334,21 @@ router.get(
         include: {
           payer: true,
           provider: {
-            select: { id: true, firstName: true, lastName: true, npi: true, providerType: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              npi: true,
+              providerType: true,
+              practice: { select: { id: true, name: true } },
+            },
+          },
+          // Direct practice link for practice-level (group) enrollments —
+          // without this the response carries no practice identification.
+          practice: { select: { id: true, name: true } },
+          noteEntries: {
+            orderBy: { createdAt: 'desc' },
+            include: { author: { select: { id: true, firstName: true, lastName: true } } },
           },
         },
       });
@@ -437,6 +462,15 @@ router.post(
           });
         }
         throw err;
+      }
+
+      // Optional creation note becomes the first entry in the notes feed.
+      if (validated.notes?.trim()) {
+        await prisma.enrollmentNote
+          .create({
+            data: { enrollmentId: enrollment.id, body: validated.notes.trim(), authorId: req.user?.id ?? null },
+          })
+          .catch((err) => logger.warn('First enrollment note create failed:', err));
       }
 
       // Seed the practice-payer settings row so this payer shows on the
@@ -588,6 +622,15 @@ router.post(
         throw err;
       }
 
+      // Optional creation note becomes the first entry in the notes feed.
+      if (validated.notes?.trim()) {
+        await prisma.enrollmentNote
+          .create({
+            data: { enrollmentId: enrollment.id, body: validated.notes.trim(), authorId: req.user?.id ?? null },
+          })
+          .catch((err) => logger.warn('First enrollment note create failed:', err));
+      }
+
       // Auto-hydrate workflow steps if a payer track resolved to a template.
       const workflow = await onEnrollmentCreated(prisma, enrollment, validated.workflowType);
 
@@ -638,24 +681,141 @@ router.put(
           });
         }
 
-        enrollment = await prisma.enrollment.update({
-          where: { id },
-          data: {
-            productTypes: fieldUpdates.productTypes,
-            applicationDate: toDateUpdate(fieldUpdates.applicationDate),
-            effectiveDate: toDateUpdate(fieldUpdates.effectiveDate),
-            terminationDate: toDateUpdate(fieldUpdates.terminationDate),
-            dateContractReceived: toDateUpdate(fieldUpdates.dateContractReceived),
-            dateContractSigned: toDateUpdate(fieldUpdates.dateContractSigned),
-            lastFollowUpDate: toDateUpdate(fieldUpdates.lastFollowUpDate),
-            recredentialingDate: toDateUpdate(fieldUpdates.recredentialingDate),
-            providerNumber: fieldUpdates.providerNumber,
-            groupNumber: fieldUpdates.groupNumber,
-            notes: fieldUpdates.notes,
-            updatedById: req.user?.id,
-          },
-          include: { payer: true },
-        });
+        // Reassignment (payer / provider / practice) — pre-submission only.
+        const wantsPayer = !!fieldUpdates.payerId && fieldUpdates.payerId !== existing.payerId;
+        const wantsProvider =
+          !!fieldUpdates.providerId && fieldUpdates.providerId !== existing.providerId;
+        const wantsPractice =
+          !!fieldUpdates.practiceId && fieldUpdates.practiceId !== existing.practiceId;
+        if (wantsPayer || wantsProvider || wantsPractice) {
+          if (!REASSIGNABLE_STATUSES.includes(existing.status)) {
+            return res.status(409).json({
+              success: false,
+              error: {
+                message:
+                  'Payer and provider/practice can only be changed before the application is submitted.',
+              },
+            });
+          }
+          // No subject-type flips: provider enrollments keep a provider,
+          // practice enrollments keep a practice (schema: explicit discriminator).
+          if (wantsProvider && existing.subjectType !== 'PROVIDER') {
+            return res.status(400).json({
+              success: false,
+              error: { message: 'This is a practice enrollment; it has no individual provider.' },
+            });
+          }
+          if (wantsPractice && existing.subjectType !== 'PRACTICE') {
+            return res.status(400).json({
+              success: false,
+              error: { message: 'This is a provider enrollment; change the provider instead.' },
+            });
+          }
+
+          if (wantsPayer) {
+            const payer = await prisma.payer.findUnique({ where: { id: fieldUpdates.payerId! } });
+            if (!payer) {
+              return res.status(400).json({ success: false, error: { message: 'Payer not found' } });
+            }
+          }
+          if (wantsProvider) {
+            const target = await prisma.providerProfile.findUnique({
+              where: { id: fieldUpdates.providerId! },
+              select: { id: true, practiceId: true, deletedAt: true },
+            });
+            if (!target || target.deletedAt) {
+              return res.status(400).json({ success: false, error: { message: 'Provider not found' } });
+            }
+            if (!(await validateEnrollmentAccess(req, { providerId: target.id, practiceId: target.practiceId }))) {
+              return res.status(400).json({ success: false, error: { message: 'Provider not found' } });
+            }
+          }
+          if (wantsPractice) {
+            const target = await prisma.practice.findUnique({
+              where: { id: fieldUpdates.practiceId! },
+              select: { id: true, deletedAt: true },
+            });
+            if (!target || target.deletedAt) {
+              return res.status(400).json({ success: false, error: { message: 'Practice not found' } });
+            }
+            if (!(await validateEnrollmentAccess(req, { providerId: null, practiceId: target.id }))) {
+              return res.status(400).json({ success: false, error: { message: 'Practice not found' } });
+            }
+          }
+
+          // Friendly duplicate check ahead of the partial unique indexes.
+          const dupWhere =
+            existing.subjectType === 'PROVIDER'
+              ? { providerId: fieldUpdates.providerId ?? existing.providerId }
+              : { practiceId: fieldUpdates.practiceId ?? existing.practiceId };
+          const dup = await prisma.enrollment.findFirst({
+            where: { ...dupWhere, payerId: fieldUpdates.payerId ?? existing.payerId, id: { not: id } },
+            select: { id: true },
+          });
+          if (dup) {
+            return res.status(409).json({
+              success: false,
+              error: { message: 'An enrollment for that payer already exists' },
+            });
+          }
+
+          // Stale outcome rows describe the OLD payer — remove them so Payer
+          // Brain never learns from a mismatched pairing (same precedent as
+          // status corrections).
+          if (wantsPayer) {
+            await prisma.enrollmentOutcome.deleteMany({ where: { enrollmentId: id } });
+          }
+
+          setAuditContext(req, {
+            resourceType: 'enrollment',
+            resourceId: id,
+            action: 'update',
+            changes: {
+              source: 'reassignment',
+              ...(wantsPayer && { payerId: { from: existing.payerId, to: fieldUpdates.payerId } }),
+              ...(wantsProvider && {
+                providerId: { from: existing.providerId, to: fieldUpdates.providerId },
+              }),
+              ...(wantsPractice && {
+                practiceId: { from: existing.practiceId, to: fieldUpdates.practiceId },
+              }),
+            },
+          });
+        }
+
+        try {
+          enrollment = await prisma.enrollment.update({
+            where: { id },
+            data: {
+              ...(wantsPayer && { payerId: fieldUpdates.payerId }),
+              ...(wantsProvider && { providerId: fieldUpdates.providerId }),
+              ...(wantsPractice && { practiceId: fieldUpdates.practiceId }),
+              productTypes: fieldUpdates.productTypes,
+              applicationDate: toDateUpdate(fieldUpdates.applicationDate),
+              effectiveDate: toDateUpdate(fieldUpdates.effectiveDate),
+              terminationDate: toDateUpdate(fieldUpdates.terminationDate),
+              dateContractReceived: toDateUpdate(fieldUpdates.dateContractReceived),
+              dateContractSigned: toDateUpdate(fieldUpdates.dateContractSigned),
+              lastFollowUpDate: toDateUpdate(fieldUpdates.lastFollowUpDate),
+              recredentialingDate: toDateUpdate(fieldUpdates.recredentialingDate),
+              providerNumber: fieldUpdates.providerNumber,
+              groupNumber: fieldUpdates.groupNumber,
+              notes: fieldUpdates.notes,
+              updatedById: req.user?.id,
+            },
+            include: { payer: true },
+          });
+        } catch (err: any) {
+          // Partial unique indexes (provider+payer / practice+payer) may still
+          // fire on a race the pre-check missed.
+          if (err?.code === 'P2002') {
+            return res.status(409).json({
+              success: false,
+              error: { message: 'An enrollment for that payer already exists' },
+            });
+          }
+          throw err;
+        }
 
         // Trigger termination workflow when terminationDate transitions from null → value
         if (
@@ -759,6 +919,105 @@ router.delete(
       invalidateCache('dashboard');
       invalidateCache('payer-analytics');
       res.json({ success: true, data: { message: 'Enrollment deleted' } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
+// ENROLLMENT NOTES
+// ==========================================
+
+const createNoteSchema = z.object({ body: z.string().min(1).max(2000) });
+
+// Roles that may delete any note; the note's author may always delete their own.
+const NOTE_DELETE_ROLES = ['admin', 'credentialing_staff', 'lanyard_staff'];
+
+router.post(
+  '/:id/notes',
+  authenticate,
+  blockPendingVerification,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id']!;
+      await assertEnrollmentAccess(req, id);
+      const { body } = createNoteSchema.parse(req.body);
+
+      const exists = await prisma.enrollment.findUnique({ where: { id }, select: { id: true } });
+      if (!exists) {
+        return res.status(404).json({ success: false, error: { message: 'Enrollment not found' } });
+      }
+
+      const note = await prisma.enrollmentNote.create({
+        data: { enrollmentId: id, body, authorId: req.user!.id },
+        include: { author: { select: { id: true, firstName: true, lastName: true } } },
+      });
+
+      setAuditContext(req, {
+        resourceType: 'enrollment_note',
+        resourceId: note.id,
+        action: 'create',
+        changes: { enrollmentId: id },
+      });
+
+      res.status(201).json({ success: true, data: note });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  '/:id/notes/:noteId',
+  authenticate,
+  blockPendingVerification,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id']!;
+      const noteId = req.params['noteId']!;
+      await assertEnrollmentAccess(req, id);
+
+      const note = await prisma.enrollmentNote.findFirst({
+        where: { id: noteId, enrollmentId: id },
+      });
+      if (!note) {
+        return res.status(404).json({ success: false, error: { message: 'Note not found' } });
+      }
+
+      const user = req.user!;
+      if (note.authorId !== user.id && !NOTE_DELETE_ROLES.includes(user.role)) {
+        return res.status(403).json({
+          success: false,
+          error: { message: 'Only the note author or Lanyard staff can delete a note' },
+        });
+      }
+
+      setAuditContext(req, { resourceType: 'enrollment_note', resourceId: noteId, action: 'delete' });
+
+      // Audit is AWAITED inside the transaction (Amendment 4 precedent,
+      // provider.service.ts): a deletion whose audit row fails must roll back.
+      // The audit row carries the full note body — it is the only surviving copy.
+      await prisma.$transaction([
+        prisma.enrollmentNote.delete({ where: { id: noteId } }),
+        prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'delete',
+            resourceType: 'enrollment_note',
+            resourceId: noteId,
+            changes: {
+              source: 'note_delete',
+              enrollmentId: id,
+              body: note.body,
+              authorId: note.authorId,
+              authoredAt: note.createdAt.toISOString(),
+            },
+          },
+        }),
+      ]);
+
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }

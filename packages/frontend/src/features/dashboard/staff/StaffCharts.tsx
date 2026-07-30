@@ -39,7 +39,7 @@ export default function StaffCharts({ pipelineByStage, submissionsByWeek }: Staf
       {/* Pipeline by stage — horizontal bars */}
       <figure
         className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm"
-        aria-label={`Pipeline by stage: ${openTotal} open — ${pipeline.map((s) => `${s.label} ${s.count}`).join(', ')}`}
+        aria-label={`Pipeline by stage: ${openTotal} open: ${pipeline.map((s) => `${s.label} ${s.count}`).join(', ')}`}
       >
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Pipeline by stage</h2>
         <div className="h-48">

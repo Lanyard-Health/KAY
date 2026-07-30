@@ -26,7 +26,7 @@ export default function PracticeCharts({ approvedByPayer, approvalsByMonth }: Pr
       {/* Approved by payer — semi-donut */}
       <figure
         className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm"
-        aria-label={`Approved enrollments by payer: ${totalApproved} total — ${approvedByPayer.map((e) => `${e.payerName} ${e.count}`).join(', ') || 'none yet'}`}
+        aria-label={`Approved enrollments by payer: ${totalApproved} total: ${approvedByPayer.map((e) => `${e.payerName} ${e.count}`).join(', ') || 'none yet'}`}
       >
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Approved enrollments by payer</h2>
         <div className="relative h-48">

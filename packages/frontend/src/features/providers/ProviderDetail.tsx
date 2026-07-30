@@ -326,7 +326,7 @@ export default function ProviderDetail() {
       pushIf((s.workHistory?.created ?? 0) + (s.workHistory?.updated ?? 0), 'work history record');
       pushIf((s.workHistoryGaps?.created ?? 0) + (s.workHistoryGaps?.updated ?? 0), 'work history gap');
       pushIf((s.practiceSupervisors?.created ?? 0) + (s.practiceSupervisors?.updated ?? 0), 'supervisor');
-      toast.success(parts.length > 0 ? `Imported ${parts.join(', ')}` : 'CAQH sync complete — no new data to import');
+      toast.success(parts.length > 0 ? `Imported ${parts.join(', ')}` : 'CAQH sync complete; no new data to import');
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.error?.message || err?.response?.data?.error || 'CAQH pull failed';
@@ -920,7 +920,7 @@ export default function ProviderDetail() {
                   onClick={() => setDeleteModalOpen(true)}
                   disabled={deleteProvider.isPending}
                   className="btn-secondary text-sm text-red-600 hover:text-red-700 disabled:opacity-50"
-                  title="Delete provider (archive — retained for records, restorable)"
+                  title="Delete provider (archive; retained for records, restorable)"
                 >
                   <ArchiveBoxXMarkIcon className="-ml-0.5 mr-1.5 h-4 w-4" />
                   Delete
@@ -1005,7 +1005,7 @@ export default function ProviderDetail() {
             return (
               <div className="mt-4 border-l-4 border-primary-400 bg-primary-50/50 rounded-lg p-3 animate-fade-in">
                 <p className="text-sm text-primary-800">
-                  Complete your profile — add{' '}
+                  Complete your profile: add{' '}
                   <button onClick={missingItems[0].action} className="font-medium underline underline-offset-2 hover:text-primary-600">{missingItems[0].label}</button>
                   {missingItems.length > 1 && (
                     <>

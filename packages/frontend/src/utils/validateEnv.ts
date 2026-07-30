@@ -14,7 +14,7 @@ export function validateEnv(): void {
   if (apiUrl && !apiUrl.endsWith('/api/v1')) {
     console.warn(
       `[env] VITE_API_URL is set to "${apiUrl}" but does not end with /api/v1. ` +
-        'In dev, leave VITE_API_URL unset — the Vite proxy handles forwarding. ' +
+        'In dev, leave VITE_API_URL unset; the Vite proxy handles forwarding. ' +
         'In production, set it to your backend URL with the /api/v1 suffix ' +
         '(e.g. https://your-backend.onrender.com/api/v1).',
     );

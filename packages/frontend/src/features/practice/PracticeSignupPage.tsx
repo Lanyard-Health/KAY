@@ -218,7 +218,7 @@ export default function PracticeSignupPage() {
       const res = await fetch(`${API_BASE_URL}/practices/npi-lookup/${npi}`);
       const data = await res.json();
       if (!res.ok || !data.success || !data.data?.found) {
-        setNpiMessage({ type: 'error', text: 'NPI not found — enter address manually' });
+        setNpiMessage({ type: 'error', text: 'NPI not found; enter address manually' });
         return;
       }
       const result = data.data;
@@ -238,7 +238,7 @@ export default function PracticeSignupPage() {
       }));
       setNpiMessage({ type: 'success', text: 'Address populated from NPI registry' });
     } catch {
-      setNpiMessage({ type: 'error', text: 'Failed to look up NPI — enter address manually' });
+      setNpiMessage({ type: 'error', text: 'Failed to look up NPI; enter address manually' });
     } finally {
       setNpiLoading(false);
     }
@@ -1061,7 +1061,7 @@ export default function PracticeSignupPage() {
                 ))}
                 {truncatedPayerCount > 0 && (
                   <p className="text-center text-xs text-gray-400 py-1.5">
-                    Showing first {PAYER_RENDER_CAP} of {matchingPayers.length} — type to narrow
+                    Showing first {PAYER_RENDER_CAP} of {matchingPayers.length}; type to narrow
                   </p>
                 )}
               </div>

@@ -127,7 +127,7 @@ export default function PracticeDetail() {
               onClick={() => setDeleteModalOpen(true)}
               disabled={deletePractice.isPending}
               className="btn-secondary text-red-600"
-              title="Delete practice (archive — retained for records, restorable)"
+              title="Delete practice (archive; retained for records, restorable)"
             >
               <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
               Delete

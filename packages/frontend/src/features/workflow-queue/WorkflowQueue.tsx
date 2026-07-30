@@ -245,7 +245,7 @@ export default function WorkflowQueue() {
           <h3 className="mt-4 text-sm font-medium text-gray-900">No approvals</h3>
           <p className="mt-1 text-sm text-gray-500">
             {statusFilter === 'pending'
-              ? 'No pending approvals — you\'re all caught up!'
+              ? 'No pending approvals. You\'re all caught up!'
               : 'No approvals match the current filter.'}
           </p>
         </div>

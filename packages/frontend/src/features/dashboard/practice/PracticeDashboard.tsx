@@ -142,7 +142,7 @@ export default function PracticeDashboard({ practiceId }: { practiceId?: string 
             {/* 4 + 5 — In flight & attention */}
             <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.7fr,1fr]">
               <div className="rounded-2xl border border-gray-200/60 bg-white p-5 shadow-sm">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">In flight — where each application stands</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">In flight: where each application stands</h2>
                 {data.inFlight.length === 0 ? (
                   <p className="mt-4 text-sm text-gray-700">Nothing is in flight right now.</p>
                 ) : (
