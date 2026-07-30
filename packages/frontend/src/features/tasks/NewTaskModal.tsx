@@ -91,7 +91,7 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
     if (!providerId || !providersLoaded) return; // judge on settled data only
     if (!providerOptions.some((p) => p.id === providerId)) {
       setProviderId('');
-      setCascadeAnnouncement(`Provider cleared — ${providerLabelRef.current} isn't at ${practiceName ?? 'the selected practice'}`);
+      setCascadeAnnouncement(`Provider cleared: ${providerLabelRef.current} isn't at ${practiceName ?? 'the selected practice'}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerOptions, providersLoaded, practiceName]);
@@ -125,7 +125,7 @@ export default function NewTaskModal({ isOpen, onClose }: NewTaskModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskGroup) {
-      setGroupError("Pick a task group — it's the only required field.");
+      setGroupError("Pick a task group; it's the only required field.");
       return; // validation keeps the modal open (v1 behavior)
     }
     createMutation.mutate(

@@ -11,7 +11,7 @@ interface LoadingStateProps {
 export default function LoadingState({
   label = 'Loading…',
   slowThresholdMs = 10_000,
-  slowMessage = 'Taking longer than usual — please wait…',
+  slowMessage = 'Taking longer than usual, please wait…',
   className,
 }: LoadingStateProps) {
   const [slow, setSlow] = useState(false);

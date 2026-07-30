@@ -89,7 +89,7 @@ export default function DeletePracticeModal({
             onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
             maxLength={NOTES_MAX}
             rows={3}
-            placeholder="Anything you want to record — fully optional."
+            placeholder="Anything you want to record (fully optional)."
             className="w-full mb-6 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
             disabled={isSubmitting}
           />

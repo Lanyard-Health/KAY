@@ -21,7 +21,7 @@ describe('OverdueReasonDialog', () => {
   it('renders the contract: heading, subhead, chips, per-task labeled inputs, both footer buttons', () => {
     render(<OverdueReasonDialog tasks={TASKS} onClose={vi.fn()} />);
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-    expect(screen.getByText('Before you dive in — 2 tasks missed their deadlines')).toBeInTheDocument();
+    expect(screen.getByText('Before you dive in: 2 tasks missed their deadlines')).toBeInTheDocument();
     expect(screen.getByText("A quick reason for each helps Kay review them. You can defer, but it'll ask again next time.")).toBeInTheDocument();
     expect(screen.getAllByText("Payer hasn't responded")).toHaveLength(2); // chips per task
     expect(screen.getByRole('textbox', { name: 'What got in the way? — Call Back — Aetna Better Health — Sunrise' })).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe('OverdueReasonDialog', () => {
 
   it('singular heading for one task', () => {
     render(<OverdueReasonDialog tasks={[TASKS[0]]} onClose={vi.fn()} />);
-    expect(screen.getByText('Before you dive in — 1 task missed its deadline')).toBeInTheDocument();
+    expect(screen.getByText('Before you dive in: 1 task missed its deadline')).toBeInTheDocument();
   });
 
   it('a chip fills the field, which stays editable', async () => {
@@ -74,7 +74,7 @@ describe('OverdueReasonDialog', () => {
     await userEvent.type(screen.getByRole('textbox', { name: /Follow Up/ }), 'Ran out of time');
     await userEvent.click(screen.getByRole('button', { name: 'Save reasons' }));
     await waitFor(() =>
-      expect(screen.getByText('Couldn\'t save this reason — check your connection and try again. Your text is kept.')).toBeInTheDocument());
+      expect(screen.getByText('Couldn\'t save this reason. Check your connection and try again. Your text is kept.')).toBeInTheDocument());
     expect(onClose).not.toHaveBeenCalled(); // one failure → stays open for retry
     expect(screen.getByRole('textbox', { name: /Call Back/ })).toHaveValue('Payer went dark'); // text kept
     expect(screen.getByRole('button', { name: "I'll answer later" })).toBeEnabled(); // deferral always usable

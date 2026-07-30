@@ -90,16 +90,16 @@ export function useDecideApproval() {
       // Approved — surface the actual send result
       switch (side?.type) {
         case 'email_sent':
-          toast.success(side.detail || 'Approved — email sent');
+          toast.success(side.detail || 'Approved, email sent');
           break;
         case 'email_failed':
           toast.error(`Approved, but email send failed: ${side.detail ?? 'unknown error'}`);
           break;
         case 'email_skipped':
-          toast(`Approved — email skipped: ${side.detail ?? 'missing data'}`);
+          toast(`Approved; email skipped: ${side.detail ?? 'missing data'}`);
           break;
         case 'phone_call_queued':
-          toast.success('Approved — phone call queued');
+          toast.success('Approved, phone call queued');
           break;
         default:
           toast.success('Approved successfully');

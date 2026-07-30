@@ -100,7 +100,7 @@ export function PopulateFormsPanel({ enrollmentId }: { enrollmentId: string }) {
     mutationFn: () => api.post(`/enrollments/${enrollmentId}/populate-forms`),
     onSuccess: async (response: any) => {
       const runId = response?.data?.data?.enrollmentRunId;
-      notify.success('Forms populated — ready for review');
+      notify.success('Forms populated, ready for review');
       setSelectedRunId(runId ?? null);
       await queryClient.invalidateQueries({ queryKey: ['enrollment-runs', enrollmentId] });
       if (runId) {
@@ -110,7 +110,7 @@ export function PopulateFormsPanel({ enrollmentId }: { enrollmentId: string }) {
     onError: (err: any) => {
       const message =
         err?.response?.data?.error?.message ??
-        'Could not populate forms — check payer configuration';
+        'Could not populate forms; check payer configuration';
       notify.error('Populate failed', { description: message });
     },
   });
@@ -127,7 +127,7 @@ export function PopulateFormsPanel({ enrollmentId }: { enrollmentId: string }) {
           <SparklesIcon className="h-5 w-5 text-primary-600" />
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Populate Forms</h2>
-            <p className="text-xs text-gray-400">Manual fill — backup if the AI agent above is unavailable</p>
+            <p className="text-xs text-gray-400">Manual fill: backup if the AI agent above is unavailable</p>
           </div>
         </div>
         <button

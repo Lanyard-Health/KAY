@@ -111,7 +111,7 @@ export default function RevealableSecret({
         disabled={loading}
         className="p-0.5 rounded text-gray-400 hover:text-primary-600 disabled:opacity-50"
         aria-label={`Reveal ${label} (logged)`}
-        title={`Reveal ${label} — this view is logged`}
+        title={`Reveal ${label} (this view is logged)`}
       >
         <EyeIcon className="h-3.5 w-3.5" />
       </button>

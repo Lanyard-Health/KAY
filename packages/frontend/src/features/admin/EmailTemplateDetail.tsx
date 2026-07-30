@@ -171,7 +171,7 @@ export default function EmailTemplateDetail() {
           <div className="col-span-2 space-y-4">
             {mode === 'edit' ? (
               <>
-                <Field label="Name (internal label — not shown to recipients)">
+                <Field label="Name (internal label, not shown to recipients)">
                   <input
                     className="input"
                     value={name}
@@ -226,7 +226,7 @@ export default function EmailTemplateDetail() {
                     onChange={(e) => setIsActive(e.target.checked)}
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
-                  Active — when off, this template is skipped entirely
+                  Active; when off, this template is skipped entirely
                 </label>
               </>
             ) : (
@@ -251,7 +251,7 @@ export default function EmailTemplateDetail() {
                 Variables used ({variables.length})
               </p>
               {variables.length === 0 ? (
-                <p className="mt-2 text-sm text-gray-500">None — static content.</p>
+                <p className="mt-2 text-sm text-gray-500">None; static content.</p>
               ) : (
                 <ul className="mt-2 space-y-1.5">
                   {variables.map((v) => (

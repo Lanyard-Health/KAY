@@ -34,7 +34,7 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
     if (isLoading) return;
     setAnnouncement(info
       ? `Contact info on file for ${payerName}`
-      : `No contact info on file for ${payerName} — you can add it below`);
+      : `No contact info on file for ${payerName} ; you can add it below`);
   }, [info, isLoading, payerName]);
 
   // Seed the form from the row when entering edit mode or switching payers.
@@ -57,7 +57,7 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
         onError: () => {
           // Entered values are kept (state untouched); creation flow unaffected.
           setAnnouncement(`Couldn't save contact info for ${payerName}`);
-          notify.error("Couldn't save contact info", { description: 'Your entries are kept — try again in a moment.' });
+          notify.error("Couldn't save contact info", { description: 'Your entries are kept; try again in a moment.' });
         },
       },
     );
@@ -82,7 +82,7 @@ export default function PayerContactCard({ payerId, payerName }: PayerContactCar
       {isLoading ? null : showForm ? (
         <div className="mt-2 space-y-2">
           {!info && (
-            <p className="text-[13px] text-gray-600">Be the first to add it — every teammate after you gets this automatically.</p>
+            <p className="text-[13px] text-gray-600">Be the first to add it; every teammate after you gets this automatically.</p>
           )}
           {FIELD_LABELS.map(({ key, label }) => (
             <div key={key}>

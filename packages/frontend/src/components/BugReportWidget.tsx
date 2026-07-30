@@ -63,7 +63,7 @@ export default function BugReportWidget() {
       });
       setSent(true);
     } catch {
-      notify.error('Could not send the report — please try again');
+      notify.error('Could not send the report; please try again');
     } finally {
       setSubmitting(false);
     }
@@ -111,7 +111,7 @@ export default function BugReportWidget() {
                     <div className="py-2 text-center">
                       <CheckCircleIcon className="mx-auto h-14 w-14 text-primary-600" />
                       <Dialog.Title className="mt-3 text-lg font-semibold text-gray-900">
-                        Report sent — thank you!
+                        Report sent, thank you!
                       </Dialog.Title>
                       <p className="mt-2 text-sm text-gray-600">
                         Your report has been logged and the team has been notified. You won't get an
@@ -168,7 +168,7 @@ export default function BugReportWidget() {
 
                       <p className="mt-3 text-[11px] text-gray-400">
                         We attach the page you're on and your browser automatically. Don't include real patient or provider
-                        information — this is a test environment.
+                        information; this is a test environment.
                       </p>
 
                       <div className="mt-5 flex justify-end gap-3">

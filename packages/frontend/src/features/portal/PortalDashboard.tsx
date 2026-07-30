@@ -195,7 +195,7 @@ export default function PortalDashboard() {
           <div className="absolute bottom-0 left-[20%] w-32 h-32 rounded-full bg-emerald-300/[0.08] blur-xl translate-y-1/2" />
           <div className="relative z-10">
             <h1 className="text-2xl font-bold text-white">Welcome to Lanyard Health, {provider?.firstName}!</h1>
-            <p className="text-sm text-white/70 mt-1.5 max-w-lg">Your provider account is ready. Complete your credentialing profile below — most providers finish in under 10 minutes.</p>
+            <p className="text-sm text-white/70 mt-1.5 max-w-lg">Your provider account is ready. Complete your credentialing profile below; most providers finish in under 10 minutes.</p>
             <button
               onClick={() => {
                 searchParams.delete('welcome');

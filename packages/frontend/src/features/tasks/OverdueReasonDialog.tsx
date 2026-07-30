@@ -34,8 +34,8 @@ export default function OverdueReasonDialog({ tasks, onClose }: OverdueReasonDia
 
   const n = tasks.length;
   const heading = n === 1
-    ? 'Before you dive in — 1 task missed its deadline'
-    : `Before you dive in — ${n} tasks missed their deadlines`;
+    ? 'Before you dive in: 1 task missed its deadline'
+    : `Before you dive in: ${n} tasks missed their deadlines`;
 
   const setDraft = (taskId: string, value: string) => {
     setDrafts((d) => ({ ...d, [taskId]: value }));
@@ -66,7 +66,7 @@ export default function OverdueReasonDialog({ tasks, onClose }: OverdueReasonDia
     }
     // Per-field inline errors; entered text retained; retry available (D24).
     setSaveErrors(Object.fromEntries(failed.map((t) => [t.id, true])));
-    setAnnouncement(`${failed.length} reason${failed.length === 1 ? '' : 's'} couldn't be saved — your text is kept, try again`);
+    setAnnouncement(`${failed.length} reason${failed.length === 1 ? '' : 's'} couldn't be saved; your text is kept, try again`);
   };
 
   return (
@@ -145,7 +145,7 @@ export default function OverdueReasonDialog({ tasks, onClose }: OverdueReasonDia
                         )}
                         {saveErrors[task.id] && !validationErrors[task.id] && (
                           <p id={`reason-error-${task.id}`} className="mt-1 text-[12.5px] text-red-600">
-                            Couldn&apos;t save this reason — check your connection and try again. Your text is kept.
+                            Couldn&apos;t save this reason. Check your connection and try again. Your text is kept.
                           </p>
                         )}
                       </>

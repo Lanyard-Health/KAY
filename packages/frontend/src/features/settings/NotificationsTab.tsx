@@ -104,7 +104,7 @@ export default function NotificationsTab() {
         </div>
 
         <p className="mt-4 text-xs text-gray-400">
-          These settings control emails only — in-app notifications in the bell menu are always on.
+          These settings control emails only; in-app notifications in the bell menu are always on.
         </p>
       </div>
 

@@ -719,8 +719,8 @@ export default function EnrollmentsList() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Enrollments Found</h3>
           <p className="text-gray-500 mb-4">
             {providers.length === 0
-              ? 'No enrollments yet — add a provider enrollment, or enroll this practice as a group.'
-              : 'Get started — add a provider enrollment, or enroll a practice or group.'}
+              ? 'No enrollments yet. Add a provider enrollment, or enroll this practice as a group.'
+              : 'Get started: add a provider enrollment, or enroll a practice or group.'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             {targetPayerIds.length > 0 && providers.length === 0 && (
@@ -1175,7 +1175,7 @@ export default function EnrollmentsList() {
                     <p className="mt-1 text-xs text-gray-500">Showing only providers in this practice.</p>
                   )}
                   {subjectType === 'PRACTICE' && (
-                    <p className="mt-1 text-xs text-gray-500">Enrolling the practice/group itself — no individual provider. (State Medicaid? Pick the Medicaid payer below.)</p>
+                    <p className="mt-1 text-xs text-gray-500">Enrolling the practice/group itself, no individual provider. (State Medicaid? Pick the Medicaid payer below.)</p>
                   )}
                 </div>
 

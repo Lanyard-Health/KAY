@@ -68,7 +68,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
     onError: (error: any) => {
       const code = error.response?.data?.code;
       const msg = code === 'CAQH_NOT_SYNCED'
-        ? 'No CAQH data available — sync this provider first.'
+        ? 'No CAQH data available; sync this provider first.'
         : error.response?.data?.error || error.message || 'CAQH export failed';
       toast.error(msg);
     },
@@ -120,7 +120,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
       toast.success(
         data?.deduplicated
           ? 'An import is already running for this provider'
-          : 'Import started — this runs in the background. We\'ll email the provider if anything needs their action in CAQH.'
+          : 'Import started; this runs in the background. We\'ll email the provider if anything needs their action in CAQH.'
       );
       queryClient.invalidateQueries({ queryKey: ['provider', providerId] });
     },
@@ -338,7 +338,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                 {verifyCredentials.data.data.message}
                 {verifyCredentials.data.data.errorType === 'mfa_required' && (
                   <span className="block mt-1 text-yellow-600">
-                    MFA required — credentials not fully verified
+                    MFA required: credentials not fully verified
                   </span>
                 )}
                 {['invalid_credentials', 'account_locked'].includes(
@@ -350,7 +350,7 @@ export function CaqhCard({ providerId }: CaqhCardProps) {
                         onSuccess: (res) =>
                           toast.success(
                             res.data?.resent
-                              ? 'Email re-sent — the previous link no longer works.'
+                              ? 'Email re-sent; the previous link no longer works.'
                               : 'Email sent. The provider has a secure link to submit their correct login.'
                           ),
                         onError: (error: any) =>

@@ -92,7 +92,7 @@ export default function VerifyEmailPrototype() {
           </div>
         </main>
 
-        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#8a8478]">
+        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
           By continuing, you agree to Lanyard Health's{' '}
           <a
             href="https://lanyardhealth.com/terms"
