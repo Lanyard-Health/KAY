@@ -1,28 +1,25 @@
 /**
  * PROTOTYPE ONLY — /prototypes/login
  *
- * Design exploration for a full login-screen redesign in the warm-paper
- * style (candidate to replace the current dark-gradient LoginPage).
- * Nothing is wired to real auth: no Cognito, no backend calls. Submitting
- * "signs in" to a fake MFA step; any 6 digits pass.
+ * Design exploration for the login redesign v2 (candidate to replace the
+ * split-panel LoginPage). Nothing is wired to real auth: no Cognito, no
+ * backend calls. Submitting "signs in" to a fake MFA step; any 6 digits pass.
  *
- * Per Kay (2026-07-28): the current login's stats bar, testimonial, and
- * quote are dropped — the dark panel is pure brand art.
+ * Per Kay (2026-07-30, supersedes the 2026-07-28 no-quote decision): repeated
+ * faded-submark wallpaper on warm paper, thesis quote as the big brand
+ * statement next to the logo (LangSmith-style), white form card. Kay picked
+ * quote 3 ("The fastest path from credentialed to paid...") — shipped in
+ * LoginPage.tsx. The quote toggle (or ?quote=1..4) remains for comparison.
  *
- * Flip screens with the Prototype toggle at the top (Sign in / MFA code /
- * Reset password) — live state switch, no reload.
- *
- * PROVISIONAL STYLING — same placeholder values as VerifyEmailPrototype
- * (Poppins page-scoped, warm paper #faf7f2, placeholder gradient panel);
- * brand identity work is in progress and these will likely change.
- * ponytail: shell markup duplicated from VerifyEmailPrototype on purpose —
- * extract a shared shell only if a third prototype appears.
+ * ponytail: sub-screens carried over from the previous prototype unchanged —
+ * only the shell changed.
  */
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import CodeInput from '../../components/CodeInput';
+import { lanyardMarkTileUrl } from '../../components/LanyardMark';
 
 const MOCK_EMAIL = 'jordan@brightpathbehavioral.com'; // mock data only
 
@@ -35,30 +32,46 @@ const FIELD_CLASSES =
   'h-12 w-full rounded-xl border border-[#e3ddd2] bg-white px-4 text-sm text-[#1f2721] shadow-sm outline-none transition placeholder:text-[#a49d8f] focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15';
 
 const PRIMARY_BUTTON_CLASSES =
-  'h-12 w-full rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]';
+  'h-12 w-full rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
-const SCREEN_ORDER: Record<Screen, number> = { signin: 0, code: 1, reset: 2 };
+// Staggered repeated-submark wallpaper: same tile layered twice, second
+// layer offset by half a cell (brick pattern)
+const MARK_TILE = lanyardMarkTileUrl('#f4efe6');
+const WALLPAPER_STYLE = {
+  backgroundImage: `url("${MARK_TILE}"), url("${MARK_TILE}")`,
+  backgroundSize: '260px 199px, 260px 199px',
+  backgroundPosition: '0 0, 130px 99px',
+};
+
+// Thesis quote candidates (revenue, transparency, trust) — Kay picks one.
+const QUOTES = [
+  'Every enrollment you can see is revenue you can count on.',
+  "Credentialing shouldn't be a black box. See every application, every status, every day.",
+  'The fastest path from credentialed to paid, with nothing hidden along the way.',
+  'Trust is built in the open. We track every step so your revenue never waits on a mystery.',
+] as const;
 
 export default function LoginPrototype() {
+  const [searchParams] = useSearchParams();
+  const initialQuote = Math.min(
+    Math.max(parseInt(searchParams.get('quote') ?? '3', 10) || 3, 1),
+    QUOTES.length,
+  );
   const [screen, setScreen] = useState<Screen>('signin');
   const [verified, setVerified] = useState(false);
-  // Motion prototype controls: two candidate card transitions to compare live
-  const [motionMode, setMotionMode] = useState<'fade' | 'slide'>('fade');
-  const [dir, setDir] = useState(1); // 1 = forward, -1 = back (slide mode)
+  const [quoteIdx, setQuoteIdx] = useState(initialQuote - 1);
   const [leavingTo, setLeavingTo] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const navigate = useNavigate();
 
   // Warm the lazy-loaded registration pages while the user reads this screen,
   // so Register here / Sign up your practice open without a blank flash.
-  // Vite dedupes these with App.tsx's lazy() imports — same chunk either way.
   useEffect(() => {
     void import('../portal/RegisterPage');
     void import('../practice/PracticeSignupPage');
   }, []);
 
   const go = (s: Screen) => {
-    setDir(SCREEN_ORDER[s] >= SCREEN_ORDER[screen] ? 1 : -1);
     setScreen(s);
     setVerified(false);
   };
@@ -74,27 +87,13 @@ export default function LoginPrototype() {
     setLeavingTo(path);
   };
 
-  const cardVariants =
-    motionMode === 'slide'
-      ? {
-          initial: { opacity: 0, x: 28 * dir },
-          animate: { opacity: 1, x: 0 },
-          exit: { opacity: 0, x: -28 * dir },
-        }
-      : {
-          initial: { opacity: 0, y: 10 },
-          animate: { opacity: 1, y: 0 },
-          exit: { opacity: 0, y: -6 },
-        };
-
   return (
     <div
-      className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
-      style={{ fontFamily: POPPINS }}
+      className="relative flex min-h-screen flex-col overflow-hidden bg-[#faf7f2] text-[#1f2721]"
+      style={{ fontFamily: POPPINS, ...WALLPAPER_STYLE }}
     >
-      {/* Leave wash: fades IN the destination pages' exact gradient before
-          navigating, so the near-white app backdrop is never exposed and the
-          cut to the identically-colored register pages is invisible */}
+      {/* Leave wash: fades to the destination pages' identical background
+          before navigating so the cut is invisible */}
       <motion.div
         className="pointer-events-none fixed inset-0 z-50 bg-[#faf7f2]"
         initial={{ opacity: 0 }}
@@ -104,159 +103,132 @@ export default function LoginPrototype() {
           if (leavingTo) navigate(leavingTo);
         }}
       />
-      {/* Left: content panel */}
-      <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
-        <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
-          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] w-auto" />
-          <div className="flex items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm">
-            You are signing into
-            <span className="font-semibold text-[#1f2721]">Lanyard</span>
-          </div>
-        </header>
 
-        {/* Prototype controls: screen + motion-style toggles */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2">
+      {/* Prototype controls */}
+      <div className="relative z-10 mt-6 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2 px-4">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a49d8f]">
+          Prototype
+        </span>
+        <div className="flex rounded-full border border-[#e7e1d6] bg-white p-1 shadow-sm">
+          {(
+            [
+              ['signin', 'Sign in'],
+              ['code', 'MFA code'],
+              ['reset', 'Reset password'],
+            ] as const
+          ).map(([s, label]) => (
+            <button
+              key={s}
+              type="button"
+              aria-pressed={screen === s}
+              onClick={() => go(s)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] ${
+                screen === s ? 'bg-[#0A3D2E] text-white' : 'text-[#6b665c] hover:text-[#1f2721]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a49d8f]">
-            Prototype
+            Quote
           </span>
           <div className="flex rounded-full border border-[#e7e1d6] bg-white p-1 shadow-sm">
-            {(
-              [
-                ['signin', 'Sign in'],
-                ['code', 'MFA code'],
-                ['reset', 'Reset password'],
-              ] as const
-            ).map(([s, label]) => (
+            {QUOTES.map((_, i) => (
               <button
-                key={s}
+                key={i}
                 type="button"
-                aria-pressed={screen === s}
-                onClick={() => go(s)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] ${
-                  screen === s
-                    ? 'bg-[#0A3D2E] text-white'
-                    : 'text-[#6b665c] hover:text-[#1f2721]'
+                aria-pressed={quoteIdx === i}
+                onClick={() => setQuoteIdx(i)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] ${
+                  quoteIdx === i ? 'bg-[#0A3D2E] text-white' : 'text-[#6b665c] hover:text-[#1f2721]'
                 }`}
               >
-                {label}
+                {i + 1}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a49d8f]">
-              Motion
-            </span>
-            <div className="flex rounded-full border border-[#e7e1d6] bg-white p-1 shadow-sm">
-              {(
-                [
-                  ['fade', 'Fade + rise'],
-                  ['slide', 'Slide'],
-                ] as const
-              ).map(([m, label]) => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-pressed={motionMode === m}
-                  onClick={() => setMotionMode(m)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] ${
-                    motionMode === m
-                      ? 'bg-[#0A3D2E] text-white'
-                      : 'text-[#6b665c] hover:text-[#1f2721]'
-                  }`}
+        </div>
+      </div>
+
+      <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
+        <div className="grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16">
+          {/* Brand statement: logo + thesis quote, LangSmith-style */}
+          <div className="text-center lg:text-left">
+            <img
+              src="/logo-full.svg"
+              alt="Lanyard Health"
+              className="mx-auto h-[72px] w-auto lg:mx-0"
+            />
+            <p className="mx-auto mt-6 max-w-xl text-2xl font-semibold leading-snug text-[#171b17] sm:text-3xl lg:mx-0 lg:mt-10 lg:text-4xl lg:leading-tight">
+              &ldquo;{QUOTES[quoteIdx]}&rdquo;
+            </p>
+          </div>
+
+          <div className="mx-auto w-full max-w-md">
+            <div className="rounded-[28px] border border-[#f0eadd] bg-white px-6 py-10 shadow-[0_24px_70px_-30px_rgba(23,27,23,0.18)] sm:px-10">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={verified ? 'done' : screen}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{
+                    duration: reduceMotion ? 0 : 0.2,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
                 >
-                  {label}
-                </button>
-              ))}
+                  {verified ? (
+                    <SignedInState
+                      onReset={() => {
+                        setVerified(false);
+                        setScreen('signin');
+                      }}
+                    />
+                  ) : screen === 'signin' ? (
+                    <SignInScreen
+                      onSubmit={() => go('code')}
+                      onForgotPassword={() => go('reset')}
+                      onLeave={leaveTo}
+                    />
+                  ) : screen === 'code' ? (
+                    <MfaCodeScreen
+                      onVerified={() => {
+                        setVerified(true);
+                      }}
+                    />
+                  ) : (
+                    <ResetScreen onDone={() => go('signin')} />
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
         </div>
+      </main>
 
-        <main className="flex flex-1 items-center justify-center overflow-x-hidden px-6 py-10">
-          <div className="w-full max-w-sm">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={verified ? 'done' : screen}
-                initial={cardVariants.initial}
-                animate={cardVariants.animate}
-                exit={cardVariants.exit}
-                transition={{
-                  duration: reduceMotion ? 0 : 0.2,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-              >
-                {verified ? (
-                  <SignedInState
-                    onReset={() => {
-                      setDir(-1);
-                      setVerified(false);
-                      setScreen('signin');
-                    }}
-                  />
-                ) : screen === 'signin' ? (
-                  <SignInScreen
-                    onSubmit={() => go('code')}
-                    onForgotPassword={() => go('reset')}
-                    onLeave={leaveTo}
-                  />
-                ) : screen === 'code' ? (
-                  <MfaCodeScreen
-                    onVerified={() => {
-                      setDir(1);
-                      setVerified(true);
-                    }}
-                  />
-                ) : (
-                  <ResetScreen onDone={() => go('signin')} />
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </main>
-
-        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
-          By continuing, you agree to Lanyard Health's{' '}
-          <a
-            href="https://lanyardhealth.com/terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-[#1f2721] underline underline-offset-2"
-          >
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a
-            href="https://lanyardhealth.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-[#1f2721] underline underline-offset-2"
-          >
-            Privacy Policy
-          </a>
-          .
-        </footer>
-      </div>
-
-      {/* Right: dark brand panel (placeholder art, hidden on mobile).
-          Stats / testimonial / quote deliberately absent. */}
-      <div
-        className="relative hidden overflow-hidden lg:block lg:w-1/2"
-        aria-hidden="true"
-        style={{
-          background: 'linear-gradient(150deg, #040f0b 0%, #0A3D2E 62%, #1a6b4e 105%)',
-        }}
-      >
-        <div
-          className="absolute -right-44 top-0 h-full w-[26rem]"
-          style={{
-            background:
-              'radial-gradient(closest-side, rgba(250,247,242,0.26), transparent 72%)',
-            filter: 'blur(46px)',
-          }}
-        />
-        {/* ghost mark placeholder — replace with the real brand mark */}
-        <div className="absolute left-1/2 top-1/2 h-[540px] w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
-        <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]" />
-      </div>
+      <footer className="relative z-10 px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
+        By continuing, you agree to Lanyard Health's{' '}
+        <a
+          href="https://lanyardhealth.com/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[#1f2721] underline underline-offset-2"
+        >
+          Terms of Service
+        </a>{' '}
+        and{' '}
+        <a
+          href="https://lanyardhealth.com/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[#1f2721] underline underline-offset-2"
+        >
+          Privacy Policy
+        </a>
+        .
+      </footer>
     </div>
   );
 }
@@ -276,14 +248,16 @@ function SignInScreen({
   const [password, setPassword] = useState('');
 
   return (
-    <div className="">
-      <h1 className="text-center text-2xl font-semibold text-[#171b17]">Welcome back</h1>
-      <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
-        Sign in to your Lanyard portal.
+    <div>
+      <h1 className="text-center text-2xl font-semibold text-[#171b17]">
+        Welcome to Lanyard
+      </h1>
+      <p className="mt-2 text-center text-sm leading-6 text-[#6b665c]">
+        We're glad you're here.
       </p>
 
       <form
-        className="mt-8 space-y-3"
+        className="mt-7 space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit(); // mock: always proceeds to the MFA step
@@ -354,16 +328,16 @@ function MfaCodeScreen({ onVerified }: { onVerified: () => void }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="">
+    <div>
       <h1 className="text-center text-2xl font-semibold text-[#171b17]">
         Check your email
       </h1>
-      <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
+      <p className="mt-2 text-center text-sm leading-6 text-[#6b665c]">
         We sent a 6-digit code to{' '}
         <span className="font-semibold text-[#1f2721]">{MOCK_EMAIL}</span>.
       </p>
 
-      <div className="mt-8">
+      <div className="mt-7">
         <CodeInput tone="light" value={code} onChange={setCode} autoFocus />
       </div>
 
@@ -375,7 +349,7 @@ function MfaCodeScreen({ onVerified }: { onVerified: () => void }) {
           // ponytail: fake latency stands in for the real Cognito confirm call
           window.setTimeout(onVerified, 900);
         }}
-        className={`mt-8 ${PRIMARY_BUTTON_CLASSES}`}
+        className={`mt-7 ${PRIMARY_BUTTON_CLASSES}`}
       >
         {confirming ? 'Verifying…' : 'Verify'}
       </button>
@@ -390,17 +364,17 @@ function ResetScreen({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState('');
 
   return (
-    <div className="">
+    <div>
       <h1 className="text-center text-2xl font-semibold text-[#171b17]">
         Reset your password
       </h1>
-      <p className="mt-3 text-center text-sm leading-6 text-[#6b665c]">
+      <p className="mt-2 text-center text-sm leading-6 text-[#6b665c]">
         Enter the code we emailed to{' '}
         <span className="font-semibold text-[#1f2721]">{MOCK_EMAIL}</span> and pick a
         new password.
       </p>
 
-      <div className="mt-8">
+      <div className="mt-7">
         <CodeInput tone="light" value={code} onChange={setCode} autoFocus />
       </div>
 
@@ -445,7 +419,7 @@ function SignedInState({ onReset }: { onReset: () => void }) {
         In the real flow this would land on your dashboard; this prototype stops
         here.
       </p>
-      <button type="button" onClick={onReset} className={`mt-8 ${PRIMARY_BUTTON_CLASSES}`}>
+      <button type="button" onClick={onReset} className={`mt-7 ${PRIMARY_BUTTON_CLASSES}`}>
         Start over
       </button>
     </div>

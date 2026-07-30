@@ -4,18 +4,33 @@ import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
 import { mapCognitoError } from '../../utils/cognito-errors';
 import CodeInput from '../../components/CodeInput';
+import { lanyardMarkTileUrl } from '../../components/LanyardMark';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
 
-// Approved warm-paper login design (Kay, 2026-07-29; prototype at /prototypes/login).
-// Poppins + warm neutrals are PROVISIONAL pending the brand identity work.
+// Approved login design v2 (Kay, 2026-07-30; prototype at /prototypes/login):
+// warm paper with a repeated faded-submark wallpaper, thesis quote as the big
+// brand statement, white card for the form. Supersedes the 2026-07-29 split
+// panel and the earlier no-quote decision.
 const POPPINS =
   "'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
+const THESIS_QUOTE =
+  'The fastest path from credentialed to paid, with nothing hidden along the way.';
+
+// Staggered repeated-submark wallpaper: same tile layered twice, second layer
+// offset by half a cell (brick pattern)
+const MARK_TILE = lanyardMarkTileUrl('#f4efe6');
+const WALLPAPER_STYLE = {
+  backgroundImage: `url("${MARK_TILE}"), url("${MARK_TILE}")`,
+  backgroundSize: '260px 199px, 260px 199px',
+  backgroundPosition: '0 0, 130px 99px',
+};
 const FIELD_CLASSES =
   'h-12 w-full rounded-xl border border-[#e3ddd2] bg-white px-4 text-sm text-[#1f2721] shadow-sm outline-none transition placeholder:text-[#a49d8f] focus:border-[#2d8b6a] focus:ring-4 focus:ring-[#2d8b6a]/15';
 const LABEL_CLASSES = 'block text-sm font-medium text-[#57534a] mb-1.5';
 const PRIMARY_BUTTON_CLASSES =
-  'h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]';
+  'h-12 w-full flex items-center justify-center rounded-full bg-[#0A3D2E] text-sm font-medium text-white shadow-sm transition hover:bg-[#082f23] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 const GHOST_BUTTON_CLASSES =
   'w-full text-sm text-[#6b665c] transition hover:text-[#1f2721] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d8b6a] rounded';
 
@@ -134,7 +149,7 @@ export default function LoginPage() {
       await login(email, password);
       const state = useAuthStore.getState();
       if (!state.challengeName && state.isAuthenticated) {
-        notify.success('Welcome back');
+        notify.success('Signed in');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
@@ -228,7 +243,7 @@ export default function LoginPage() {
       await handleMfaChallenge(mfaCode);
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        notify.success('Welcome back');
+        notify.success('Signed in');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
@@ -257,7 +272,7 @@ export default function LoginPage() {
       await handleEmailMfaCode(mfaCode);
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
-        notify.success('Welcome back');
+        notify.success('Signed in');
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
@@ -661,13 +676,13 @@ export default function LoginPage() {
     }
   };
 
-  // Approved warm-paper redesign (Kay, 2026-07-29; reference at /prototypes/login).
-  // Protected design: logo-full.svg in natural green, warm paper split panel,
-  // no stats bar / testimonial / quote. See CLAUDE.md Do-Not-Touch list.
+  // Approved login design v2 (Kay, 2026-07-30; reference at /prototypes/login).
+  // Protected design: repeated faded-submark wallpaper on warm paper, thesis
+  // quote next to the logo, white form card. See CLAUDE.md Do-Not-Touch list.
   return (
     <div
-      className="flex min-h-screen bg-[#faf7f2] text-[#1f2721]"
-      style={{ fontFamily: POPPINS }}
+      className="relative flex min-h-screen flex-col overflow-hidden bg-[#faf7f2] text-[#1f2721]"
+      style={{ fontFamily: POPPINS, ...WALLPAPER_STYLE }}
     >
       {/* Leave wash: fades IN the registration pages' paper backdrop before
           navigating, so no mismatched frame is exposed */}
@@ -681,23 +696,27 @@ export default function LoginPage() {
         }}
       />
 
-      {/* Left: content panel */}
-      <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
-        <header className="flex items-center justify-between gap-3 px-6 pt-6 sm:px-10">
-          <img src="/logo-full.svg" alt="Lanyard Health" className="h-[72px] w-auto" />
-          <div className="hidden items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3.5 py-1.5 text-xs text-[#6b665c] shadow-sm sm:flex">
-            You are signing into
-            <span className="font-semibold text-[#1f2721]">Lanyard</span>
+      <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
+        <div className="grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16">
+          {/* Brand statement: logo + thesis quote */}
+          <div className="text-center lg:text-left">
+            <img
+              src="/logo-full.svg"
+              alt="Lanyard Health"
+              className="mx-auto h-[72px] w-auto lg:mx-0"
+            />
+            <p className="mx-auto mt-6 max-w-xl text-2xl font-semibold leading-snug text-[#171b17] sm:text-3xl lg:mx-0 lg:mt-10 lg:text-4xl lg:leading-tight">
+              &ldquo;{THESIS_QUOTE}&rdquo;
+            </p>
           </div>
-        </header>
 
-        <main className="flex flex-1 items-center justify-center overflow-x-hidden px-6 py-10">
-          <div className="w-full max-w-sm">
+          <div className="mx-auto w-full max-w-md">
+            <div className="rounded-[28px] border border-[#f0eadd] bg-white px-6 py-10 shadow-[0_24px_70px_-30px_rgba(23,27,23,0.18)] sm:px-10">
             {authStep === 'login' && (
-              <div className="mb-8 text-center">
-                <h2 className="text-2xl font-semibold text-[#171b17]">Welcome back</h2>
+              <div className="mb-7 text-center">
+                <h2 className="text-2xl font-semibold text-[#171b17]">Welcome to Lanyard</h2>
                 <p className="mt-2 text-sm text-[#6b665c]">
-                  Sign in to pick up where you left off
+                  We're glad you're here.
                 </p>
               </div>
             )}
@@ -790,10 +809,12 @@ export default function LoginPage() {
                 </p>
               </div>
             )}
+            </div>
           </div>
-        </main>
+        </div>
+      </main>
 
-        <footer className="px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
+      <footer className="relative z-10 px-6 pb-8 text-center text-xs leading-5 text-[#75705f]">
           By continuing, you agree to Lanyard Health's{' '}
           <a
             href="https://lanyardhealth.com/terms"
@@ -813,29 +834,7 @@ export default function LoginPage() {
             Privacy Policy
           </a>
           .
-        </footer>
-      </div>
-
-      {/* Right: dark brand panel (placeholder art pending brand work; hidden on mobile) */}
-      <div
-        className="relative hidden overflow-hidden lg:block lg:w-1/2"
-        aria-hidden="true"
-        style={{
-          background: 'linear-gradient(150deg, #040f0b 0%, #0A3D2E 62%, #1a6b4e 105%)',
-        }}
-      >
-        <div
-          className="absolute -right-44 top-0 h-full w-[26rem]"
-          style={{
-            background:
-              'radial-gradient(closest-side, rgba(250,247,242,0.26), transparent 72%)',
-            filter: 'blur(46px)',
-          }}
-        />
-        {/* ghost mark placeholder — replace with the real brand mark */}
-        <div className="absolute left-1/2 top-1/2 h-[540px] w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
-        <div className="absolute left-1/2 top-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.06]" />
-      </div>
+      </footer>
     </div>
   );
 }
