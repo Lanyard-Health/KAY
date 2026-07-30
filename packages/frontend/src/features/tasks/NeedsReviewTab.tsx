@@ -29,7 +29,7 @@ export default function NeedsReviewTab({ onOpenDetail }: { onOpenDetail: (task: 
     if (updateMutation.isPending) return; // dedup double-clicks; buttons stay enabled
     updateMutation.mutate(
       { taskId, data: patch },
-      { onError: () => notify.error("Couldn't save that change", { description: 'The row is unchanged — try again in a moment.' }) },
+      { onError: () => notify.error("Couldn't save that change", { description: 'The row is unchanged; try again in a moment.' }) },
     );
   };
 
@@ -61,7 +61,7 @@ export default function NeedsReviewTab({ onOpenDetail }: { onOpenDetail: (task: 
         ) : isError ? (
           <ErrorState title="Couldn't load the review list" message="Something went wrong on our end." onRetry={refetch} />
         ) : tasks.length === 0 ? (
-          <EmptyState illustration="clipboard" title="Nothing needs review" description="Nothing needs review — every task met its deadline." />
+          <EmptyState illustration="clipboard" title="Nothing needs review" description="Every task met its deadline. Nothing to review here." />
         ) : (
           tasks.map((task) => (
             <div key={task.id} className="space-y-1.5 px-4 py-3 max-md:space-y-2">

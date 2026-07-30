@@ -23,7 +23,7 @@ const STATUS_CONFIG = [
   { key: 'pending_review', label: 'Pending Review', color: '#8B5CF6' },
   { key: 'approved', label: 'Approved', color: '#22C55E' },
   { key: 'denied', label: 'Denied', color: '#EF4444' },
-  { key: 'terminated', label: 'Terminated', color: '#8a8478' },
+  { key: 'terminated', label: 'Terminated', color: '#75705f' },
 ];
 
 const DATE_RANGES = [
