@@ -388,7 +388,7 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                               value={orgQuery}
                               onChange={(e) => setOrgQuery(e.target.value)}
                               className="input flex-1"
-                              placeholder="Organization name as registered with NPPES"
+                              placeholder="Start of the name as registered with NPPES"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -418,7 +418,9 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                             </button>
                           </div>
                           <p className="mt-1 text-xs text-gray-500">
-                            Tip: add the 2-letter state to narrow the results.
+                            The registry matches from the start of the name — &quot;behavioral break&quot; finds
+                            &quot;Behavioral Breakthroughs&quot;, but a middle word alone won&apos;t. Add the 2-letter
+                            state to narrow the results.
                           </p>
 
                           {orgSearch.status === 'done' && orgSearch.results.length > 0 && (
@@ -446,7 +448,8 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                           )}
                           {orgSearch.status === 'done' && orgSearch.results.length === 0 && (
                             <p className="mt-2 text-sm text-gray-600">
-                              No organizations matched. Try fewer words, a different spelling, or leave the state blank.
+                              No organizations matched. The registry matches from the start of the name — try
+                              just the first word or two, check the spelling, or leave the state blank.
                             </p>
                           )}
                           {orgSearch.status === 'error' && (
