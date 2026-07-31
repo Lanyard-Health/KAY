@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckCircleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useForm, Controller } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import { api } from '../../services/api';
 import { useCreatePractice, useUpdatePractice } from '../../hooks/usePractices';
 import type { Practice } from '../../hooks/usePractices';
 import SelectWithOther from '../../components/SelectWithOther';
@@ -63,16 +64,116 @@ interface PracticeFormModalProps {
   practice?: Practice | null;
 }
 
+// Shape returned by GET /npi/lookup/:npi (npi.service.ts NPILookupResult) —
+// only the fields this form consumes.
+interface NpiLookupResult {
+  found: boolean;
+  npi?: string;
+  entityType?: 'individual' | 'organization';
+  firstName?: string;
+  lastName?: string;
+  organizationName?: string;
+  authorizedOfficialPhone?: string;
+  status?: string;
+  primaryTaxonomy?: { code: string; description: string };
+  practiceLocation?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    phone?: string;
+  };
+  mailingAddress?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+}
+
+// Mirrors ProviderForm's module-private formatter (duplicating 6 lines beats
+// exporting from a 1,900-line form file).
+const formatPhoneNumber = (value: string): string => {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+};
+
+type NpiLookupState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'found'; result: NpiLookupResult; applied: boolean }
+  | { status: 'not_found' }
+  | { status: 'error' };
+
 export default function PracticeFormModal({ isOpen, onClose, practice }: PracticeFormModalProps) {
   const isEditing = !!practice;
   const createMutation = useCreatePractice();
   const updateMutation = useUpdatePractice();
 
-  const { register, handleSubmit, reset, control, watch, setValue, formState: { errors } } =
+  const { register, handleSubmit, reset, control, watch, setValue, getValues, formState: { errors } } =
     useForm<PracticeFormData>({ defaultValues: EMPTY });
 
   const [sameBilling, setSameBilling] = useState(false);
   const [sameMailing, setSameMailing] = useState(false);
+  const [npiLookup, setNpiLookup] = useState<NpiLookupState>({ status: 'idle' });
+
+  const npiValue = watch('groupNpi');
+  const npiReady = /^\d{10}$/.test(npiValue || '');
+
+  const handleNpiLookup = async () => {
+    if (!npiReady) return;
+    setNpiLookup({ status: 'loading' });
+    try {
+      const res = await api.get<{ success: boolean; data: NpiLookupResult }>(
+        `/npi/lookup/${npiValue}`
+      );
+      const result = res.data.data;
+      setNpiLookup(result?.found ? { status: 'found', result, applied: false } : { status: 'not_found' });
+    } catch {
+      setNpiLookup({ status: 'error' });
+    }
+  };
+
+  // Fill the form from the confirmed registry record. Registry values win over
+  // whatever was typed (Kay can edit anything afterward); legalName only fills
+  // when blank so a deliberately different legal entity name isn't clobbered.
+  const applyNpiResult = (result: NpiLookupResult) => {
+    const orgName =
+      result.organizationName || [result.firstName, result.lastName].filter(Boolean).join(' ');
+    if (orgName) {
+      setValue('name', orgName, { shouldValidate: true });
+      if (!getValues('legalName')) setValue('legalName', orgName);
+    }
+    const loc = result.practiceLocation;
+    if (loc) {
+      setValue('addressLine1', loc.addressLine1 || '');
+      setValue('addressLine2', loc.addressLine2 || '');
+      setValue('city', loc.city || '');
+      setValue('state', loc.state || '');
+      setValue('zipCode', loc.zipCode || '');
+    }
+    const mail = result.mailingAddress;
+    if (mail?.addressLine1) {
+      const differs = !loc || mail.addressLine1 !== loc.addressLine1 || mail.zipCode !== loc.zipCode;
+      if (differs) setSameMailing(false);
+      setValue('mailingAddressLine1', mail.addressLine1 || '');
+      setValue('mailingAddressLine2', mail.addressLine2 || '');
+      setValue('mailingCity', mail.city || '');
+      setValue('mailingState', mail.state || '');
+      setValue('mailingZipCode', mail.zipCode || '');
+    }
+    const phone = loc?.phone || result.authorizedOfficialPhone;
+    if (phone) setValue('phone', formatPhoneNumber(phone));
+    if (result.primaryTaxonomy?.description) {
+      setValue('groupSpecialty', result.primaryTaxonomy.description);
+    }
+    setNpiLookup({ status: 'found', result, applied: true });
+  };
 
   useEffect(() => {
     if (practice) {
@@ -116,7 +217,8 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
     }
     setSameBilling(false);
     setSameMailing(false);
-  }, [practice, reset]);
+    setNpiLookup({ status: 'idle' });
+  }, [practice, reset, isOpen]);
 
   // Keep billing/mailing in sync with the office address while "same as office" is on.
   const office = watch(['addressLine1', 'addressLine2', 'city', 'state', 'zipCode']);
@@ -179,6 +281,115 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                   </div>
 
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+                    {/* NPI lookup — type the group NPI first and the registry
+                        fills in what it knows. */}
+                    <div>
+                      <label className="label">Group NPI</label>
+                      <div className="flex gap-2">
+                        <input
+                          {...register('groupNpi', {
+                            pattern: { value: /^\d{10}$/, message: 'Group NPI must be 10 digits' },
+                            onChange: () => {
+                              if (npiLookup.status !== 'idle') setNpiLookup({ status: 'idle' });
+                            },
+                          })}
+                          className="input flex-1"
+                          placeholder="10-digit organization NPI"
+                          maxLength={10}
+                          inputMode="numeric"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleNpiLookup();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleNpiLookup}
+                          disabled={!npiReady || npiLookup.status === 'loading'}
+                          className="btn-secondary flex shrink-0 items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {npiLookup.status === 'loading' ? (
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                          ) : (
+                            <MagnifyingGlassIcon className="h-4 w-4" />
+                          )}
+                          Look Up
+                        </button>
+                      </div>
+                      {errors.groupNpi && <p className="mt-1 text-sm text-red-600">{errors.groupNpi.message}</p>}
+                      {npiLookup.status === 'idle' && !errors.groupNpi && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Look up the NPI to fill in the practice details from the federal registry. No NPI? Skip this and enter everything below.
+                        </p>
+                      )}
+
+                      {npiLookup.status === 'found' && npiLookup.result.entityType === 'organization' && (
+                        <div className="mt-2 rounded-xl border border-green-200 bg-green-50 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-start gap-2">
+                              <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                              <div className="min-w-0 text-sm">
+                                <p className="font-medium text-green-900">
+                                  {npiLookup.result.organizationName || 'Found in NPI Registry'}
+                                </p>
+                                <p className="mt-0.5 text-green-800">
+                                  {[
+                                    npiLookup.result.primaryTaxonomy?.description,
+                                    [npiLookup.result.practiceLocation?.city, npiLookup.result.practiceLocation?.state]
+                                      .filter(Boolean)
+                                      .join(', '),
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                                {npiLookup.applied && (
+                                  <p className="mt-1 text-xs text-green-700">
+                                    Details filled in below — review and adjust anything before saving.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {!npiLookup.applied && (
+                              <button
+                                type="button"
+                                onClick={() => applyNpiResult(npiLookup.result)}
+                                className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                              >
+                                Use this info
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {npiLookup.status === 'found' && npiLookup.result.entityType !== 'organization' && (
+                        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          <p className="font-medium">
+                            This NPI belongs to an individual provider
+                            {npiLookup.result.firstName ? ` (${npiLookup.result.firstName} ${npiLookup.result.lastName ?? ''})` : ''}
+                            , not an organization.
+                          </p>
+                          <p className="mt-0.5">
+                            Practices usually use a group (organization) NPI. Double-check the number, or enter the practice details manually below.
+                          </p>
+                        </div>
+                      )}
+
+                      {npiLookup.status === 'not_found' && (
+                        <p className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                          That NPI isn&apos;t in the federal registry. Double-check the number, or enter the practice details manually below.
+                        </p>
+                      )}
+
+                      {npiLookup.status === 'error' && (
+                        <p className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                          The registry lookup didn&apos;t go through. Try again in a moment, or enter the details manually below.
+                        </p>
+                      )}
+                    </div>
+
                     {/* Identity */}
                     <div className="space-y-4">
                       <div>
@@ -201,18 +412,11 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                       )} />
                     </div>
 
-                    {/* Identifiers */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="label">Group NPI</label>
-                        <input {...register('groupNpi', { pattern: { value: /^\d{10}$/, message: 'Group NPI must be 10 digits' } })} className="input" placeholder="10-digit number" />
-                        {errors.groupNpi && <p className="mt-1 text-sm text-red-600">{errors.groupNpi.message}</p>}
-                      </div>
-                      <div>
-                        <label className="label">Group TIN</label>
-                        <input {...register('taxId')} className="input" placeholder={isEditing && practice?.taxId ? `On file (${practice.taxId})` : 'Tax ID number'} />
-                        <p className="mt-1 text-xs text-gray-500">Stored encrypted. Leave blank to keep the current TIN.</p>
-                      </div>
+                    {/* Identifiers (Group NPI moved to the lookup field up top) */}
+                    <div>
+                      <label className="label">Group TIN</label>
+                      <input {...register('taxId')} className="input" placeholder={isEditing && practice?.taxId ? `On file (${practice.taxId})` : 'Tax ID number'} />
+                      <p className="mt-1 text-xs text-gray-500">Stored encrypted. Leave blank to keep the current TIN.</p>
                     </div>
 
                     {/* Specialty */}
