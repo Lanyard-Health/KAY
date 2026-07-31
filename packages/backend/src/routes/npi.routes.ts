@@ -15,6 +15,11 @@ const npiSearchSchema = z.object({
   message: 'At least first name or last name is required.',
 });
 
+const npiOrgSearchSchema = z.object({
+  name: z.string().min(2, 'Enter at least 2 characters.').max(200),
+  state: z.string().max(2).regex(/^[A-Za-z]*$/).optional(),
+});
+
 export const npiRoutes = Router();
 
 npiRoutes.use(authenticate);
@@ -39,6 +44,22 @@ npiRoutes.get(
       const result = await npiService.lookupByNPI(npiNumber);
 
       res.json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/v1/npi/search-organizations - Search organizations (NPI-2) by name
+npiRoutes.get(
+  '/search-organizations',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, state } = npiOrgSearchSchema.parse(req.query);
+
+      const results = await npiService.searchOrganizations(name, state);
+
+      res.json({ success: true, data: results });
     } catch (error) {
       next(error);
     }

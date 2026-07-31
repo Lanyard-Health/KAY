@@ -139,6 +139,38 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
     }
   };
 
+  // "Don't know the NPI?" — search NPPES by organization name instead.
+  const [nameSearchOpen, setNameSearchOpen] = useState(false);
+  const [orgQuery, setOrgQuery] = useState('');
+  const [orgState, setOrgState] = useState('');
+  const [orgSearch, setOrgSearch] = useState<
+    { status: 'idle' } | { status: 'loading' } | { status: 'done'; results: NpiLookupResult[] } | { status: 'error' }
+  >({ status: 'idle' });
+
+  const handleOrgSearch = async () => {
+    if (orgQuery.trim().length < 2) return;
+    setOrgSearch({ status: 'loading' });
+    try {
+      const params = new URLSearchParams({ name: orgQuery.trim() });
+      if (orgState.trim()) params.append('state', orgState.trim().toUpperCase());
+      const res = await api.get<{ success: boolean; data: NpiLookupResult[] }>(
+        `/npi/search-organizations?${params.toString()}`
+      );
+      setOrgSearch({ status: 'done', results: res.data.data ?? [] });
+    } catch {
+      setOrgSearch({ status: 'error' });
+    }
+  };
+
+  const pickOrgResult = (result: NpiLookupResult) => {
+    if (result.npi) setValue('groupNpi', result.npi, { shouldValidate: true });
+    setNpiLookup({ status: 'found', result, applied: false });
+    setNameSearchOpen(false);
+    setOrgSearch({ status: 'idle' });
+    setOrgQuery('');
+    setOrgState('');
+  };
+
   // Fill the form from the confirmed registry record. Registry values win over
   // whatever was typed (Kay can edit anything afterward); legalName only fills
   // when blank so a deliberately different legal entity name isn't clobbered.
@@ -218,6 +250,10 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
     setSameBilling(false);
     setSameMailing(false);
     setNpiLookup({ status: 'idle' });
+    setNameSearchOpen(false);
+    setOrgSearch({ status: 'idle' });
+    setOrgQuery('');
+    setOrgState('');
   }, [practice, reset, isOpen]);
 
   // Keep billing/mailing in sync with the office address while "same as office" is on.
@@ -319,10 +355,106 @@ export default function PracticeFormModal({ isOpen, onClose, practice }: Practic
                         </button>
                       </div>
                       {errors.groupNpi && <p className="mt-1 text-sm text-red-600">{errors.groupNpi.message}</p>}
-                      {npiLookup.status === 'idle' && !errors.groupNpi && (
+                      {npiLookup.status === 'idle' && !errors.groupNpi && !nameSearchOpen && (
                         <p className="mt-1 text-xs text-gray-500">
-                          Look up the NPI to fill in the practice details from the federal registry. No NPI? Skip this and enter everything below.
+                          Look up the NPI to fill in the practice details from the federal registry.{' '}
+                          <button
+                            type="button"
+                            onClick={() => setNameSearchOpen(true)}
+                            className="font-medium text-primary-600 hover:text-primary-700 underline"
+                          >
+                            Don&apos;t know the NPI? Search by name.
+                          </button>
                         </p>
+                      )}
+
+                      {nameSearchOpen && (
+                        <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-800">Search the NPI registry by name</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNameSearchOpen(false);
+                                setOrgSearch({ status: 'idle' });
+                              }}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Hide
+                            </button>
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              value={orgQuery}
+                              onChange={(e) => setOrgQuery(e.target.value)}
+                              className="input flex-1"
+                              placeholder="Organization name as registered with NPPES"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleOrgSearch();
+                                }
+                              }}
+                            />
+                            <input
+                              value={orgState}
+                              onChange={(e) => setOrgState(e.target.value)}
+                              className="input w-16 text-center uppercase"
+                              placeholder="ST"
+                              maxLength={2}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleOrgSearch}
+                              disabled={orgQuery.trim().length < 2 || orgSearch.status === 'loading'}
+                              className="btn-secondary flex shrink-0 items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {orgSearch.status === 'loading' ? (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                              ) : (
+                                <MagnifyingGlassIcon className="h-4 w-4" />
+                              )}
+                              Search
+                            </button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Tip: add the 2-letter state to narrow the results.
+                          </p>
+
+                          {orgSearch.status === 'done' && orgSearch.results.length > 0 && (
+                            <ul className="mt-2 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                              {orgSearch.results.map((r) => (
+                                <li key={r.npi}>
+                                  <button
+                                    type="button"
+                                    onClick={() => pickOrgResult(r)}
+                                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-primary-50"
+                                  >
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-sm font-medium text-gray-900">
+                                        {r.organizationName}
+                                      </span>
+                                      <span className="block text-xs text-gray-500">
+                                        {[r.practiceLocation?.city, r.practiceLocation?.state].filter(Boolean).join(', ')}
+                                      </span>
+                                    </span>
+                                    <span className="shrink-0 text-xs text-gray-400">NPI {r.npi}</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {orgSearch.status === 'done' && orgSearch.results.length === 0 && (
+                            <p className="mt-2 text-sm text-gray-600">
+                              No organizations matched. Try fewer words, a different spelling, or leave the state blank.
+                            </p>
+                          )}
+                          {orgSearch.status === 'error' && (
+                            <p className="mt-2 text-sm text-red-700">
+                              The registry search didn&apos;t go through. Try again in a moment.
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       {npiLookup.status === 'found' && npiLookup.result.entityType === 'organization' && (
