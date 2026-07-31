@@ -100,6 +100,76 @@ describe('Enrollment notes', () => {
     });
   });
 
+  describe('PUT /:id/notes/:noteId', () => {
+    it('lets the author edit their own note, keeping the old text in a transactional audit row', async () => {
+      const app = createTestApp(enrollmentRoutes, practiceAdminUser);
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: ENROLLMENT_ID,
+        providerId: null,
+        practiceId: 'practice-1',
+      } as any);
+      prismaMock.enrollmentNote.findFirst.mockResolvedValue(baseNote as any);
+      prismaMock.enrollmentNote.update.mockResolvedValue({
+        ...baseNote,
+        body: 'Corrected: hold time was 20 minutes',
+      } as any);
+
+      const res = await request(app)
+        .put(`/${ENROLLMENT_ID}/notes/${NOTE_ID}`)
+        .send({ body: 'Corrected: hold time was 20 minutes' });
+
+      expect(res.status).toBe(200);
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(prismaMock.enrollmentNote.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: NOTE_ID },
+          data: { body: 'Corrected: hold time was 20 minutes' },
+        })
+      );
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'update',
+          resourceType: 'enrollment_note',
+          resourceId: NOTE_ID,
+          changes: expect.objectContaining({
+            source: 'note_edit',
+            from: baseNote.body,
+            to: 'Corrected: hold time was 20 minutes',
+          }),
+        }),
+      });
+    });
+
+    it('blocks a practice user from editing someone else’s note', async () => {
+      const app = createTestApp(enrollmentRoutes, practiceAdminUser);
+      prismaMock.enrollment.findUnique.mockResolvedValue({
+        id: ENROLLMENT_ID,
+        providerId: null,
+        practiceId: 'practice-1',
+      } as any);
+      prismaMock.enrollmentNote.findFirst.mockResolvedValue({
+        ...baseNote,
+        authorId: 'someone-else',
+      } as any);
+
+      const res = await request(app)
+        .put(`/${ENROLLMENT_ID}/notes/${NOTE_ID}`)
+        .send({ body: 'rewrite attempt' });
+
+      expect(res.status).toBe(403);
+      expect(prismaMock.enrollmentNote.update).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty edit', async () => {
+      const app = createTestApp(enrollmentRoutes, adminUser);
+      prismaMock.enrollmentNote.findFirst.mockResolvedValue(baseNote as any);
+      const res = await request(app).put(`/${ENROLLMENT_ID}/notes/${NOTE_ID}`).send({ body: '' });
+      expect(res.status).toBe(400);
+      expect(prismaMock.enrollmentNote.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('DELETE /:id/notes/:noteId', () => {
     it('lets the author delete their own note, with an audit row in the same transaction', async () => {
       const app = createTestApp(enrollmentRoutes, practiceAdminUser);

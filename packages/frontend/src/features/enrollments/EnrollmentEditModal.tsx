@@ -136,12 +136,13 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
   const [correctionTarget, setCorrectionTarget] = useState('');
   const [correctionConfirmOpen, setCorrectionConfirmOpen] = useState(false);
 
-  // Reassignment (payer / provider / practice) — pre-submission only.
+  // Payer / provider / practice are first-class editable fields (pre-submission
+  // only — after submission they're facts and render disabled).
   const isPractice = enrollment ? isPracticeEnrollment(enrollment) : false;
   const reassignable = REASSIGNABLE_STATUSES.includes(enrollment?.status ?? '');
-  const [reassignOpen, setReassignOpen] = useState(false);
   const [newPayer, setNewPayer] = useState<{ id: string; name: string } | null>(null);
   const [payerSearch, setPayerSearch] = useState('');
+  const [payerFocused, setPayerFocused] = useState(false);
   const [debouncedPayerSearch, setDebouncedPayerSearch] = useState('');
   const [targetProviderId, setTargetProviderId] = useState('');
   const [targetPracticeId, setTargetPracticeId] = useState('');
@@ -153,7 +154,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
 
   const { data: payerResults } = useQuery({
     queryKey: ['payers', debouncedPayerSearch],
-    enabled: isOpen && reassignOpen && debouncedPayerSearch.length > 1,
+    enabled: isOpen && reassignable && debouncedPayerSearch.length > 1,
     queryFn: async () => {
       const res = await api.get<{ success: boolean; data: { id: string; name: string }[] }>(
         `/enrollments/payers?q=${encodeURIComponent(debouncedPayerSearch)}`
@@ -164,7 +165,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
 
   const { data: providerOptions } = useQuery({
     queryKey: ['all-providers'],
-    enabled: isOpen && reassignOpen && !isPractice,
+    enabled: isOpen && reassignable && !isPractice,
     queryFn: async () => {
       const res = await api.get<{
         success: boolean;
@@ -176,7 +177,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
 
   const { data: practiceOptions } = useQuery({
     queryKey: ['practices-options'],
-    enabled: isOpen && reassignOpen && isPractice,
+    enabled: isOpen && reassignable && isPractice,
     queryFn: async () => (await api.get('/practices')).data.data as { id: string; name: string }[],
   });
 
@@ -199,9 +200,9 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
       setCorrectionOpen(false);
       setCorrectionTarget('');
       setCorrectionConfirmOpen(false);
-      setReassignOpen(false);
       setNewPayer(null);
-      setPayerSearch('');
+      setPayerSearch(enrollment.payer?.name || '');
+      setPayerFocused(false);
       setTargetProviderId(enrollment.providerId || '');
       setTargetPracticeId(enrollment.practiceId || '');
     }
@@ -323,6 +324,100 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Payer + subject — ordinary fields, editable until submission */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Payer</label>
+                        <input
+                          type="text"
+                          value={payerSearch}
+                          disabled={!reassignable}
+                          onChange={(e) => setPayerSearch(e.target.value)}
+                          onFocus={() => setPayerFocused(true)}
+                          onBlur={() => setTimeout(() => setPayerFocused(false), 150)}
+                          placeholder="Search payers…"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                        {payerFocused &&
+                          debouncedPayerSearch.length > 1 &&
+                          debouncedPayerSearch !== (newPayer?.name ?? enrollment.payer?.name) &&
+                          (payerResults?.length ?? 0) > 0 && (
+                            <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg">
+                              {payerResults!.slice(0, 8).map((p) => (
+                                <li key={p.id}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={() => {
+                                      setNewPayer(p);
+                                      setPayerSearch(p.name);
+                                      setPayerFocused(false);
+                                    }}
+                                    className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                                  >
+                                    {p.name}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                      </div>
+
+                      {!isPractice ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                          <select
+                            value={targetProviderId}
+                            disabled={!reassignable}
+                            onChange={(e) => setTargetProviderId(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            {(providerOptions ?? [])
+                              .filter(
+                                (p) =>
+                                  !enrollment.provider?.practice?.id ||
+                                  p.practiceId === enrollment.provider.practice.id ||
+                                  p.id === enrollment.providerId
+                              )
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.firstName} {p.lastName}
+                                </option>
+                              ))}
+                            {!providerOptions?.length && enrollment.provider && (
+                              <option value={enrollment.providerId}>
+                                {enrollment.provider.firstName} {enrollment.provider.lastName}
+                              </option>
+                            )}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Practice</label>
+                          <select
+                            value={targetPracticeId}
+                            disabled={!reassignable}
+                            onChange={(e) => setTargetPracticeId(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            {(practiceOptions ?? []).map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                            {!practiceOptions?.length && enrollment.practice && (
+                              <option value={enrollment.practiceId}>{enrollment.practice.name}</option>
+                            )}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                    {!reassignable && (
+                      <p className="-mt-2 text-xs text-gray-500">
+                        The payer and {isPractice ? 'practice' : 'provider'} are locked once an
+                        application is submitted.
+                      </p>
+                    )}
+
                     {/* Status */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -391,120 +486,6 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                         )}
                       </div>
                     )}
-
-                    {/* Reassignment: payer / provider / practice */}
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      {!reassignable ? (
-                        <p className="text-xs text-gray-500">
-                          The payer and {isPractice ? 'practice' : 'provider'} are locked once an
-                          application is submitted. Staff can use a status correction if the
-                          submission itself was recorded by mistake.
-                        </p>
-                      ) : !reassignOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => setReassignOpen(true)}
-                          className="text-sm font-medium text-primary-600 hover:text-primary-700"
-                        >
-                          Change payer or {isPractice ? 'practice' : 'provider'}…
-                        </button>
-                      ) : (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Payer
-                            </label>
-                            {newPayer ? (
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="font-medium text-gray-900">{newPayer.name}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setNewPayer(null)}
-                                  className="text-xs text-gray-500 hover:text-gray-700"
-                                >
-                                  Undo
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <input
-                                  type="text"
-                                  value={payerSearch}
-                                  onChange={(e) => setPayerSearch(e.target.value)}
-                                  placeholder={`Search payers to replace ${enrollment.payer?.name ?? 'the current payer'}…`}
-                                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
-                                />
-                                {debouncedPayerSearch.length > 1 && (payerResults?.length ?? 0) > 0 && (
-                                  <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-sm">
-                                    {payerResults!.slice(0, 8).map((p) => (
-                                      <li key={p.id}>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setNewPayer(p);
-                                            setPayerSearch('');
-                                          }}
-                                          className="w-full px-3 py-2 text-left hover:bg-gray-50"
-                                        >
-                                          {p.name}
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </>
-                            )}
-                          </div>
-
-                          {!isPractice ? (
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Provider
-                              </label>
-                              <select
-                                value={targetProviderId}
-                                onChange={(e) => setTargetProviderId(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
-                              >
-                                {(providerOptions ?? [])
-                                  .filter(
-                                    (p) =>
-                                      !enrollment.provider?.practice?.id ||
-                                      p.practiceId === enrollment.provider.practice.id ||
-                                      p.id === enrollment.providerId
-                                  )
-                                  .map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.firstName} {p.lastName}
-                                    </option>
-                                  ))}
-                              </select>
-                            </div>
-                          ) : (
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Practice
-                              </label>
-                              <select
-                                value={targetPracticeId}
-                                onChange={(e) => setTargetPracticeId(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
-                              >
-                                {(practiceOptions ?? []).map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          <p className="text-xs text-gray-500">
-                            Changes apply when you save. Every change is audit-logged.
-                          </p>
-                        </div>
-                      )}
-                    </div>
 
                     {/* Dates */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
