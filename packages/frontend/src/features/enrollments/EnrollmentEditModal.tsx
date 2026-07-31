@@ -145,8 +145,11 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
   const [targetProviderId, setTargetProviderId] = useState('');
   const [targetPracticeId, setTargetPracticeId] = useState('');
 
+  // NOTE: this key must stay distinct from EnrollmentsList's ['all-providers'],
+  // which caches the raw API envelope (an object) under that key. Sharing the
+  // key hands this component the object and `.filter` crashes the whole page.
   const { data: providerOptions } = useQuery({
-    queryKey: ['all-providers'],
+    queryKey: ['edit-provider-options'],
     enabled: isOpen && reassignable && !isPractice,
     queryFn: async () => {
       const res = await api.get<{
@@ -330,7 +333,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                             onChange={(e) => setTargetProviderId(e.target.value)}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
                           >
-                            {(providerOptions ?? [])
+                            {(Array.isArray(providerOptions) ? providerOptions : [])
                               .filter(
                                 (p) =>
                                   !enrollment.provider?.practice?.id ||
@@ -358,7 +361,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                             onChange={(e) => setTargetPracticeId(e.target.value)}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
                           >
-                            {(practiceOptions ?? []).map((p) => (
+                            {(Array.isArray(practiceOptions) ? practiceOptions : []).map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name}
                               </option>
