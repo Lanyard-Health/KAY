@@ -32,7 +32,7 @@ export default function SelectWithOther({
   const [isOther, setIsOther] = useState(value !== '' && !valueIsKnown);
 
   useEffect(() => {
-    if (value !== '' && flat.includes(value)) setIsOther(false);
+    if (value !== '') setIsOther(!flat.includes(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
