@@ -12,13 +12,15 @@ export interface PayerOption {
 interface PayerComboboxProps {
   value: PayerOption | null;
   onChange: (payer: PayerOption | null) => void;
+  id?: string;
+  disabled?: boolean;
 }
 
 // Same Stedi-backed word-order search the enrollment screens use (D4), over
 // the full payer catalog. Loading + "No payers match" states per the
 // enrollment screens; result counts announced once per settled debounced
 // result set — never per keystroke.
-export default function PayerCombobox({ value, onChange }: PayerComboboxProps) {
+export default function PayerCombobox({ value, onChange, id = 'task-payer', disabled = false }: PayerComboboxProps) {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [announcement, setAnnouncement] = useState('');
@@ -44,16 +46,17 @@ export default function PayerCombobox({ value, onChange }: PayerComboboxProps) {
   }, [results, isFetching, debounced]);
 
   return (
-    <Combobox value={value} onChange={onChange} nullable>
+    <Combobox value={value} onChange={onChange} nullable disabled={disabled}>
       {({ open }) => (
         <div className="relative">
           <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <Combobox.Input
-            id="task-payer"
-            className="input pl-10"
+            id={id}
+            className="input pl-10 disabled:bg-gray-50 disabled:text-gray-500"
             placeholder="Search payers…"
             displayValue={(payer: PayerOption | null) => payer?.name ?? ''}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={(e) => e.target.select()}
             onKeyDown={(e) => {
               // Esc closes the listbox WITHOUT bubbling into the modal's close handler.
               if (e.key === 'Escape' && open) e.stopPropagation();

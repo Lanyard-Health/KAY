@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useAuthStore } from '../../stores/auth.store';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import PayerCombobox, { type PayerOption } from '../tasks/PayerCombobox';
 import { isPracticeEnrollment } from './enrollmentSubject';
 
 // Mirrors ProviderEnrollments.tsx (module-private there; duplicating a few
@@ -140,28 +141,9 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
   // only — after submission they're facts and render disabled).
   const isPractice = enrollment ? isPracticeEnrollment(enrollment) : false;
   const reassignable = REASSIGNABLE_STATUSES.includes(enrollment?.status ?? '');
-  const [newPayer, setNewPayer] = useState<{ id: string; name: string } | null>(null);
-  const [payerSearch, setPayerSearch] = useState('');
-  const [payerFocused, setPayerFocused] = useState(false);
-  const [debouncedPayerSearch, setDebouncedPayerSearch] = useState('');
+  const [newPayer, setNewPayer] = useState<PayerOption | null>(null);
   const [targetProviderId, setTargetProviderId] = useState('');
   const [targetPracticeId, setTargetPracticeId] = useState('');
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedPayerSearch(payerSearch.trim()), 200);
-    return () => clearTimeout(t);
-  }, [payerSearch]);
-
-  const { data: payerResults } = useQuery({
-    queryKey: ['payers', debouncedPayerSearch],
-    enabled: isOpen && reassignable && debouncedPayerSearch.length > 1,
-    queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: { id: string; name: string }[] }>(
-        `/enrollments/payers?q=${encodeURIComponent(debouncedPayerSearch)}`
-      );
-      return res.data.data;
-    },
-  });
 
   const { data: providerOptions } = useQuery({
     queryKey: ['all-providers'],
@@ -201,8 +183,6 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
       setCorrectionTarget('');
       setCorrectionConfirmOpen(false);
       setNewPayer(null);
-      setPayerSearch(enrollment.payer?.name || '');
-      setPayerFocused(false);
       setTargetProviderId(enrollment.providerId || '');
       setTargetPracticeId(enrollment.practiceId || '');
     }
@@ -326,40 +306,19 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                   <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Payer + subject — ordinary fields, editable until submission */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Payer</label>
-                        <input
-                          type="text"
-                          value={payerSearch}
+                      <div>
+                        <label htmlFor="edit-enrollment-payer" className="block text-sm font-medium text-gray-700 mb-1">
+                          Payer
+                        </label>
+                        <PayerCombobox
+                          id="edit-enrollment-payer"
                           disabled={!reassignable}
-                          onChange={(e) => setPayerSearch(e.target.value)}
-                          onFocus={() => setPayerFocused(true)}
-                          onBlur={() => setTimeout(() => setPayerFocused(false), 150)}
-                          placeholder="Search payers…"
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          value={
+                            newPayer ??
+                            (enrollment.payer ? { id: enrollment.payerId, name: enrollment.payer.name } : null)
+                          }
+                          onChange={setNewPayer}
                         />
-                        {payerFocused &&
-                          debouncedPayerSearch.length > 1 &&
-                          debouncedPayerSearch !== (newPayer?.name ?? enrollment.payer?.name) &&
-                          (payerResults?.length ?? 0) > 0 && (
-                            <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg">
-                              {payerResults!.slice(0, 8).map((p) => (
-                                <li key={p.id}>
-                                  <button
-                                    type="button"
-                                    onMouseDown={() => {
-                                      setNewPayer(p);
-                                      setPayerSearch(p.name);
-                                      setPayerFocused(false);
-                                    }}
-                                    className="w-full px-3 py-2 text-left hover:bg-gray-50"
-                                  >
-                                    {p.name}
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
                       </div>
 
                       {!isPractice ? (
