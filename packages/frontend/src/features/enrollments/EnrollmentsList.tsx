@@ -1478,7 +1478,7 @@ export default function EnrollmentsList() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Submission Date
+                        Application Submission Date
                       </label>
                       <input
                         type="date"

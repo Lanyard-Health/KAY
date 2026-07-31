@@ -135,6 +135,7 @@ model User {
   bankingUpdated              ProviderBanking[]       @relation("BankingUpdatedBy")
   enrollmentsCreated          Enrollment[]            @relation("EnrollmentCreatedBy")
   enrollmentsUpdated          Enrollment[]            @relation("EnrollmentUpdatedBy")
+  enrollmentNotesAuthored     EnrollmentNote[]        @relation("EnrollmentNoteAuthor")
   emailTemplatesCreated       EmailTemplate[]         @relation("EmailTemplateCreator")
   providerCertsCreated        ProviderCertification[] @relation("ProviderCertCreatedBy")
   providerCertsUpdated        ProviderCertification[] @relation("ProviderCertUpdatedBy")
@@ -2078,6 +2079,7 @@ model Enrollment {
   followUpRuns      FollowUpRun[]
   denialTriages     DenialTriage[]
   outcomes          EnrollmentOutcome[]
+  noteEntries       EnrollmentNote[]
 
   // Uniqueness is enforced by TWO partial unique indexes created via raw SQL in
   // the migration — Prisma can't express partial/filtered indexes:
@@ -2090,6 +2092,23 @@ model Enrollment {
   @@index([payerId])
   @@index([practiceId])
   @@map("payer_enrollments")
+}
+
+// Timestamped, authored note entries on an enrollment. Replaces user editing of
+// the legacy Enrollment.notes column (kept for the status-service transition
+// comments). Hard delete; the deletion audit row carries the full note body.
+model EnrollmentNote {
+  id           String   @id @default(uuid())
+  enrollmentId String   @map("enrollment_id")
+  body         String
+  authorId     String?  @map("author_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  author     User?      @relation("EnrollmentNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([enrollmentId])
+  @@map("enrollment_notes")
 }
 
 // ==========================================
@@ -2221,6 +2240,7 @@ model AuditLog {
 
   @@index([userId])
   @@index([resourceType])
+  @@index([resourceType, resourceId])
   @@index([timestamp])
   @@map("audit_logs")
 }

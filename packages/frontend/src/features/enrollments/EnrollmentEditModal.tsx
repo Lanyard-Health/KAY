@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { notify } from '../../utils/notify';
 import { useAuthStore } from '../../stores/auth.store';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import PayerCombobox, { type PayerOption } from '../tasks/PayerCombobox';
+import { isPracticeEnrollment } from './enrollmentSubject';
 
 // Mirrors ProviderEnrollments.tsx (module-private there; duplicating a few
 // constants beats refactoring a 1,500-line file).
@@ -45,6 +47,8 @@ const STATUS_RANK: Record<string, number> = {
 const TERMINAL_STATUSES = ['denied', 'terminated'];
 const CONFIRM_STATUSES = ['approved', 'denied', 'terminated'];
 const CORRECTION_ROLES = ['admin', 'lanyard_staff', 'credentialing_staff'];
+// Mirrors the backend gate: payer/subject reassignment only before submission.
+const REASSIGNABLE_STATUSES = ['not_started', 'in_progress'];
 
 function allowedStatusValues(current: string): string[] {
   if (TERMINAL_STATUSES.includes(current)) return [current];
@@ -92,11 +96,10 @@ interface EnrollmentEditFormData {
   recredentialingDate: string;
   providerNumber: string;
   groupNumber: string;
-  notes: string;
 }
 
 const DATE_FIELDS: Array<{ key: keyof EnrollmentEditFormData; label: string }> = [
-  { key: 'applicationDate', label: 'Application Date' },
+  { key: 'applicationDate', label: 'Application Submission Date' },
   { key: 'effectiveDate', label: 'Effective Date' },
   { key: 'terminationDate', label: 'Termination Date' },
   { key: 'dateContractReceived', label: 'Contract Received' },
@@ -128,12 +131,40 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
     recredentialingDate: '',
     providerNumber: '',
     groupNumber: '',
-    notes: '',
   });
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionTarget, setCorrectionTarget] = useState('');
   const [correctionConfirmOpen, setCorrectionConfirmOpen] = useState(false);
+
+  // Payer / provider / practice are first-class editable fields (pre-submission
+  // only — after submission they're facts and render disabled).
+  const isPractice = enrollment ? isPracticeEnrollment(enrollment) : false;
+  const reassignable = REASSIGNABLE_STATUSES.includes(enrollment?.status ?? '');
+  const [newPayer, setNewPayer] = useState<PayerOption | null>(null);
+  const [targetProviderId, setTargetProviderId] = useState('');
+  const [targetPracticeId, setTargetPracticeId] = useState('');
+
+  // NOTE: this key must stay distinct from EnrollmentsList's ['all-providers'],
+  // which caches the raw API envelope (an object) under that key. Sharing the
+  // key hands this component the object and `.filter` crashes the whole page.
+  const { data: providerOptions } = useQuery({
+    queryKey: ['edit-provider-options'],
+    enabled: isOpen && reassignable && !isPractice,
+    queryFn: async () => {
+      const res = await api.get<{
+        success: boolean;
+        data: { data: { id: string; firstName: string; lastName: string; practiceId: string | null }[] };
+      }>('/providers?pageSize=100');
+      return res.data.data.data;
+    },
+  });
+
+  const { data: practiceOptions } = useQuery({
+    queryKey: ['practices-options'],
+    enabled: isOpen && reassignable && isPractice,
+    queryFn: async () => (await api.get('/practices')).data.data as { id: string; name: string }[],
+  });
 
   useEffect(() => {
     if (isOpen && enrollment) {
@@ -149,12 +180,14 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
         recredentialingDate: enrollment.recredentialingDate?.split('T')[0] || '',
         providerNumber: enrollment.providerNumber || '',
         groupNumber: enrollment.groupNumber || '',
-        notes: enrollment.notes || '',
       });
       setConfirmStatus(null);
       setCorrectionOpen(false);
       setCorrectionTarget('');
       setCorrectionConfirmOpen(false);
+      setNewPayer(null);
+      setTargetProviderId(enrollment.providerId || '');
+      setTargetPracticeId(enrollment.practiceId || '');
     }
   }, [isOpen, enrollment]);
 
@@ -168,8 +201,20 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
     }
   };
 
+  const buildPayload = (): Record<string, unknown> => {
+    const payload: Record<string, unknown> = { ...formData };
+    if (newPayer && newPayer.id !== enrollment.payerId) payload['payerId'] = newPayer.id;
+    if (!isPractice && targetProviderId && targetProviderId !== enrollment.providerId) {
+      payload['providerId'] = targetProviderId;
+    }
+    if (isPractice && targetPracticeId && targetPracticeId !== enrollment.practiceId) {
+      payload['practiceId'] = targetPracticeId;
+    }
+    return payload;
+  };
+
   const updateMutation = useMutation({
-    mutationFn: (data: EnrollmentEditFormData) => api.put(`/enrollments/${enrollment.id}`, data),
+    mutationFn: (data: Record<string, unknown>) => api.put(`/enrollments/${enrollment.id}`, data),
     onSuccess: () => {
       invalidateAll();
       notify.success('Enrollment updated');
@@ -203,7 +248,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
       setConfirmStatus(formData.status);
       return;
     }
-    updateMutation.mutate(formData);
+    updateMutation.mutate(buildPayload());
   };
 
   if (!enrollment) return null;
@@ -236,10 +281,22 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                 leaveTo="opacity-0 scale-95"
               >
                 <Dialog.Panel className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <Dialog.Title className="text-lg font-semibold text-gray-900">
-                      Edit Enrollment
-                    </Dialog.Title>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <Dialog.Title className="text-lg font-semibold text-gray-900">
+                        Edit Enrollment
+                      </Dialog.Title>
+                      <p className="mt-0.5 text-sm text-gray-500">
+                        <span className="font-medium text-gray-700">
+                          {enrollment.payer?.name || 'Unknown payer'}
+                        </span>
+                        {' · '}
+                        {isPractice
+                          ? `${enrollment.practice?.name ?? 'Unknown practice'} (practice/group enrollment)`
+                          : `${enrollment.provider?.firstName ?? ''} ${enrollment.provider?.lastName ?? ''}`.trim() ||
+                            'Unknown provider'}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={onClose}
@@ -250,6 +307,79 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Payer + subject — ordinary fields, editable until submission */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="edit-enrollment-payer" className="block text-sm font-medium text-gray-700 mb-1">
+                          Payer
+                        </label>
+                        <PayerCombobox
+                          id="edit-enrollment-payer"
+                          disabled={!reassignable}
+                          value={
+                            newPayer ??
+                            (enrollment.payer ? { id: enrollment.payerId, name: enrollment.payer.name } : null)
+                          }
+                          onChange={setNewPayer}
+                        />
+                      </div>
+
+                      {!isPractice ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                          <select
+                            value={targetProviderId}
+                            disabled={!reassignable}
+                            onChange={(e) => setTargetProviderId(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            {(Array.isArray(providerOptions) ? providerOptions : [])
+                              .filter(
+                                (p) =>
+                                  !enrollment.provider?.practice?.id ||
+                                  p.practiceId === enrollment.provider.practice.id ||
+                                  p.id === enrollment.providerId
+                              )
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.firstName} {p.lastName}
+                                </option>
+                              ))}
+                            {!providerOptions?.length && enrollment.provider && (
+                              <option value={enrollment.providerId}>
+                                {enrollment.provider.firstName} {enrollment.provider.lastName}
+                              </option>
+                            )}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Practice</label>
+                          <select
+                            value={targetPracticeId}
+                            disabled={!reassignable}
+                            onChange={(e) => setTargetPracticeId(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            {(Array.isArray(practiceOptions) ? practiceOptions : []).map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                            {!practiceOptions?.length && enrollment.practice && (
+                              <option value={enrollment.practiceId}>{enrollment.practice.name}</option>
+                            )}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                    {!reassignable && (
+                      <p className="-mt-2 text-xs text-gray-500">
+                        The payer and {isPractice ? 'practice' : 'provider'} are locked once an
+                        application is submitted.
+                      </p>
+                    )}
+
                     {/* Status */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -390,16 +520,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
                       </div>
                     </div>
 
-                    {/* Notes */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                      <textarea
-                        rows={3}
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500"
-                      />
-                    </div>
+                    {/* Notes moved to the timestamped feed on the detail page */}
 
                     <div className="flex justify-end gap-3 pt-2">
                       <button
@@ -431,7 +552,7 @@ export default function EnrollmentEditModal({ enrollment, isOpen, onClose }: Enr
         onClose={() => setConfirmStatus(null)}
         onConfirm={() => {
           setConfirmStatus(null);
-          updateMutation.mutate(formData);
+          updateMutation.mutate(buildPayload());
         }}
         title={confirmStatus ? confirmCopy(confirmStatus).title : ''}
         message={confirmStatus ? confirmCopy(confirmStatus).message : ''}
