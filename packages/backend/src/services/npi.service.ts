@@ -170,6 +170,41 @@ export class NPIService {
     }
   }
 
+  // Organization (NPI-2) search for practices — the Add Practice modal's
+  // "search by name" path. NPPES wildcard needs 2+ chars before the *.
+  async searchOrganizations(name: string, state?: string): Promise<NPILookupResult[]> {
+    if (name.trim().length < 2) return [];
+
+    try {
+      const params = new URLSearchParams({ version: '2.1' });
+      params.append('organization_name', `${name.trim()}*`);
+      params.append('enumeration_type', 'NPI-2');
+      params.append('limit', '10');
+      if (state) params.append('state', state);
+
+      const url = `${this.baseUrl}?${params.toString()}`;
+      logger.info('Searching NPI registry for organizations', { name, state });
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        logger.error(`NPI API returned ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json() as NPIAPIResponse;
+
+      if (data.result_count === 0 || !data.results) {
+        return [];
+      }
+
+      return data.results.slice(0, 10).map(r => this.parseNPIResult(r));
+    } catch (error) {
+      logger.error('NPI organization search failed:', error);
+      return [];
+    }
+  }
+
   async searchByName(
     firstName?: string,
     lastName?: string,
