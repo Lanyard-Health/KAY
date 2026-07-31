@@ -968,6 +968,67 @@ router.post(
   }
 );
 
+router.put(
+  '/:id/notes/:noteId',
+  authenticate,
+  blockPendingVerification,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id']!;
+      const noteId = req.params['noteId']!;
+      await assertEnrollmentAccess(req, id);
+      const { body } = createNoteSchema.parse(req.body);
+
+      const note = await prisma.enrollmentNote.findFirst({
+        where: { id: noteId, enrollmentId: id },
+      });
+      if (!note) {
+        return res.status(404).json({ success: false, error: { message: 'Note not found' } });
+      }
+
+      const user = req.user!;
+      if (note.authorId !== user.id && !NOTE_DELETE_ROLES.includes(user.role)) {
+        return res.status(403).json({
+          success: false,
+          error: { message: 'Only the note author or Lanyard staff can edit a note' },
+        });
+      }
+
+      setAuditContext(req, { resourceType: 'enrollment_note', resourceId: noteId, action: 'update' });
+
+      // Same transactional-audit rule as delete: the audit row preserves the
+      // pre-edit text, so an edit whose audit row fails must roll back.
+      const [updated] = await prisma.$transaction([
+        prisma.enrollmentNote.update({
+          where: { id: noteId },
+          data: { body },
+          include: { author: { select: { id: true, firstName: true, lastName: true } } },
+        }),
+        prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            action: 'update',
+            resourceType: 'enrollment_note',
+            resourceId: noteId,
+            changes: {
+              source: 'note_edit',
+              enrollmentId: id,
+              from: note.body,
+              to: body,
+              authorId: note.authorId,
+              authoredAt: note.createdAt.toISOString(),
+            },
+          },
+        }),
+      ]);
+
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.delete(
   '/:id/notes/:noteId',
   authenticate,
