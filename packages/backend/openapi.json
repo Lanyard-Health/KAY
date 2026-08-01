@@ -38,6 +38,108 @@
         ],
         "type": "object"
       },
+      "DefactoPlanRecord": {
+        "properties": {
+          "carrierName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "carrierOrPlanName": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lob": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationCity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationNpi": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "carrierName",
+          "carrierOrPlanName",
+          "lob",
+          "organizationName",
+          "organizationNpi",
+          "locationCity",
+          "locationState"
+        ],
+        "type": "object"
+      },
+      "DefactoSnapshot": {
+        "properties": {
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fetchedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "npi": {
+            "type": "string"
+          },
+          "planRecords": {
+            "items": {
+              "$ref": "#/components/schemas/DefactoPlanRecord"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "found",
+              "not_found",
+              "error"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "npi",
+          "fetchedAt",
+          "status",
+          "errorMessage",
+          "planRecords"
+        ],
+        "type": "object"
+      },
       "ErrorEnvelope": {
         "properties": {
           "error": {
@@ -266,6 +368,174 @@
         "summary": "Full signing keyset (current + retired)",
         "tags": [
           "Well-Known"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{id}/defacto": {
+      "get": {
+        "description": "Latest stored Defacto Health payer-directory snapshot for the provider, with its normalized plan records. Internal roles only (admin, credentialing/lanyard staff). Raw API responses are never returned. data is null when the provider has never been checked.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Provider id",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DefactoSnapshot"
+                        },
+                        {
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      ]
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Latest snapshot, or null when never checked."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Caller is not an internal admin/staff role."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Latest Defacto network participation snapshot",
+        "tags": [
+          "Defacto"
+        ]
+      }
+    },
+    "/api/v1/admin/providers/{id}/defacto-check": {
+      "post": {
+        "description": "Looks up the provider's NPI against the Defacto Health practitioner insurance API and stores a new append-only snapshot (history is kept). A 404 from Defacto is a normal not_found outcome, not an error. Internal roles only (admin, credentialing/lanyard staff).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Provider id",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DefactoSnapshot"
+                    },
+                    "success": {
+                      "enum": [
+                        true
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The newly stored snapshot (found or not_found)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Provider has no NPI on file, or invalid provider id."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Caller is not an internal admin/staff role."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Provider not found."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Defacto upstream failure (bad key, rate limited, or outage). An error snapshot is recorded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "DEFACTO_API_KEY is not configured on this environment."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Run a fresh Defacto network participation check",
+        "tags": [
+          "Defacto"
         ]
       }
     },

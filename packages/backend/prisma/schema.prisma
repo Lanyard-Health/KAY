@@ -658,6 +658,7 @@ model ProviderProfile {
   agentActions           AgentAction[]
   practice               Practice?               @relation(fields: [practiceId], references: [id])
   portalCredentials      PortalCredential[]
+  defactoSnapshots       DefactoSnapshot[]
 
   // Clinical profile
   providerSpecialties        ProviderSpecialty[]
@@ -2276,6 +2277,56 @@ model CaqhSyncLog {
 
   @@index([providerId])
   @@map("caqh_sync_logs")
+}
+
+// ==========================================
+// DEFACTO NETWORK PARTICIPATION (Phase 1 — internal admin only)
+// ==========================================
+
+enum DefactoSnapshotStatus {
+  found
+  not_found
+  error
+}
+
+// Append-only history of Defacto Health payer-directory lookups. Old snapshots
+// are kept intentionally; never update or overwrite a row. rawResponse is
+// treated like provider PII: stored in Postgres (encrypted at rest), never
+// logged, never exposed outside admin/staff routes.
+model DefactoSnapshot {
+  id         String                @id @default(uuid())
+  providerId String                @map("provider_id")
+  npi        String
+  fetchedAt  DateTime              @default(now()) @map("fetched_at")
+  status     DefactoSnapshotStatus
+  rawResponse  Json?   @map("raw_response")
+  errorMessage String? @map("error_message")
+
+  provider    ProviderProfile     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  planRecords DefactoPlanRecord[]
+
+  @@index([providerId, fetchedAt])
+  @@map("defacto_snapshots")
+}
+
+// One row per (insurance plan × relationship) from a snapshot, denormalized so
+// participation can be queried by carrier/plan name and state later.
+model DefactoPlanRecord {
+  id                String  @id @default(uuid())
+  snapshotId        String  @map("snapshot_id")
+  carrierName       String? @map("carrier_name")
+  carrierOrPlanName String  @map("carrier_or_plan_name")
+  lob               String?
+  organizationName  String? @map("organization_name")
+  organizationNpi   String? @map("organization_npi")
+  locationCity      String? @map("location_city")
+  locationState     String? @map("location_state")
+
+  snapshot DefactoSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([locationState])
+  @@map("defacto_plan_records")
 }
 
 // ==========================================

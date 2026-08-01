@@ -62,6 +62,7 @@ import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { CaqhCard } from '../../components/CaqhCard';
 import { CaqhImportPanel } from '../../components/CaqhImportPanel';
+import NetworkParticipationCard from '../../components/NetworkParticipationCard';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
@@ -1906,6 +1907,14 @@ export default function ProviderDetail() {
                 </div>
 
                 <CaqhCard providerId={id!} />
+
+                {/* Internal-only (Phase 1): practice-facing exposure pending Defacto ToS review */}
+                {(user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff') && (
+                  <NetworkParticipationCard
+                    providerId={id!}
+                    practiceState={provider.practice?.state ?? null}
+                  />
+                )}
 
                 <CaqhImportPanel providerId={id!} />
 

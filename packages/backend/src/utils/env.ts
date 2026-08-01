@@ -75,6 +75,10 @@ const envSchema = z.object({
   // failure rate this means a nightly email until root cause is fixed.
   CAQH_SYNC_ALERT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.25),
 
+  // Defacto Health practitioner insurance API (optional — network participation
+  // lookups return a clear 503 when the key is missing; see defacto.service.ts)
+  DEFACTO_API_KEY: z.string().optional(),
+
   // Embeddings (optional — knowledge base RAG degrades gracefully)
   OPENAI_API_KEY: z.string().optional(),
   EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
@@ -205,6 +209,15 @@ export function validateEnv(): Env {
         `CAQH integration env vars missing (${caqhMissing.join(', ')}) — CAQH sync features will be disabled. This is expected for local dev without a CAQH demo account.`
       );
     }
+  }
+
+  // Defacto is deliberately non-fatal in production: the routes answer with an
+  // explicit 503 ("integration not configured") until the key is set, so a
+  // deploy that predates the Render env var cannot crash the whole API.
+  if (!result.data.DEFACTO_API_KEY) {
+    logger.warn(
+      'DEFACTO_API_KEY not set — network participation lookups are disabled and will return 503 until it is configured.'
+    );
   }
 
   return result.data;
