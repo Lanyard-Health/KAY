@@ -33,39 +33,95 @@ def dur(path):
         'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', path]).strip())
 
+FADE = 0.35         # scenes dissolve to the constant paper background, never a hard cut
+PAPER = '0xf4efe6'  # matches the frame.png field, so only the app card appears to fade
+
+def paint_time(path):
+    """Seconds until the page has actually painted (recording starts on a blank
+    white frame while the SPA loads). First frame with any dark pixel = painted."""
+    r = subprocess.run(
+        ['ffmpeg', '-i', path, '-t', '4', '-vf',
+         'signalstats,metadata=print:file=-:key=lavfi.signalstats.YMIN',
+         '-f', 'null', '-'], capture_output=True)
+    t = 0.0
+    for line in r.stdout.decode(errors='ignore').splitlines():
+        if 'pts_time:' in line:
+            t = float(line.split('pts_time:')[1].split()[0])
+        elif 'YMIN' in line and float(line.split('=')[1]) < 100:
+            return t
+    return 0.0
+
+def fades(d):
+    return (f',fade=t=in:st=0:d={FADE}:color={PAPER}'
+            f',fade=t=out:st={d - FADE:.2f}:d={FADE}:color={PAPER}')
+
 def run(args):
     r = subprocess.run(args, capture_output=True)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode()[-1500:])
 
-# pass 1: closing card (cues don't exist yet; caption strips come in pass 2)
+MAX_SPEED = 2.3     # never speed a take past this; trim it instead
+
+def push(src_dur, out_size):
+    """Slow Slack-style push-in: supersample, then zoompan on the 4K grid (subpixel-
+    smooth), landing at 1.09x. out_size is the final scene size."""
+    n = max(int(src_dur * 30), 1)
+    return (f"fps=30,scale=3840:2160:flags=lanczos,"
+            f"zoompan=z='1+0.09*in/{n}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2'"
+            f":d=1:s={out_size}:fps=30")
+
+# cards.json before pass 1 so render-overlays can draw the section-title cards
+cards = [{'scene': s['scene'], 'title': s['card']} for s in spec['segments'] if s.get('card')]
+json.dump(cards, open(f'{WORK}/cards.json', 'w'))
+
+# pass 1: closing + section cards + frame (cues don't exist yet; captions come in pass 2)
 run(['node', f'{HERE}/render-overlays.mjs', WORK, spec['tagline']])
 
 scene_files, timings, t = [], [], 0.0
 for s in spec['segments']:
     name = s['scene']
-    a = f'{AUDIO}/{name}.mp3'
-    adur = dur(a)
     out = f'{WORK}/{name}.mp4'
-    if name == 'closing':
+    if s.get('card'):
+        d = 2.4
+        fc = f"[0:v]{push(d, '1920x1080')}{fades(d)}[v]"
+        run(['ffmpeg', '-y', '-loop', '1', '-i', f'{WORK}/overlays/card-{name}.png',
+             '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',  # must match the TTS segments or concat -c copy corrupts timestamps
+             '-filter_complex', fc, '-map', '[v]', '-map', '1:a', '-t', f'{d:.2f}',
+             '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', out])
+    elif name == 'closing':
+        adur = dur(f'{AUDIO}/{name}.mp3')
         d = adur + 1.8
-        run(['ffmpeg', '-y', '-loop', '1', '-i', f'{WORK}/overlays/closing.png', '-i', a,
+        run(['ffmpeg', '-y', '-loop', '1', '-i', f'{WORK}/overlays/closing.png', '-i', f'{AUDIO}/{name}.mp3',
+             '-vf', f'null{fades(d)}',
              '-af', 'adelay=600|600,apad', '-t', f'{d:.2f}', '-r', '30',
              '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', out])
     else:
-        v = f'{TAKES}/{name}.webm'
-        vdur = dur(v)
+        adur = dur(f'{AUDIO}/{name}.mp3')
+        v = f"{TAKES}/{s.get('take', name)}.webm"
+        lead = paint_time(v)
+        vdur = dur(v) - lead
+        pre = f'trim=start={lead:.2f},setpts=PTS-STARTPTS,' if lead > 0 else ''
         # long takes get gently sped up so no scene drags past the narration
         if vdur > adur + 3.0:
             d = adur + 2.5
-            vf = f'scale=1280:800,setpts=PTS*{d / vdur:.4f},fps=30'
+            need = d * MAX_SPEED
+            if vdur > need:  # cap the speedup by trimming (tail: keep the end instead)
+                start = (vdur - need + lead) if s.get('tail') else lead
+                pre = f'trim=start={start:.2f},setpts=PTS-STARTPTS,trim=duration={need:.2f},setpts=PTS-STARTPTS,'
+                vdur = need
+            vf = f'{pre}{push(vdur, "1600x900")},setpts=PTS*{d / vdur:.4f}'
         else:
             d = max(vdur, adur + 0.6)
-            vf = f'scale=1280:800,fps=30,tpad=stop_mode=clone:stop_duration={max(0.0, d - vdur):.2f}'
-        run(['ffmpeg', '-y', '-i', v, '-i', a, '-vf', vf, '-af', 'apad', '-t', f'{d:.2f}',
+            vf = f'{pre}{push(vdur, "1600x900")},tpad=stop_mode=clone:stop_duration={max(0.0, d - vdur):.2f}'
+        # take -> floating card on the paper field (frame.png supplies rounded corners + shadow)
+        fc = (f'[0:v]{vf},pad=1920:1080:160:44:color={PAPER}[b];'
+              f'[b][2:v]overlay=0:0{fades(d)}[v]')
+        run(['ffmpeg', '-y', '-i', v, '-i', f'{AUDIO}/{name}.mp3', '-i', f'{WORK}/overlays/frame.png',
+             '-filter_complex', fc, '-map', '[v]', '-map', '1:a',
+             '-af', 'apad', '-t', f'{d:.2f}',
              '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'aac', out])
     scene_files.append(out)
-    timings.append((t, t + d, s['text']))
+    timings.append((t, t + d, s.get('text')))
     t += d
     print(f'{name}: {d:.1f}s')
 
@@ -88,9 +144,11 @@ def chunks(text):
         out.append(p)
     return [c for c in out if c]
 
-# caption cues, proportional to text length within each scene (skip closing card)
+# caption cues, proportional to text length within each scene (skip cards + closing)
 cues = []
 for start, end, text in timings[:-1]:
+    if not text:
+        continue
     parts = chunks(text)
     total = sum(len(p) for p in parts)
     cursor = start
@@ -110,9 +168,24 @@ for n, c in enumerate(cues):
     label = f'[v{n}]' if n < len(cues) - 1 else '[vout]'
     chain.append(f"{prev}[{n + 1}:v]overlay=0:0:enable='between(t,{c['start']},{c['end']})'{label}")
     prev = f'[v{n}]'
+
+# music bed: mixed under the narration with sidechain ducking, fading out at the end
+music = f'{assets}/music.mp3'
+if os.path.exists(music):
+    m = 1 + len(cues)
+    inputs += ['-stream_loop', '-1', '-i', music]
+    chain.append(
+        f'[0:a]asplit=2[voice][key];'
+        f'[{m}:a]volume=0.16,afade=t=in:d=1.5[bg0];'
+        f'[bg0][key]sidechaincompress=threshold=0.02:ratio=12:attack=150:release=600[bgd];'
+        f'[voice][bgd]amix=inputs=2:duration=first:normalize=0,afade=t=out:st={t - 2.5:.2f}:d=2.5[aout]')
+    amap, acodec = ['-map', '[aout]'], ['-c:a', 'aac']
+else:
+    amap, acodec = ['-map', '0:a'], ['-c:a', 'copy']
+
 run(['ffmpeg', '-y', *inputs, '-filter_complex', ';'.join(chain),
-     '-map', '[vout]', '-map', '0:a',
-     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-c:a', 'copy',
+     '-map', '[vout]', *amap, '-t', f'{t:.2f}',
+     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', *acodec,
      f'{outdir}/{NAME}.mp4'])
 
 print(f'{NAME}: total {t:.1f}s -> {outdir}/{NAME}.mp4 '

@@ -1,0 +1,58 @@
+{
+  "name": "sizzle",
+  "tagline": "The fastest path from credentialed to paid.",
+  "segments": [
+    {
+      "scene": "sz-login",
+      "take": "tour-login",
+      "text": "Credentialing runs on spreadsheets and phone calls. Lanyard Health puts all of it in one place."
+    },
+    {
+      "scene": "sz-dashboard",
+      "take": "tour-dashboard",
+      "text": "Every provider and every payer, live, from the moment you log in."
+    },
+    {
+      "scene": "sz-chat",
+      "take": "tour-chat",
+      "tail": true,
+      "text": "Ask what needs attention. It answers from your data, with next steps."
+    },
+    {
+      "scene": "sz-pipeline",
+      "take": "tour-pipeline",
+      "text": "Every application in flight, on one board."
+    },
+    {
+      "scene": "sz-edit",
+      "take": "tour-edit",
+      "text": "A payer catalog of thousands keeps your records clean."
+    },
+    {
+      "scene": "sz-practice",
+      "take": "tour-practice",
+      "text": "Add a practice straight from the federal registry."
+    },
+    {
+      "scene": "sz-signup",
+      "take": "practice-signup",
+      "text": "Practices sign themselves up."
+    },
+    {
+      "scene": "sz-provider",
+      "take": "auto-caqh",
+      "text": "Providers onboard themselves, and CAQH fills in the rest."
+    },
+    {
+      "scene": "sz-reattest",
+      "take": "auto-reattest",
+      "text": "Expirations are tracked, and reminders go out before payers notice."
+    },
+    {
+      "scene": "sz-preview",
+      "take": "auto-preview",
+      "text": "And soon: agents that fill out payer applications, with your approval on every submission."
+    },
+    { "scene": "closing", "text": "Lanyard Health. The fastest path from credentialed to paid." }
+  ]
+}
