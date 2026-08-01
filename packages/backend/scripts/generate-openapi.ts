@@ -94,6 +94,30 @@ const SigningKeysetSchema = z
   })
   .openapi('SigningKeyset');
 
+const DefactoPlanRecordSchema = z
+  .object({
+    id: z.string().uuid(),
+    carrierName: z.string().nullable(),
+    carrierOrPlanName: z.string(),
+    lob: z.string().nullable(),
+    organizationName: z.string().nullable(),
+    organizationNpi: z.string().nullable(),
+    locationCity: z.string().nullable(),
+    locationState: z.string().nullable(),
+  })
+  .openapi('DefactoPlanRecord');
+
+const DefactoSnapshotSchema = z
+  .object({
+    id: z.string().uuid(),
+    npi: z.string(),
+    fetchedAt: z.string().datetime(),
+    status: z.enum(['found', 'not_found', 'error']),
+    errorMessage: z.string().nullable(),
+    planRecords: z.array(DefactoPlanRecordSchema),
+  })
+  .openapi('DefactoSnapshot');
+
 // Annotate the imported runtime schema so it gets a stable component name in
 // the spec instead of being inlined.
 const CreateWebhookSubscriptionRequestSchema = createWebhookSubscriptionSchema.openapi(
@@ -369,6 +393,87 @@ function buildRegistry(): OpenAPIRegistry {
       200: {
         description: 'Keyset with at minimum the current key. Empty when unconfigured.',
         content: { 'application/json': { schema: SigningKeysetSchema } },
+      },
+    },
+  });
+
+  registry.register('DefactoPlanRecord', DefactoPlanRecordSchema);
+  registry.register('DefactoSnapshot', DefactoSnapshotSchema);
+
+  const defactoProviderParams = z.object({
+    id: z.string().uuid().openapi({ description: 'Provider id' }),
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/api/v1/admin/providers/{id}/defacto',
+    summary: 'Latest Defacto network participation snapshot',
+    description:
+      "Latest stored Defacto Health payer-directory snapshot for the provider, " +
+      'with its normalized plan records. Internal roles only (admin, ' +
+      'credentialing/lanyard staff). Raw API responses are never returned. ' +
+      'data is null when the provider has never been checked.',
+    tags: ['Defacto'],
+    security: [{ bearerAuth: [] }],
+    request: { params: defactoProviderParams },
+    responses: {
+      200: {
+        description: 'Latest snapshot, or null when never checked.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.literal(true),
+              data: DefactoSnapshotSchema.nullable(),
+            }),
+          },
+        },
+      },
+      401: { description: 'Unauthenticated.' },
+      403: { description: 'Caller is not an internal admin/staff role.' },
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/api/v1/admin/providers/{id}/defacto-check',
+    summary: 'Run a fresh Defacto network participation check',
+    description:
+      "Looks up the provider's NPI against the Defacto Health practitioner " +
+      'insurance API and stores a new append-only snapshot (history is kept). ' +
+      "A 404 from Defacto is a normal not_found outcome, not an error. " +
+      'Internal roles only (admin, credentialing/lanyard staff).',
+    tags: ['Defacto'],
+    security: [{ bearerAuth: [] }],
+    request: { params: defactoProviderParams },
+    responses: {
+      200: {
+        description: 'The newly stored snapshot (found or not_found).',
+        content: {
+          'application/json': {
+            schema: z.object({
+              success: z.literal(true),
+              data: DefactoSnapshotSchema,
+            }),
+          },
+        },
+      },
+      400: {
+        description: 'Provider has no NPI on file, or invalid provider id.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      401: { description: 'Unauthenticated.' },
+      403: { description: 'Caller is not an internal admin/staff role.' },
+      404: {
+        description: 'Provider not found.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      502: {
+        description: 'Defacto upstream failure (bad key, rate limited, or outage). An error snapshot is recorded.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
+      },
+      503: {
+        description: 'DEFACTO_API_KEY is not configured on this environment.',
+        content: { 'application/json': { schema: ErrorEnvelopeSchema } },
       },
     },
   });
