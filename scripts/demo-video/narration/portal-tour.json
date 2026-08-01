@@ -1,0 +1,55 @@
+{
+  "name": "portal-tour",
+  "tagline": "The fastest path from credentialed to paid.",
+  "segments": [
+    {
+      "scene": "tour-login",
+      "text": "Credentialing runs on spreadsheets, phone calls, and somebody's memory. Lanyard Health puts all of it in one place. Here's the tour, in about three minutes."
+    },
+    { "scene": "card-status", "card": "Know where everything stands." },
+    {
+      "scene": "tour-dashboard",
+      "text": "From the moment you log in, you know what's happening, when it happened, and why. Every provider and every payer in one view, with live timelines based on how long each payer actually takes."
+    },
+    {
+      "scene": "tour-chat",
+      "text": "Or skip the digging and just ask. The built-in assistant reads your live records and tells you what needs attention first: which applications have stalled, which license expires next, and what to do about each one. It answers from your data, not a script."
+    },
+    {
+      "scene": "tour-pipeline",
+      "text": "This is every payer application you have in flight, on one board, grouped by status. When something stalls, you can see exactly where. Click into any enrollment and you see where it stands, what happened when, and what your team already knows about it."
+    },
+    { "scene": "card-data", "card": "Clean data. Controlled edits." },
+    {
+      "scene": "tour-edit",
+      "text": "Edits are controlled. The payer field only accepts real payers from a catalog of thousands, so Blue Cross typed five different ways can't split your records. Provider numbers, dates, and product types live here too. And once an application is submitted, the payer and provider are locked."
+    },
+    {
+      "scene": "tour-notes",
+      "text": "Every note is stamped with who said it and when, right on the enrollment. Nobody digs through an inbox for context. And every edit and deletion is audited."
+    },
+    { "scene": "card-onboard", "card": "Onboarding in minutes." },
+    {
+      "scene": "tour-practice",
+      "text": "Here's our favorite part. Adding a practice? Search the federal registry by name, pick the organization, and Lanyard pulls in the registered details: legal name, addresses, phone, specialty. You confirm what it found, the form fills in, and you move on. Then invite their team, and they see the same live status you do. Nothing hidden along the way."
+    },
+    {
+      "scene": "practice-signup",
+      "text": "And practices sign themselves up. The owner creates the account, sets up the practice, and invites the team. From first click to a working dashboard in minutes."
+    },
+    {
+      "scene": "auto-caqh",
+      "text": "Providers onboard themselves too. Send an invite, and they register with their NPI and CAQH ID. The moment you approve them, Lanyard imports their whole profile from CAQH, the industry's credentialing database: licenses, work history, malpractice, documents. Nobody re-types anything, and a nightly sync keeps it fresh."
+    },
+    { "scene": "card-deadlines", "card": "Deadlines, handled." },
+    {
+      "scene": "auto-reattest",
+      "text": "Expirations are tracked too: licenses, attestations, malpractice coverage. When a renewal date gets close, the provider gets an automatic reminder, well before a payer would notice. Nothing expires without warning, and every reminder is logged."
+    },
+    {
+      "scene": "auto-preview",
+      "text": "And here's what's coming: agents that fill out the payer application screen by screen, then stop and wait for your approval. This part is still in development, and nothing is submitted without your sign-off."
+    },
+    { "scene": "closing", "text": "Lanyard Health. The fastest path from credentialed to paid." }
+  ]
+}
