@@ -13,6 +13,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const { segments } = JSON.parse(fs.readFileSync(spec, 'utf8'));
 for (const s of segments) {
+  if (!s.text) { console.log(`skip (card, no narration): ${s.scene}`); continue; }
   const file = path.join(outDir, `${s.scene}.mp3`);
   if (fs.existsSync(file)) { console.log(`skip (exists): ${s.scene}`); continue; }
   const res = await fetch('https://api.openai.com/v1/audio/speech', {

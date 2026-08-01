@@ -62,6 +62,7 @@ import ProviderTasks from './ProviderTasks';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 import { CaqhCard } from '../../components/CaqhCard';
 import { CaqhImportPanel } from '../../components/CaqhImportPanel';
+import NetworkParticipationTab from './NetworkParticipationTab';
 import AiSidebar from '../../components/AiSidebar';
 import SupervisionTracker from './SupervisionTracker';
 import MultiStateLicenseGrid from './MultiStateLicenseGrid';
@@ -69,12 +70,14 @@ import TaxonomyAssistant from './TaxonomyAssistant';
 import HealthScoreGauge from '../../components/ui/HealthScoreGauge';
 import SourceBadge from '../../components/ui/SourceBadge';
 import CaqhEditWarningModal from '../../components/ui/CaqhEditWarningModal';
-import { ShieldCheckIcon, MapIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, MapIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
   { name: 'Profile', icon: UserCircleIcon },
   { name: 'Credentials', icon: ShieldCheckIcon },
   { name: 'Enrollments', icon: BuildingOfficeIcon },
+  // Internal-only (Phase 1): filtered out for practice-facing roles in-component
+  { name: 'Network', icon: GlobeAltIcon },
   { name: 'Activity', icon: ClipboardDocumentCheckIcon },
 ];
 
@@ -144,6 +147,9 @@ export default function ProviderDetail() {
   const canSoftDelete = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'practice_admin';
   // Mirrors the PUT /providers/:id allow-list (lanyard_staff inherits credentialing_staff)
   const canEditStatus = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff' || user?.role === 'practice_admin';
+  // Internal Lanyard roles only — gates the Network tab (Defacto Phase 1)
+  const isInternal = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff';
+  const visibleTabs = isInternal ? TABS : TABS.filter((t) => t.name !== 'Network');
   const deleteProvider = useDeleteProvider();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
@@ -1086,7 +1092,7 @@ export default function ProviderDetail() {
       {/* Tabs */}
       <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
         <Tab.List className="flex space-x-1 bg-gray-100/80 rounded-xl p-1 mb-6">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <Tab
               key={tab.name}
               className={({ selected }) =>
@@ -1943,7 +1949,7 @@ export default function ProviderDetail() {
 
           {/* ===== CREDENTIALS TAB ===== */}
           <Tab.Panel>
-            {activeTab === 1 && (
+            {visibleTabs[activeTab]?.name === 'Credentials' && (
               <div className="space-y-6 animate-fade-in">
                 {/* Credential Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2423,12 +2429,25 @@ export default function ProviderDetail() {
 
           {/* ===== ENROLLMENTS TAB ===== */}
           <Tab.Panel>
-            {activeTab === 2 && <ProviderEnrollments providerId={id!} />}
+            {visibleTabs[activeTab]?.name === 'Enrollments' && <ProviderEnrollments providerId={id!} />}
           </Tab.Panel>
+
+          {/* ===== NETWORK TAB (Defacto, internal only) ===== */}
+          {isInternal && (
+            <Tab.Panel>
+              {visibleTabs[activeTab]?.name === 'Network' && (
+                <NetworkParticipationTab
+                  providerId={id!}
+                  providerName={`${provider.firstName} ${provider.lastName}`}
+                  practiceState={provider.practice?.state ?? null}
+                />
+              )}
+            </Tab.Panel>
+          )}
 
           {/* ===== ACTIVITY TAB (Checklist + Tasks) ===== */}
           <Tab.Panel>
-            {activeTab === 3 && (
+            {visibleTabs[activeTab]?.name === 'Activity' && (
               <div className="space-y-8">
                 <div>
                   <h2 className="text-base font-semibold text-gray-900 mb-4">Credentialing Checklist</h2>
