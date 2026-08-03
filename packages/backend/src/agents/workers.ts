@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 import * as Sentry from '@sentry/node';
-import { getRedisConfig } from '../utils/redis.js';
+import { getRedisConfig, logRedisClientErrors } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
 import { sendSlackAlert } from '../utils/slack-alert.js';
 import { logAgentEvent } from './event-logger.js';
@@ -209,6 +209,8 @@ export function initializeWorkers(): void {
         stalledInterval: lockDuration + 30_000, // check for stalled jobs slightly after lock expires
       }
     );
+
+    logRedisClientErrors(worker, `[${config.agentName}] worker`);
 
     worker.on('completed', (job) => {
       logger.info(`[${config.agentName}] Job ${job.id} completed`, {

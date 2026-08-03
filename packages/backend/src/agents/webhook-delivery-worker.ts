@@ -36,7 +36,7 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { decryptSafe } from '../utils/crypto.js';
 import { checkSsrfSafety } from '../utils/ssrf-guard.js';
-import { getRedisConfig } from '../utils/redis.js';
+import { getRedisConfig, logRedisClientErrors } from '../utils/redis.js';
 import { QUEUE_NAMES, QUEUE_LOCK_DURATIONS } from './queues.js';
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -310,6 +310,8 @@ export function initializeWebhookDeliveryWorker(): void {
       stalledInterval: QUEUE_LOCK_DURATIONS[QUEUE_NAMES.WEBHOOK_DELIVERY] + 30_000,
     }
   );
+
+  logRedisClientErrors(worker, '[webhook-delivery] worker');
 
   worker.on('completed', (job) => {
     logger.info(`[webhook-delivery] Job ${job.id} completed`, {
