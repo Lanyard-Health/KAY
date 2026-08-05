@@ -739,11 +739,128 @@ jobs:
             e2e/test-results/
           if-no-files-found: ignore
 
+  # Starts the COMPILED server the way Render does. This is deliberately not
+  # covered by E2E Tests, which runs `node --import tsx src/index.ts` from
+  # TypeScript source — tsx resolves ESM/CJS interop differently, so it happily
+  # loaded a CommonJS package whose dependency was ESM-only while `node
+  # dist/index.js` died on it with ERR_REQUIRE_ESM. Typecheck and 538 unit tests
+  # were green on a build that could not start (PR #522 -> #525).
+  boot-smoke:
+    name: Boot Smoke (compiled server)
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.parse.outputs.status }}
+      summary: ${{ steps.parse.outputs.summary }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: credentials
+          POSTGRES_PASSWORD: credentials_dev_password
+          POSTGRES_DB: credentials
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U credentials"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        id: checkout
+        continue-on-error: true
+
+      - name: Checkout (retry 1)
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@v4
+
+      # .nvmrc, NOT node-version: '20' like the other jobs. This is load-bearing:
+      # require() of an ES module was unflagged in Node 20.19 / 22.12, so the
+      # ERR_REQUIRE_ESM crash that took down the staging boot does NOT reproduce
+      # on Node 20 or on a modern local Node. It only reproduces on the version
+      # production actually runs, which .nvmrc pins to 22.11.0. A boot check on
+      # the wrong Node would have passed this bug straight through.
+      - name: Setup Node.js (production version from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Shared Package
+        run: npm run build --workspace=packages/shared
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: packages/backend
+
+      - name: Build Backend
+        run: npm run build --workspace=packages/backend
+
+      - name: Boot Compiled Server
+        id: boot
+        continue-on-error: true
+        working-directory: packages/backend
+        env:
+          # The health check only issues SELECT 1, so an empty database is fine
+          # and no migrations are needed. Redis is left unconfigured on purpose:
+          # it reports not_configured rather than degrading the health status.
+          DATABASE_URL: postgresql://credentials:credentials_dev_password@localhost:5433/credentials
+          NODE_ENV: development
+          PORT: 3002
+          FRONTEND_URL: http://localhost:5190
+          JWT_SECRET: boot-smoke-secret-key
+          DEV_AUTH_BYPASS: 'true'
+          AWS_REGION: us-east-1
+        run: |
+          node dist/index.js > /tmp/boot.log 2>&1 &
+          BOOT_PID=$!
+          for i in $(seq 1 45); do
+            if ! kill -0 "$BOOT_PID" 2>/dev/null; then
+              echo "::error::Compiled server exited during startup"
+              tail -40 /tmp/boot.log
+              exit 1
+            fi
+            if curl -sf http://localhost:3002/health 2>/dev/null | grep -q '"ready":true'; then
+              echo "Compiled server booted and reported ready"
+              kill "$BOOT_PID" 2>/dev/null || true
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Compiled server never became ready within 90s"
+          tail -40 /tmp/boot.log
+          kill "$BOOT_PID" 2>/dev/null || true
+          exit 1
+
+      - name: Record Result
+        if: always()
+        id: parse
+        run: |
+          if [ "${{ steps.boot.outcome }}" = "success" ]; then
+            echo "status=pass" >> "$GITHUB_OUTPUT"
+            echo "summary=### :white_check_mark: Boot Smoke: compiled server started and reported ready" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=fail" >> "$GITHUB_OUTPUT"
+            echo "summary=### :x: Boot Smoke: the compiled server failed to start — see the Boot Smoke job log" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Boot Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-smoke-log
+          path: /tmp/boot.log
+          if-no-files-found: ignore
+
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests, e2e-tests, schema-drift]
+    needs: [gitleaks, npm-audit, eslint-security, semgrep, backend-tests, e2e-tests, schema-drift, boot-smoke]
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -768,6 +885,8 @@ jobs:
           E2E_SUMMARY: ${{ needs.e2e-tests.outputs.summary }}
           SCHEMA_DRIFT_STATUS: ${{ needs.schema-drift.outputs.status }}
           SCHEMA_DRIFT_SUMMARY: ${{ needs.schema-drift.outputs.summary }}
+          BOOT_STATUS: ${{ needs.boot-smoke.outputs.status }}
+          BOOT_SUMMARY: ${{ needs.boot-smoke.outputs.summary }}
         with:
           script: |
             const gitleaksStatus = process.env.GITLEAKS_STATUS || 'unknown';
@@ -784,9 +903,11 @@ jobs:
             const e2eSummary = process.env.E2E_SUMMARY || '### :grey_question: E2E Tests: No results available';
             const schemaDriftStatus = process.env.SCHEMA_DRIFT_STATUS || 'unknown';
             const schemaDriftSummary = process.env.SCHEMA_DRIFT_SUMMARY || '### :grey_question: Schema Drift: No results available';
+            const bootStatus = process.env.BOOT_STATUS || 'unknown';
+            const bootSummary = process.env.BOOT_SUMMARY || '### :grey_question: Boot Smoke: No results available';
 
             // Detect infrastructure failure: all jobs failed to produce results
-            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus, e2eStatus, schemaDriftStatus];
+            const allStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, testsStatus, e2eStatus, schemaDriftStatus, bootStatus];
             const allUnknown = allStatuses.every(s => s === 'unknown' || s === '');
 
             if (allUnknown) {
@@ -829,6 +950,10 @@ jobs:
                 '',
                 '---',
                 '',
+                bootSummary,
+                '',
+                '---',
+                '',
                 `*Scan attempted at ${new Date().toISOString()}*`,
               ].join('\n');
 
@@ -864,8 +989,10 @@ jobs:
               return;
             }
 
-            // Only security scans + schema drift block merges; tests are informational
-            const securityStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, schemaDriftStatus];
+            // Security scans, schema drift and the boot smoke block merges; tests
+            // are informational. A build that cannot start is worse than a failing
+            // test, so boot-smoke is in the blocking set rather than alongside them.
+            const securityStatuses = [gitleaksStatus, npmAuditStatus, eslintStatus, semgrepStatus, schemaDriftStatus, bootStatus];
             const anyFailed = securityStatuses.includes('fail');
             const testsHaveFailures = [testsStatus, e2eStatus].includes('fail');
 
@@ -904,6 +1031,10 @@ jobs:
               '---',
               '',
               e2eSummary,
+              '',
+              '---',
+              '',
+              bootSummary,
               '',
               '---',
               '',
@@ -1000,6 +1131,7 @@ jobs:
               { name: 'Backend Tests', status: process.env.TESTS_STATUS },
               { name: 'E2E Tests', status: process.env.E2E_STATUS },
               { name: 'Schema Drift', status: process.env.SCHEMA_DRIFT_STATUS },
+              { name: 'Boot Smoke', status: process.env.BOOT_STATUS },
             ];
             const failed = checks.filter(c => c.status === 'fail');
             const failedList = failed.map(c => `- **${c.name}**: failed`).join('\n');
