@@ -147,8 +147,10 @@ export default function ProviderDetail() {
   const canSoftDelete = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'practice_admin';
   // Mirrors the PUT /providers/:id allow-list (lanyard_staff inherits credentialing_staff)
   const canEditStatus = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff' || user?.role === 'practice_admin';
-  // Internal Lanyard roles only — gates the Network tab (Defacto Phase 1)
-  const isInternal = user?.role === 'admin' || user?.role === 'lanyard_staff' || user?.role === 'credentialing_staff';
+  // Gates the Network tab. Must match the authorize() list on defacto.routes.ts:
+  // admin + lanyard_staff only. credentialing_staff is practice-scoped and the
+  // Defacto routes are not, so it is excluded here rather than left to 403.
+  const isInternal = user?.role === 'admin' || user?.role === 'lanyard_staff';
   const visibleTabs = isInternal ? TABS : TABS.filter((t) => t.name !== 'Network');
   const deleteProvider = useDeleteProvider();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
