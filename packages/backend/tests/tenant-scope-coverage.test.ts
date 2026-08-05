@@ -21,70 +21,64 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTES_DIR = join(__dirname, '..', 'src', 'routes');
 
-// Prisma model accessors whose underlying tables carry tenant-scoping
-// (direct practiceId column OR reachable via a relation that does).
-// Listed in camelCase matching Prisma client property names.
-const TENANT_SCOPED_MODELS = [
-  // Provider + identity
-  'providerProfile',
-  'providerApplication',
-  'providerImport',
-  'providerDisclosure',
-  'providerCertification',
-  'providerIdentifier',
-  'providerBanking',
-  'providerDemographics',
-  'providerCaqhMirror',
-  // Practice
-  'practiceLocation',
-  // Credentials
-  'license',
-  'boardCertification',
-  'malpracticeInsurance',
-  'malpracticeClaim',
-  'education',
-  'workHistory',
-  'workHistoryGap',
-  'hospitalAffiliation',
-  'professionalReference',
-  'disciplinaryAction',
-  'continuingEducation',
-  'supervisingPhysician',
-  'deaRegistration',
-  'cdsRegistration',
-  // Enrollments
-  'enrollment',
-  'enrollmentWorkflow',
-  'enrollmentWorkflowStep',
-  'payerEnrollmentData',
-  // Documents
-  'document',
-  'providerChecklist',
-  // Approvals
-  'pendingApproval',
-  'followUpRun',
-  // AI
+const SCHEMA_PATH = join(__dirname, '..', 'prisma', 'schema.prisma');
+
+/**
+ * Derives tenant-scoped Prisma model accessors straight from schema.prisma:
+ * any model declaring a practiceId or providerId field owns rows belonging to
+ * one practice, so a route reading or writing it must scope.
+ *
+ * This used to be a hand-maintained list, and hand-maintenance is what failed.
+ * The list held 33 entries while the schema had 64 qualifying models, so 31
+ * were invisible to the guardrail — among them portalCredential,
+ * providerAddress, userPractice, enrollmentOutcome and defactoSnapshot. A
+ * model added to the schema is now covered the day it lands, with no second
+ * list to remember to update.
+ *
+ * Model name -> client accessor is Prisma's own rule: lowercase the first
+ * character, leave the rest alone (ProviderProfile -> providerProfile).
+ */
+function deriveTenantScopedModels(): string[] {
+  const schema = readFileSync(SCHEMA_PATH, 'utf8');
+  const models = [...schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)];
+  return models
+    .filter(([, , body]) => /^\s*(practiceId|providerId)\s+/m.test(body!))
+    .map(([, name]) => name![0]!.toLowerCase() + name!.slice(1));
+}
+
+// Models with no practiceId/providerId column of their own, which the
+// derivation above therefore cannot see, but which still hold per-practice
+// rows through a deeper relation (enrollmentId -> providerId -> practiceId,
+// conversationId, userId, subscriptionId, and so on). These stay
+// hand-maintained because resolving them needs relation-graph traversal, not
+// a field check — but the set is small and stops shrinking the moment a model
+// gains a direct column, at which point derivation picks it up and the
+// duplicate here is harmless.
+const RELATION_SCOPED_MODELS = [
+  'adminNotification',
+  'aetnaEnrollmentRun',
+  'agentEvent',
+  'agentTask',
   'chatConversation',
   'chatMessage',
-  'aiRecommendation',
   'denialTriage',
-  'agentWorkflow',
-  'agentTask',
-  'agentEvent',
-  'agentAction',
-  // Notifications + tasks
-  'task',
-  'terminationLetter',
-  'adminNotification',
+  'enrollmentWorkflowStep',
+  'followUpRun',
   'inAppNotification',
-  // Billing
-  'subscription',
   'invoice',
-  // Vendor logs
-  'caqhSyncLog',
+  'pendingApproval',
+  'providerCaqhMirror',
   'retellCallLog',
-  'aetnaEnrollmentRun',
 ];
+
+const DERIVED_TENANT_SCOPED_MODELS = deriveTenantScopedModels();
+
+// Prisma model accessors whose underlying tables carry tenant-scoping
+// (direct practiceId/providerId column OR reachable via a relation that does).
+// Listed in camelCase matching Prisma client property names.
+const TENANT_SCOPED_MODELS = Array.from(
+  new Set([...DERIVED_TENANT_SCOPED_MODELS, ...RELATION_SCOPED_MODELS]),
+);
 
 // Operations that read or write rows — anything that needs scoping.
 // `aggregate` and `groupBy` are also row-scoped operations.
@@ -139,6 +133,14 @@ const SCOPE_MARKERS = [
   'req.user!.providerId',
   'req.user?.providerId',
   'req.user.providerId',
+  // Self-access by user id: the caller reads or writes only rows keyed to
+  // themselves (notification.routes.ts resolves the caller's own practice via
+  // `where: { userId: req.user!.id }`). Strictly narrower than practice scope
+  // — one user rather than one practice — so it is genuine proof of scoping,
+  // not an escape hatch.
+  'req.user!.id',
+  'req.user?.id',
+  'req.user.id',
 ];
 
 // The canonical module housing the reusable, cross-file practice-scope
@@ -374,6 +376,98 @@ describe('Canonical-module auto-derivation (practiceScope.middleware.ts)', () =>
     // would let any file that merely imports the module skate past the guard.
     expect(DERIVED_SCOPE_MARKERS).not.toContain('initPracticeScope');
     expect(DERIVED_SCOPE_MARKERS).not.toContain('attachPracticeScope');
+  });
+});
+
+/**
+ * Schema auto-derivation: the model list is the other half of this guardrail,
+ * and the half that failed. A marker list that works perfectly is worthless if
+ * the model it should have flagged was never in the list. These tests pin the
+ * derivation down the same way the marker tests pin the marker list down.
+ */
+describe('Schema auto-derivation (schema.prisma)', () => {
+  it('derives every model that declares practiceId or providerId', () => {
+    // Spot-check across the categories: provider data, credentials, practice
+    // config, vendor state. All have a direct column in schema.prisma.
+    expect(DERIVED_TENANT_SCOPED_MODELS).toEqual(
+      expect.arrayContaining([
+        'providerProfile',
+        'enrollment',
+        'document',
+        'license',
+        'practiceLocation',
+        'task',
+      ]),
+    );
+  });
+
+  it('covers the models the old hand-maintained list silently missed', () => {
+    // Every one of these was in schema.prisma with a tenant column while the
+    // guardrail had no idea they existed. This is the regression that let an
+    // unscoped route ship; if derivation ever stops covering them, it is back.
+    expect(DERIVED_TENANT_SCOPED_MODELS).toEqual(
+      expect.arrayContaining([
+        'portalCredential',
+        'providerAddress',
+        'defactoSnapshot',
+        'userPractice',
+        'enrollmentOutcome',
+        'practiceInvitation',
+        'emailLog',
+        'faxJob',
+      ]),
+    );
+  });
+
+  it('derives substantially more models than any hand list carried', () => {
+    // Guards against a schema-format change silently reducing derivation to a
+    // handful of matches, which would look like a pass while covering nothing.
+    expect(DERIVED_TENANT_SCOPED_MODELS.length).toBeGreaterThan(50);
+  });
+
+  it('every hand-maintained relation-scoped entry still exists in the schema', () => {
+    // Same drift problem as an orphaned scope marker: a renamed or deleted
+    // model leaves an entry that can never match, looking like coverage while
+    // providing none.
+    const schema = readFileSync(SCHEMA_PATH, 'utf8');
+    const declared = new Set(
+      [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map(
+        (m) => m[1]![0]!.toLowerCase() + m[1]!.slice(1),
+      ),
+    );
+
+    const orphaned = RELATION_SCOPED_MODELS.filter((m) => !declared.has(m));
+
+    if (orphaned.length > 0) {
+      throw new Error(
+        `RELATION_SCOPED_MODELS names model(s) that no longer exist in ` +
+        `schema.prisma: ${orphaned.join(', ')}\n\n` +
+        `The model was renamed or removed, so the entry can never match a ` +
+        `prisma.<model>.<op> call again. Update or delete it.`,
+      );
+    }
+
+    expect(orphaned).toEqual([]);
+  });
+
+  it('flags a schema-derived model that no hand list would have caught', () => {
+    // The end-to-end proof: portalCredential holds encrypted payer-portal
+    // logins, appears nowhere in any hand-maintained list, and is caught only
+    // because derivation read the schema.
+    expect(RELATION_SCOPED_MODELS).not.toContain('portalCredential');
+
+    const src = `
+      import { prisma } from '../utils/prisma.js';
+      router.get('/:id', async (req, res) => {
+        const cred = await prisma.portalCredential.findFirst({ where: { id: req.params.id } });
+        res.json(cred);
+      });
+    `;
+
+    const finding = scanRouteSource(src, 'synthetic-portal-cred.routes.ts', ALL_SCOPE_MARKERS);
+
+    expect(finding).not.toBeNull();
+    expect(finding?.models).toContain('portalCredential.findFirst');
   });
 });
 
