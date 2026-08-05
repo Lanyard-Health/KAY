@@ -15,16 +15,26 @@ import sanitizeHtml from 'sanitize-html';
  * javascript: URLs cannot survive.
  */
 export function sanitizeEmailHtml(html: string): string {
-  return sanitizeHtml(html, {
+  // sanitize-html drops the doctype (it is not a tag). Real templates are full
+  // HTML documents, and losing it puts some email clients into quirks mode, so
+  // it is captured and restored. A doctype cannot carry script.
+  const doctype = /^\s*<!doctype[^>]*>\s*/i.exec(html)?.[0] ?? '';
+
+  const cleaned = sanitizeHtml(html, {
+    // NOTE: 'style' is deliberately absent — sanitize-html flags a <style>
+    // block as inherently XSS-vulnerable because it cannot sanitize inside it.
+    // Email layout here comes from inline style="" attributes, allowed below,
+    // so nothing is lost by refusing the tag.
     allowedTags: [
       ...sanitizeHtml.defaults.allowedTags,
       'img',
-      'style',
       'center',
       'font',
       'body',
       'head',
       'html',
+      'meta',
+      'title',
     ],
     allowedAttributes: {
       '*': ['style', 'class', 'align', 'valign', 'width', 'height', 'bgcolor', 'dir', 'lang'],
@@ -34,6 +44,9 @@ export function sanitizeEmailHtml(html: string): string {
       td: ['colspan', 'rowspan'],
       th: ['colspan', 'rowspan', 'scope'],
       font: ['color', 'face', 'size'],
+      // charset and viewport only. http-equiv is withheld on purpose: it would
+      // allow <meta http-equiv="refresh"> to redirect whoever opens the preview.
+      meta: ['charset', 'name', 'content'],
     },
     // Inline styles are how email HTML does layout, but url() is a script
     // vector in some clients, so values are matched against explicit patterns.
@@ -60,8 +73,19 @@ export function sanitizeEmailHtml(html: string): string {
         'padding-left': [/^\d+(\.\d+)?(px|em|rem|pt|%)$/],
         'padding-right': [/^\d+(\.\d+)?(px|em|rem|pt|%)$/],
         border: [/^[\d\s.a-z#()%,-]+$/i],
+        'border-top': [/^[\d\s.a-z#()%,-]+$/i],
+        'border-right': [/^[\d\s.a-z#()%,-]+$/i],
+        'border-bottom': [/^[\d\s.a-z#()%,-]+$/i],
+        'border-left': [/^[\d\s.a-z#()%,-]+$/i],
         'border-radius': [/^[\d\s.a-z%]+$/i],
         'border-collapse': [/^(collapse|separate)$/],
+        'box-shadow': [/^(inset\s+)?[\d\s.a-z#(),%-]+$/i],
+        overflow: [/^(visible|hidden|scroll|auto)$/],
+        // Named filter functions only. url(), expression() and progid: are the
+        // script vectors here, and none of them can match this pattern.
+        filter: [
+          /^((brightness|invert|grayscale|sepia|saturate|contrast|opacity|blur|hue-rotate|drop-shadow)\([^()]*\)\s*)+$/i,
+        ],
         width: [/^\d+(\.\d+)?(px|em|rem|pt|%)$/],
         'max-width': [/^\d+(\.\d+)?(px|em|rem|pt|%)$/],
         'min-width': [/^\d+(\.\d+)?(px|em|rem|pt|%)$/],
@@ -76,4 +100,6 @@ export function sanitizeEmailHtml(html: string): string {
     // variable substitution at send time.
     disallowedTagsMode: 'discard',
   });
+
+  return doctype + cleaned;
 }
