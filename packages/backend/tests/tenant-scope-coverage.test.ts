@@ -213,6 +213,11 @@ function findSymbolDefinition(name: string): string | null {
 // a justification. If you add to this list, the justification must
 // explain WHY scope can be omitted (external auth, system job, etc.).
 const ALLOWLIST: Record<string, string> = {
+  'defacto.routes.ts':
+    'Gated to admin + lanyard_staff, both cross-practice by design, so the ' +
+    'ID lookups are intentionally unfiltered. If a practice-scoped role is ' +
+    'ever added back to the authorize() list, remove this entry and scope the ' +
+    'queries — that combination is what made this route a cross-practice leak.',
   'webhook.routes.ts':
     'External webhook authenticated by HMAC signature, not by user session. ' +
     'No req.user/practiceScope is available; lookup is by enrollmentId or ' +
