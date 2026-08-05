@@ -113,6 +113,35 @@ export function getRedisConnection(): Redis {
 }
 
 /**
+ * Attach an 'error' listener to a BullMQ Queue or Worker.
+ *
+ * BullMQ forwards its Redis connection errors to an 'error' event
+ * (queue-base.js:43, worker.js:129). Node throws when 'error' is emitted with
+ * no listener, and BullMQ emits from inside a promise catch —
+ * `this.run().catch(error => this.emit('error', error))` (worker.js:116) — so
+ * that throw surfaces as an unhandled rejection rather than a clean crash.
+ * That is how one dropped connection became ENG-267..ENG-283.
+ *
+ * Every Queue and Worker must have this attached at construction.
+ */
+export function logRedisClientErrors(
+  client: { on(event: 'error', listener: (err: Error) => void): unknown },
+  label: string,
+): void {
+  client.on('error', (err: Error) => {
+    // A connection dropping during a Redis restart, a laptop sleeping, or a
+    // graceful shutdown is expected — ioredis rejects every in-flight command
+    // with these on socket close. Keep them out of the error stream so they
+    // don't drown genuine queue failures.
+    if (/Connection is closed|ECONNREFUSED|ECONNRESET|EPIPE/i.test(err.message)) {
+      logger.warn(`${label}: redis connection lost — ${err.message}`);
+      return;
+    }
+    logger.error(`${label}: ${err.message}`);
+  });
+}
+
+/**
  * Gracefully closes the shared Redis connection and resets the singleton.
  */
 export async function closeRedisConnection(): Promise<void> {
