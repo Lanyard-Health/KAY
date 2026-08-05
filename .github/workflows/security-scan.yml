@@ -106,7 +106,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -224,7 +224,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -432,7 +432,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -502,7 +502,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -603,7 +603,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -775,12 +775,12 @@ jobs:
         if: steps.checkout.outcome == 'failure'
         uses: actions/checkout@v4
 
-      # .nvmrc, NOT node-version: '20' like the other jobs. This is load-bearing:
-      # require() of an ES module was unflagged in Node 20.19 / 22.12, so the
-      # ERR_REQUIRE_ESM crash that took down the staging boot does NOT reproduce
-      # on Node 20 or on a modern local Node. It only reproduces on the version
-      # production actually runs, which .nvmrc pins to 22.11.0. A boot check on
-      # the wrong Node would have passed this bug straight through.
+      # Every job reads .nvmrc, but for this one it is load-bearing rather than
+      # merely tidy: require() of an ES module was unflagged in Node 20.19 /
+      # 22.12, so the ERR_REQUIRE_ESM crash that took down the staging boot does
+      # NOT reproduce on Node 20 or on a modern local Node. It only reproduces on
+      # the version production actually runs, which .nvmrc pins to 22.11.0. Do
+      # not pin this job to a bare major — it would pass that bug straight through.
       - name: Setup Node.js (production version from .nvmrc)
         uses: actions/setup-node@v4
         with:
