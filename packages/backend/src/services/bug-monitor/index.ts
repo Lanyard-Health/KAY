@@ -67,7 +67,33 @@ class BugMonitorService {
       if (existing) {
         await this.handleDuplicate(existing, sanitized, hash);
       } else {
-        await this.handleNew(sanitized, hash);
+        // Claim the hash synchronously. handleNew awaits AI triage and Linear
+        // creation, so without this the map stays empty for seconds and every
+        // concurrent report of the same error files its own issue — that is
+        // how one dropped Redis connection became ENG-267..ENG-283 (17 issues,
+        // 16 of them inside 3 seconds).
+        const entry: InMemoryFingerprint = {
+          hash,
+          source: sanitized.source,
+          title: sanitized.title,
+          errorClass: sanitized.errorClass || null,
+          linearIssueId: null,
+          linearIssueUrl: null,
+          currentSeverity: 'low',
+          occurrenceCount: 1,
+          firstSeenAt: new Date(),
+          lastSeenAt: new Date(),
+          metadata: sanitized.metadata as Record<string, string>,
+        };
+        this.fingerprints.set(hash, entry);
+        try {
+          await this.handleNew(sanitized, hash, entry);
+        } catch (error) {
+          // Release the claim so a later occurrence can retry, otherwise a
+          // transient Linear outage would suppress the bug permanently.
+          this.fingerprints.delete(hash);
+          throw error;
+        }
       }
     } catch (error) {
       // Bug monitor should NEVER crash the app
@@ -120,27 +146,18 @@ class BugMonitorService {
     }
   }
 
-  private async handleNew(report: SanitizedBugReport, hash: string): Promise<void> {
+  private async handleNew(report: SanitizedBugReport, hash: string, entry: InMemoryFingerprint): Promise<void> {
     // 1. AI triage
     const triage = await this.triager.triage(report);
 
     // 2. Create Linear issue
     const issue = await this.linearClient.createIssue(report, triage);
 
-    // 3. Save fingerprint in memory
-    this.fingerprints.set(hash, {
-      hash,
-      source: report.source,
-      title: report.title,
-      errorClass: report.errorClass || null,
-      linearIssueId: issue?.id || null,
-      linearIssueUrl: issue?.url || null,
-      currentSeverity: triage.severity,
-      occurrenceCount: 1,
-      firstSeenAt: new Date(),
-      lastSeenAt: new Date(),
-      metadata: report.metadata as Record<string, string>,
-    });
+    // 3. Fill in the slot claimed by report(). Mutated rather than replaced so
+    // occurrences counted while this was in flight are not discarded.
+    entry.linearIssueId = issue?.id || null;
+    entry.linearIssueUrl = issue?.url || null;
+    entry.currentSeverity = triage.severity;
 
     // 4. Alert if urgent
     if (triage.severity === 'urgent') {

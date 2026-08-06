@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, EyeIcon, PencilIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import DOMPurify from 'dompurify';
 import PageTransition from '../../components/ui/PageTransition';
 import ErrorState from '../../components/ui/ErrorState';
 import {
@@ -237,9 +238,10 @@ export default function EmailTemplateDetail() {
                 </div>
                 <div
                   className="prose prose-sm max-w-none p-6 text-gray-800"
-                  // Preview renders HTML; body is admin-authored so treated as trusted.
+                  // Body reaches here from the API, so it is not trusted even
+                  // though only admins can author it (ENG-233).
                   // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: renderedBody }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedBody) }}
                 />
               </div>
             )}

@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq';
-import { getRedisConfig } from '../utils/redis.js';
+import { getRedisConfig, logRedisClientErrors } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
 
 // ==========================================
@@ -88,6 +88,8 @@ export function getQueue(name: QueueName): Queue {
       },
     },
   });
+
+  logRedisClientErrors(queue, `Queue ${name}`);
 
   queueCache.set(name, queue);
   logger.info(`Queue created: ${name}`);

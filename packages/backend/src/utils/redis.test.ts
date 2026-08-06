@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 
 // ==========================================
 // Mocks — vi.hoisted so they're available in vi.mock factories
@@ -17,11 +18,18 @@ vi.mock('ioredis', () => ({
   Redis: MockRedis,
 }));
 
+const { logWarn, logError } = vi.hoisted(() => ({ logWarn: vi.fn(), logError: vi.fn() }));
+
 vi.mock('./logger.js', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  logger: { info: vi.fn(), warn: logWarn, error: logError },
 }));
 
-import { getRedisConfig, getRedisConnection, closeRedisConnection } from './redis.js';
+import {
+  getRedisConfig,
+  getRedisConnection,
+  closeRedisConnection,
+  logRedisClientErrors,
+} from './redis.js';
 
 // ==========================================
 // Tests
@@ -177,6 +185,49 @@ describe('redis utility', () => {
       await closeRedisConnection();
 
       expect(mockQuit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ------------------------------------------
+  // logRedisClientErrors (ENG-269)
+  // ------------------------------------------
+
+  describe('logRedisClientErrors', () => {
+    it("documents why this exists: emitting 'error' with no listener throws", () => {
+      const bare = new EventEmitter();
+
+      expect(() => bare.emit('error', new Error('Connection is closed.'))).toThrow(
+        'Connection is closed.',
+      );
+    });
+
+    it('swallows that throw once attached, which is what stops the unhandled rejection', () => {
+      const queue = new EventEmitter();
+      logRedisClientErrors(queue, 'Queue test');
+
+      expect(() => queue.emit('error', new Error('Connection is closed.'))).not.toThrow();
+    });
+
+    it('logs an expected connection drop at warn, not error', () => {
+      const queue = new EventEmitter();
+      logRedisClientErrors(queue, 'Queue test');
+
+      queue.emit('error', new Error('Connection is closed.'));
+
+      expect(logWarn).toHaveBeenCalledTimes(1);
+      expect(logWarn.mock.calls[0]![0]).toContain('redis connection lost');
+      expect(logError).not.toHaveBeenCalled();
+    });
+
+    it('logs anything else at error so real queue faults stay visible', () => {
+      const queue = new EventEmitter();
+      logRedisClientErrors(queue, 'Queue test');
+
+      queue.emit('error', new Error('READONLY You cannot write against a read only replica.'));
+
+      expect(logError).toHaveBeenCalledTimes(1);
+      expect(logError.mock.calls[0]![0]).toContain('READONLY');
+      expect(logWarn).not.toHaveBeenCalled();
     });
   });
 });

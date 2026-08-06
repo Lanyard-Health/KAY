@@ -27,6 +27,7 @@ vi.mock('../utils/redis.js', () => ({
     port: 6379,
     maxRetriesPerRequest: null,
   })),
+  logRedisClientErrors: vi.fn(),
 }));
 
 vi.mock('../utils/logger.js', () => ({

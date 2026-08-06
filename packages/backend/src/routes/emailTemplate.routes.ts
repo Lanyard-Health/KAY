@@ -12,13 +12,15 @@ import {
   listEmailLogs,
 } from '../services/emailTemplate.service.js';
 import type { EmailTemplateType, EmailSendStatus } from '@prisma/client';
+import { sanitizeEmailHtml } from '../utils/sanitize-email-html.js';
 
 const router = Router();
 
 const createSchema = z.object({
   name: z.string().min(1).max(255),
   subject: z.string().min(1).max(500),
-  body: z.string().min(1),
+  // Sanitized on the way in; the column feeds dangerouslySetInnerHTML (ENG-233).
+  body: z.string().min(1).transform(sanitizeEmailHtml),
   type: z.enum(['AUTOMATED_ONBOARDING', 'STATIC_ON_DEMAND']),
   triggerEvent: z.string().max(100).optional(),
 });

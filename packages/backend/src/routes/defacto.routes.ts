@@ -1,8 +1,7 @@
 /**
  * Defacto network participation routes (Phase 1 — internal admin only).
- * Mounted at /api/v1/admin/providers. Internal roles only: admin +
- * credentialing_staff (lanyard_staff inherits via authorize()). Practice-facing
- * exposure is explicitly out of scope until Defacto's terms are confirmed.
+ * Mounted at /api/v1/admin/providers. Practice-facing exposure is explicitly
+ * out of scope until Defacto's terms are confirmed.
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
@@ -19,7 +18,13 @@ import {
 export const defactoRoutes = Router();
 
 defactoRoutes.use(authenticate);
-defactoRoutes.use(authorize('admin', 'credentialing_staff'));
+// admin + lanyard_staff only. Both are cross-practice by design, which is what
+// makes the unfiltered ID lookups below safe. credentialing_staff is
+// practice-scoped and was previously admitted here, so it could read another
+// practice's provider NPI and network participation. lanyard_staff must be
+// named explicitly — the inheritance rule in auth.middleware.ts only admits it
+// when credentialing_staff is in the list.
+defactoRoutes.use(authorize('admin', 'lanyard_staff'));
 
 const defactoService = new DefactoService();
 
