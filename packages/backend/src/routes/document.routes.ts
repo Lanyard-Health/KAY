@@ -111,6 +111,29 @@ documentRoutes.post(
   }
 );
 
+/**
+ * WHERE fragment restricting documents to the caller's practices.
+ *
+ * A Document belongs to EITHER a provider or a practice — both foreign keys are
+ * nullable — so a single relation filter would silently drop practice-level
+ * documents. This mirrors enrollmentScopeFilter in enrollment.routes.ts, which
+ * handles the same dual-ownership shape.
+ *
+ * The Prisma client extension injects deletedAt only at the top level, so the
+ * nested provider clause spells it out.
+ */
+function documentScopeFilter(req: Request): Record<string, unknown> {
+  if (req.practiceScope?.isSuperAdmin) return {};
+  const ids = req.practiceScope?.practiceIds ?? [];
+  if (ids.length === 0) return { id: '__no_access__' }; // matches nothing
+  return {
+    OR: [
+      { provider: { practiceId: { in: ids }, deletedAt: null } },
+      { providerId: null, practiceId: { in: ids } },
+    ],
+  };
+}
+
 // GET /api/v1/documents/ocr-review-count - Count documents needing OCR review
 documentRoutes.get(
   '/ocr-review-count',
@@ -122,7 +145,7 @@ documentRoutes.get(
       }
 
       const count = await prisma.document.count({
-        where: { ocrStatus: 'needs_review' },
+        where: { ocrStatus: 'needs_review', ...documentScopeFilter(req) },
       });
 
       res.json({ success: true, data: { count } });
@@ -145,7 +168,9 @@ documentRoutes.get(
       const page = Math.max(1, parseInt(req.query['page'] as string) || 1);
       const pageSize = Math.min(100, Math.max(1, parseInt(req.query['pageSize'] as string) || 25));
 
-      const where = { ocrStatus: 'needs_review' as const };
+      // Scoped: this returns provider names and NPIs, so an unfiltered query
+      // exposed every practice's providers to any practice_admin.
+      const where = { ocrStatus: 'needs_review' as const, ...documentScopeFilter(req) };
 
       const [items, total] = await Promise.all([
         prisma.document.findMany({

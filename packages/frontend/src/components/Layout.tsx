@@ -191,24 +191,24 @@ function SidebarNavGroup({ group, pathname }: { group: NavGroup; pathname: strin
 function SidebarContent({ pathname, role }: { pathname: string; role: string | undefined }) {
   const { user } = useAuthStore();
   const { data: ocrReviewCount } = useOcrReviewCount();
-  const isInternal = user?.role === 'admin' || user?.role === 'lanyard_staff';
+  // "Internal" means cross-practice, not job title: admin and lanyard_staff see
+  // every practice, everyone else is scoped to their own. credentialing_staff is
+  // a practice's own credentialing worker and belongs on the customer nav — which
+  // is what the customerNavGroups comment above already said, while this check
+  // sent them to the internal nav instead.
+  const isInternal = role === 'admin' || role === 'lanyard_staff';
   const practiceName = !isInternal ? user?.practices?.[0]?.practice?.name : null;
-  // admin + lanyard_staff (cross-practice Lanyard employees) and credentialing_staff
-  // get the full internal nav. practice_admin is customer-side with a trimmed nav.
-  const isInternalStaff = role === 'admin' || role === 'lanyard_staff' || role === 'credentialing_staff';
-  const baseGroups = isInternalStaff ? adminNavGroups : customerNavGroups;
+  const baseGroups = isInternal ? adminNavGroups : customerNavGroups;
 
-  // Tasks is admin + lanyard_staff only (credentialing_staff is practice-side and
-  // gets a 403 from /tasks/counts), so only fetch counts for those roles.
-  const isTaskUser = role === 'admin' || role === 'lanyard_staff';
-  const { data: taskCounts } = useTaskCounts({ enabled: isTaskUser });
+  // Tasks lives only in adminNavGroups, so a practice-side role never sees it and
+  // fetching counts would just earn a 403 from /tasks/counts.
+  const { data: taskCounts } = useTaskCounts({ enabled: isInternal });
 
   // Inject OCR review count badge into OCR Review nav item; inject Tasks badge
-  // (red overdue count wins, else amber open count); hide Tasks from credentialing_staff.
+  // (red overdue count wins, else amber open count).
   const activeGroups = baseGroups.map(group => ({
     ...group,
     items: group.items
-      .filter((item) => !(item.name === 'Tasks' && role === 'credentialing_staff'))
       // Access Review + Audit Log: admin, lanyard_staff, practice_admin only —
       // matches the backend authorize() contract on those routes.
       .filter((item) =>

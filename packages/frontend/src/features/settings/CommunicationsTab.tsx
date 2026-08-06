@@ -68,7 +68,10 @@ function dayLabel(iso: string): string {
 
 function SentHistorySection() {
   const user = useAuthStore((s) => s.user);
-  const isStaff = ['admin', 'lanyard_staff', 'credentialing_staff'].includes(user?.role ?? '');
+  // Gates the cross-practice practice picker, so only the roles that actually
+  // reach across practices belong here. credentialing_staff is scoped to its own
+  // practice and falls through to ownPracticeId below.
+  const isStaff = ['admin', 'lanyard_staff'].includes(user?.role ?? '');
   const ownPracticeId = user?.practices?.[0]?.practiceId;
 
   const [selectedPracticeId, setSelectedPracticeId] = useState('');
