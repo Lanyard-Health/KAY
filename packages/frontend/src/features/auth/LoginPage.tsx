@@ -306,7 +306,13 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await forgotPassword(resetEmail);
-      notify.success('Code sent', { description: 'Check your email for a verification code' });
+      // The pool runs with PreventUserExistenceErrors enabled, so a silent
+      // "we won't tell you this account can't be recovered" is indistinguishable
+      // here from a real send. Don't promise an email we can't confirm was sent —
+      // a customer waiting on a code that was never coming is how this surfaced.
+      notify.success('Check your email', {
+        description: "If an account exists for that email, a verification code is on its way. Didn't get one? Contact support@lanyardhealth.com",
+      });
       setAuthStep('confirm-reset');
     } catch (error) {
       notify.error('Reset failed', { description: mapCognitoError(error) });

@@ -11,6 +11,7 @@ import {
   disableCognitoUser,
   enableCognitoUser,
   updateCognitoUser,
+  reissueTemporaryPassword,
 } from '../services/cognitoUser.service.js';
 
 // Rate limit account mutations (Cognito interactions are expensive)
@@ -482,6 +483,76 @@ userRoutes.put(
       });
 
       res.json({ success: true, data: user });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/v1/users/:id/resend-invite - Re-issue a temporary password and email
+// the invite again.
+//
+// This is the only working password-recovery path we have. "Forgot password" on
+// the login page cannot succeed for anyone on this pool — Cognito refuses to
+// recover an account through a medium that's also an enabled MFA factor, and
+// email is both. Until MFA moves to OPTIONAL or an SMS factor is added, every
+// locked-out customer needs this, and without it each one is a manual admin-API
+// call by the founder.
+userRoutes.post(
+  '/:id/resend-invite',
+  accountMutationLimiter,
+  authorize('admin', 'credentialing_staff', 'practice_admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Practice-scope check
+      if (!req.practiceScope?.isSuperAdmin) {
+        const target = await prisma.userPractice.findFirst({
+          where: {
+            userId: req.params['id'],
+            practiceId: { in: req.practiceScope?.practiceIds ?? [] },
+          },
+        });
+        if (!target) {
+          throw new ForbiddenError('You do not have access to this user');
+        }
+      }
+
+      const targetUser = await prisma.user.findUnique({
+        where: { id: req.params['id'] },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          isActive: true, lastLoginAt: true,
+        },
+      });
+      if (!targetUser) {
+        throw new NotFoundError('User not found');
+      }
+
+      // Deliberately NOT gated on lastLoginAt. Users who HAVE signed in before are
+      // the main population that needs this: "Forgot password" is non-functional
+      // on our pool (see reissueTemporaryPassword), so a returning customer who
+      // forgets their password has no self-service route at all. Gating this on
+      // "never logged in" would have refused the exact customer it was built for.
+      if (!targetUser.isActive) {
+        throw new ValidationError(
+          `${targetUser.email} is deactivated. Activate the account first, then re-send the invite.`,
+        );
+      }
+
+      setAuditContext(req, {
+        resourceType: 'users',
+        resourceId: targetUser.id,
+        action: 'update',
+        changes: { after: { inviteResent: true } },
+      });
+
+      await reissueTemporaryPassword(targetUser.email);
+
+      res.json({
+        success: true,
+        data: { email: targetUser.email },
+        message: `Invitation re-sent to ${targetUser.email}`,
+      });
     } catch (error) {
       next(error);
     }

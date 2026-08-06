@@ -46,6 +46,14 @@ export interface CognitoCreateUserInput {
   lastName: string;
   temporaryPassword?: string;
   suppressInviteEmail?: boolean;
+  /**
+   * Re-send the invite to a user who already exists, with a fresh temporary
+   * password. Cognito rejects this for anyone past FORCE_CHANGE_PASSWORD
+   * (UnsupportedUserStateException), which is the behaviour we want — it can't
+   * clobber the password of someone who already signed in. Ignored when
+   * suppressInviteEmail is set; the two MessageActions are mutually exclusive.
+   */
+  resendInvite?: boolean;
 }
 
 export interface CognitoCreateUserResult {
@@ -80,7 +88,9 @@ export async function createCognitoUser(
     }),
     MessageAction: input.suppressInviteEmail
       ? MessageActionType.SUPPRESS
-      : undefined,
+      : input.resendInvite
+        ? MessageActionType.RESEND
+        : undefined,
     DesiredDeliveryMediums: ['EMAIL'],
   });
 
@@ -96,6 +106,58 @@ export async function createCognitoUser(
 
   logger.info(`Cognito user created: ${input.email}`);
   return { cognitoId: sub };
+}
+
+/**
+ * Put an existing user back to a fresh temporary password and email them the
+ * invite again.
+ *
+ * This exists because self-service "Forgot password" is unusable on this pool:
+ * Cognito refuses to recover an account through the same medium that's enabled
+ * as an MFA factor, and email is both our only recovery mechanism and an MFA
+ * option. ForgotPassword therefore returns
+ *   InvalidParameterException: Cannot reset password for the user as there is
+ *   no registered/verified email or phone_number
+ * for every user, even with email_verified=true. Confirmed against the prod pool
+ * on 2026-06-20 and again 2026-08-06. Until MFA goes OPTIONAL or an SMS recovery
+ * factor is added, this admin path is the only way to get a locked-out customer
+ * back in.
+ *
+ * Two steps, because neither alone is enough: AdminSetUserPassword returns the
+ * account to FORCE_CHANGE_PASSWORD (RESEND is rejected for CONFIRMED users), and
+ * AdminCreateUser/RESEND then has Cognito mint its own temporary password and
+ * mail it. No credential is ever returned to us, logged, or handled by staff.
+ */
+export async function reissueTemporaryPassword(email: string): Promise<void> {
+  if (DEV_BYPASS_ENABLED) {
+    logger.info(`[DEV] Skipping Cognito invite re-issue for ${email}`);
+    return;
+  }
+
+  const UserPoolId = getUserPoolId();
+
+  // Discarded immediately — Cognito replaces it in the RESEND below.
+  const throwaway = `Aa1!${crypto.randomUUID()}`;
+
+  await getClient().send(
+    new AdminSetUserPasswordCommand({
+      UserPoolId,
+      Username: email,
+      Password: throwaway,
+      Permanent: false,
+    })
+  );
+
+  await getClient().send(
+    new AdminCreateUserCommand({
+      UserPoolId,
+      Username: email,
+      MessageAction: MessageActionType.RESEND,
+      DesiredDeliveryMediums: ['EMAIL'],
+    })
+  );
+
+  logger.info(`Cognito invite re-issued: ${email}`);
 }
 
 /**
