@@ -167,7 +167,7 @@ describe('User Routes', () => {
             email: 'newuser@test.com',
             firstName: 'New',
             lastName: 'User',
-            role: 'credentialing_staff',
+            role: 'provider',
             cognitoId: 'cognito-123',
           }),
         })

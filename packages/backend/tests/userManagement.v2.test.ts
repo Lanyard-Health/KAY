@@ -81,6 +81,9 @@ describe('User Management — v2', () => {
   // CREATE USER
   // ==========================================
   describe('POST / — Create user', () => {
+    // role: 'provider' — an admin has no practice to auto-assign from, so a
+    // practice-scoped role created here would land with zero practice rows. That
+    // is now refused; see the guard test at the end of this block.
     it('creates user with valid data and returns 201', async () => {
       prismaMock.user.create.mockResolvedValue(mockCreatedUser as any);
 
@@ -90,7 +93,7 @@ describe('User Management — v2', () => {
           email: 'newuser@test.com',
           firstName: 'New',
           lastName: 'User',
-          role: 'credentialing_staff',
+          role: 'provider',
         });
 
       expect(res.status).toBe(201);
@@ -110,7 +113,7 @@ describe('User Management — v2', () => {
           email: 'duplicate@test.com',
           firstName: 'Dup',
           lastName: 'User',
-          role: 'credentialing_staff',
+          role: 'provider',
         });
 
       expect(res.status).toBeGreaterThanOrEqual(400);
@@ -157,6 +160,58 @@ describe('User Management — v2', () => {
           }),
         })
       );
+    });
+
+    // A practice-scoped role with no practice is scoped to nothing: every
+    // correctly-scoped route denies it, and only an unscoped route would let it
+    // through, so its reach depends on which routes forgot to scope. The account
+    // used to land in that state purely based on who invited it.
+    describe.each(['credentialing_staff', 'practice_admin'])(
+      'refuses to create a %s with no practice',
+      (role) => {
+        it('rejects an admin-created account and never reaches Cognito', async () => {
+          const res = await request(adminApp)
+            .post('/')
+            .send({ email: 'orphan@test.com', firstName: 'No', lastName: 'Practice', role });
+
+          expect(res.status).toBe(400);
+          expect(res.body.error.message).toMatch(/no practice/i);
+          // Nothing was provisioned anywhere — no Cognito identity, no DB row.
+          expect(createCognitoUser).not.toHaveBeenCalled();
+          expect(prismaMock.user.create).not.toHaveBeenCalled();
+        });
+
+        it('rejects a lanyard_staff-created account, whose scope is every practice', async () => {
+          // lanyard_staff practiceIds is the ENTIRE practice list, so auto-assign
+          // is skipped for them too — same orphaned outcome by a different route.
+          const app = express();
+          app.use(express.json());
+          app.use((req, _res, next) => {
+            req.user = { ...staffUser, role: 'lanyard_staff' } as any;
+            req.practiceScope = { isSuperAdmin: false, practiceIds: ['practice-1', 'practice-2'] } as any;
+            next();
+          });
+          app.use(userRoutes);
+          app.use(errorHandler);
+
+          const res = await request(app)
+            .post('/')
+            .send({ email: 'orphan2@test.com', firstName: 'No', lastName: 'Practice', role });
+
+          expect(res.status).toBe(400);
+          expect(prismaMock.userPractice.create).not.toHaveBeenCalled();
+        });
+      },
+    );
+
+    it('still allows a provider with no practice — providers scope by providerId', async () => {
+      prismaMock.user.create.mockResolvedValue({ ...mockCreatedUser, role: 'provider' } as any);
+
+      const res = await request(adminApp)
+        .post('/')
+        .send({ email: 'doc@test.com', firstName: 'Doc', lastName: 'Tor', role: 'provider' });
+
+      expect(res.status).toBe(201);
     });
   });
 
