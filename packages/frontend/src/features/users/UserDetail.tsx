@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeftIcon, PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { useUserDetail, useDeactivateUser, useActivateUser } from '../../hooks/useUserManagement';
+import { useUserDetail, useDeactivateUser, useActivateUser, useResendInvite } from '../../hooks/useUserManagement';
 import { useRemoveUser } from '../../hooks/usePractices';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -31,6 +31,7 @@ export default function UserDetail() {
   const { data: user, isLoading } = useUserDetail(userId!);
   const deactivateMutation = useDeactivateUser();
   const activateMutation = useActivateUser();
+  const resendInviteMutation = useResendInvite();
   const removeFromPracticeMutation = useRemoveUser();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addPracticeModalOpen, setAddPracticeModalOpen] = useState(false);
@@ -59,6 +60,25 @@ export default function UserDetail() {
           onSuccess: () => toast.success('User deactivated'),
           onError: (error: any) => {
             toast.error(error?.response?.data?.error?.message || 'Failed to deactivate user');
+          },
+        });
+        closeConfirm();
+      },
+    });
+  };
+
+  const handleResendInvite = () => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Send New Password Email',
+      message: `Email ${user!.firstName} ${user!.lastName} a new temporary password at ${user!.email}? Their current password stops working immediately, and they'll set a new one when they next sign in. Use this when someone is locked out — "Forgot password" does not work on our login page.`,
+      variant: 'warning',
+      confirmLabel: 'Send new password',
+      onConfirm: () => {
+        resendInviteMutation.mutate(userId!, {
+          onSuccess: () => toast.success(`Invitation re-sent to ${user!.email}`),
+          onError: (error: any) => {
+            toast.error(error?.response?.data?.error?.message || 'Failed to re-send invitation');
           },
         });
         closeConfirm();
@@ -180,6 +200,18 @@ export default function UserDetail() {
             <PencilIcon className="-ml-1 mr-2 h-5 w-5" />
             Edit
           </button>
+          {/* Shown for every active user, including ones who have signed in before.
+              "Forgot password" is non-functional on our Cognito pool, so this is
+              the only way anyone gets back into a locked-out account. */}
+          {user.isActive && (
+            <button
+              onClick={handleResendInvite}
+              disabled={resendInviteMutation.isPending}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              {resendInviteMutation.isPending ? 'Sending...' : 'Send new password'}
+            </button>
+          )}
           {user.isActive ? (
             <button
               onClick={handleDeactivate}
