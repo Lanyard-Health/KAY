@@ -1,6 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Lanyard Health Cognito User Pool
 
+# ⚠️  DO NOT APPLY THIS TEMPLATE TO THE LIVE POOL.
+#
+# It has drifted from production (us-east-1_SXOvfeegD) and applying it would be
+# a downgrade, not a sync. Known divergences:
+#
+#   • MfaConfiguration / EnabledMfas below say OPTIONAL + Authenticator only.
+#     The live pool is Require-MFA with Authenticator AND Email, live since
+#     2026-06-09 (docs/cognito-mfa-runbook.md). Applying this drops email MFA
+#     and locks out everyone enrolled on it.
+#   • email_sending_account differs from the live SES sender
+#     (invites@lanyardhealth.com).
+#
+# Treat this file as documentation of intent that we keep matching the console
+# by hand. Change the console first, then edit here to match.
+
 Parameters:
   Environment:
     Type: String
@@ -49,9 +64,13 @@ Resources:
             Priority: 1
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
+        # Kept in sync with the live pool by hand — see the staleness warning at
+        # the top of this file. The host must match FRONTEND_URL on kay-backend
+        # (https://portal.lanyardhealth.com); pointing it anywhere else is what
+        # convinced a customer there were two different Lanyard portals.
         InviteMessageTemplate:
           EmailSubject: Welcome to Lanyard Health
-          EmailMessage: "Your admin has created an account for you. Username: {username}, Temporary password: {####}. Log in at https://kay-frontend.onrender.com/login"
+          EmailMessage: "Your admin has created an account for you. Username: {username}, Temporary password: {####}. Log in at https://portal.lanyardhealth.com/login"
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient

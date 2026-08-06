@@ -23,8 +23,10 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 const mockCreateCognitoUser = vi.fn().mockResolvedValue({ cognitoId: 'mock-cognito-id' });
+const mockReissueTemporaryPassword = vi.fn().mockResolvedValue(undefined);
 vi.mock('../services/cognitoUser.service.js', () => ({
   createCognitoUser: (...args: any[]) => mockCreateCognitoUser(...args),
+  reissueTemporaryPassword: (...args: any[]) => mockReissueTemporaryPassword(...args),
 }));
 
 import { userRoutes } from './user.routes.js';
@@ -243,6 +245,56 @@ describe('User Routes', () => {
           data: { isActive: true },
         })
       );
+    });
+  });
+
+  describe('POST /:id/resend-invite', () => {
+    const activeUser = { ...mockUser, isActive: true, lastLoginAt: null };
+
+    it('re-issues a temporary password for an account that never signed in', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(activeUser as any);
+
+      const res = await request(app).post('/user-1-id/resend-invite');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockReissueTemporaryPassword).toHaveBeenCalledWith(activeUser.email);
+    });
+
+    // Regression guard: an earlier version gated this on lastLoginAt, which would
+    // have refused every returning customer — the exact people who need it, since
+    // "Forgot password" cannot work on this pool.
+    it('also works for a user who has signed in before', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...activeUser,
+        lastLoginAt: new Date('2026-06-25'),
+      } as any);
+
+      const res = await request(app).post('/user-1-id/resend-invite');
+
+      expect(res.status).toBe(200);
+      expect(mockReissueTemporaryPassword).toHaveBeenCalledWith(activeUser.email);
+    });
+
+    it('refuses for a deactivated user', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        ...activeUser,
+        isActive: false,
+      } as any);
+
+      const res = await request(app).post('/user-1-id/resend-invite');
+
+      expect(res.status).toBe(400);
+      expect(mockReissueTemporaryPassword).not.toHaveBeenCalled();
+    });
+
+    it('404s when the user does not exist', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      const res = await request(app).post('/user-1-id/resend-invite');
+
+      expect(res.status).toBe(404);
+      expect(mockReissueTemporaryPassword).not.toHaveBeenCalled();
     });
   });
 });

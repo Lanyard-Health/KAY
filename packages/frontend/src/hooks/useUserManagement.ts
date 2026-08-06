@@ -135,6 +135,20 @@ export function useDeactivateUser() {
   });
 }
 
+export function useResendInvite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await api.post(`/users/${userId}/resend-invite`);
+      return response.data.data;
+    },
+    onSuccess: (_data, userId) => {
+      queryClient.invalidateQueries({ queryKey: ['user-detail', userId] });
+    },
+  });
+}
+
 export function useActivateUser() {
   const queryClient = useQueryClient();
 
