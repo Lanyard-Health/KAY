@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../utils/prisma.js';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { NotFoundError, ForbiddenError } from '../middleware/error.middleware.js';
+import { NotFoundError, ForbiddenError, ValidationError } from '../middleware/error.middleware.js';
 import { setAuditContext } from '../middleware/audit.middleware.js';
 import { z } from 'zod';
 import {
@@ -221,6 +221,35 @@ userRoutes.post(
         throw new ForbiddenError('Only the founder can create Lanyard-internal logins');
       }
 
+      // Whether the practice auto-assignment below will actually run. Derived once
+      // so the guard and the assignment cannot drift apart.
+      const willAutoAssignPractice = Boolean(
+        !req.practiceScope?.isSuperAdmin &&
+        req.user?.role !== 'lanyard_staff' &&
+        req.practiceScope?.practiceIds.length
+      );
+
+      // A practice-scoped role with no practice is scoped to nothing: correctly
+      // scoped routes deny it on every request, and only an UNSCOPED route would
+      // let it through — so the account's reach depends entirely on which routes
+      // forgot to scope. That is the state that made credentialing_staff
+      // ambiguous in the first place, and it was reachable purely by who did the
+      // inviting: a founder or lanyard_staff creating one produced zero practice
+      // rows, while practice-side staff creating the same role inherited theirs.
+      //
+      // provider is deliberately excluded — providers scope through providerId
+      // (accepted by createUserSchema above), not through practice membership.
+      if (
+        (data.role === 'credentialing_staff' || data.role === 'practice_admin') &&
+        !willAutoAssignPractice
+      ) {
+        throw new ValidationError(
+          `Cannot create a ${data.role} account with no practice — it would have ` +
+          `access to nothing. Add the user from the practice's own Users tab instead, ` +
+          `which assigns their practice at the same time.`,
+        );
+      }
+
       // Provision user in Cognito (dev mode auto-generates a fake ID)
       const { cognitoId } = await createCognitoUser({
         email: data.email,
@@ -258,13 +287,9 @@ userRoutes.post(
       // Skip lanyard_staff: their practiceIds is the ENTIRE practice list (cross-practice
       // scope), so auto-assigning would attach every new user to every practice. They
       // assign practice membership explicitly via the per-practice add-user flow instead.
-      if (
-        !req.practiceScope?.isSuperAdmin &&
-        req.user?.role !== 'lanyard_staff' &&
-        req.practiceScope?.practiceIds.length
-      ) {
+      if (willAutoAssignPractice) {
         await Promise.all(
-          req.practiceScope.practiceIds.map((practiceId) =>
+          req.practiceScope!.practiceIds.map((practiceId) =>
             prisma.userPractice.create({
               data: { userId: user.id, practiceId, role: 'PRACTICE_STAFF' },
             })

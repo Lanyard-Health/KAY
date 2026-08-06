@@ -233,6 +233,26 @@ The following rules are platform-wide architectural laws. Every PR must comply. 
 
 These rules apply to all existing agents (orchestrator, document, portal, monitor, exception, approval) and all future agents (maintenance, inbox, etc.). They are no-regret investments that compound toward both partial inversion (current focus) and full inversion (future state per `full-inversion-roadmap.md`) paths.
 
+### Roles and tenancy
+
+Roles describe **tenancy**, not job title. Two roles reach across every practice; the rest are confined to their own.
+
+| Role | Reach | Who |
+|------|-------|-----|
+| `admin` | All practices (`isSuperAdmin`) | The founder |
+| `lanyard_staff` | All practices | **Lanyard employees**, including those doing credentialing work |
+| `credentialing_staff` | Own practice only | A **customer practice's** own credentialing worker |
+| `practice_admin` | Own practice only | A customer practice's administrator |
+| `provider` | Own records only, via `providerId` | A provider using the portal |
+
+**`credentialing_staff` is practice-side.** The name describes the job; the role controls the tenancy. A Lanyard employee whose job is credentialing gets `lanyard_staff`, not `credentialing_staff` — they need to see every practice, and `credentialing_staff` cannot. This was ambiguous for months (`Layout.tsx` asserted both readings three lines apart) and the ambiguity produced a real cross-practice data leak in `defacto.routes.ts`.
+
+Consequences worth knowing before writing a route or a UI gate:
+
+- `lanyard_staff` **inherits** `credentialing_staff`'s route access (`auth.middleware.ts`). To admit `lanyard_staff` while excluding `credentialing_staff`, name `lanyard_staff` explicitly — dropping `credentialing_staff` from the list drops both otherwise.
+- Any route reading or writing tenant-scoped tables must scope. The `tenant-scope` CI job blocks merges on this and names the three fix paths. It is not advisory.
+- A practice-scoped account with zero `user_practices` rows is scoped to *nothing* — denied by correctly-scoped routes, admitted only by unscoped ones. `POST /users` refuses to create that state.
+
 ### Mandatory Security Rules
 
 1. **SECRETS SCAN**: Check for hardcoded API keys — move to env vars

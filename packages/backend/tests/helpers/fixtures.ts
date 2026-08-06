@@ -156,11 +156,15 @@ export const mockUser = {
   updatedAt: new Date(),
 };
 
+// role: 'provider' because this fixture is posted by admin-scoped test apps, and
+// an admin has no practice to auto-assign from. Creating a practice-scoped role
+// that way is refused (user.routes.ts) — it would land with zero practice rows.
+// Providers scope through providerId, so they are unaffected.
 export const validUserInput = {
   email: 'newuser@test.com',
   firstName: 'New',
   lastName: 'User',
-  role: 'credentialing_staff' as const,
+  role: 'provider' as const,
 };
 
 // ==========================================

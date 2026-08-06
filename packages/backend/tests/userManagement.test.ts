@@ -71,6 +71,10 @@ describe('User Management', () => {
   // CREATE USER
   // ==========================================
   describe('POST / — Create user', () => {
+    // role: 'provider' rather than a practice-scoped role. An admin has no
+    // practice of their own to auto-assign from, so creating credentialing_staff
+    // or practice_admin here is now refused — see the guard test below. Providers
+    // scope through providerId, so they are unaffected.
     it('creates user with valid data and returns 201', async () => {
       prismaMock.user.create.mockResolvedValue(mockCreatedUser as any);
 
@@ -80,7 +84,7 @@ describe('User Management', () => {
           email: 'newuser@test.com',
           firstName: 'New',
           lastName: 'User',
-          role: 'credentialing_staff',
+          role: 'provider',
         });
 
       expect(res.status).toBe(201);
