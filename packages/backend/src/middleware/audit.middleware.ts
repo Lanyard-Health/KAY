@@ -53,6 +53,10 @@ const SENSITIVE_READ_PATHS = [
   '/api/v1/providers',
   '/api/v1/enrollments',
   '/api/v1/documents',
+  // Partner API keys read provider + enrollment data non-interactively. Without
+  // this prefix none of that traffic is audited at all, since it matches none
+  // of the above. Rows are attributed to the key's service-account user.
+  '/api/v1/partner',
 ];
 
 export function isSensitiveRead(method: string, path: string): boolean {
@@ -79,17 +83,27 @@ export async function auditMiddleware(
   res.end = function(this: Response, ...args: Parameters<Response['end']>): Response {
     const responseTime = Date.now() - startTime;
 
+    // Use originalUrl, NOT req.path. Express rewrites req.url (and therefore
+    // req.path) to be relative to the mounted router while the request is being
+    // handled — and this runs inside that window, so req.path here is
+    // "/providers", never "/api/v1/providers". That silently broke both checks
+    // below: SENSITIVE_READ_PATHS matched nothing (no GET was ever audited) and
+    // extractResourceType found no "v1" segment (writes logged as "unknown").
+    // originalUrl is never rewritten. Query string is stripped so it cannot
+    // reach a path segment or be mistaken for a resource id.
+    const auditPath = (req.originalUrl || req.url).split('?')[0] ?? '';
+
     // Audit (a) successful write operations and (b) successful sensitive
     // reads on PII routes. Reads are required for SOC 2 + breach forensics
     // even though they don't mutate state.
     const isWrite = req.method !== 'GET';
-    const auditableRead = isSensitiveRead(req.method, req.path);
+    const auditableRead = isSensitiveRead(req.method, auditPath);
     if ((isWrite || auditableRead) && res.statusCode < 400) {
       // Prefer the explicit audit context set by route handlers (it knows the
       // true resource + old→new values); fall back to path parsing.
       const action = req.auditContext?.action ?? (methodToAction[req.method] || 'read');
-      const resourceType = req.auditContext?.resourceType ?? extractResourceType(req.path);
-      const resourceId = req.auditContext?.resourceId ?? extractResourceId(req.path);
+      const resourceType = req.auditContext?.resourceType ?? extractResourceType(auditPath);
+      const resourceId = req.auditContext?.resourceId ?? extractResourceId(auditPath);
 
       // Fire and forget - don't block response
       createAuditLog({
