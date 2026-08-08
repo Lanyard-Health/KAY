@@ -3,6 +3,17 @@ title = "Gitleaks Configuration"
 [extend]
 useDefault = true
 
+# Partner API keys (scripts/mint-api-key.ts). Format is the literal prefix
+# `lyd_live_` followed by randomBytes(32) hex — 64 chars. These grant read
+# access to a practice's provider and enrollment data, so a pasted key must
+# fail the build rather than land in history.
+# Revoke with: npx tsx scripts/mint-api-key.ts --revoke <first 12 chars>
+[[rules]]
+id = "lanyard-partner-api-key"
+description = "Lanyard partner API key"
+regex = '''lyd_live_[0-9a-f]{64}'''
+keywords = ["lyd_live_"]
+
 [allowlist]
 description = "Global allowlist"
 paths = [
