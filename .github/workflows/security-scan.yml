@@ -895,11 +895,20 @@ jobs:
         run: npm ci
 
       # No `|| true` here, unlike Backend Tests. A failure must fail the job.
+      #
+      # partner-api.routes.test.ts runs here rather than in the general backend
+      # suite on purpose: it is the only enforcement of the customer-facing
+      # response allow-list and of cross-practice isolation on the one surface
+      # exposed outside the app. In a `|| true` job those assertions would be
+      # decorative.
       - name: Run Tenant-Scope Coverage Test
         id: scan
         continue-on-error: true
         working-directory: packages/backend
-        run: ../../node_modules/.bin/vitest run tests/tenant-scope-coverage.test.ts
+        run: >-
+          ../../node_modules/.bin/vitest run
+          tests/tenant-scope-coverage.test.ts
+          src/routes/partner-api.routes.test.ts
 
       - name: Record Result
         if: always()
@@ -907,7 +916,7 @@ jobs:
         run: |
           if [ "${{ steps.scan.outcome }}" = "success" ]; then
             echo "status=pass" >> "$GITHUB_OUTPUT"
-            echo "summary=### :white_check_mark: Tenant Scope: every route touching tenant-scoped tables is scoped or allowlisted" >> "$GITHUB_OUTPUT"
+            echo "summary=### :white_check_mark: Tenant Scope: every route touching tenant-scoped tables is scoped or allowlisted; partner API response allow-list and cross-practice isolation hold" >> "$GITHUB_OUTPUT"
           else
             echo "status=fail" >> "$GITHUB_OUTPUT"
             echo "summary=### :x: Tenant Scope: a route reads or writes tenant-scoped tables without scoping — see the Tenant Scope Guardrail job log for the file and the three fix paths" >> "$GITHUB_OUTPUT"

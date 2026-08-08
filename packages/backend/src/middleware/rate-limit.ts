@@ -118,6 +118,25 @@ export const signupLimiter = () =>
 export const lookupLimiter = () =>
   buildLimiter({ scope: 'lookup', windowMs: 60 * 1000, max: 10 });
 
+/**
+ * Partner API: 60 / min per key.
+ *
+ * Keyed on the hashed credential rather than the resolved key id, so the bucket
+ * exists before authentication runs — a caller presenting a bad key burns their
+ * own bucket instead of the shared per-IP one. hashKey keeps the raw credential
+ * out of Redis.
+ *
+ * Mounted unconditionally (unlike apiLimiter, which is production-only), so
+ * staging exercises the same ceiling production does.
+ */
+export const partnerApiLimiter = () =>
+  buildLimiter({
+    scope: 'partner.api',
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: (req) => hashKey(req.headers.authorization ?? req.ip ?? 'unknown'),
+  });
+
 /** Portal lookup (NPI status check): 10 / 5min per IP — tighter than lookup to reduce enumeration. */
 export const portalLookupLimiter = () =>
   buildLimiter({ scope: 'portal.lookup', windowMs: 5 * 60 * 1000, max: 10 });

@@ -16,7 +16,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import { apiLimiter } from './middleware/rate-limit.js';
+import { apiLimiter, partnerApiLimiter } from './middleware/rate-limit.js';
 
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
@@ -87,6 +87,8 @@ import emailTemplateRoutes, { emailLogRouter } from './routes/emailTemplate.rout
 import emailTemplateReadRoutes from './routes/emailTemplateRead.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import webhookSubscriptionRoutes from './routes/webhook-subscription.routes.js';
+import partnerApiRoutes from './routes/partner-api.routes.js';
+import { authenticateApiKey } from './middleware/apiKey.middleware.js';
 import { wellKnownRoutes } from './routes/well-known.routes.js';
 import { initBugMonitor } from './services/bug-monitor/index.js';
 import { bugMonitorErrorMiddleware, registerProcessHandlers } from './middleware/bug-monitor.middleware.js';
@@ -335,6 +337,12 @@ app.use('/api/v1/admin/providers', defactoRoutes);
 app.use('/api/v1/admin/email-templates', emailTemplateRoutes);
 app.use('/api/v1/admin/email-logs', emailLogRouter);
 app.use('/api/v1/webhook-subscriptions', webhookSubscriptionRoutes);
+
+// Partner read API — the only customer-facing surface. Authenticated by API key
+// (authenticateApiKey), NOT by the Cognito authenticate() every route above
+// uses. That separation is what keeps partner keys off those routes: a `lyd_`
+// token sent to any of them reaches the Cognito verifier and 401s.
+app.use('/api/v1/partner', partnerApiLimiter(), authenticateApiKey, partnerApiRoutes);
 
 // Error handling — Sentry captures before our handler responds
 Sentry.setupExpressErrorHandler(app);
