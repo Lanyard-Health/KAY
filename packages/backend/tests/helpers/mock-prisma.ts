@@ -11,6 +11,7 @@ export const prismaMock = mockDeep<PrismaClient>();
 // explicitly stub it still get a safe default ([] / null / 0) instead of undefined.
 const MODELS = [
   'adminNotification', 'agentAction', 'agentEvent', 'agentTask', 'agentWorkflow',
+  'apiKey',
   'aiRecommendation', 'auditLog', 'boardCertification', 'caqhAttestationTracker', 'caqhSyncLog',
   'caqhCredentialRequest', 'cdsRegistration', 'chatConversation', 'chatMessage', 'continuingEducation',
   'coveringColleague', 'customService', 'deaRegistration', 'denialTriage',

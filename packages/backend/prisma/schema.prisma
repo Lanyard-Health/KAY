@@ -142,6 +142,7 @@ model User {
   cdsRegsCreated              CdsRegistration[]       @relation("CdsRegCreatedBy")
   cdsRegsUpdated              CdsRegistration[]       @relation("CdsRegUpdatedBy")
   webhookSubscriptionsCreated WebhookSubscription[]   @relation("WebhookSubscriptionCreatedBy")
+  apiKeys                     ApiKey[]                @relation("ApiKeyServiceAccount")
   practiceOwnersCreated       PracticeOwner[]         @relation("PracticeOwnerCreatedBy")
   practiceOwnersUpdated       PracticeOwner[]         @relation("PracticeOwnerUpdatedBy")
   practiceInvitationsSent     PracticeInvitation[]    @relation("PracticeInvitationInvitedBy")
@@ -233,6 +234,7 @@ model Practice {
   practiceLocations    PracticeLocation[]
   owners               PracticeOwner[]
   invitations          PracticeInvitation[]
+  apiKeys              ApiKey[]
   providerImports      ProviderImport[]
   subscription         Subscription?
   practicePayers       PracticePayer[]
@@ -374,6 +376,44 @@ model PracticeInvitation {
   @@index([practiceId])
   @@index([email])
   @@map("practice_invitations")
+}
+
+/// Partner API key. Authenticates read-only, practice-scoped access to the
+/// /api/v1/partner surface. Deliberately NOT usable anywhere else: the key is
+/// verified by authenticateApiKey (middleware/apiKey.middleware.ts), which is
+/// mounted only on that router. Every other route runs authenticate(), whose
+/// Cognito verifier rejects a `lyd_` token.
+///
+/// Only the sha256 of the raw key is stored — the plaintext is shown once at
+/// mint time and is unrecoverable after. Same pattern as PracticeInvitation.
+/// (Unlike WebhookSubscription.secretEncrypted, nothing ever needs to re-derive
+/// the plaintext, so this is hashed rather than encrypted.)
+model ApiKey {
+  id String @id @default(uuid())
+
+  name      String // human label, e.g. "Acme Health partner integration"
+  keyPrefix String @map("key_prefix") // first 12 chars of the raw key — support/identification only
+  tokenHash String @unique @map("token_hash") // sha256(raw), hex
+
+  practiceId String   @map("practice_id")
+  practice   Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  // Service-account User. Exists so AuditLog.userId (a real FK) resolves — a
+  // synthetic id would make the fire-and-forget audit write fail silently and
+  // leave partner reads with no trail at all.
+  userId String @map("user_id")
+  user   User   @relation("ApiKeyServiceAccount", fields: [userId], references: [id])
+
+  // Non-nullable: a key that cannot expire is a key still running in 2028.
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([practiceId])
+  @@map("api_keys")
 }
 
 enum CaqhCredentialRequestStatus {

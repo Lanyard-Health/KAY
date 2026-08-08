@@ -80,3 +80,6 @@ packages/backend/fixtures/caqh/*
 # Local personal tooling + planning scratch (kept on-machine, not in repo)
 ask-all.sh
 docs/plans/
+
+# Partner API keys written by scripts/mint-api-key.ts — raw bearer credentials
+.api-keys/
