@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { checkProviderCollision } from './provider.service.js';
 import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
+import { dobWrite } from './provider-dob.service.js';
 
 // ==========================================
 // Types
@@ -718,9 +719,7 @@ export async function executeImport(
             email: row.data['email']!,
             providerType: row.data['providerType']! as any,
             phone: row.data['phone'] || '',
-            dateOfBirth: row.data['dateOfBirth']
-              ? new Date(row.data['dateOfBirth'])
-              : null,
+            ...dobWrite(row.data['dateOfBirth'] || null),
             gender: 'prefer_not_to_say',
             specialties: [],
             languages: [],

@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateProviderPracticeAccess, getPracticeProviderFilter } from '../middleware/practiceScope.middleware.js';
 import { prisma } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
+import { hasDob } from '../services/provider-dob.service.js';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.get('/providers', authenticate, authorize('admin', 'credentialing_staff',
         email: true,
         phone: true,
         dateOfBirth: true,
+        dateOfBirthEncrypted: true,
         providerType: true,
         status: true,
         createdAt: true,
@@ -46,7 +48,7 @@ router.get('/providers', authenticate, authorize('admin', 'credentialing_staff',
 
     // Compute progress inline from _count data
     const providersWithProgress = providers.map((p) => {
-      const profileComplete = !!(p.firstName && p.lastName && p.email && p.phone && p.dateOfBirth && p.providerType);
+      const profileComplete = !!(p.firstName && p.lastName && p.email && p.phone && hasDob(p) && p.providerType);
       const documentsComplete = p._count.documents > 0;
       const licensesComplete = p._count.licenses > 0;
       const locationsComplete = p._count.practiceLocations > 0;

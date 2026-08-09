@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma.js';
 import { decryptSafe } from '../utils/crypto.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
 import { logger } from '../utils/logger.js';
+import { providerDobDate } from './provider-dob.service.js';
 
 /**
  * Credentialing Packet — unified provider + practice dataset used to
@@ -159,7 +160,19 @@ export async function buildPacket(
   };
 
   return {
-    provider,
+    // The recipe resolver dot-walks admin-authored `sourcePath` strings straight
+    // off this object, and an unresolved path is classified `missingOptional` —
+    // informational, not an error. So if `dateOfBirth` ever stopped being
+    // populated here, DOB-mapped PDF fields would come out blank, the packet
+    // would ship to the payer, and nothing would fail. Re-hydrating through the
+    // shim keeps that from happening when Phase 4 clears the plaintext column.
+    //
+    // The ciphertext is blanked so a recipe cannot map it into a form field.
+    provider: {
+      ...provider,
+      dateOfBirth: providerDobDate(provider),
+      dateOfBirthEncrypted: null,
+    },
     practice: provider.practice,
     practicePayer,
     primaryLocation,

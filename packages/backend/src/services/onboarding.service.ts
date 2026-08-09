@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma.js';
+import { hasDob } from './provider-dob.service.js';
 
 interface OnboardingStep {
   key: string;
@@ -25,6 +26,7 @@ export async function computeOnboardingProgress(providerId: string): Promise<Onb
       email: true,
       phone: true,
       dateOfBirth: true,
+      dateOfBirthEncrypted: true,
       providerType: true,
       onboardingCompletedAt: true,
     },
@@ -51,7 +53,7 @@ export async function computeOnboardingProgress(providerId: string): Promise<Onb
     provider.lastName &&
     provider.email &&
     provider.phone &&
-    provider.dateOfBirth &&
+    hasDob(provider) &&
     provider.providerType
   );
 
