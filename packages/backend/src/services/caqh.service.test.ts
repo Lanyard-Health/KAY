@@ -2402,7 +2402,7 @@ describe('CaqhService', () => {
             primaryPracticeState: 'CA',
             hospitalBasedFlag: true,
             gender: 'male',
-            dateOfBirth: expect.any(Date),
+            dateOfBirthEncrypted: expect.stringMatching(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/),
           }),
         }),
       );

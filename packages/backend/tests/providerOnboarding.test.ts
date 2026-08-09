@@ -31,6 +31,7 @@ import {
   createCognitoUser,
   deleteCognitoUser,
 } from '../src/services/cognitoUser.service.js';
+import { providerDob } from '../src/services/provider-dob.service.js';
 import {
   submitApplication,
   approveApplication,
@@ -96,7 +97,7 @@ describe('Provider Onboarding', () => {
             npi: '1234567890',
             firstName: 'Jane',
             lastName: 'Doe',
-            dateOfBirth: new Date('1985-06-15'),
+            dateOfBirthEncrypted: expect.stringMatching(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/),
             gender: 'female',
           }),
         })
@@ -187,12 +188,20 @@ describe('Provider Onboarding', () => {
             npi: '1234567890',
             firstName: 'Jane',
             lastName: 'Doe',
-            dateOfBirth: mockApplication.dateOfBirth,
+            dateOfBirthEncrypted: expect.stringMatching(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/),
             gender: 'female',
             status: 'active',
           }),
         })
       );
+
+      // The approve path copies the application's date of birth onto the new
+      // provider. Assert the value survived the re-encryption, not just that
+      // something ciphertext-shaped was written.
+      const providerArg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
+      expect(providerDob({ dateOfBirthEncrypted: providerArg.data.dateOfBirthEncrypted }))
+        .toBe('1985-06-15');
+      expect(providerArg.data).not.toHaveProperty('dateOfBirth');
 
       // User created with provider link
       expect(prismaMock.user.create).toHaveBeenCalledWith(

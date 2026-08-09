@@ -212,11 +212,13 @@ describe('Provider Routes', () => {
       expect(res.status).toBe(201);
       expect(prismaMock.providerProfile.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ dateOfBirth: null }),
+          data: expect.objectContaining({ dateOfBirthEncrypted: null }),
         })
       );
       const createArg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
       expect(createArg.data.email).toBeUndefined();
+      // Phase 4 writes the encrypted column only; the legacy column is never touched.
+      expect(createArg.data).not.toHaveProperty('dateOfBirth');
     });
 
     it('normalizes empty-string dateOfBirth/email to absent', async () => {
@@ -228,7 +230,8 @@ describe('Provider Routes', () => {
 
       expect(res.status).toBe(201);
       const createArg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
-      expect(createArg.data.dateOfBirth).toBeNull();
+      expect(createArg.data.dateOfBirthEncrypted).toBeNull();
+      expect(createArg.data).not.toHaveProperty('dateOfBirth');
       expect(createArg.data.email).toBeUndefined();
     });
 

@@ -985,7 +985,7 @@ describe('executeImport', () => {
     expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         phone: '555-123-4567',
-        dateOfBirth: new Date('1985-06-15'),
+        dateOfBirthEncrypted: expect.stringMatching(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/),
         taxonomy: '207Q00000X',
         caqhProviderId: 'CAQH-123',
       }),
@@ -997,9 +997,12 @@ describe('executeImport', () => {
 
     expect(prismaMock.providerProfile.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        dateOfBirth: null,
+        dateOfBirthEncrypted: null,
       }),
     });
+    // Phase 4: the legacy plaintext column is never written, not even to null.
+    const arg = prismaMock.providerProfile.create.mock.calls[0]![0] as any;
+    expect(arg.data).not.toHaveProperty('dateOfBirth');
   });
 
   describe('CAQH roster push', () => {
