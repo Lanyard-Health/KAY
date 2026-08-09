@@ -9,6 +9,7 @@ import type {
   ProviderType,
 } from '@prisma/client';
 import { decryptSafe } from '../../utils/crypto.js';
+import { providerDobDate } from '../../services/provider-dob.service.js';
 import type {
   AetnaRfpProviderData,
   AetnaLineOfBusiness,
@@ -328,7 +329,7 @@ const REQUIRED_FIELD_ACCESSORS: Record<string, (r: LoadedRecords) => unknown> = 
   'provider.firstName': (r) => r.provider.firstName,
   'provider.lastName': (r) => r.provider.lastName,
   'provider.npi': (r) => r.provider.npi,
-  'provider.dateOfBirth': (r) => r.provider.dateOfBirth,
+  'provider.dateOfBirth': (r) => providerDobDate(r.provider),
   'provider.caqhProviderId': (r) => r.provider.caqhProviderId,
   'provider.providerType': (r) => r.provider.providerType,
   'provider.entityType': (r) => r.provider.entityType,
@@ -560,7 +561,7 @@ export async function buildAetnaRfpProviderData(
       taxIdName: practice.legalName ?? practice.name,
       taxId,
       caqhId: provider.caqhProviderId ?? '',
-      dob: formatMMDDYYYY(provider.dateOfBirth),
+      dob: formatMMDDYYYY(providerDobDate(provider)),
       licenseNumber: primaryLicense.licenseNumber,
       licenseExp: formatMMDDYYYY(primaryLicense.expirationDate),
       degree,

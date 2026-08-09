@@ -3,6 +3,7 @@ import { enqueueCaqhImport } from '../queues/caqh-import.queue.js';
 import { emailService } from './email.service.js';
 import { createCognitoUser, setCognitoUserPassword, deleteCognitoUser } from './cognitoUser.service.js';
 import { notificationService } from './notification.service.js';
+import { dobWrite, providerDobDate, withDob } from './provider-dob.service.js';
 import { logger } from '../utils/logger.js';
 
 export interface ProviderApplicationInput {
@@ -155,7 +156,7 @@ export async function submitApplication(data: ProviderApplicationInput) {
       suffix: data.suffix,
       email: data.email,
       phone: data.phone,
-      dateOfBirth: new Date(data.dateOfBirth),
+      ...dobWrite(data.dateOfBirth),
       gender: data.gender as any,
       providerType: data.providerType,
       taxonomy: data.taxonomy,
@@ -317,7 +318,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
           suffix: data.suffix,
           email: data.email,
           phone: data.phone,
-          dateOfBirth: new Date(data.dateOfBirth),
+          ...dobWrite(data.dateOfBirth),
           gender: data.gender as any,
           providerType: (data.providerType as any) || 'other',
           taxonomy: data.taxonomy,
@@ -348,7 +349,7 @@ export async function selfServeSignup(data: SelfServeSignupInput) {
           suffix: data.suffix,
           email: data.email,
           phone: data.phone,
-          dateOfBirth: new Date(data.dateOfBirth),
+          ...dobWrite(data.dateOfBirth),
           gender: data.gender as any,
           providerType: data.providerType,
           taxonomy: data.taxonomy,
@@ -445,19 +446,23 @@ export async function getApplicationStatusByNpi(npi: string) {
  * Get all applications with optional status filter
  */
 export async function getApplications(status?: 'pending' | 'approved' | 'rejected') {
-  return prisma.providerApplication.findMany({
+  const rows = await prisma.providerApplication.findMany({
     where: status ? { status } : undefined,
     orderBy: { submittedAt: 'desc' },
   });
+  // Neither the review list nor the detail view renders a date of birth — no
+  // frontend reads it from these endpoints. Returning it was pure exposure.
+  return rows.map((r) => withDob(r, { include: false }));
 }
 
 /**
  * Get single application by ID
  */
 export async function getApplicationById(id: string) {
-  return prisma.providerApplication.findUnique({
+  const row = await prisma.providerApplication.findUnique({
     where: { id },
   });
+  return row ? withDob(row, { include: false }) : null;
 }
 
 /**
@@ -599,7 +604,7 @@ export async function approveApplication(id: string, reviewedBy: string, notes?:
           suffix: application.suffix,
           email: application.email,
           phone: application.phone,
-          dateOfBirth: application.dateOfBirth,
+          ...dobWrite(providerDobDate(application)),
           gender: application.gender,
           providerType: (application.providerType as any) || 'other',
           taxonomy: application.taxonomy,

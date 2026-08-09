@@ -20,10 +20,22 @@ import {
   checkProviderCollision,
   collisionToHttpResponse,
 } from '../services/provider.service.js';
+import { dobWrite, providerDobIso } from '../services/provider-dob.service.js';
 import { logger } from '../utils/logger.js';
 
 // Fields to NEVER return in API responses
-const SENSITIVE_FIELDS = ['ssnEncrypted', 'caqhPassword', 'caqhUsername'] as const;
+const SENSITIVE_FIELDS = [
+  'ssnEncrypted',
+  'caqhPassword',
+  'caqhUsername',
+  // Both date-of-birth columns are stripped unconditionally. A date of birth is
+  // Restricted under InfoSec Policy §3.1, and it used to leave by default —
+  // every `...provider` spread carried it, and only two routes remembered to
+  // delete it. Entitled callers get the ISO string put back by shapeProvider();
+  // the ciphertext is never returned to anyone.
+  'dateOfBirth',
+  'dateOfBirthEncrypted',
+] as const;
 
 function stripSensitiveFields(provider: any): any {
   if (!provider) return provider;
@@ -31,6 +43,37 @@ function stripSensitiveFields(provider: any): any {
   for (const field of SENSITIVE_FIELDS) {
     // eslint-disable-next-line security/detect-object-injection -- field is from a hardcoded const array of literal strings
     delete cleaned[field];
+  }
+  return cleaned;
+}
+
+/**
+ * Staff acting on behalf of a practice, or the provider looking at their own
+ * record. Everyone else — including a provider requesting a colleague — gets no
+ * date of birth.
+ */
+function canSeeDob(req: Request, providerId: string | undefined): boolean {
+  const role = req.user?.role;
+  const isStaff =
+    role === 'admin' ||
+    role === 'lanyard_staff' ||
+    role === 'credentialing_staff' ||
+    role === 'practice_admin';
+  return isStaff || (!!providerId && req.user?.providerId === providerId);
+}
+
+/**
+ * The single response shaper for provider objects. Strips every sensitive
+ * column, then re-adds the date of birth as an ISO string for entitled callers.
+ *
+ * Reading the DOB through the shim rather than off the row means responses stay
+ * byte-identical once Phase 4 clears the plaintext column.
+ */
+function shapeProvider(provider: any, req: Request): any {
+  if (!provider) return provider;
+  const cleaned = stripSensitiveFields(provider);
+  if (canSeeDob(req, provider.id)) {
+    cleaned.dateOfBirth = providerDobIso(provider);
   }
   return cleaned;
 }
@@ -64,7 +107,7 @@ providerRoutes.get(
         res.json({
           success: true,
           data: {
-            data: archived.data.map(stripSensitiveFields),
+            data: archived.data.map((p: any) => shapeProvider(p, req)),
             total: archived.total,
             page,
             pageSize,
@@ -186,19 +229,12 @@ providerRoutes.get(
         throw new NotFoundError('Provider');
       }
 
-      const cleaned = stripSensitiveFields(provider);
+      const cleaned = shapeProvider(provider, req);
 
       // Non-sensitive signal so the UI can show a "Reveal SSN" control only when
       // an SSN is actually on file. The encrypted value + last-4 are never sent;
       // staff fetch the full number via the dedicated audited reveal endpoint.
       cleaned.hasSsn = !!provider.ssnEncrypted;
-
-      // Only include dateOfBirth for admin/staff or the provider themselves
-      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'lanyard_staff' || req.user?.role === 'credentialing_staff' || req.user?.role === 'practice_admin';
-      const isSelf = req.user?.providerId === provider.id;
-      if (!isAdminOrStaff && !isSelf) {
-        delete cleaned.dateOfBirth;
-      }
 
       res.json({ success: true, data: cleaned });
     } catch (error) {
@@ -288,10 +324,16 @@ providerRoutes.post(
         return;
       }
 
+      // dateOfBirth is destructured out rather than overridden. TypeScript's
+      // excess-property check does not see through a spread, so leaving it in
+      // `providerData` would become a runtime PrismaClientValidationError the
+      // compiler cannot catch once Phase 5 drops the field from the model.
+      const { dateOfBirth: dobIn, ...createData } = providerData;
+
       const provider = await prisma.providerProfile.create({
         data: {
-          ...providerData,
-          dateOfBirth: providerData.dateOfBirth ? new Date(providerData.dateOfBirth) : null,
+          ...createData,
+          ...dobWrite(dobIn ? dobIn : null),
           specialties: providerData.specialties || [],
           languages: providerData.languages || [],
           createdById: req.user?.id,
@@ -322,7 +364,7 @@ providerRoutes.post(
         });
       }
 
-      const data: Record<string, unknown> = { ...stripSensitiveFields(provider) };
+      const data: Record<string, unknown> = { ...shapeProvider(provider, req) };
       if (groupNpi) data['groupNpi'] = groupNpi;
       if (taxId) data['taxId'] = taxId;
       res.status(201).json({ success: true, data });
@@ -354,11 +396,18 @@ providerRoutes.put(
         throw new NotFoundError('Provider');
       }
 
+      // Destructured out for the same reason as the create handler: a spread
+      // hides the excess property from tsc, so this would only fail at runtime
+      // once Phase 5 drops the field. Both Zod schemas normalize '' and null to
+      // undefined, and dobWrite(undefined) yields {} — so, exactly as before,
+      // this route can set or change a date of birth but never clear one.
+      const { dateOfBirth: dobIn, ...updateData } = providerData;
+
       const provider = await prisma.providerProfile.update({
         where: { id: req.params['providerId'] },
         data: {
-          ...providerData,
-          ...(providerData.dateOfBirth && { dateOfBirth: new Date(providerData.dateOfBirth) }),
+          ...updateData,
+          ...dobWrite(dobIn),
           updatedById: req.user?.id,
         },
       });
@@ -371,7 +420,7 @@ providerRoutes.put(
       });
 
       invalidateCache('dashboard');
-      const responseData: Record<string, unknown> = { ...stripSensitiveFields(provider) };
+      const responseData: Record<string, unknown> = { ...shapeProvider(provider, req) };
       if (groupNpi) responseData['groupNpi'] = groupNpi;
       if (taxId) responseData['taxId'] = taxId;
       res.json({ success: true, data: responseData });
@@ -412,7 +461,7 @@ providerRoutes.delete(
         res.json({
           success: true,
           data: {
-            provider: stripSensitiveFields(provider),
+            provider: shapeProvider(provider, req),
             alreadyDeleted: wasAlreadyDeleted,
           },
         });
@@ -450,7 +499,7 @@ providerRoutes.post(
         res.json({
           success: true,
           data: {
-            provider: stripSensitiveFields(provider),
+            provider: shapeProvider(provider, req),
             alreadyActive: wasAlreadyActive,
           },
         });
@@ -587,14 +636,7 @@ providerRoutes.get(
       }
 
       // Format data based on requested format
-      const cleaned = stripSensitiveFields(provider);
-
-      // Only include dateOfBirth for admin/staff or the provider themselves
-      const isAdminOrStaff = req.user?.role === 'admin' || req.user?.role === 'lanyard_staff' || req.user?.role === 'credentialing_staff' || req.user?.role === 'practice_admin';
-      const isSelf = req.user?.providerId === provider.id;
-      if (!isAdminOrStaff && !isSelf) {
-        delete cleaned.dateOfBirth;
-      }
+      const cleaned = shapeProvider(provider, req);
 
       const exportData = formatProviderForExport(cleaned, format);
 
