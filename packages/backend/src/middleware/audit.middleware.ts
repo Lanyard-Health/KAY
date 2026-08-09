@@ -156,6 +156,13 @@ const SENSITIVE_KEYS = new Set([
   'secret', 'token', 'accessToken', 'refreshToken',
   'encryptionKey', 'apiKey', 'api_key',
   'creditCard', 'cardNumber', 'card_number', 'cvv', 'cvc',
+  // A date of birth is Restricted under InfoSec Policy §3.1. Provider update
+  // routes pass whole before/after rows into `changes`, so without these the
+  // plaintext date lands in an append-only table kept for seven years.
+  // `dateOfBirthEncrypted` is listed too: the ciphertext is not a secret, but an
+  // audit diff of it is pure noise and invites someone to try decrypting it.
+  'dateOfBirth', 'date_of_birth', 'dob',
+  'dateOfBirthEncrypted', 'date_of_birth_encrypted',
 ]);
 
 // Regex patterns to redact values that look like PII regardless of key name

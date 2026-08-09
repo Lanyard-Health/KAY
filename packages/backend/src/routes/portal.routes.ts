@@ -20,6 +20,7 @@ import { portalRegistrationSchema, markNotificationsReadSchema, selfServeSignupS
 import { prisma, prismaBase } from '../utils/prisma.js';
 import { logger } from '../utils/logger.js';
 import { isValidNpi } from '../constants/validation.js';
+import { hasDob } from '../services/provider-dob.service.js';
 
 const portalRegistrationLimit = signupLimiter();
 const portalLookupLimit = portalLookupLimiter();
@@ -560,7 +561,7 @@ router.get('/me/completeness', authenticate, authorize('provider'), async (req: 
       { name: 'Personal Info', complete: !!(provider.firstName && provider.lastName && provider.email && provider.phone) },
       { name: 'NPI', complete: !!provider.npi },
       { name: 'Specialties', complete: provider.specialties.length > 0 },
-      { name: 'Date of Birth', complete: !!provider.dateOfBirth },
+      { name: 'Date of Birth', complete: hasDob(provider) },
       { name: 'Provider Type', complete: !!provider.providerType },
       { name: 'Practice Locations', complete: provider.practiceLocations.length > 0 },
     ];

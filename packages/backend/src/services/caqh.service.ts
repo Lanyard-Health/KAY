@@ -4,6 +4,7 @@ import type { LicenseType, BoardType, DegreeType, CoverageType, Gender, Identifi
 import { logger } from '../utils/logger.js';
 import { encryptSafe, decryptSafe } from '../utils/crypto.js';
 import { encryptMirrorPayload } from './caqh-mirror.service.js';
+import { dobWrite, providerDob, hasDob } from './provider-dob.service.js';
 import { z } from 'zod';
 
 export interface CaqhRosterResponse {
@@ -1861,6 +1862,7 @@ export class CaqhService {
         firstName: true,
         lastName: true,
         dateOfBirth: true,
+        dateOfBirthEncrypted: true,
         providerType: true,
         taxonomy: true,
         primaryPracticeState: true,
@@ -1921,7 +1923,7 @@ export class CaqhService {
     if (!provider.npi) missing.push('npi');
     if (!provider.firstName) missing.push('firstName');
     if (!provider.lastName) missing.push('lastName');
-    if (!provider.dateOfBirth) missing.push('dateOfBirth');
+    if (!hasDob(provider)) missing.push('dateOfBirth');
 
     // Resolve CAQH Type
     let caqhType: string | null = PROVIDER_TYPE_TO_CAQH_TYPE[provider.providerType] ?? null;
@@ -2005,7 +2007,7 @@ export class CaqhService {
       npi: provider.npi!,
       firstName: provider.firstName!,
       lastName: provider.lastName!,
-      birthdate: provider.dateOfBirth!.toISOString().split('T')[0]!,
+      birthdate: providerDob(provider)!,
       caqhType: caqhType!,
       practiceState: practiceState!,
       address1: address1!,
@@ -3427,7 +3429,7 @@ export class CaqhService {
     if (core.middleName !== undefined) updateData['middleName'] = core.middleName;
     if (core.suffix !== undefined) updateData['suffix'] = core.suffix;
     if (core.degree !== undefined) updateData['degree'] = core.degree;
-    if (core.dateOfBirth) updateData['dateOfBirth'] = core.dateOfBirth;
+    if (core.dateOfBirth) Object.assign(updateData, dobWrite(core.dateOfBirth));
     if (core.gender) updateData['gender'] = core.gender;
     if (core.ssn) updateData['ssnEncrypted'] = encryptSafe(core.ssn);
     if (core.primaryPracticeState) updateData['primaryPracticeState'] = core.primaryPracticeState;

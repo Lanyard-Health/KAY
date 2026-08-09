@@ -11,7 +11,7 @@ vi.mock('../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { isSensitiveRead, auditMiddleware } from './audit.middleware.js';
+import { isSensitiveRead, auditMiddleware, setAuditContext } from './audit.middleware.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
 /**
@@ -132,5 +132,39 @@ describe('audit.middleware — through a mounted router', () => {
   it('still does not audit non-sensitive reads', async () => {
     await request(appWithRouterAt('/api/v1/payers')).get('/api/v1/payers');
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  // Provider update routes pass whole before/after rows into `changes`, so every
+  // provider edit used to write a plaintext date of birth into audit_logs — an
+  // append-only table retained for seven years. The redaction has to reach two
+  // levels down (changes.before.dateOfBirth), which is why this asserts on the
+  // nested value rather than the top level.
+  it('redacts a date of birth nested inside changes.before/after', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use(auditMiddleware);
+    const router = express.Router();
+    router.patch('/:id', (req, res) => {
+      setAuditContext(req, {
+        resourceType: 'providers',
+        resourceId: 'p1',
+        action: 'update',
+        changes: {
+          before: { firstName: 'Ada', dateOfBirth: new Date('1972-09-04T00:00:00.000Z') },
+          after: { firstName: 'Ada', dateOfBirth: new Date('1815-12-10T00:00:00.000Z'), dateOfBirthEncrypted: 'aa:bb:cc' },
+        },
+      });
+      res.json({ ok: true });
+    });
+    app.use('/api/v1/providers', router);
+
+    await request(app).patch('/api/v1/providers/p1').send({});
+
+    const data = prismaMock.auditLog.create.mock.calls[0]![0]!.data as Record<string, any>;
+    expect(data['changes'].before.dateOfBirth).toBe('[REDACTED]');
+    expect(data['changes'].after.dateOfBirth).toBe('[REDACTED]');
+    expect(data['changes'].after.dateOfBirthEncrypted).toBe('[REDACTED]');
+    // The rest of the diff must survive — redaction, not suppression.
+    expect(data['changes'].before.firstName).toBe('Ada');
   });
 });

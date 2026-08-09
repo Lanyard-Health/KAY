@@ -10,11 +10,16 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 const mockDecrypt = vi.fn((v: string) => `decrypted:${v}`);
-vi.mock('../utils/crypto.js', () => ({
+// Only decryptSafe is stubbed. encrypt/decrypt stay real so the date-of-birth
+// shim round-trips genuine AES-256-GCM ciphertext in the buildPacket test below
+// — a fully-mocked crypto module would make that test prove nothing.
+vi.mock('../utils/crypto.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/crypto.js')>()),
   decryptSafe: (v: string) => mockDecrypt(v),
 }));
 
 import { buildPacket } from './credentialing-packet.service.js';
+import { dobWrite } from './provider-dob.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { NotFoundError } from '../middleware/error.middleware.js';
 
@@ -67,6 +72,46 @@ describe('buildPacket', () => {
   it('throws NotFoundError when provider is missing', async () => {
     prismaMock.providerProfile.findUnique.mockResolvedValue(null);
     await expect(buildPacket(PROVIDER_ID)).rejects.toThrow(NotFoundError);
+  });
+
+  // These three pin the highest-risk failure mode in the DOB encryption work.
+  // The recipe resolver dot-walks `provider.dateOfBirth` off the packet, and an
+  // unresolved path is classified missingOptional — informational, not an error.
+  // A regression here ships forms to payers with a blank date of birth and
+  // nothing anywhere fails. Do not delete these without replacing them.
+  describe('date of birth', () => {
+    it('populates dateOfBirth from ciphertext alone (the post-Phase-4 state)', async () => {
+      const { dateOfBirthEncrypted } = dobWrite('1972-09-04');
+      prismaMock.providerProfile.findUnique.mockResolvedValue(
+        stubProvider({ dateOfBirth: null, dateOfBirthEncrypted })
+      );
+
+      const packet = await buildPacket(PROVIDER_ID);
+
+      expect(packet.provider.dateOfBirth).toBeInstanceOf(Date);
+      expect(packet.provider.dateOfBirth?.toISOString()).toBe('1972-09-04T00:00:00.000Z');
+    });
+
+    it('still populates dateOfBirth from legacy plaintext alone', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(
+        stubProvider({ dateOfBirth: new Date('1972-09-04T00:00:00.000Z'), dateOfBirthEncrypted: null })
+      );
+
+      const packet = await buildPacket(PROVIDER_ID);
+
+      expect(packet.provider.dateOfBirth?.toISOString()).toBe('1972-09-04T00:00:00.000Z');
+    });
+
+    it('never exposes the ciphertext to a recipe sourcePath', async () => {
+      const { dateOfBirthEncrypted } = dobWrite('1972-09-04');
+      prismaMock.providerProfile.findUnique.mockResolvedValue(
+        stubProvider({ dateOfBirth: null, dateOfBirthEncrypted })
+      );
+
+      const packet = await buildPacket(PROVIDER_ID);
+
+      expect(packet.provider.dateOfBirthEncrypted).toBeNull();
+    });
   });
 
   it('returns packet without decrypting sensitive fields by default', async () => {
