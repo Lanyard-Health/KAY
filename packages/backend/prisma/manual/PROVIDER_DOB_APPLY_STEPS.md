@@ -189,6 +189,71 @@ table** (`to_regclass` returned NULL), so this is staging-only. Recorded as a
 change-management observation (CC8.1): schema reached a deployed environment
 from an unmerged branch.
 
+## Phase 3 — backfill
+
+`scripts/encrypt-provider-dob-backfill.ts`. **Populates the encrypted column and
+never touches plaintext**, so the whole phase is reversible: the undo is
+`UPDATE <table> SET date_of_birth_encrypted = NULL`. No deploy pause, no DDL,
+no migration — it is a script run against a live database.
+
+### The `.env` trap
+
+`tsx` auto-loads `packages/backend/.env`, exactly like the Prisma CLI. If that
+file is present it supplies **both** `DATABASE_URL` and `ENCRYPTION_KEY`, so a
+run intended for prod would quietly hit the local database with the local key
+and report complete success.
+
+Two defences, use both:
+
+1. Move `.env` aside for the run.
+2. Pass `--apply --db <name>`. The script reads `current_database()` and refuses
+   to write unless it matches. Staging is `kay_staging`; prod is
+   `kay_backend_32426`.
+
+### Steps, per environment
+
+```bash
+cd packages/backend
+mv .env .env.local.bak 2>/dev/null || true
+
+# 1. Dry-run. Writes nothing. Confirms the pre-flight is still lossless and
+#    reports how many rows need encrypting.
+DATABASE_URL="$DATABASE_URL_ADMIN" ENCRYPTION_KEY="$KEY" \
+  npx tsx scripts/encrypt-provider-dob-backfill.ts
+
+# 2. Apply, naming the target database.
+DATABASE_URL="$DATABASE_URL_ADMIN" ENCRYPTION_KEY="$KEY" \
+  npx tsx scripts/encrypt-provider-dob-backfill.ts --apply --db kay_staging
+
+mv .env.local.bak .env 2>/dev/null || true
+```
+
+`ENCRYPTION_KEY` must be the **same key that environment's backend runs with**,
+or the app cannot read back anything the backfill writes. It is in Render's env
+config for the service, and its fingerprint is recorded in
+`docs/key-custody-runbook.md` (`7c00d4ffd0d403fe`) — check the fingerprint
+matches before running against prod.
+
+### What must be true when it finishes
+
+The script asserts all of these itself and exits non-zero if any fails:
+
+- Pre-flight lossless — zero non-midnight timestamps
+- Every stored ciphertext decrypts back to the exact date plaintext still holds
+- Gap report zero — no row has plaintext without ciphertext
+- No row left in the failure list
+
+Re-running is a no-op. Verified locally: 6 rows encrypted, second run reported
+`needing encryption: 0`, and all three misdirection guards (`--apply` with no
+`--db`, with a wrong `--db`, with no key) abort without writing.
+
+### Do not proceed to Phase 4 until
+
+The gap report has been zero on **both** environments for a sustained period,
+and new providers created after the backfill are landing in both columns
+(Phase 2 dual-write, live in prod since 2026-08-09). Phase 4 is the first
+irreversible step: it clears the plaintext that is currently the safety net.
+
 ## Rollback
 
 ```bash
