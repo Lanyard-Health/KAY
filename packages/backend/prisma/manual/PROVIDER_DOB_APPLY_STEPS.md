@@ -159,6 +159,36 @@ Because the migration is committed in the repo, prod's normal `migrate deploy`
 will try it after merge. Apply it manually **first** so the automatic run finds
 it already applied (a no-op) rather than taking the failing `lanyard_app` path.
 
+## Applied — 2026-08-09
+
+Both environments migrated by hand as the admin role, verified, triggers
+restored. Nothing in the application writes the new columns yet.
+
+| | Staging | Prod |
+|---|---|---|
+| `_prisma_migrations.finished_at` | 05:21:57 UTC | 18:54:28 UTC |
+| `rolled_back_at` | NULL | NULL |
+| Columns present, all nullable | 4/4 | 4/4 |
+| Encrypted rows written | 0 | 0 |
+| Plaintext rows untouched | 7 / 2 | 17 / 6 |
+| Re-enabled autoDeploy + watchdog | yes | yes |
+| `/health` after | 200 | 200 |
+
+Point-in-time recovery was available on both back to 2026-08-01, which stood in
+for the manual snapshot in step 2.
+
+**Incidental finding — staging-only schema drift.** Staging's migration history
+carries `20260724150000_add_payer_submission_details`, which exists on branch
+`origin/aetna-enrollment-workflow` (committed 2026-07-24) and was **never merged
+to master**. Staging therefore holds a 35-column `payer_submission_details` table
+present in neither `schema.prisma` nor master's migrations. Its first apply
+attempt failed with the same `42501 permission denied for schema public` this
+runbook exists to prevent; it was rolled back and reapplied as admin, so both
+rows are resolved and it does not block new migrations. **Prod does not have the
+table** (`to_regclass` returned NULL), so this is staging-only. Recorded as a
+change-management observation (CC8.1): schema reached a deployed environment
+from an unmerged branch.
+
 ## Rollback
 
 ```bash
