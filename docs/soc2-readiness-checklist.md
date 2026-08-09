@@ -160,7 +160,7 @@ Detect, respond, recover.
 | # | Control | Status | Evidence / what's missing |
 |---|---|---|---|
 | 8.1 | All changes go through PR | ✅ | Server-side branch protection on `master` with `enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false` *(verified live 2026-08-08 via GitHub API)*. Plus a redundant local pre-push hook. |
-| 8.2 | Changes reviewed before merge | ❌ | **`required_approving_review_count: 0`** *(verified live 2026-08-08)* — while `CLAUDE.md` states "At least 1 approval." **Documented control does not match the enforced control.** That mismatch is itself an audit finding, independent of whether 0 is acceptable for a solo founder. Fix by either raising the count or amending the doc to describe the real compensating control. |
+| 8.2 | Changes reviewed before merge | ⚠️ | **`required_approving_review_count: 0`** *(verified live 2026-08-08)*. This is a deliberate, documented position, not a gap: GitHub does not permit self-approval, so requiring one approval would lock the sole engineer out of merging entirely. Accurately described in `CLAUDE.md:324` and Information Security Policy §8, with three compensating controls named. **Corrected 2026-08-09:** originally graded ❌ on the basis of a stale "At least 1 approval" line in a personal instructions file outside the repo; that file has been fixed and was never an audit artifact. Revisit at first engineering hire. |
 | 8.3 | Automated testing gates merge | ⚠️ | `Security Gate` is the one required status check. But the backend test job runs with `\|\| true` — unit failures never block a merge. Only `tenant-scope`, `gitleaks`, `npm-audit`, `schema-drift`, `boot-smoke` genuinely gate. |
 | 8.4 | Separate environments | ✅ | Prod (`kay-backend`) / staging (`kay-backend-staging` + `staging.lanyardhealth.com`, separate Cognito pool) / local Docker. |
 | 8.5 | Schema changes controlled | ✅ | Blocking `schema-drift` job (`security-scan.yml:408`); migration required with every `schema.prisma` change. |
@@ -191,7 +191,7 @@ Ranked by audit impact per hour spent. The first three are writing, not engineer
 1. **Information Security Policy** (CC2.1) — unblocks 2.2, 5.1, and parts of CC1. Half a day.
 2. **Incident Response Plan** (CC7.6) — the gap auditors treat most seriously, and the one that matters most if provider SSNs ever leak. Half a day.
 3. **Vendor inventory + collect their SOC 2 reports** (CC9.1/9.2) — mostly downloading PDFs. Satisfies physical security by inheritance. A day.
-4. **Fix the CC8.2 mismatch** — either require 1 approval or amend `CLAUDE.md`. Ten minutes, removes a guaranteed finding.
+4. ~~**Fix the CC8.2 mismatch**~~ — **DONE 2026-08-09.** Re-verified: the enforced control was already accurately documented in `CLAUDE.md:324` and Information Security Policy §8. The contradicting line lived in a personal instructions file outside the repo and has been corrected. No approval-count change was made, and none should be — it would lock the sole engineer out of merging.
 5. **Encrypt provider `dateOfBirth`** (CC6.7) — the largest open technical gap. Its own PR, ~12 sites, two-table migration.
 
 Deliberately *not* in the top 5, and why: risk register (CC3) is real but auditors accept a young one; `trust proxy` (CC6.19) is cheap but low-severity; the OCR queue leak (CC6.18) is a genuine tenant bug and should be fixed on engineering grounds regardless of SOC 2.
