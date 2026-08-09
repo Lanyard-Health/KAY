@@ -42,6 +42,29 @@ individually — the correct projection is the **UTC** date, because that is wha
 `caqh.service.ts:2008` has been sending CAQH all along. Record the answer here
 before Phase 3.
 
+**Staging result, 2026-08-09 — clean.** Both columns are
+`timestamp without time zone`, so the `::time` cast carries no timezone hazard.
+
+| Table | Rows | With DOB | Non-midnight | `1900-01-01` sentinel |
+|---|---|---|---|---|
+| `providers` | 7 | 7 | **0** | 0 |
+| `provider_applications` | 2 | 2 | **0** | 0 |
+
+**Prod result, 2026-08-09 — clean.** This is the gate that matters; staging
+holds 9 rows of mostly synthetic data.
+
+| Table | Rows | With DOB | Non-midnight | `1900-01-01` sentinel |
+|---|---|---|---|---|
+| `providers` | 18 | 17 | **0** | 0 |
+| `provider_applications` | 6 | 6 | **0** | 0 |
+
+One provider row has no date of birth; the column is nullable and the shim
+returns null for it. The `1900-01-01` sentinel that migration `20260209203325`
+backfilled is absent from both environments — nothing to reconcile.
+
+Re-run this before Phase 3 regardless. These counts are from 2026-08-09 and new
+providers arrive between now and then.
+
 Also record the sentinel count, so Phase 3's row counts reconcile rather than
 surprise (migration `20260209203325` backfilled `'1900-01-01'` into
 `provider_applications`):
