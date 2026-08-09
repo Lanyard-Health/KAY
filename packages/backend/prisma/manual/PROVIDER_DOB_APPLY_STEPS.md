@@ -247,6 +247,41 @@ Re-running is a no-op. Verified locally: 6 rows encrypted, second run reported
 `needing encryption: 0`, and all three misdirection guards (`--apply` with no
 `--db`, with a wrong `--db`, with no key) abort without writing.
 
+### Backfill run — 2026-08-09
+
+Both environments backfilled and independently verified. **Plaintext untouched
+and still authoritative**; every row now carries both copies.
+
+| | Staging | Prod |
+|---|---|---|
+| Key fingerprint used | `7c00d4ffd0d403fe` | `7c00d4ffd0d403fe` |
+| Pre-flight non-midnight | 0 / 0 | 0 / 0 |
+| `providers` encrypted | 7 / 7 | 17 / 17 |
+| `provider_applications` encrypted | 2 / 2 | 6 / 6 |
+| Round-trip against plaintext | 9/9 exact | 23/23 exact |
+| Ciphertext well-formed | 9 | 23 |
+| Values resembling a plain date | 0 | 0 |
+| Gap (plaintext, no ciphertext) | 0 | 0 |
+
+Verified independently of the script's own report — staging by direct SQL over
+MCP, prod by `psql` — so the evidence does not rest on the tool that did the
+writing.
+
+### Observation — staging and prod share one master encryption key
+
+Both environments returned key fingerprint `7c00d4ffd0d403fe`. `ENCRYPTION_KEY`
+is therefore identical across staging and production.
+
+Consequences: a staging compromise yields the key that decrypts **production**
+PII, and ciphertext is portable between environments. It also diverges from the
+per-environment split already adopted for R2 credentials (2026-06-05).
+
+Not a blocker for this work, and deliberately **not** changed mid-migration —
+re-keying staging now would strand the ciphertext this backfill just wrote.
+Raised as a SOC 2 finding to schedule after Phase 5, when there is a single
+documented re-encryption procedure (Information Security Policy §5.3) rather
+than a half-migrated column.
+
 ### Do not proceed to Phase 4 until
 
 The gap report has been zero on **both** environments for a sustained period,
