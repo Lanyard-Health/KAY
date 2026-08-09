@@ -62,25 +62,26 @@ function toDateOnly(value: Date | string): string | null {
  * The test harness sets a real key (`tests/helpers/setup.ts`).
  */
 export function dobWrite(input: DobInput): {
-  dateOfBirth?: Date | null;
   dateOfBirthEncrypted?: string | null;
 } {
   if (input === undefined) return {};
-  if (input === null) return { dateOfBirth: null, dateOfBirthEncrypted: null };
+  if (input === null) return { dateOfBirthEncrypted: null };
 
   const dateOnly = toDateOnly(input);
-  if (!dateOnly) return { dateOfBirth: null, dateOfBirthEncrypted: null };
+  if (!dateOnly) return { dateOfBirthEncrypted: null };
 
   if (!isEncryptionAvailable()) {
     throw new Error('ENCRYPTION_KEY is required to store a date of birth — refusing to write plaintext');
   }
 
-  // ponytail: dual-write. The plaintext half comes out in Phase 4, leaving one
-  // key to change rather than every call site again.
-  return {
-    dateOfBirth: new Date(`${dateOnly}T00:00:00.000Z`),
-    dateOfBirthEncrypted: encrypt(dateOnly),
-  };
+  // Phase 4: the plaintext half is gone. Because every call site writes through
+  // here, stopping the dual-write was this one edit rather than seven.
+  //
+  // Note what this does NOT do: it never sets `dateOfBirth` back to null. An
+  // existing plaintext value is left exactly as it is, and is cleared only by
+  // the deliberate `--clear-plaintext` run — so deploying this is still
+  // reversible on its own.
+  return { dateOfBirthEncrypted: encrypt(dateOnly) };
 }
 
 /**

@@ -36,6 +36,14 @@
  *   npx tsx scripts/encrypt-provider-dob-backfill.ts --apply --db kay_staging
  *   npx tsx scripts/encrypt-provider-dob-backfill.ts --apply --db kay_backend_32426
  *
+ * Phase 4 only, after the deploy that stops writing plaintext:
+ *   ... --apply --clear-plaintext --db kay_staging
+ *
+ * `--clear-plaintext` is the one destructive step in this migration. It runs
+ * only after every ciphertext has been decrypted and compared to the plaintext
+ * it is about to delete, so it is recoverable via
+ * `scripts/restore-provider-dob-plaintext.ts` — rehearse that on staging first.
+ *
  * Requires ENCRYPTION_KEY — aborts rather than fall back to encryptSafe's dev
  * plaintext passthrough, which would write literal dates into the "encrypted"
  * column and make every production read of those rows throw.
@@ -44,6 +52,15 @@ import { prisma } from '../src/utils/prisma.js';
 import { encrypt, decrypt, isEncryptionAvailable } from '../src/utils/crypto.js';
 
 const APPLY = process.argv.includes('--apply');
+/**
+ * Phase 4. Deletes the plaintext column's contents — the only step in this
+ * migration that destroys data. Guarded three ways below: it will not run
+ * unless every row's ciphertext has been decrypted and compared against the
+ * plaintext about to be deleted, the gap report is zero, and the caller named
+ * the database. The undo is `scripts/restore-provider-dob-plaintext.ts`, which
+ * must have been rehearsed on staging first.
+ */
+const CLEAR_PLAINTEXT = process.argv.includes('--clear-plaintext');
 const DB_FLAG_INDEX = process.argv.indexOf('--db');
 const EXPECTED_DB = DB_FLAG_INDEX === -1 ? null : process.argv[DB_FLAG_INDEX + 1] ?? null;
 
@@ -319,7 +336,50 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  console.log('\nBackfill complete. Plaintext is untouched and still authoritative.');
+
+  if (!CLEAR_PLAINTEXT) {
+    console.log('\nBackfill complete. Plaintext is untouched and still authoritative.');
+    return;
+  }
+
+  // ---- Phase 4: clear plaintext -------------------------------------------
+  // Everything above already passed: verify() decrypted every ciphertext and
+  // compared it to the plaintext about to be deleted, and the gap report is
+  // zero. Reaching here means every row is provably recoverable from its
+  // ciphertext, so the delete is recoverable rather than final.
+  console.log('\n--clear-plaintext: deleting the plaintext column contents.');
+  console.log('Undo: scripts/restore-provider-dob-plaintext.ts (rehearse on staging first).');
+
+  const clearedProviders = await prisma.$executeRaw`
+    UPDATE providers SET date_of_birth = NULL
+    WHERE date_of_birth IS NOT NULL AND date_of_birth_encrypted IS NOT NULL
+  `;
+  const clearedApplications = await prisma.$executeRaw`
+    UPDATE provider_applications SET date_of_birth = NULL
+    WHERE date_of_birth IS NOT NULL AND date_of_birth_encrypted IS NOT NULL
+  `;
+  console.log(`  providers cleared:             ${clearedProviders}`);
+  console.log(`  provider_applications cleared: ${clearedApplications}`);
+
+  const [after] = await prisma.$queryRaw<Array<{ plaintext: bigint; orphans: bigint }>>`
+    SELECT
+      (SELECT COUNT(*) FROM providers WHERE date_of_birth IS NOT NULL)
+        + (SELECT COUNT(*) FROM provider_applications WHERE date_of_birth IS NOT NULL)      AS plaintext,
+      (SELECT COUNT(*) FROM providers
+        WHERE date_of_birth IS NOT NULL AND date_of_birth_encrypted IS NULL)
+        + (SELECT COUNT(*) FROM provider_applications
+            WHERE date_of_birth IS NOT NULL AND date_of_birth_encrypted IS NULL)            AS orphans
+  `;
+  console.log('\nAFTER CLEAR:');
+  console.log(`  plaintext rows remaining: ${after?.plaintext}   (expect 0)`);
+  console.log(`  of which unencrypted:     ${after?.orphans}   (must be 0 — these would be data loss)`);
+
+  if (Number(after?.orphans ?? 0) > 0) {
+    console.error('\nFAILED: rows hold plaintext with no ciphertext. Do NOT proceed to Phase 5.');
+    process.exitCode = 1;
+    return;
+  }
+  console.log('\nPlaintext cleared. The encrypted column is now the only copy.');
 }
 
 main()
