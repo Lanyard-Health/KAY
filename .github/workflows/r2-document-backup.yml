@@ -1,0 +1,93 @@
+# Daily backup of the R2 documents bucket to a second bucket in the same
+# Cloudflare account. Closes exception E-10 (Information Security Policy §14,
+# Business Continuity Plan §3.3): uploaded documents — licenses, W-9s,
+# insurance certificates — had no independent copy of any kind.
+#
+# Deliberately does NOT use --delete. An object removed from the primary
+# bucket stays in the backup, which is the entire point: this protects against
+# deletion, whether accidental, malicious, or from an application bug.
+#
+# Consequence: the backup accumulates documents that were deleted from the
+# primary. The 90-day hard-delete commitment in Information Security Policy
+# §13.2 must therefore delete from BOTH buckets when that routine is built
+# (exception E-8). Do not "fix" this by adding --delete here — that would
+# remove the protection this job exists to provide.
+name: R2 Document Backup
+
+on:
+  schedule:
+    # 07:00 UTC daily — roughly midnight Pacific, off-peak.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # R2 rejected the CRC32 checksum headers that AWS CLI v2.23+ began
+      # sending by default. Cloudflare shipped a fix in Feb 2025, but pinning
+      # the old behaviour costs one line and removes the failure class.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      SRC: ${{ secrets.R2_SOURCE_BUCKET }}
+      DST: ${{ secrets.R2_BACKUP_BUCKET }}
+
+    steps:
+      - name: Verify both buckets are reachable
+        run: |
+          set -euo pipefail
+          aws s3 ls "s3://${SRC}" --endpoint-url "${ENDPOINT}" > /dev/null
+          aws s3 ls "s3://${DST}" --endpoint-url "${ENDPOINT}" > /dev/null
+          echo "Both buckets reachable."
+
+      - name: Count objects before
+        id: before
+        run: |
+          set -euo pipefail
+          SRC_N=$(aws s3 ls "s3://${SRC}" --recursive --endpoint-url "${ENDPOINT}" | wc -l | tr -d ' ')
+          DST_N=$(aws s3 ls "s3://${DST}" --recursive --endpoint-url "${ENDPOINT}" | wc -l | tr -d ' ')
+          echo "src=${SRC_N}" >> "$GITHUB_OUTPUT"
+          echo "dst=${DST_N}" >> "$GITHUB_OUTPUT"
+          echo "Before — source: ${SRC_N}, backup: ${DST_N}"
+
+      - name: Sync
+        run: |
+          set -euo pipefail
+          # Same account, so this is a server-side copy: no egress, no download.
+          # Object keys are UUID-per-document (document.service.ts:94), so a
+          # sync never overwrites an existing object with different content.
+          aws s3 sync "s3://${SRC}" "s3://${DST}" \
+            --endpoint-url "${ENDPOINT}" \
+            --only-show-errors
+
+      - name: Verify and report
+        run: |
+          set -euo pipefail
+          SRC_N=$(aws s3 ls "s3://${SRC}" --recursive --endpoint-url "${ENDPOINT}" | wc -l | tr -d ' ')
+          DST_N=$(aws s3 ls "s3://${DST}" --recursive --endpoint-url "${ENDPOINT}" | wc -l | tr -d ' ')
+
+          {
+            echo "### R2 Document Backup"
+            echo ""
+            echo "| | Before | After |"
+            echo "|---|---|---|"
+            echo "| Source objects | ${{ steps.before.outputs.src }} | ${SRC_N} |"
+            echo "| Backup objects | ${{ steps.before.outputs.dst }} | ${DST_N} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # The backup may legitimately hold MORE than the source — objects
+          # deleted from the primary are retained here on purpose. Fewer means
+          # the sync did not complete.
+          if [ "${DST_N}" -lt "${SRC_N}" ]; then
+            echo "FAIL: backup has ${DST_N} objects, source has ${SRC_N}." >&2
+            exit 1
+          fi
+          echo "OK — backup holds ${DST_N} objects, source holds ${SRC_N}."
