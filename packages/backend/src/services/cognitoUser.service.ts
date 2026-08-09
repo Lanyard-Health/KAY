@@ -218,3 +218,60 @@ export async function setCognitoUserPassword(
 
   logger.info(`Cognito user password set: ${email}`);
 }
+
+/**
+ * Re-send the original invitation for an account that never completed setup.
+ *
+ * A Cognito user sits in `FORCE_CHANGE_PASSWORD` from the moment they are
+ * invited until they first sign in. In that state `ForgotPassword` is refused
+ * outright — there is no password to reset yet — so the ordinary "forgot my
+ * password" flow is a dead end for exactly the people most likely to need it.
+ * `AdminCreateUser` with `MessageAction: RESEND` issues a fresh temporary
+ * password and re-sends the invite, which is the actual remedy.
+ *
+ * Returns whether an invite was sent. The caller must NOT surface that
+ * distinction to an unauthenticated user: a response that differs for a known
+ * and an unknown address turns this into an account-enumeration oracle.
+ */
+export async function resendCognitoInvite(email: string): Promise<boolean> {
+  if (DEV_BYPASS_ENABLED) {
+    logger.info('[DEV] Skipping Cognito invite resend');
+    return true;
+  }
+
+  let status: string | undefined;
+  try {
+    const user = await getClient().send(
+      new AdminGetUserCommand({ UserPoolId: getUserPoolId(), Username: email })
+    );
+    status = user.UserStatus;
+  } catch (error) {
+    // UserNotFoundException is the common case and is not an error condition
+    // here — it is simply an address with no account. Logged without the
+    // address so the log does not become the enumeration oracle either.
+    const name = (error as { name?: string }).name;
+    if (name !== 'UserNotFoundException') {
+      logger.warn(`Invite resend lookup failed: ${name ?? 'unknown error'}`);
+    }
+    return false;
+  }
+
+  if (status !== 'FORCE_CHANGE_PASSWORD') {
+    // A CONFIRMED user has a working password and should use the normal reset
+    // flow; re-sending an invite would replace their password with a temporary
+    // one and lock them out of their own account.
+    return false;
+  }
+
+  await getClient().send(
+    new AdminCreateUserCommand({
+      UserPoolId: getUserPoolId(),
+      Username: email,
+      MessageAction: MessageActionType.RESEND,
+      DesiredDeliveryMediums: ['EMAIL'],
+    })
+  );
+
+  logger.info('Cognito invitation re-sent for an account pending initial setup');
+  return true;
+}

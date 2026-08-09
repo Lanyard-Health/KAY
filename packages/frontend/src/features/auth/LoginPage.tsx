@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
-import { mapCognitoError } from '../../utils/cognito-errors';
+import { mapCognitoError, isSetupIncompleteError } from '../../utils/cognito-errors';
 import CodeInput from '../../components/CodeInput';
 import { lanyardMarkTileUrl } from '../../components/LanyardMark';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -55,6 +55,9 @@ export default function LoginPage() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
+  // Set when Cognito refuses the reset because the account never finished its
+  // original invitation. Drives the recovery panel on the reset screen.
+  const [setupIncomplete, setSetupIncomplete] = useState(false);
   const [qrUri, setQrUri] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [secretCode, setSecretCode] = useState('');
@@ -78,6 +81,7 @@ export default function LoginPage() {
     selectMfaMethod,
     handleEmailMfaCode,
     forgotPassword,
+    resendInvite,
     confirmForgotPassword,
   } = useAuthStore();
 
@@ -153,7 +157,7 @@ export default function LoginPage() {
         navigate(state.user?.role === 'provider' ? '/portal' : '/');
       }
     } catch (error) {
-      notify.error('Login failed', { description: mapCognitoError(error) });
+      notify.error('Login failed', { description: mapCognitoError(error, 'signIn') });
     } finally {
       setIsLoading(false);
     }
@@ -304,12 +308,40 @@ export default function LoginPage() {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setSetupIncomplete(false);
     try {
       await forgotPassword(resetEmail);
       notify.success('Code sent', { description: 'Check your email for a verification code' });
       setAuthStep('confirm-reset');
     } catch (error) {
-      notify.error('Reset failed', { description: mapCognitoError(error) });
+      // An account still on its original invitation cannot be reset at all.
+      // Show the recovery panel in place rather than a toast — a toast that
+      // disappears leaves the user exactly as stuck as before.
+      if (isSetupIncompleteError(error, 'passwordReset')) {
+        setSetupIncomplete(true);
+      } else {
+        notify.error('Reset failed', { description: mapCognitoError(error, 'passwordReset') });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendInvite = async () => {
+    setIsLoading(true);
+    try {
+      await resendInvite(resetEmail);
+      notify.success('Invitation sent', {
+        description: 'Check your inbox and your spam folder.',
+      });
+      setSetupIncomplete(false);
+      setAuthStep('login');
+    } catch {
+      // The endpoint reports success even when Cognito fails, so reaching here
+      // means the request itself did not complete — network or rate limit.
+      notify.error('Could not send invitation', {
+        description: 'Try again in a moment, or contact support@lanyardhealth.com',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -546,6 +578,25 @@ export default function LoginPage() {
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
+              {setupIncomplete && (
+                <div className="rounded-xl border border-[#e2d9c4] bg-[#fdf8ec] p-4 text-left">
+                  <p className="text-sm font-medium text-[#171b17]">
+                    This account hasn&apos;t finished setup.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-[#6b665c]">
+                    Your original invitation was never completed, so there&apos;s no password to
+                    reset yet.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResendInvite}
+                    disabled={isLoading}
+                    className={`${PRIMARY_BUTTON_CLASSES} mt-3`}
+                  >
+                    {isLoading ? 'Sending...' : 'Resend my invitation'}
+                  </button>
+                </div>
+              )}
               <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON_CLASSES}>
                 {isLoading ? 'Sending...' : 'Send Reset Code'}
               </button>
