@@ -9,7 +9,7 @@
 | **Verification cadence** | Annual, and after any key rotation |
 | **Last verified** | **2026-08-08** — Bitwarden copy verified against production, fingerprints matched |
 | **Next verification due** | 2027-08-08 |
-| **Status** | Partial. Bitwarden copy established and verified. Deputy share (Step 4) and independent non-Bitwarden copy (Step 4b) outstanding. |
+| **Status** | **Complete 2026-08-09.** Four copies: live, Bitwarden, Deputy share, sealed physical. Custody requirements in §2 are met. |
 
 ---
 
@@ -128,10 +128,14 @@ Record locations here:
 
 | Copy | Location | Established | Verified |
 |---|---|---|---|
-| Live | Render `kay-backend` environment configuration | — | 2026-08-08 |
+| Live | Render `kay-backend` environment configuration | — | 2026-08-08 — fingerprint `7c00d4ffd0d403fe` |
 | Bitwarden | Personal vault, Secure Note (hidden custom field) | 2026-08-08 | 2026-08-08 — fingerprint matched |
-| Deputy share | `[BLANK — free 2-user org, collection shared with John Mayes]` | `[BLANK]` | `[BLANK]` |
-| Independent | `[BLANK — sealed physical record, outside Bitwarden]` | `[BLANK]` | `[BLANK]` |
+| Deputy share | Bitwarden collection shared with John Mayes, Director of Operations | 2026-08-09 (Kay confirmed) | Inherits the Bitwarden verification — same item |
+| Independent | Sealed physical record, outside Bitwarden | 2026-08-09 (Kay confirmed) | **Not independently verified** — see note below |
+
+**On the physical copy.** If it was printed directly from the stored value, transcription error is not a realistic risk and the fingerprint carries over. If any part was written by hand, verify it before relying on it: type it back and hash it (Step 3). An incorrect sealed copy is the precise failure this runbook exists to prevent — it produces confidence without protection, and the error surfaces only on the day it is needed.
+
+The two `Kay confirmed` entries above are recorded on the Founder's statement, not on independent verification. They are re-confirmed at the annual check (§4), which is when an auditor would expect the evidence to be exercised rather than asserted.
 
 ### Step 5 — Record completion
 

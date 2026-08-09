@@ -70,9 +70,13 @@ There is no warm standby. Recovery is bounded by the provider's own restoration.
 
 ### 3.3 Object storage loss
 
-Uploaded documents — licenses, W-9s, insurance certificates — are held in Cloudflare R2 with **no independent backup**. Durability rests entirely on the provider's guarantees.
+**Remediated 2026-08-09.** A daily backup now runs via `.github/workflows/r2-document-backup.yml`, syncing `credentials-documents` to `credentials-documents-backup` in the same Cloudflare account. First run verified 2026-08-09: **79 objects copied, backup 0 → 79, source and backup reconciled.**
 
-Loss of that bucket means loss of every uploaded document. The underlying records survive in PostgreSQL; the files do not. Recovery would mean asking every provider to re-upload.
+RPO is up to 24 hours — a document uploaded after the 07:00 UTC run and lost before the next one is not recoverable from backup.
+
+**Residual risk:** both buckets live in the same Cloudflare account, so loss of that account still loses both. Accepted at current scale; revisit at the annual review or on the first customer contract with a durability commitment.
+
+Historic state, retained for the audit record: uploaded documents — licenses, W-9s, insurance certificates — were held in Cloudflare R2 with no independent backup of any kind. Loss of the bucket would have lost every uploaded document; the underlying records survive in PostgreSQL, the files would not.
 
 **Options assessed 2026-08-08:**
 
