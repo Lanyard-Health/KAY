@@ -131,7 +131,9 @@ Restricted fields are encrypted at the application layer with **AES-256-GCM** be
 
 Payer portal credentials use an additional layer: a per-tenant key derived from the master key via **HKDF-SHA256**, keyed by practice identifier (`crypto.ts:deriveTenantKey`). Ciphertext from one practice cannot be decrypted with another practice's derived key.
 
-Currently encrypted fields include SSN, tax ID and EIN, bank routing and account numbers, DEA and CDS numbers, webhook signing secrets, and payer portal usernames, passwords, and MFA seeds.
+Currently encrypted fields include SSN, tax ID and EIN, date of birth, bank routing and account numbers, DEA and CDS numbers, webhook signing secrets, and payer portal usernames, passwords, and MFA seeds.
+
+Date of birth is encrypted as a `YYYY-MM-DD` calendar date rather than a timestamp, and is reached only through `services/provider-dob.service.ts` — a single module for both the provider and provider-application tables. That module throws rather than falling back to plaintext when the key is absent, so a misconfigured environment fails loudly instead of silently writing readable dates into an encrypted column.
 
 Underlying disk encryption for the database and object storage is provided by Render and Cloudflare respectively.
 
@@ -352,7 +354,7 @@ Recorded deliberately. A policy that omits its own gaps is less credible than on
 
 | # | Exception | Risk | Remediation | Target |
 |---|---|---|---|---|
-| E-1 | Provider date of birth is stored unencrypted (`prisma/schema.prisma:532`, and a second instance at `:2396`), while practice owner DOB is encrypted (`:323`). Inconsistent with §3.2. | Restricted data unprotected at field level | Encrypt with existing AES-256-GCM helper; two-table migration and backfill | `[BLANK — Kay]` |
+| E-1 | ~~Provider date of birth is stored unencrypted (`prisma/schema.prisma:532`, and a second instance at `:2396`), while practice owner DOB is encrypted (`:323`)~~ **CLOSED 2026-08-09.** Both tables now carry `date_of_birth_encrypted` (AES-256-GCM), written and read solely through `services/provider-dob.service.ts`. Migration `20260809045015_provider_dob_encrypted` hand-applied to staging and production under the admin role; backfill encrypted 23/23 production rows and 10/10 staging rows, each verified by decrypting back to the exact stored date; plaintext cleared in both environments the same day. Post-clear verification returned 0 plaintext rows, 23 ciphertext rows, all 23 matching the `iv:authTag:ciphertext` format, 0 gaps. The undo path (`scripts/restore-provider-dob-plaintext.ts`) was rehearsed on staging before production was touched and restored all 10 rows to a byte-identical fingerprint. | Residual: the now-empty plaintext columns still exist until the Phase 5 `DROP COLUMN` migration. No blind index was built — a deliberate decision (Kay, 2026-08-09) on the grounds that nothing filters, sorts, or matches on date of birth; restoring that capability would cost another hand-applied migration. | Drop the empty plaintext columns (Phase 5) after a sustained week of zero plaintext rows in both environments | Closed — Phase 5 column drop due 2026-08-16 |
 | E-2 | The document OCR review queue lists provider names and NPIs across practice boundaries, contrary to §4.4. | Cross-tenant disclosure of Confidential data | Scope the query to the caller's practices | `[BLANK — Kay]` |
 | E-3 | No encryption key rotation cadence (§5.3). | Indefinite key lifetime | Define cadence and re-encryption procedure | `[BLANK — Kay]` |
 | E-4 | Authentication is applied per-router rather than globally (§4.3), so a new route can ship without a guard. | Unprotected endpoint | Default-deny mounting, or a CI check enumerating unguarded routes | `[BLANK — Kay]` |

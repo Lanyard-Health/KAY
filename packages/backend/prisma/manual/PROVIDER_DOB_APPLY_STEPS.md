@@ -289,6 +289,64 @@ and new providers created after the backfill are landing in both columns
 (Phase 2 dual-write, live in prod since 2026-08-09). Phase 4 is the first
 irreversible step: it clears the plaintext that is currently the safety net.
 
+## Phase 4 — stop writing plaintext, then clear it
+
+Two parts. The code change (PR #547, prod `5c8964e`, staging `8e0a519`) removes
+the plaintext half of the dual-write. The clear is a manual script run.
+
+```bash
+# reversible while the ciphertext and the key both survive
+npx tsx scripts/encrypt-provider-dob-backfill.ts --apply --db <name> --clear-plaintext
+
+# the undo
+npx tsx scripts/restore-provider-dob-plaintext.ts --apply --db <name>
+```
+
+The clear runs only after the same script's verification decrypts every
+ciphertext and compares it to the plaintext it is about to delete, and only if
+the gap report is zero. It therefore cannot delete a date it has not just proved
+it can read back.
+
+### Gates cleared before prod — 2026-08-09
+
+| Gate | Evidence |
+|---|---|
+| Write path proven in a deployed environment | Provider created through the staging UI at 20:16 UTC landed in both columns; ciphertext 86 chars, correct `iv:authTag:ciphertext` shape |
+| Read path proven with plaintext genuinely absent | Staging cleared, then the Edit Provider form still rendered `01/01/1988` — decrypted from the only remaining copy |
+| Undo rehearsed against genuinely cleared rows | Staging restore returned 8 + 2 rows; md5 fingerprint of all 10 dates matched pre-clear exactly (`4c45950873e4b6a81560ba8264048df3`) |
+| Recovery window | Render PITR `AVAILABLE`, `startsAt 2026-08-02T07:49:44Z` on prod |
+
+Rehearsing the undo is the point of this section. A recovery script that has
+never been executed is an assumption, not a control — and this one could not be
+tested at all until real rows had been cleared.
+
+### Clear run — 2026-08-09
+
+| Environment | Verified before clear | Providers | Applications | Plaintext left | Unencrypted left |
+|---|---|---|---|---|---|
+| staging | 10/10 | 8 | 2 | 0 | 0 |
+| prod | 23/23 | 17 | 6 | 0 | 0 |
+
+Independent post-clear query on prod (not the script's own output):
+
+```
+                        plaintext  encrypted  well_formed  plaintext_leak  gap
+providers                       0         17           17               0    0
+provider_applications           0          6            6               0    0
+```
+
+`well_formed` counts ciphertext matching `^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$`;
+`plaintext_leak` counts encrypted-column values that look like a bare date, which
+is what a key-less environment would have written.
+
+### Do not proceed to Phase 5 until
+
+A sustained week of zero plaintext rows on both environments, per the plan.
+Phase 5a removes the fields from `schema.prisma` and deletes the shim's plaintext
+fallback; 5b is the hand-applied `DROP COLUMN`. That order is the inverse of
+Phase 1 — deploy first, then drop, because a still-running old container would
+`42703` on a column that no longer exists.
+
 ## Rollback
 
 ```bash
