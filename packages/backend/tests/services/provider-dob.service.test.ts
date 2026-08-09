@@ -19,14 +19,22 @@ describe('dobWrite', () => {
     expect(dobWrite(undefined)).toEqual({});
   });
 
-  it('clears both columns for null', () => {
-    expect(dobWrite(null)).toEqual({ dateOfBirth: null, dateOfBirthEncrypted: null });
+  it('clears the encrypted column for null', () => {
+    expect(dobWrite(null)).toEqual({ dateOfBirthEncrypted: null });
   });
 
-  it('encrypts a YYYY-MM-DD string and dual-writes plaintext', () => {
+  it('encrypts a YYYY-MM-DD string', () => {
     const out = dobWrite('1980-05-01');
     expect(out.dateOfBirthEncrypted).toMatch(/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/);
-    expect(out.dateOfBirth?.toISOString()).toBe('1980-05-01T00:00:00.000Z');
+  });
+
+  // Phase 4: the plaintext half is gone. A write must never touch the legacy
+  // column again — including never nulling it, so deploying Phase 4 on its own
+  // stays reversible and only the deliberate --clear-plaintext run removes data.
+  it('never emits the plaintext column', () => {
+    for (const input of ['1980-05-01', null, undefined, 'not-a-date'] as const) {
+      expect(dobWrite(input)).not.toHaveProperty('dateOfBirth');
+    }
   });
 
   it('takes the UTC date from a Date, not the local one', () => {
@@ -42,7 +50,7 @@ describe('dobWrite', () => {
   });
 
   it('treats an unparseable date as absent rather than throwing', () => {
-    expect(dobWrite('not-a-date')).toEqual({ dateOfBirth: null, dateOfBirthEncrypted: null });
+    expect(dobWrite('not-a-date')).toEqual({ dateOfBirthEncrypted: null });
   });
 
   it('throws without ENCRYPTION_KEY instead of writing plaintext', () => {
