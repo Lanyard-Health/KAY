@@ -69,7 +69,48 @@ Derived from the production environment configuration on 2026-08-08. This is the
 
 **Note on Sentry, Linear, and Slack.** Their Tier 3 status depends entirely on the sanitization layer holding (Information Security Policy §7.3). If sanitization regresses, these become Tier 2 silently. This is why sanitizer test coverage is mandatory.
 
-`[CONFIRM — Kay: review this inventory for anything reached outside the production environment configuration — accounting, CRM, e-signature, analytics, password manager, or anything with an OAuth grant against a Lanyard account.]`
+### 3.1 Completeness (verified 2026-08-09)
+
+A full codebase sweep — dependency manifests across all four packages, every outbound HTTP call in `services/`, `agents/`, `queues/` and `scripts/`, all frontend SDKs, and every CI workflow — found **no missing subprocessors**. The inventory above stands as complete.
+
+The sweep surfaced other outbound traffic that does **not** qualify. Recorded here so it is not re-flagged, and so the boundary is explicit:
+
+| Not a vendor | Why |
+|---|---|
+| **Payer portals** (Aetna, `agents/portal/aetna-rfp-adapter.ts:40`) | The counterparty an application is submitted *to*. That is the business transaction, not processing outsourced to a third party. Contrast CAQH, which **is** a vendor because Lanyard holds an organizational account and pulls credentialing data *from* it. |
+| **CMS NPPES / PECOS** (`services/npi.service.ts:139`, `services/pecos.service.ts:15`) | Unauthenticated public government lookups. What is sent — NPI, provider name — is data NPPES itself publishes. |
+| **Customer webhook endpoints** (`agents/webhook-delivery-worker.ts:116`) | Customer-configured destinations, HMAC-signed. Unenumerable by design; the control is the signature. |
+| **Google Fonts** (`packages/frontend/index.html:7-9`) | CDN serving a static asset. |
+| **GitHub Actions** (`gitleaks-action`, `.github/workflows/security-scan.yml:44`) | Build-tool dependency. Governed by change management (Information Security Policy §8), not this policy. |
+
+These belong in the system description's data-flow map, not in a vendor table an auditor reads as a list of parties owing attestations.
+
+### 3.2 Built but not enabled
+
+Complete code paths with no production credentials — neither appears in the 55 production environment variables (verified 2026-08-08), so neither processes anything today. Listed so that enabling one is a deliberate vendor decision rather than a flag flip, and so no attestation is sought for a service not in use.
+
+| Integration | Would be | If enabled, first | Evidence |
+|---|---|---|---|
+| **Libretto Cloud** (`api.libretto.sh`) | Tier 1 — hosted browser automation receiving provider PII in job payloads | Full §4 onboarding assessment; data-processing terms required | `services/libretto-cloud.client.ts:18`, `agents/portal/adapter-factory.ts:66-69` |
+| **Retell AI** (`api.retell.ai`) | Tier 2 — outbound AI voice calls; Twilio underneath as a fourth party | §4 assessment, and enumerate the fourth-party dependency | `services/retell.service.ts:19,116`, `routes/retell.routes.ts:33` |
+
+### 3.3 Dead — no live call path
+
+Retained here so a future reviewer does not re-flag them as unassessed vendors.
+
+- **Stripe** — schema models only (`schema.prisma:3113-3140`), no package, no code, no routes. Billing was de-scoped by decision.
+- **AWS Textract** — `@aws-sdk/client-textract` is a production dependency but no client is ever constructed; Claude vision replaced it. **Candidate for removal from `package.json`.**
+- **Stedi** — a one-time payer-catalog CSV import (`scripts/import-payers.ts`), not a runtime integration.
+- **DocuSign / Salesforce** — appear only as human-readable text inside payer workflow seed data. No SDK, no call, not integrations.
+
+### 3.4 Credential provenance — open
+
+Two credential sets are live in production with no code path. Live unused credentials are a least-privilege finding. **Establish why each exists before revoking anything.**
+
+- **`GMAIL_CLIENT_ID` / `_SECRET` / `_REFRESH_TOKEN` / `_SENDER_EMAIL`** — declared and validated at `utils/env.ts:48-51`, read by nothing. Two candidate explanations to confirm: an unbuilt email-classifier feature (`scripts/email-classifier.ts:11-12` runs in fixture mode "without setting up Gmail/IMAP credentials"), or founder tooling that uses Gmail labels outside the application. If it is the latter, the credentials belong with that tooling, not in the application's production environment.
+- **`FIRECRAWL_API_KEY`** — zero code references. Monitors were configured in Firecrawl's own dashboard rather than called from this codebase, so the key may be legitimately required despite no local call site. Confirm whether those monitors are still running.
+
+`[DECISION — Kay: for each, revoke or retain. A retention decision recorded here with its reason satisfies the control. An unexplained credential does not.]`
 
 ---
 
