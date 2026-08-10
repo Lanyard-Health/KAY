@@ -25,7 +25,6 @@ export async function computeOnboardingProgress(providerId: string): Promise<Onb
       lastName: true,
       email: true,
       phone: true,
-      dateOfBirth: true,
       dateOfBirthEncrypted: true,
       providerType: true,
       onboardingCompletedAt: true,

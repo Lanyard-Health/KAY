@@ -448,7 +448,8 @@ server.listen(PORT, async () => {
               phone: '555-000-0000',
               status: 'active',
               providerType: 'psychiatrist',
-              dateOfBirth: new Date('1980-01-01'),
+              // No date of birth: it is encrypted-only now, and dobWrite throws
+              // without ENCRYPTION_KEY, which would break dev login on a key-less .env.
               gender: 'male',
             },
           });

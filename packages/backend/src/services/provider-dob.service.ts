@@ -30,8 +30,6 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface ProviderDobColumns {
   dateOfBirthEncrypted?: string | null;
-  /** Legacy plaintext column. Removed in Phase 5. */
-  dateOfBirth?: Date | string | null;
 }
 
 export type DobInput = Date | string | null | undefined;
@@ -85,8 +83,10 @@ export function dobWrite(input: DobInput): {
 }
 
 /**
- * The row's date of birth as `YYYY-MM-DD`, preferring ciphertext and falling
- * back to legacy plaintext. Null when absent or undecryptable.
+ * The row's date of birth as `YYYY-MM-DD`. Null when absent or undecryptable.
+ *
+ * Ciphertext is now the only source — the plaintext fallback was removed in
+ * Phase 5 once both environments held zero plaintext rows.
  *
  * Never throws. A corrupt or wrong-key ciphertext degrades to null, which
  * `caqh.service.ts` turns into a named readiness blocker rather than sending
@@ -94,20 +94,17 @@ export function dobWrite(input: DobInput): {
  */
 export function providerDob(row: ProviderDobColumns): string | null {
   const cipher = row.dateOfBirthEncrypted;
-  if (cipher) {
-    if (!CIPHERTEXT_SHAPE.test(cipher)) {
-      logger.warn('SECURITY: date_of_birth_encrypted is not ciphertext — treating as absent');
-      return null;
-    }
-    try {
-      return decrypt(cipher);
-    } catch {
-      logger.warn('SECURITY: date_of_birth_encrypted failed to decrypt — treating as absent');
-      return null;
-    }
+  if (!cipher) return null;
+  if (!CIPHERTEXT_SHAPE.test(cipher)) {
+    logger.warn('SECURITY: date_of_birth_encrypted is not ciphertext — treating as absent');
+    return null;
   }
-  if (row.dateOfBirth) return toDateOnly(row.dateOfBirth);
-  return null;
+  try {
+    return decrypt(cipher);
+  } catch {
+    logger.warn('SECURITY: date_of_birth_encrypted failed to decrypt — treating as absent');
+    return null;
+  }
 }
 
 /** The date of birth as a UTC-midnight `Date`, for date formatters. */
@@ -128,18 +125,22 @@ export function providerDobIso(row: ProviderDobColumns): string | null {
  * paths never hold a plaintext date of birth in memory.
  */
 export function hasDob(row: ProviderDobColumns): boolean {
-  return !!(row.dateOfBirthEncrypted || row.dateOfBirth);
+  return !!row.dateOfBirthEncrypted;
 }
 
 /**
  * Response shaping: always strips the ciphertext column, and re-adds
  * `dateOfBirth` as an ISO string only for callers entitled to it.
+ *
+ * The returned `dateOfBirth` is a derived value, not a column — the API shape
+ * is unchanged from before any of this work, which is why no frontend change
+ * was ever needed.
  */
 export function withDob<T extends ProviderDobColumns>(
   row: T,
   opts: { include: boolean }
-): Omit<T, 'dateOfBirthEncrypted' | 'dateOfBirth'> & { dateOfBirth?: string | null } {
-  const { dateOfBirthEncrypted: _cipher, dateOfBirth: _plain, ...rest } = row;
+): Omit<T, 'dateOfBirthEncrypted'> & { dateOfBirth?: string | null } {
+  const { dateOfBirthEncrypted: _cipher, ...rest } = row;
   if (!opts.include) return rest;
   return { ...rest, dateOfBirth: providerDobIso(row) };
 }

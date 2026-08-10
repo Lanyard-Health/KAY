@@ -64,8 +64,29 @@ type ProviderWithRelations = Prisma.ProviderProfileGetPayload<{
 
 type PracticePayerRow = Prisma.PracticePayerGetPayload<{ include: { payer: true } }>;
 
+/**
+ * Swap the ciphertext column for a decrypted `dateOfBirth` the recipe resolver
+ * can reach. The ciphertext is dropped rather than nulled so no recipe can map
+ * it into a form field.
+ */
+function withPacketDob(
+  provider: ProviderWithRelations
+): Omit<ProviderWithRelations, 'dateOfBirthEncrypted'> & { dateOfBirth: Date | null } {
+  const { dateOfBirthEncrypted: _cipher, ...rest } = provider;
+  return { ...rest, dateOfBirth: providerDobDate(provider) };
+}
+
 export interface CredentialingPacket {
-  provider: ProviderWithRelations;
+  /**
+   * The provider row with a **decrypted** date of birth and no ciphertext.
+   *
+   * `dateOfBirth` is no longer a column — PDF recipes dot-walk
+   * `provider.dateOfBirth` through admin-authored `sourcePath` strings, so the
+   * packet has to keep offering it under that name. Stating it in the type
+   * rather than leaving it to a spread means removing it would break the build
+   * instead of silently shipping blank fields to payers.
+   */
+  provider: Omit<ProviderWithRelations, 'dateOfBirthEncrypted'> & { dateOfBirth: Date | null };
   practice: ProviderWithRelations['practice'];
   practicePayer: PracticePayerRow | null;
   primaryLocation: ProviderWithRelations['practiceLocations'][number] | null;
@@ -168,11 +189,7 @@ export async function buildPacket(
     // shim keeps that from happening when Phase 4 clears the plaintext column.
     //
     // The ciphertext is blanked so a recipe cannot map it into a form field.
-    provider: {
-      ...provider,
-      dateOfBirth: providerDobDate(provider),
-      dateOfBirthEncrypted: null,
-    },
+    provider: withPacketDob(provider),
     practice: provider.practice,
     practicePayer,
     primaryLocation,

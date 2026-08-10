@@ -17,6 +17,7 @@ vi.mock('../utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+import { encrypt } from '../utils/crypto.js';
 import adminOnboardingRouter from './admin-onboarding.routes.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
@@ -27,7 +28,7 @@ const mockActiveProvider = {
   npi: '1234567890',
   email: 'jane@example.com',
   phone: '555-0100',
-  dateOfBirth: new Date('1980-01-01'),
+  dateOfBirthEncrypted: encrypt('1980-01-01'),
   providerType: 'psychiatrist',
   status: 'active',
   createdAt: new Date('2026-01-15'),
