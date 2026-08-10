@@ -74,6 +74,7 @@ vi.mock('../../src/utils/logger.js', () => ({
 
 import { providerRoutes } from '../../src/routes/provider.routes.js';
 import { logSensitiveFieldReveal } from '../../src/middleware/audit.middleware.js';
+import { encrypt } from '../../src/utils/crypto.js';
 
 // ==========================================
 // Fixtures
@@ -88,7 +89,7 @@ const fullProvider = {
   lastName: 'Doe',
   middleName: null,
   suffix: null,
-  dateOfBirth: new Date('1985-06-15'),
+  dateOfBirthEncrypted: encrypt('1985-06-15'),
   gender: 'female',
   email: 'jane.doe@example.com',
   phone: '(555) 123-4567',

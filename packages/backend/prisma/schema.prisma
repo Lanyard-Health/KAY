@@ -529,9 +529,9 @@ model ProviderProfile {
   maidenName String? @map("maiden_name")
 
   // Personal Info
-  // dateOfBirth (plaintext) is legacy — read/written only via
-  // services/provider-dob.service.ts, cleared in Phase 4, dropped in Phase 5.
-  dateOfBirth          DateTime? @map("date_of_birth")
+  // Date of birth is Restricted under InfoSec Policy §3.1 and is stored only
+  // as ciphertext. Read and written exclusively via
+  // services/provider-dob.service.ts — never touch this column directly.
   dateOfBirthEncrypted String?   @map("date_of_birth_encrypted") // Encrypted AES-256-GCM
   gender               Gender
   ssnEncrypted String?  @map("ssn_encrypted") // Encrypted SSN
@@ -2396,10 +2396,8 @@ model ProviderApplication {
   phone      String
 
   // Personal Info
-  // dateOfBirth (plaintext) is legacy — read/written only via
-  // services/provider-dob.service.ts, cleared in Phase 4, dropped in Phase 5.
-  // Widened to nullable so Phase 4 can clear it without further DDL.
-  dateOfBirth          DateTime? @map("date_of_birth")
+  // Date of birth is stored only as ciphertext. Read and written exclusively
+  // via services/provider-dob.service.ts — never touch this column directly.
   dateOfBirthEncrypted String?   @map("date_of_birth_encrypted") // Encrypted AES-256-GCM
   gender               Gender
 

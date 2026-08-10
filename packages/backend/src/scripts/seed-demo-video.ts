@@ -16,6 +16,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { dobWrite } from '../services/provider-dob.service.js';
 
 const prisma = new PrismaClient();
 const CLEANUP = process.argv.includes('--cleanup');
@@ -478,7 +479,7 @@ async function main() {
       lastName: 'Carter',
       email: 'jasmine.carter@brightpathbh.example',
       phone: '(404) 555-0163',
-      dateOfBirth: new Date('1990-03-14'),
+      ...dobWrite('1990-03-14'),
       gender: 'female',
       providerType: 'lmft',
       specialties: ['Marriage and Family Therapy'],

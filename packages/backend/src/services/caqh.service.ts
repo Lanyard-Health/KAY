@@ -1861,7 +1861,6 @@ export class CaqhService {
         npi: true,
         firstName: true,
         lastName: true,
-        dateOfBirth: true,
         dateOfBirthEncrypted: true,
         providerType: true,
         taxonomy: true,

@@ -5,6 +5,7 @@ vi.mock('../utils/prisma.js', async () => {
   return { prisma: prismaMock, prismaBase: prismaMock };
 });
 
+import { encrypt } from '../utils/crypto.js';
 import { computeOnboardingProgress } from './onboarding.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 
@@ -13,7 +14,7 @@ const fullProvider = {
   lastName: 'Doe',
   email: 'jane@test.com',
   phone: '555-1234',
-  dateOfBirth: new Date('1985-01-01'),
+  dateOfBirthEncrypted: encrypt('1985-01-01'),
   providerType: 'psychiatrist',
   onboardingCompletedAt: null,
 };
@@ -53,7 +54,7 @@ describe('Onboarding Service', () => {
     it('marks profile incomplete when fields are missing', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue({
         ...fullProvider,
-        dateOfBirth: null,
+        dateOfBirthEncrypted: null,
       } as any);
       prismaMock.document.count.mockResolvedValue(0);
       prismaMock.license.count.mockResolvedValue(0);

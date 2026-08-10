@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
+import { encrypt } from '../../utils/crypto.js';
 
 // decryptSafe needs no real ENCRYPTION_KEY in unit tests — stub it to a known
 // plaintext so we can assert the EIN flows through to the packet.
-vi.mock('../../utils/crypto.js', () => ({
+// Spread the real module: the DOB shim needs the genuine encrypt/decrypt pair,
+// and a bare object mock would leave them undefined.
+vi.mock('../../utils/crypto.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/crypto.js')>()),
   decryptSafe: vi.fn(() => '987654321'),
 }));
 
@@ -37,7 +41,7 @@ function fakeRecords() {
     firstName: 'Bethany',
     lastName: 'Gray',
     npi: '1234567890',
-    dateOfBirth: new Date('1985-01-01T00:00:00Z'),
+    dateOfBirthEncrypted: encrypt('1985-01-01'),
     caqhProviderId: '10000000',
     providerType: 'psychiatrist',
     entityType: 'individual',

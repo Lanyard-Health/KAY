@@ -71,8 +71,12 @@ describe('providerDob', () => {
     expect(providerDob(row)).toBe('1962-11-30');
   });
 
-  it('falls back to legacy plaintext when the column is empty', () => {
-    expect(providerDob({ dateOfBirth: new Date('1975-03-09T00:00:00.000Z') })).toBe('1975-03-09');
+  // Phase 5 removed the plaintext fallback. Both environments held zero
+  // plaintext rows before the column was dropped, so a fallback could only ever
+  // have masked a decryption failure as a successful read.
+  it('has no plaintext fallback — ciphertext is the only source', () => {
+    expect(providerDob({} as never)).toBeNull();
+    expect(providerDob({ dateOfBirthEncrypted: null })).toBeNull();
   });
 
   it('returns null, not a throw, when the column holds plaintext', () => {
@@ -97,9 +101,12 @@ describe('providerDobDate / providerDobIso', () => {
     expect(providerDobIso({ dateOfBirthEncrypted })).toBe('1980-05-01T00:00:00.000Z');
   });
 
-  it('matches what Prisma serializes today for the same date', () => {
-    const legacy = new Date('1980-05-01T00:00:00.000Z');
-    expect(providerDobIso({ dateOfBirth: legacy })).toBe(JSON.parse(JSON.stringify(legacy)));
+  it('matches what Prisma serialized before this migration, so the API shape is unchanged', () => {
+    const asPrismaWouldHaveSentIt = new Date('1980-05-01T00:00:00.000Z');
+    const { dateOfBirthEncrypted } = dobWrite('1980-05-01');
+    expect(providerDobIso({ dateOfBirthEncrypted })).toBe(
+      JSON.parse(JSON.stringify(asPrismaWouldHaveSentIt))
+    );
   });
 
   it('returns null when absent', () => {
@@ -109,15 +116,14 @@ describe('providerDobDate / providerDobIso', () => {
 });
 
 describe('hasDob', () => {
-  it('is true for either column without decrypting', () => {
+  it('is true without decrypting — it never needs the key', () => {
     delete process.env['ENCRYPTION_KEY'];
     expect(hasDob({ dateOfBirthEncrypted: 'anything' })).toBe(true);
-    expect(hasDob({ dateOfBirth: new Date() })).toBe(true);
   });
 
-  it('is false when both are absent', () => {
+  it('is false when the column is empty', () => {
     expect(hasDob({})).toBe(false);
-    expect(hasDob({ dateOfBirthEncrypted: null, dateOfBirth: null })).toBe(false);
+    expect(hasDob({ dateOfBirthEncrypted: null })).toBe(false);
   });
 });
 
