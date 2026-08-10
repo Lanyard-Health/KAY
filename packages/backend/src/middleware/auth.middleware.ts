@@ -157,7 +157,7 @@ export async function authenticate(
                 phone: '555-000-0000',
                 status: 'active',
                 providerType: 'psychiatrist',
-                dateOfBirth: new Date('1980-01-01'),
+                // No date of birth — encrypted-only, and dobWrite throws without a key.
                 gender: 'male',
               },
             });
@@ -191,7 +191,7 @@ export async function authenticate(
                 phone: '555-000-0000',
                 status: 'active',
                 providerType: 'psychiatrist',
-                dateOfBirth: new Date('1980-01-01'),
+                // No date of birth — encrypted-only, and dobWrite throws without a key.
                 gender: 'male',
               },
             });

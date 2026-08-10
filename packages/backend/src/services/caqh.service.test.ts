@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { encryptSafe } from '../utils/crypto.js';
+import { encryptSafe, encrypt } from '../utils/crypto.js';
 
 vi.hoisted(() => {
   process.env['CAQH_API_URL'] = 'https://caqh.test.com';
@@ -79,7 +79,7 @@ function buildResolvableProvider(overrides: Partial<{
     npi: '1234567890',
     firstName: 'Jane',
     lastName: 'Doe',
-    dateOfBirth: new Date('1985-06-15'),
+    dateOfBirthEncrypted: encrypt('1985-06-15'),
     providerType: 'lcsw',
     taxonomy: null,
     primaryPracticeState: null,
@@ -478,7 +478,7 @@ describe('CaqhService', () => {
 
     it('formats birthdate as YYYYMMDD (8 digits, no separators)', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(buildResolvableProvider({
-        dateOfBirth: new Date('1980-01-05'),
+        dateOfBirthEncrypted: encrypt('1980-01-05'),
       }) as any);
       const fetchSpy = mockFetchOk(SUCCESS_RESPONSE);
 
@@ -3524,7 +3524,7 @@ describe('CaqhService', () => {
         middleName: 'Q',
         suffix: 'Jr',
         lastName: 'Doe',
-        dateOfBirth: new Date('1985-06-15'),
+        dateOfBirthEncrypted: encrypt('1985-06-15'),
         providerType: 'lcsw',
         gender: 'female',
         email: 'jane@example.com',

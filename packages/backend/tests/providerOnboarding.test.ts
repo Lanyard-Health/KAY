@@ -32,6 +32,7 @@ import {
   deleteCognitoUser,
 } from '../src/services/cognitoUser.service.js';
 import { providerDob } from '../src/services/provider-dob.service.js';
+import { encrypt } from '../src/utils/crypto.js';
 import {
   submitApplication,
   approveApplication,
@@ -58,7 +59,7 @@ const mockApplication = {
   suffix: null,
   email: 'jane@test.com',
   phone: '555-1234',
-  dateOfBirth: new Date('1985-06-15'),
+  dateOfBirthEncrypted: encrypt('1985-06-15'),
   gender: 'female',
   providerType: 'psychiatrist',
   taxonomy: null,

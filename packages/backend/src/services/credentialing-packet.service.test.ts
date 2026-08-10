@@ -92,25 +92,45 @@ describe('buildPacket', () => {
       expect(packet.provider.dateOfBirth?.toISOString()).toBe('1972-09-04T00:00:00.000Z');
     });
 
-    it('still populates dateOfBirth from legacy plaintext alone', async () => {
+    // The plaintext column is gone (Phase 5), so ciphertext is the only source.
+    // What matters now is the failure shape: a provider with no readable date of
+    // birth must yield null rather than something a recipe would render. An
+    // unresolved sourcePath is classified `missingOptional` — informational, not
+    // an error — so a wrong value here ships a filled-in-but-wrong form to a
+    // payer, which is worse than a blank one.
+    it('yields a null dateOfBirth when there is no ciphertext', async () => {
       prismaMock.providerProfile.findUnique.mockResolvedValue(
-        stubProvider({ dateOfBirth: new Date('1972-09-04T00:00:00.000Z'), dateOfBirthEncrypted: null })
+        stubProvider({ dateOfBirthEncrypted: null })
       );
 
       const packet = await buildPacket(PROVIDER_ID);
 
-      expect(packet.provider.dateOfBirth?.toISOString()).toBe('1972-09-04T00:00:00.000Z');
+      expect(packet.provider.dateOfBirth).toBeNull();
+    });
+
+    it('yields a null dateOfBirth when the ciphertext will not decrypt', async () => {
+      prismaMock.providerProfile.findUnique.mockResolvedValue(
+        stubProvider({ dateOfBirthEncrypted: 'not-ciphertext' })
+      );
+
+      const packet = await buildPacket(PROVIDER_ID);
+
+      expect(packet.provider.dateOfBirth).toBeNull();
     });
 
     it('never exposes the ciphertext to a recipe sourcePath', async () => {
       const { dateOfBirthEncrypted } = dobWrite('1972-09-04');
       prismaMock.providerProfile.findUnique.mockResolvedValue(
-        stubProvider({ dateOfBirth: null, dateOfBirthEncrypted })
+        stubProvider({ dateOfBirthEncrypted })
       );
 
       const packet = await buildPacket(PROVIDER_ID);
 
-      expect(packet.provider.dateOfBirthEncrypted).toBeNull();
+      // Absent rather than null: the key is dropped from the packet entirely,
+      // so a recipe sourcePath of 'dateOfBirthEncrypted' resolves to nothing.
+      expect(packet.provider).not.toHaveProperty('dateOfBirthEncrypted');
+      // ...while the decrypted value is still reachable under the name recipes use.
+      expect(packet.provider.dateOfBirth?.toISOString()).toBe('1972-09-04T00:00:00.000Z');
     });
   });
 
