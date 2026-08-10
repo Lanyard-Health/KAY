@@ -10,23 +10,6 @@
  */
 export type CognitoErrorContext = 'signIn' | 'changePassword' | 'passwordReset';
 
-/**
- * True when the error is Cognito refusing to reset a password that was never
- * set — an account still in `FORCE_CHANGE_PASSWORD` from its original invite.
- *
- * Cognito reports this as a bare `NotAuthorizedException`, indistinguishable
- * by name from a wrong password. Only the flow tells them apart: a password
- * reset never submits a current password, so "incorrect password" cannot be
- * what happened there.
- */
-export function isSetupIncompleteError(error: unknown, context: CognitoErrorContext): boolean {
-  return (
-    context === 'passwordReset' &&
-    error instanceof Error &&
-    (error as { name?: string }).name === 'NotAuthorizedException'
-  );
-}
-
 export function mapCognitoError(
   error: unknown,
   context: CognitoErrorContext = 'changePassword'
@@ -35,10 +18,16 @@ export function mapCognitoError(
     const name = (error as { name?: string }).name || '';
     switch (name) {
       case 'NotAuthorizedException':
-        // Same exception name, three different meanings. Reporting "current
-        // password is incorrect" on a reset screen — where no password was
-        // typed — sent at least one user looking for an email that Cognito
-        // was never going to send.
+        // Same exception name, three different meanings, and only the calling
+        // flow separates them. "Current password is incorrect" was previously
+        // shown on the reset screen, which has no password field.
+        //
+        // The reset branch is a fallback, not the primary path: with the app
+        // client's `PreventUserExistenceErrors` ENABLED — as it is in both
+        // environments — Cognito masks this error and returns success instead
+        // (verified against the live pool 2026-08-10). It only surfaces under
+        // the LEGACY setting. The reachable recovery path is the resend-invite
+        // action on the code-entry screen.
         if (context === 'passwordReset') {
           return "This account hasn't finished setup, so there's no password to reset yet";
         }
