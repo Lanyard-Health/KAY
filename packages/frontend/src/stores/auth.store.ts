@@ -89,6 +89,7 @@ interface AuthState {
   // Verifies a 6-digit email code (CONFIRM_SIGN_IN_WITH_EMAIL_CODE).
   handleEmailMfaCode: (code: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  resendInvite: (email: string) => Promise<void>;
   confirmForgotPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }
 
@@ -669,6 +670,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   forgotPassword: async (email: string) => {
     const { resetPassword } = await import('aws-amplify/auth');
     await resetPassword({ username: email });
+  },
+
+  /**
+   * Re-send the original invitation for an account that never completed setup.
+   *
+   * Goes through our API rather than Cognito directly: re-sending an invite is
+   * an admin-credential operation, and those credentials cannot live in a
+   * browser. This is the one auth action in this store that is not an Amplify
+   * call for that reason.
+   *
+   * Throws only if the request itself fails. The endpoint deliberately returns
+   * success for unknown addresses so it cannot be used to discover accounts.
+   */
+  resendInvite: async (email: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/resend-invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+      throw new Error('Invitation resend request failed');
+    }
   },
 
   confirmForgotPassword: async (email: string, code: string, newPassword: string) => {
