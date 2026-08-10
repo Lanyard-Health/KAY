@@ -359,3 +359,75 @@ dropping them loses nothing. **It stops being safe after Phase 3 backfills them
 and Phase 4 clears plaintext** — from that point the encrypted column is the only
 copy, and the rollback would destroy every date of birth. The script refuses to
 run if either column holds data.
+
+---
+
+## Phase 5 — completed 2026-08-10
+
+Two steps, run in the inverse order of Phase 1: deploy the code that no longer
+names the column, *then* drop it.
+
+### 5a — schema + shim (PR #555, merged as `fdcce6b`)
+
+`dateOfBirth` removed from both models in `schema.prisma`; the shim's plaintext
+fallback deleted, so `providerDob()` now reads ciphertext or returns null.
+Migration `20260810040000_drop_provider_dob_plaintext` added.
+
+The migration could not be allowed to run at boot. `render.yaml` invokes
+`prisma migrate deploy` as the **start command** under the runtime role
+`lanyard_app`, which cannot `ALTER` a table created before 2026-06-03 — the
+migration would have failed with `42501` and the container would never have
+served a request. It was therefore recorded as applied *before* the merge,
+without executing its SQL:
+
+```bash
+phase5-dob.sh staging resolve
+phase5-dob.sh prod   resolve
+```
+
+`prisma migrate resolve --applied` writes the `_prisma_migrations` row and runs
+nothing. Both databases then held the migration as applied with all four columns
+still physically present — which is exactly what made the merge safe.
+
+Prod reached `fdcce6b` at 04:59 UTC, health 200. A 200 is itself the proof that
+`migrate deploy` no-opped rather than erroring.
+
+### 5b — the drop
+
+`develop` had to be synced to `master` first (PR #554). Staging was running
+`9158f22`, whose generated client still listed `date_of_birth`; dropping the
+column under it would have produced `42703` on every provider read. Staging
+deployed `119a149`, health 200, and only then:
+
+```bash
+phase5-dob.sh staging drop      # then verify
+phase5-dob.sh prod   drop
+```
+
+The script refuses to drop if any row holds a date of birth in plaintext with no
+ciphertext, so a mistimed run cannot destroy the only copy.
+
+### Verification — query shape, not just liveness
+
+A health check proves the process is up; it does not prove any provider query
+ran. The real risk was the generated Prisma client still naming a dropped
+column, which surfaces only when a `SELECT` is issued. So both environments were
+read through the live client, relations included:
+
+| Environment | Rows queried | Decrypted | Failed | `42703` in logs |
+|---|---|---|---|---|
+| staging | 8 providers + 2 applications | 10 | 0 | 0 of 100 lines |
+| production | 18 providers + 6 applications | 23 | 0 | 0 of 150 lines |
+
+The one production row without a date of birth has none stored — 17 providers
+hold ciphertext, 18 exist.
+
+`information_schema.columns` now returns only `date_of_birth_encrypted` for both
+tables in both environments.
+
+### Rollback no longer applies
+
+`rollback_20260809045015_provider_dob.sql` drops the encrypted columns. From
+Phase 4 onward those are the only copy of every date of birth, and after 5b the
+plaintext columns they would restore to no longer exist. Do not run it. Recovery
+from here is a point-in-time restore of the database.
