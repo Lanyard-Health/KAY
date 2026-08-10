@@ -61,3 +61,26 @@ describe('mapCognitoError — other exceptions are unchanged by context', () => 
   });
 });
 
+
+describe('mapCognitoError — InvalidParameterException on the reset flow', () => {
+  const err = cognitoError('InvalidParameterException');
+
+  // Every production user hits this on "Forgot password": the pool runs
+  // Require-MFA with Email enabled, and Cognito will not recover an account
+  // through a medium that is also an MFA factor. Reproduced on
+  // portal.lanyardhealth.com 2026-08-10.
+  it('does not blame the customer for an address that is fine', () => {
+    expect(mapCognitoError(err, 'passwordReset')).not.toMatch(/invalid/i);
+  });
+
+  it('names the route that actually works', () => {
+    expect(mapCognitoError(err, 'passwordReset')).toContain('support@lanyardhealth.com');
+  });
+
+  it.each(['signIn', 'changePassword'] as const)(
+    'leaves the %s reading alone — there it really is a bad input',
+    (context) => {
+      expect(mapCognitoError(err, context)).toBe('One of the values you entered is invalid');
+    }
+  );
+});

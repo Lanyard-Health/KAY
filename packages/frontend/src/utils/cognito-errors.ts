@@ -52,6 +52,22 @@ export function mapCognitoError(
       case 'UserNotFoundException':
         return 'No account found with that email';
       case 'InvalidParameterException':
+        // On the reset flow this is not a bad input — the address is fine and
+        // telling the customer otherwise sends them round the same loop.
+        //
+        // The production pool runs Require-MFA with Email enabled
+        // (`docs/cognito-mfa-runbook.md`), and Cognito will not recover an
+        // account through a medium that is also an MFA factor. So ForgotPassword
+        // throws this for EVERY prod user, whatever they type. Reproduced on
+        // portal.lanyardhealth.com 2026-08-10.
+        //
+        // Until MFA moves to OPTIONAL or an SMS factor is added, the only
+        // working route is an admin pressing "Send new password"
+        // (`POST /users/:id/resend-invite`), so point there rather than at a
+        // retry that cannot succeed.
+        if (context === 'passwordReset') {
+          return 'Self-service reset is unavailable for your account. Email support@lanyardhealth.com and we will send you a new password.';
+        }
         return 'One of the values you entered is invalid';
       case 'UsernameExistsException':
         return 'An account already exists with that email';
