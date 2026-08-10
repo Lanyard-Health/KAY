@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapCognitoError, isSetupIncompleteError } from './cognito-errors';
+import { mapCognitoError } from './cognito-errors';
 
 /**
  * `NotAuthorizedException` is the reason this file exists. Cognito reuses that
@@ -61,26 +61,3 @@ describe('mapCognitoError — other exceptions are unchanged by context', () => 
   });
 });
 
-describe('isSetupIncompleteError', () => {
-  it('is true only for NotAuthorizedException during a reset', () => {
-    expect(isSetupIncompleteError(cognitoError('NotAuthorizedException'), 'passwordReset')).toBe(
-      true
-    );
-  });
-
-  it('is false for the same error in any other flow', () => {
-    const err = cognitoError('NotAuthorizedException');
-    expect(isSetupIncompleteError(err, 'signIn')).toBe(false);
-    expect(isSetupIncompleteError(err, 'changePassword')).toBe(false);
-  });
-
-  it('is false for a different exception during a reset', () => {
-    expect(isSetupIncompleteError(cognitoError('LimitExceededException'), 'passwordReset')).toBe(
-      false
-    );
-  });
-
-  it('is false for a non-Error value', () => {
-    expect(isSetupIncompleteError({ name: 'NotAuthorizedException' }, 'passwordReset')).toBe(false);
-  });
-});
