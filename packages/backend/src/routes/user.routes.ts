@@ -92,6 +92,12 @@ userRoutes.get(
           createdAt: true,
           providerId: true,
           practices: {
+            // The WHERE above decides which *users* you see. Without this, each
+            // of them arrives carrying every practice they belong to, including
+            // ones you have no access to.
+            ...(req.practiceScope?.isSuperAdmin
+              ? {}
+              : { where: { practiceId: { in: req.practiceScope?.practiceIds ?? [] } } }),
             select: {
               id: true,
               practiceId: true,
@@ -189,14 +195,18 @@ userRoutes.get(
         throw new NotFoundError('User');
       }
 
-      // Practice-scope check: non-admins can only view users in their practice(s)
+      // Practice-scope check: non-admins can only view users in their practice(s).
+      // The check needs the full list, so it is fetched whole and then trimmed
+      // before it goes out — deciding "may I see this person?" must not also
+      // hand over every other company that person belongs to.
       if (!req.practiceScope?.isSuperAdmin) {
-        const sharedPractice = user.practices.some(
+        const visible = user.practices.filter(
           (p) => req.practiceScope?.practiceIds.includes(p.practiceId)
         );
-        if (!sharedPractice) {
+        if (!visible.length) {
           throw new ForbiddenError('You do not have access to this user');
         }
+        user.practices = visible;
       }
 
       res.json({ success: true, data: user });

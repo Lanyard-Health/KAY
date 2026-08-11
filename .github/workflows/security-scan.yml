@@ -856,8 +856,8 @@ jobs:
           path: /tmp/boot.log
           if-no-files-found: ignore
 
-  # Multi-tenancy guardrail. Runs ONE test file — the tenant-scope coverage
-  # scan — as its own blocking check.
+  # Multi-tenancy guardrail. Runs the tenant-scope test files as their own
+  # blocking check.
   #
   # This test has existed since July and has been failing since July. Nothing
   # stopped it, because Backend Tests runs with `|| true` and is excluded from
@@ -867,8 +867,9 @@ jobs:
   #
   # Split out rather than making the whole backend suite blocking: an ordinary
   # unit-test failure should not wedge every merge, but a cross-tenant data
-  # leak should. Needs no database, no Prisma client and no shared build — the
-  # test only reads schema.prisma and route source off disk.
+  # leak should. Needs no database and no Prisma client: two of the three files
+  # only read schema.prisma and route source off disk. The third imports the
+  # access-review service, so the shared package has to be built first.
   tenant-scope:
     name: Tenant Scope Guardrail
     runs-on: ubuntu-latest
@@ -894,12 +895,32 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # access-review.practice-scope imports the access-review service, which
+      # imports @credential-management/shared. Without this the suite fails to
+      # load and the guardrail reports a leak it never actually looked for.
+      - name: Build Shared Package
+        run: npm run build --workspace=packages/shared
+
       # No `|| true` here, unlike Backend Tests. A failure must fail the job.
+      #
+      # Three files, covering three different failure modes:
+      #   tenant-scope-coverage  — a route touching tenant tables with no scope
+      #                            at all (file-level scan of route source)
+      #   access-review.practice-scope — a nested select returning rows the
+      #                            caller may not see, which the file-level scan
+      #                            cannot detect: the file references
+      #                            req.practiceScope correctly a few lines above
+      #   tenant-response-guard  — the runtime backstop that refuses to send a
+      #                            foreign practice whatever the handler built
       - name: Run Tenant-Scope Coverage Test
         id: scan
         continue-on-error: true
         working-directory: packages/backend
-        run: ../../node_modules/.bin/vitest run tests/tenant-scope-coverage.test.ts
+        run: |
+          ../../node_modules/.bin/vitest run \
+            tests/tenant-scope-coverage.test.ts \
+            tests/access-review.practice-scope.test.ts \
+            tests/tenant-response-guard.test.ts
 
       - name: Record Result
         if: always()

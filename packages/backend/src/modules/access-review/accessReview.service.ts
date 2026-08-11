@@ -75,23 +75,41 @@ function buildUserWhere(
   };
 }
 
-const ENTITLEMENT_SELECT = {
-  id: true,
-  email: true,
-  firstName: true,
-  lastName: true,
-  role: true,
-  isActive: true,
-  lastLoginAt: true,
-  createdAt: true,
-  practices: {
-    select: {
-      practiceId: true,
-      role: true,
-      practice: { select: { id: true, name: true, status: true } },
+/**
+ * Selection for one entitlement row, scoped the same way the user list is.
+ *
+ * The WHERE built above only decides *which users* appear — "people who share
+ * a practice with you". It says nothing about which of their practices you may
+ * see, so an unfiltered nested select handed a practice_admin the full tenancy
+ * list of everyone it matched: a viewer scoped to one practice could read the
+ * names of every other company a shared user belonged to, on screen and in the
+ * CSV export. Scope the nested rows too, or the row leaks what the filter just
+ * finished restricting.
+ */
+function entitlementSelect(scopePracticeIds: string[] | null) {
+  return {
+    id: true,
+    email: true,
+    firstName: true,
+    lastName: true,
+    role: true,
+    isActive: true,
+    lastLoginAt: true,
+    createdAt: true,
+    practices: {
+      // null means unrestricted (admin / lanyard_staff). An array — including
+      // an empty one — restricts, and empty correctly yields nothing.
+      ...(scopePracticeIds !== null && {
+        where: { practiceId: { in: scopePracticeIds } },
+      }),
+      select: {
+        practiceId: true,
+        role: true,
+        practice: { select: { id: true, name: true, status: true } },
+      },
     },
-  },
-} as const;
+  } as const;
+}
 
 export async function getEntitlements(
   q: EntitlementQuery,
@@ -101,7 +119,7 @@ export async function getEntitlements(
   const [users, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      select: ENTITLEMENT_SELECT,
+      select: entitlementSelect(scopePracticeIds),
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
@@ -141,7 +159,7 @@ export async function exportEntitlementsCsv(
   const where = buildUserWhere(q, scopePracticeIds);
   const users = await prisma.user.findMany({
     where,
-    select: ENTITLEMENT_SELECT,
+    select: entitlementSelect(scopePracticeIds),
     orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     take: EXPORT_ROW_CAP,
   });
