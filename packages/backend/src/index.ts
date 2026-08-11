@@ -21,6 +21,7 @@ import { apiLimiter } from './middleware/rate-limit.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { auditMiddleware } from './middleware/audit.middleware.js';
 import { attachPracticeScope } from './middleware/practiceScope.middleware.js';
+import { tenantResponseGuard } from './middleware/tenantResponseGuard.middleware.js';
 import { requestId } from './middleware/request-id.middleware.js';
 import { logger } from './utils/logger.js';
 import { sendSlackAlert } from './utils/slack-alert.js';
@@ -201,6 +202,11 @@ app.use(auditMiddleware);
 
 // Practice scope middleware (must run after authenticate in each route)
 app.use(attachPracticeScope);
+
+// Refuses to send a practice the caller is not scoped to, whatever the handler
+// above it selected. Must sit after attachPracticeScope so a scope exists to
+// check against.
+app.use(tenantResponseGuard);
 
 // Root route — redirect to frontend
 app.get('/', (_req, res) => {

@@ -895,11 +895,25 @@ jobs:
         run: npm ci
 
       # No `|| true` here, unlike Backend Tests. A failure must fail the job.
+      #
+      # Three files, covering three different failure modes:
+      #   tenant-scope-coverage  — a route touching tenant tables with no scope
+      #                            at all (file-level scan of route source)
+      #   access-review.practice-scope — a nested select returning rows the
+      #                            caller may not see, which the file-level scan
+      #                            cannot detect: the file references
+      #                            req.practiceScope correctly a few lines above
+      #   tenant-response-guard  — the runtime backstop that refuses to send a
+      #                            foreign practice whatever the handler built
       - name: Run Tenant-Scope Coverage Test
         id: scan
         continue-on-error: true
         working-directory: packages/backend
-        run: ../../node_modules/.bin/vitest run tests/tenant-scope-coverage.test.ts
+        run: |
+          ../../node_modules/.bin/vitest run \
+            tests/tenant-scope-coverage.test.ts \
+            tests/access-review.practice-scope.test.ts \
+            tests/tenant-response-guard.test.ts
 
       - name: Record Result
         if: always()
