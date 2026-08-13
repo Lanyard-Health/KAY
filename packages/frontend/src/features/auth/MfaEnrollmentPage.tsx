@@ -220,8 +220,17 @@ function ChooseMethod({
   const [skipping, setSkipping] = useState(false);
   // A browser with no WebAuthn support can't offer passkeys at all, and an
   // option that always errors is worse than one that isn't there.
+  //
+  // The same applies to the pool: production (us-east-1_SXOvfeegD) has no
+  // WebAuthn relying-party ID set, so StartWebAuthnRegistration throws and the
+  // option would fail for every customer. Verified 2026-08-12 with
+  // `packages/backend/scripts/check-passkey-support.mjs`. Flip this to true
+  // once that script reports a relying party, and re-run it to confirm.
+  const POOL_SUPPORTS_PASSKEYS = false;
   const passkeyCapable =
-    typeof window !== 'undefined' && typeof window.PublicKeyCredential !== 'undefined';
+    POOL_SUPPORTS_PASSKEYS &&
+    typeof window !== 'undefined' &&
+    typeof window.PublicKeyCredential !== 'undefined';
 
   return (
     <div className="animate-fade-in">
