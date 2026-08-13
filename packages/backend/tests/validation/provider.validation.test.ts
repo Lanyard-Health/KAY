@@ -113,9 +113,13 @@ describe('Provider Validation Schemas', () => {
       expect(() => createProviderSchema.parse(rest)).toThrow();
     });
 
-    it('requires dateOfBirth', () => {
+    // Optional by design, not an oversight: staff add providers from the NPI
+    // registry, which does not publish a date of birth. CAQH readiness is what
+    // requires one. This asserted the opposite and had been failing since that
+    // decision shipped.
+    it('allows a provider with no dateOfBirth', () => {
       const { dateOfBirth, ...rest } = validInput;
-      expect(() => createProviderSchema.parse(rest)).toThrow();
+      expect(() => createProviderSchema.parse(rest)).not.toThrow();
     });
 
     it('validates date format YYYY-MM-DD', () => {
