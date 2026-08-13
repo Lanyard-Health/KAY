@@ -12,7 +12,9 @@ export type CognitoErrorContext = 'signIn' | 'changePassword' | 'passwordReset';
 
 export function mapCognitoError(
   error: unknown,
-  context: CognitoErrorContext = 'changePassword'
+  context: CognitoErrorContext = 'changePassword',
+  /** Shown instead of the raw SDK message when the error is not one we know. */
+  fallback?: string
 ): string {
   if (error instanceof Error) {
     const name = (error as { name?: string }).name || '';
@@ -72,8 +74,12 @@ export function mapCognitoError(
       case 'UsernameExistsException':
         return 'An account already exists with that email';
       default:
-        return error.message || 'Something went wrong';
+        // Without an explicit fallback this hands the raw SDK string to the
+        // user — that is how "Auth UserPool not configured." reached a
+        // customer-facing card during MFA enrollment testing. Screens that can
+        // fail on infrastructure rather than input should pass one.
+        return fallback ?? error.message ?? 'Something went wrong';
     }
   }
-  return 'Something went wrong';
+  return fallback ?? 'Something went wrong';
 }
