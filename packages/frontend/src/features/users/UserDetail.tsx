@@ -65,7 +65,7 @@ export default function UserDetail() {
     setConfirmState({
       isOpen: true,
       title: 'Send New Password Email',
-      message: `Email ${user!.firstName} ${user!.lastName} a new temporary password at ${user!.email}? Their current password stops working immediately, and they'll set a new one when they next sign in. Use this when someone is locked out — "Forgot password" does not work on our login page.`,
+      message: `Email ${user!.firstName} ${user!.lastName} a new temporary password at ${user!.email}? Their current password stops working immediately, and they'll set a new one when they next sign in. Most people can now reset their own password from the login page — use this when that isn't working for them.`,
       variant: 'warning',
       confirmLabel: 'Send new password',
       onConfirm: () => {
@@ -195,8 +195,9 @@ export default function UserDetail() {
             Edit
           </button>
           {/* Shown for every active user, including ones who have signed in before.
-              "Forgot password" is non-functional on our Cognito pool, so this is
-              the only way anyone gets back into a locked-out account. */}
+              Self-service reset works again as of 2026-08-12 (the pool required
+              MFA while also recovering through email, which Cognito refuses), so
+              this is now the fallback rather than the only route back in. */}
           {user.isActive && (
             <button
               onClick={handleResendInvite}
