@@ -110,6 +110,18 @@ export const authLimiter = () =>
     },
   });
 
+/**
+ * Second-factor enrollment: 60 / min per IP.
+ *
+ * Deliberately NOT authLimiter. These endpoints are read on every sign-in and
+ * on every reload of the setup screen, so 5-per-15-minutes locks ordinary users
+ * out of the very flow that unblocks them — observed as a 429 during local
+ * testing. They are also authenticated and cannot be used to guess a password,
+ * so the credential-stuffing budget does not apply.
+ */
+export const mfaLimiter = () =>
+  buildLimiter({ scope: 'auth.mfa', windowMs: 60 * 1000, max: 60 });
+
 /** Signup / portal registration: 5 per 15min per IP. */
 export const signupLimiter = () =>
   buildLimiter({ scope: 'signup', windowMs: 15 * 60 * 1000, max: 5 });
