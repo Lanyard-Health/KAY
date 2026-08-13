@@ -8,13 +8,7 @@ import type { UserFilters } from '../../hooks/useUserManagement';
 import UserFormModal from './UserFormModal';
 import { AnimatedList, AnimatedListItem } from '../../components/ui/AnimatedList';
 import EmptyState from '../../components/ui/EmptyState';
-
-const ROLE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  admin: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Admin' },
-  lanyard_staff: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Lanyard Health Staff' },
-  credentialing_staff: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Credentialing Staff' },
-  provider: { bg: 'bg-green-100', text: 'text-green-800', label: 'Provider' },
-};
+import { badgeFor } from './roleBadge';
 
 export default function UsersList() {
   const navigate = useNavigate();
@@ -110,6 +104,7 @@ export default function UsersList() {
           <option value="admin">Admin</option>
           <option value="lanyard_staff">Lanyard Health Staff</option>
           <option value="credentialing_staff">Credentialing Staff</option>
+          <option value="practice_admin">Practice Admin</option>
           <option value="provider">Provider</option>
         </select>
         <select
@@ -154,7 +149,7 @@ export default function UsersList() {
             </thead>
             <AnimatedList as="tbody" className="bg-white divide-y divide-gray-200">
               {users.map((user, index) => {
-                const roleBadge = ROLE_BADGE[user.role] || ROLE_BADGE.credentialing_staff;
+                const roleBadge = badgeFor(user.role);
                 return (
                   <AnimatedListItem
                     itemKey={user.id}

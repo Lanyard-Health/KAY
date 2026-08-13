@@ -9,18 +9,24 @@ services:
     name: kay-backend
     runtime: node
     plan: free
-    # playwright chromium = submission engine; puppeteer chrome = CAQH credential
-    # verifier (separate binaries — puppeteer cannot see playwright's install).
-    # PUPPETEER_CACHE_DIR must point inside the project so the browser downloaded
-    # at build time survives into the runtime filesystem.
-    buildCommand: npm ci --include=dev && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npx playwright install --with-deps chromium && npx puppeteer browsers install chrome && npm run build
+    # One Playwright chromium serves both browser consumers: the submission
+    # engine and the CAQH credential verifier (ported off puppeteer 2026-08).
+    # PLAYWRIGHT_BROWSERS_PATH must point inside the project so the browser
+    # downloaded at build time survives into the runtime filesystem.
+    # `node node_modules/playwright/cli.js`, not `npx playwright`: npx failed to
+    # resolve the binary on Render's npm and killed the 2026-08-13 build with
+    # "playwright: not found" even though the package was installed. Invoking the
+    # cli file directly cannot misresolve. No --with-deps: it wants root to
+    # install OS packages, and the libraries are already on Render's image
+    # (Chrome ran on this box for months).
+    buildCommand: npm ci --include=dev && node node_modules/playwright/cli.js install chromium && cd packages/shared && npm run build && cd ../backend && npx prisma generate && npm run build
     startCommand: cd packages/backend && npx prisma migrate deploy && node dist/index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/.cache/puppeteer
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/.cache/ms-playwright
       - key: DATABASE_URL
         fromDatabase:
           name: kay-db

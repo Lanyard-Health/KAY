@@ -285,11 +285,23 @@ export async function setCognitoUserPassword(
  * Re-send the original invitation for an account that never completed setup.
  *
  * A Cognito user sits in `FORCE_CHANGE_PASSWORD` from the moment they are
- * invited until they first sign in. In that state `ForgotPassword` is refused
- * outright — there is no password to reset yet — so the ordinary "forgot my
- * password" flow is a dead end for exactly the people most likely to need it.
- * `AdminCreateUser` with `MessageAction: RESEND` issues a fresh temporary
- * password and re-sends the invite, which is the actual remedy.
+ * invited until they first sign in. In that state `ForgotPassword` does not
+ * error — it returns HTTP 200 with a populated `CodeDeliveryDetails` and sends
+ * no email at all (measured on the staging pool 2026-08-09 with two accounts on
+ * the same inbox one minute apart: the CONFIRMED one received a code, this one
+ * did not). Reporting a delivery it does not perform is why this was invisible
+ * from the client for so long. `AdminCreateUser` with `MessageAction: RESEND`
+ * issues a fresh temporary password and re-sends the invite, which is the
+ * actual remedy.
+ *
+ * That measurement is a **staging** result and does not describe production.
+ * The prod pool (`us-east-1_SXOvfeegD`) runs Require-MFA with Email as an
+ * enabled factor (`docs/cognito-mfa-runbook.md`), and Cognito refuses to
+ * recover an account through a medium that is also an MFA factor — so there
+ * `ForgotPassword` throws `InvalidParameterException` for every user regardless
+ * of state, and the caller never reaches the code-entry screen at all. See
+ * `reissueTemporaryPassword`, which is the only recovery path that works on the
+ * production pool today.
  *
  * Returns whether an invite was sent. The caller must NOT surface that
  * distinction to an unauthenticated user: a response that differs for a known
@@ -319,9 +331,15 @@ export async function resendCognitoInvite(email: string): Promise<boolean> {
   }
 
   if (status !== 'FORCE_CHANGE_PASSWORD') {
-    // A CONFIRMED user has a working password and should use the normal reset
-    // flow; re-sending an invite would replace their password with a temporary
-    // one and lock them out of their own account.
+    // Refused for a CONFIRMED user because this endpoint is unauthenticated:
+    // anyone who knows an address could otherwise replace that person's working
+    // password with a temporary one.
+    //
+    // Note this leaves CONFIRMED users with no self-service route on the prod
+    // pool, where `ForgotPassword` also fails (see the docblock above). Their
+    // recovery path is an admin pressing "Send new password" —
+    // `POST /users/:id/resend-invite`, which is authenticated and practice-scoped
+    // and can therefore safely do what this one must not.
     return false;
   }
 

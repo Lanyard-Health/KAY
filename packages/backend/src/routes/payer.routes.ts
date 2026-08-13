@@ -131,11 +131,18 @@ payerRoutes.get(
   authorize(...STAFF_ROLES),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // A payer is shared by every practice, so an unfiltered count here is a
+      // platform-wide total: it told a customer how much business every other
+      // practice does with this payer. No names, but not theirs to see.
       const payer = await prisma.payer.findUnique({
         where: { id: req.params['id'] },
         include: {
           _count: {
-            select: { enrollments: true },
+            select: {
+              enrollments: req.practiceScope?.isSuperAdmin
+                ? true
+                : { where: { practiceId: { in: req.practiceScope?.practiceIds ?? [] } } },
+            },
           },
         },
       });
