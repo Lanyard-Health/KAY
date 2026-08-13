@@ -225,8 +225,7 @@ function ChooseMethod({
 
   return (
     <div className="animate-fade-in">
-      <p className="text-xs font-medium text-[#75705f]">Step 1 of 2</p>
-      <h1 className="mt-2 text-2xl font-semibold leading-snug text-[#171b17]">
+      <h1 className="text-2xl font-semibold leading-snug text-[#171b17]">
         Add a second step to signing in
       </h1>
       <p className="mt-3 text-sm leading-6 text-[#6b665c]">
@@ -267,6 +266,22 @@ function ChooseMethod({
           onClick={() => onPick('email')}
         />
       </div>
+
+      {/* "Authenticator app" is the one term here a non-technical office
+          manager meets cold. A <details> answers it for the people who need it
+          without taxing everyone else, and needs no modal or second page. */}
+      <details className="mt-4 text-sm">
+        <summary className="cursor-pointer text-[#6b665c] transition hover:text-[#1f2721]">
+          What&apos;s an authenticator app?
+        </summary>
+        <p className="mt-2 rounded-xl bg-[#faf9f6] px-4 py-3 text-xs leading-5 text-[#6b665c]">
+          A free app on your phone that shows a 6-digit code, changing every 30 seconds. You
+          install it once, point its camera at a square code we show you, and from then on it
+          keeps generating codes even with no signal. Google Authenticator and Microsoft
+          Authenticator are both free; if you already use 1Password or Bitwarden, they do this
+          too.
+        </p>
+      </details>
 
       {status.canSkip ? (
         <div className="mt-7 border-t border-[#f0eadd] pt-5">
@@ -391,7 +406,7 @@ function PasskeySetup({ onBack, onDone }: { onBack: () => void; onDone: () => vo
 
   return (
     <div className="animate-fade-in">
-      <p className="text-xs font-medium text-[#75705f]">Step 2 of 2</p>
+      <p className="text-xs font-medium text-[#75705f]">Last step</p>
       <h1 className="mt-2 text-2xl font-semibold leading-snug text-[#171b17]">
         Use this device to sign in
       </h1>
@@ -538,7 +553,7 @@ function AuthenticatorSetup({
 
   return (
     <div className="animate-fade-in">
-      <p className="text-xs font-medium text-[#75705f]">Step 2 of 2</p>
+      <p className="text-xs font-medium text-[#75705f]">Last step</p>
       <h1 className="mt-2 text-2xl font-semibold leading-snug text-[#171b17]">
         Scan this with your authenticator app
       </h1>
@@ -617,7 +632,7 @@ function EmailSetup({
 
   return (
     <div className="animate-fade-in">
-      <p className="text-xs font-medium text-[#75705f]">Step 2 of 2</p>
+      <p className="text-xs font-medium text-[#75705f]">Last step</p>
       <h1 className="mt-2 text-2xl font-semibold leading-snug text-[#171b17]">
         Send my codes by email
       </h1>
