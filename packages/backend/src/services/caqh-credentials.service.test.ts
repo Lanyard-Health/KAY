@@ -25,9 +25,12 @@ vi.mock('../utils/crypto.js', () => ({
   decrypt: (...args: any[]) => mockDecrypt(...args),
 }));
 
-// Mock puppeteer so we don't launch browsers in tests
-vi.mock('puppeteer', () => ({
-  default: {
+// Mock playwright so we don't launch browsers in tests. Note what this means:
+// these tests prove the credential storage and status logic, not the browser
+// automation. scripts/puppeteer-smoke.mjs (now Playwright) is the check that a
+// real browser actually drives.
+vi.mock('playwright', () => ({
+  chromium: {
     launch: vi.fn(),
   },
 }));

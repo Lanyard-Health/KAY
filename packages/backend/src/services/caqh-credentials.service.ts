@@ -1,5 +1,16 @@
 /// <reference lib="dom" />
-import puppeteer, { Browser, Page } from 'puppeteer';
+// Playwright, not puppeteer: the submission engine already ships Playwright, so
+// this was the only puppeteer consumer — and with it gone, so is puppeteer's
+// second Chrome download and its recurring audit findings.
+//
+// Two porting notes that matter if you touch the browser calls:
+//  - The page-level methods used here (page.$, page.click, page.type) keep
+//    puppeteer's first-match semantics. Playwright locators are strict and
+//    throw on multiple matches, which would break the deliberately loose
+//    selectors below (e.g. 'input[type="text"]').
+//  - 'networkidle2' does not exist in Playwright; 'networkidle' is the
+//    equivalent wait.
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { logger } from '../utils/logger.js';
 import { prisma } from '../utils/prisma.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
@@ -56,6 +67,7 @@ export interface CredentialVerificationResult {
 
 export class CaqhCredentialsService {
   private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
 
   /**
    * Verify CAQH ProView login credentials for a provider
@@ -70,7 +82,7 @@ export class CaqhCredentialsService {
 
     try {
       // Launch browser in headless mode
-      this.browser = await puppeteer.launch({
+      this.browser = await chromium.launch({
         headless: true,
         args: [
           '--no-sandbox',
@@ -81,18 +93,20 @@ export class CaqhCredentialsService {
         ],
       });
 
-      page = await this.browser.newPage();
-
-      // Set realistic viewport and user agent
-      await page.setViewport({ width: 1280, height: 720 });
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
+      // Viewport and user agent are context options in Playwright, not page
+      // methods — the realistic UA matters because CAQH serves a different
+      // (broken) flow to obvious headless browsers.
+      this.context = await this.browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      });
+      page = await this.context.newPage();
 
       // Navigate to CAQH ProView login page
       logger.info('Navigating to CAQH ProView login page');
       await page.goto(CAQH_PROVIEW_LOGIN_URL, {
-        waitUntil: 'networkidle2',
+        waitUntil: 'networkidle',
         timeout: 30000,
       });
 
@@ -138,11 +152,11 @@ export class CaqhCredentialsService {
         };
       }
 
-      // Click login and wait for navigation or error message
-      await Promise.all([
-        page.click(loginButtonSelector),
-        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => null),
-      ]);
+      // Click login and wait for the resulting page to settle. Playwright has
+      // no waitForNavigation; clicking then waiting for network idle covers
+      // both outcomes (navigation, or an in-page error message).
+      await page.click(loginButtonSelector);
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => null);
 
       // Wait a moment for any error messages to appear
       await this.delay(2000);
@@ -181,6 +195,10 @@ export class CaqhCredentialsService {
         details: error instanceof Error ? error.message : 'Unknown error',
       };
     } finally {
+      if (this.context) {
+        await this.context.close().catch(() => null);
+        this.context = null;
+      }
       if (this.browser) {
         await this.browser.close();
         this.browser = null;
@@ -378,14 +396,14 @@ export class CaqhCredentialsService {
           if (buttonText) {
             const buttons = await page.$$('button');
             for (const button of buttons) {
-              const text = await page.evaluate((el) => el.textContent, button);
+              const text = await button.evaluate((el) => el.textContent);
               if (text?.toLowerCase().includes(buttonText.toLowerCase())) {
                 // Return a unique selector for this button
-                const buttonSelector = await page.evaluate((el) => {
+                const buttonSelector = await button.evaluate((el) => {
                   if (el.id) return `#${el.id}`;
                   if (el.className) return `button.${el.className.split(' ').join('.')}`;
                   return 'button[type="submit"]';
-                }, button);
+                });
                 return buttonSelector;
               }
             }
