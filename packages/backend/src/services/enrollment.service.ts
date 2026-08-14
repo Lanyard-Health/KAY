@@ -45,10 +45,12 @@ function validateStatusTransition(current: EnrollmentStatus, next: EnrollmentSta
 export async function updateEnrollmentStatus(
   enrollmentId: string,
   newStatus: EnrollmentStatus,
-  updatedById: string,
+  // null = system-initiated (inbound webhook, workflow auto-advance)
+  updatedById: string | null,
   options?: {
     notes?: string;
     triggerDenialTriage?: boolean;
+    source?: 'api' | 'webhook' | 'workflow_auto_advance';
   },
 ): Promise<Enrollment> {
   const existing = await prisma.enrollment.findUnique({
@@ -132,16 +134,19 @@ export async function updateEnrollmentStatus(
     }).catch((err) => logger.error(`Workflow step sync failed for enrollment ${enrollmentId}:`, err));
   }
 
-  // Audit log
-  prisma.auditLog.create({
-    data: {
-      userId: updatedById,
-      action: 'update',
-      resourceType: 'enrollment',
-      resourceId: enrollmentId,
-      changes: { field: 'status', from: oldStatus, to: newStatus },
-    },
-  }).catch((err) => logger.error('Failed to create audit log for enrollment status change:', err));
+  // Audit log — skipped when the status didn't change (webhook replays with
+  // an unchanged status are deliberate no-ops, not auditable transitions)
+  if (oldStatus !== newStatus) {
+    prisma.auditLog.create({
+      data: {
+        userId: updatedById,
+        action: 'update',
+        resourceType: 'enrollment',
+        resourceId: enrollmentId,
+        changes: { field: 'status', from: oldStatus, to: newStatus, source: options?.source ?? 'api' },
+      },
+    }).catch((err) => logger.error('Failed to create audit log for enrollment status change:', err));
+  }
 
   invalidateCache('dashboard');
   invalidateCache('payer-analytics');
