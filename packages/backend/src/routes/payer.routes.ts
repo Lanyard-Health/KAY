@@ -273,7 +273,9 @@ payerRoutes.put(
     try {
       logger.warn('Deprecated endpoint called: PUT /payers/enrollments/update/:id — use PUT /enrollments/:id', { user: req.user?.id });
       res.setHeader('X-Deprecated', 'Use PUT /api/v1/enrollments/:id instead');
-      const data = nullablePartial(createEnrollmentSchema).parse(req.body);
+      // Status changes must go through the enrollment service's state machine
+      // (PUT /enrollments/:id) — this legacy path no longer accepts `status`.
+      const data = nullablePartial(createEnrollmentSchema.omit({ status: true })).parse(req.body);
 
       setAuditContext(req, { resourceType: 'enrollment', resourceId: req.params['id'], action: 'update' });
 

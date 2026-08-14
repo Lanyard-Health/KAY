@@ -13,7 +13,11 @@
  *  - Mode B: by `providerNpi` + `payerExternalId` (matches Payer.payerId)
  *
  * Side effects on accepted requests:
- *  - Updates Enrollment.status (+ providerNumber/effectiveDate when given)
+ *  - Applies the status change via updateEnrollmentStatus() — the single
+ *    choke point for Enrollment.status writes (forward-only validation,
+ *    alerts, audit, outcome recording, follow-ups, outbound fanout).
+ *    Out-of-order transitions are rejected with 422.
+ *  - Applies providerNumber/effectiveDate when given
  *  - On `denied` status, calls triggerDenialTriage() to run the existing
  *    AI denial-analysis pipeline and create a DenialTriage row
  *  - Logs an agent_event (agent='webhook') for audit
@@ -34,9 +38,9 @@ import {
   timestampWithinTolerance,
 } from '../services/webhookAuth.service.js';
 import { triggerDenialTriage } from '../services/denial-triage.service.js';
-import { recordEnrollmentOutcome } from '../services/enrollment-outcome.service.js';
-import { notifyEnrollmentStatusChange } from '../services/enrollment-alerts.service.js';
-import type { EnrollmentStatus } from '@prisma/client';
+import { updateEnrollmentStatus } from '../services/enrollment.service.js';
+import { ValidationError } from '../middleware/error.middleware.js';
+import type { Enrollment } from '@prisma/client';
 import { logAgentEvent } from '../agents/event-logger.js';
 import { emitWorkflowEvent } from '../agents/websocket.js';
 
@@ -213,39 +217,42 @@ router.post(
         oldStatus = matches[0]!.status;
       }
 
-      // 5. Build the update payload.
+      // 5. Apply the status change through the enrollment service — the single
+      //    choke point owning the forward-only state machine and every status
+      //    side effect (outcome, alerts, follow-ups, termination workflow,
+      //    step sync, audit, cache, outbound fanout). Out-of-order changes are
+      //    rejected with 422; staff apply genuine reversals via
+      //    POST /enrollments/:id/status-correction.
       const dbStatus = mapToEnrollmentStatus(data.status);
-      const updatePayload: Record<string, unknown> = { status: dbStatus };
-      if (data.confirmationId) updatePayload['providerNumber'] = data.confirmationId;
-      if (data.effectiveDate) updatePayload['effectiveDate'] = new Date(data.effectiveDate);
-
-      const updated = await prisma.enrollment.update({
-        where: { id: enrollmentId },
-        data: updatePayload,
-        select: { id: true, status: true, providerId: true, payerId: true },
-      });
-
-      // Outcome recorder (the moat) — fire-and-forget, idempotent, demo-excluded.
-      void recordEnrollmentOutcome({ enrollmentId, status: dbStatus, transitionAt: new Date() });
-
-      // Practice-facing alerts + audit trail — each independently fire-and-forget
-      // so one failure never skips the others. System-initiated: no actor.
-      if (oldStatus !== dbStatus) {
-        void notifyEnrollmentStatusChange({
-          enrollmentId,
-          oldStatus: oldStatus as EnrollmentStatus,
-          newStatus: dbStatus,
-          actorUserId: null,
+      let updated: Enrollment;
+      try {
+        updated = await updateEnrollmentStatus(enrollmentId, dbStatus, null, {
+          source: 'webhook',
+          // Triage runs below with webhook-specific denial context.
+          triggerDenialTriage: false,
         });
-        prisma.auditLog.create({
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          logger.warn('Enrollment webhook rejected: invalid status transition', {
+            enrollmentId,
+            from: oldStatus,
+            to: dbStatus,
+          });
+          return res.status(422).json({ success: false, error: { message: err.message } });
+        }
+        throw err;
+      }
+
+      // Non-status fields ride along only once the status change is accepted,
+      // so a rejected message applies nothing.
+      if (data.confirmationId || data.effectiveDate) {
+        await prisma.enrollment.update({
+          where: { id: enrollmentId },
           data: {
-            userId: null,
-            action: 'update',
-            resourceType: 'enrollment',
-            resourceId: enrollmentId,
-            changes: { field: 'status', from: oldStatus, to: dbStatus, source: 'webhook' },
+            ...(data.confirmationId ? { providerNumber: data.confirmationId } : {}),
+            ...(data.effectiveDate ? { effectiveDate: new Date(data.effectiveDate) } : {}),
           },
-        }).catch((err) => logger.error('Webhook enrollment audit log failed:', err));
+        });
       }
 
       // 6. Side effects.

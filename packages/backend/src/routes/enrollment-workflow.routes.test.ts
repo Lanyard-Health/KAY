@@ -42,6 +42,12 @@ vi.mock('../services/workflow-instantiation.service.js', () => ({
   instantiateWorkflow: vi.fn(),
 }));
 
+// Mock the enrollment status choke point — syncEnrollmentStatus delegates
+// every status write to it instead of writing Enrollment.status directly.
+vi.mock('../services/enrollment.service.js', () => ({
+  updateEnrollmentStatus: vi.fn().mockResolvedValue({}),
+}));
+
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import {
   updateStepStatus,
@@ -49,6 +55,7 @@ import {
   getActionTypeConfig,
 } from '../services/workflow-hydration.service.js';
 import { instantiateWorkflow } from '../services/workflow-instantiation.service.js';
+import { updateEnrollmentStatus } from '../services/enrollment.service.js';
 import { validateEnrollmentAccess } from '../middleware/practiceScope.middleware.js';
 import router from './enrollment-workflow.routes.js';
 
@@ -167,10 +174,6 @@ describe('PUT /:id/workflow/:stepId', () => {
     prismaMock.enrollmentWorkflowStep.findMany.mockResolvedValue([step] as any);
     prismaMock.enrollment.findUnique.mockResolvedValue(mockEnrollmentWithPayer as any);
     prismaMock.enrollmentWorkflowStep.update.mockResolvedValue(step as any);
-    // Auto-advance path (syncEnrollmentStatus) fire-and-forget audit log —
-    // mock-prisma.ts only pre-stubs read methods, so `create` must be stubbed
-    // per-test or `.catch()` on the returned undefined throws.
-    prismaMock.auditLog.create.mockResolvedValue({} as any);
     return step;
   }
 
@@ -396,7 +399,7 @@ describe('syncEnrollmentStatus', () => {
   const enrollmentId = 'enrollment-1-id';
   const stepId = 'step-1-id';
 
-  it('advances not_started → in_progress when a step starts', async () => {
+  it('advances not_started → in_progress via the enrollment service choke point', async () => {
     prismaMock.enrollmentWorkflowStep.findFirst.mockResolvedValue({
       ...mockWorkflowStep,
       status: 'not_started',
@@ -409,20 +412,22 @@ describe('syncEnrollmentStatus', () => {
       ...mockEnrollmentWithPayer,
       status: 'not_started',
     } as any);
-    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'in_progress' });
 
-    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ status: 'in_progress' }),
-      })
+    expect(vi.mocked(updateEnrollmentStatus)).toHaveBeenCalledWith(
+      enrollmentId,
+      'in_progress',
+      null,
+      { source: 'workflow_auto_advance' }
     );
+    // No direct status write — the service owns it.
+    expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
   });
 
-  it('advances in_progress → submitted when all steps done', async () => {
+  it('advances in_progress → submitted via the service when all steps done', async () => {
     prismaMock.enrollmentWorkflowStep.findFirst.mockResolvedValue({
       ...mockWorkflowStepInProgress,
     } as any);
@@ -434,16 +439,16 @@ describe('syncEnrollmentStatus', () => {
       ...mockEnrollmentWithPayer,
       status: 'in_progress',
     } as any);
-    prismaMock.enrollment.update.mockResolvedValue({} as any);
 
     await request(app)
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'completed' });
 
-    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ status: 'submitted' }),
-      })
+    expect(vi.mocked(updateEnrollmentStatus)).toHaveBeenCalledWith(
+      enrollmentId,
+      'submitted',
+      null,
+      { source: 'workflow_auto_advance' }
     );
   });
 
@@ -462,11 +467,7 @@ describe('syncEnrollmentStatus', () => {
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'completed' });
 
-    const updateCalls = prismaMock.enrollment.update.mock.calls;
-    const statusUpdates = updateCalls.filter(
-      (c) => (c[0].data as any)?.status !== undefined
-    );
-    expect(statusUpdates).toHaveLength(0);
+    expect(vi.mocked(updateEnrollmentStatus)).not.toHaveBeenCalled();
   });
 
   it('no change when all steps not_started and enrollment not_started', async () => {
@@ -487,11 +488,7 @@ describe('syncEnrollmentStatus', () => {
       .put(`/${enrollmentId}/workflow/${stepId}`)
       .send({ status: 'not_started' });
 
-    const updateCalls = prismaMock.enrollment.update.mock.calls;
-    const statusUpdates = updateCalls.filter(
-      (c) => (c[0].data as any)?.status !== undefined
-    );
-    expect(statusUpdates).toHaveLength(0);
+    expect(vi.mocked(updateEnrollmentStatus)).not.toHaveBeenCalled();
   });
 });
 
