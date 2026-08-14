@@ -10,13 +10,19 @@
  *      afterwards. A passkey you can register but not sign in with is useless,
  *      so both are checked.
  *
- * Makes no writes. Safe against production.
+ * Read-only by default. Safe against production.
  *
  * Usage:
  *   node packages/backend/scripts/check-passkey-support.mjs <poolId> <clientId>
  *
  * Both arguments are optional; falls back to COGNITO_USER_POOL_ID /
  * COGNITO_CLIENT_ID from the environment.
+ *
+ * The one write this script can make is `--enable-totp`, which switches a pool
+ * to MfaConfiguration=OPTIONAL with authenticator apps allowed. It exists so
+ * staging can be brought in line with production (staging shipped with MFA
+ * switched off entirely, so the enrollment screen had nothing to enroll into).
+ * It refuses to touch the production pool, no matter what is passed.
  *
  * Credentials: prod talks to Cognito with COGNITO_AWS_ACCESS_KEY_ID /
  * COGNITO_AWS_SECRET_ACCESS_KEY, which live in Render and not on anyone's
@@ -30,24 +36,27 @@ import {
   CognitoIdentityProviderClient,
   GetUserPoolMfaConfigCommand,
   DescribeUserPoolClientCommand,
+  DescribeUserPoolCommand,
+  SetUserPoolMfaConfigCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
-const poolId = process.argv[2] || process.env.COGNITO_USER_POOL_ID;
-const clientId = process.argv[3] || process.env.COGNITO_CLIENT_ID;
+/** The one pool this script must never write to. */
+const PROD_POOL_ID = 'us-east-1_SXOvfeegD';
+
+const args = process.argv.slice(2).filter((a) => a !== '--enable-totp');
+const enableTotp = process.argv.includes('--enable-totp');
+
+let poolId = args[0] || process.env.COGNITO_USER_POOL_ID;
+let clientId = args[1] || process.env.COGNITO_CLIENT_ID;
 const region = process.env.AWS_REGION || 'us-east-1';
 
-if (!poolId) {
-  console.error('No pool id. Pass one as the first argument, or set COGNITO_USER_POOL_ID.');
-  process.exit(1);
-}
+/**
+ * Where the Cognito admin credentials live. Prod by default; set
+ * RENDER_SERVICE_ID to srv-d8fn3628qa3s73afc9q0 to check staging instead.
+ */
+const RENDER_SERVICE_ID = process.env.RENDER_SERVICE_ID || 'srv-d6212t7pm1nc73fjkdk0';
 
-console.log(`\nChecking pool ${poolId} in ${region}`);
-if (poolId === 'us-east-1_SXOvfeegD') console.log('  (this is PRODUCTION - read-only, nothing is changed)');
-
-/** kay-backend on Render; the only place the Cognito admin credentials exist. */
-const RENDER_SERVICE_ID = 'srv-d6212t7pm1nc73fjkdk0';
-
-async function borrowCredentialsFromRender() {
+async function borrowFromRender() {
   const key = process.env.RENDER_API_KEY;
   if (!key) return null;
   // ponytail: limit=100 because Render's env-var list silently pages at 20.
@@ -64,7 +73,14 @@ async function borrowCredentialsFromRender() {
   );
   const accessKeyId = vars.COGNITO_AWS_ACCESS_KEY_ID || vars.AWS_ACCESS_KEY_ID;
   const secretAccessKey = vars.COGNITO_AWS_SECRET_ACCESS_KEY || vars.AWS_SECRET_ACCESS_KEY;
-  return accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : null;
+  return {
+    credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : null,
+    // Pool and client ids are not secrets (both ship in the frontend bundle),
+    // and taking them from the service means you check the pool that service
+    // actually uses rather than one you remembered.
+    poolId: vars.COGNITO_USER_POOL_ID,
+    clientId: vars.COGNITO_CLIENT_ID,
+  };
 }
 
 let credentials =
@@ -76,9 +92,32 @@ let credentials =
     : null;
 
 if (!credentials && !process.env.AWS_ACCESS_KEY_ID) {
-  credentials = await borrowCredentialsFromRender();
-  if (credentials) console.log('  (using the backend credentials from Render, read-only)');
+  const borrowed = await borrowFromRender();
+  if (borrowed) {
+    credentials = borrowed.credentials;
+    poolId ||= borrowed.poolId;
+    clientId ||= borrowed.clientId;
+  }
 }
+
+if (!poolId) {
+  console.error('No pool id. Pass one as the first argument, or set COGNITO_USER_POOL_ID.');
+  process.exit(1);
+}
+
+// Refuse the write before doing anything else, so a mistyped service id or a
+// stale shell variable cannot reach production even for a moment.
+if (enableTotp && poolId === PROD_POOL_ID) {
+  console.error(`\nRefusing: ${poolId} is the PRODUCTION pool.`);
+  console.error('--enable-totp is for staging only. Production is already configured.');
+  process.exit(1);
+}
+
+console.log(`\nChecking pool ${poolId} in ${region}`);
+if (poolId === PROD_POOL_ID) {
+  console.log('  (this is PRODUCTION - read-only, nothing is changed)');
+}
+if (credentials) console.log('  (using the backend credentials from Render)');
 
 const client = new CognitoIdentityProviderClient({
   region,
@@ -93,6 +132,29 @@ try {
   console.error('No usable credentials. Set RENDER_API_KEY in this shell and re-run, and');
   console.error('this borrows the backend ones automatically.');
   process.exit(1);
+}
+
+if (enableTotp) {
+  console.log('\nEnabling authenticator apps (MfaConfiguration=OPTIONAL)...');
+  try {
+    await client.send(
+      new SetUserPoolMfaConfigCommand({
+        UserPoolId: poolId,
+        MfaConfiguration: 'OPTIONAL',
+        SoftwareTokenMfaConfiguration: { Enabled: true },
+        // Pass existing SMS/email config back unchanged. Omitting a block
+        // clears it, so echoing what was read avoids turning something off as
+        // a side effect of turning TOTP on.
+        ...(mfa.SmsMfaConfiguration ? { SmsMfaConfiguration: mfa.SmsMfaConfiguration } : {}),
+        ...(mfa.EmailMfaConfiguration ? { EmailMfaConfiguration: mfa.EmailMfaConfiguration } : {}),
+      })
+    );
+    mfa = await client.send(new GetUserPoolMfaConfigCommand({ UserPoolId: poolId }));
+    console.log('Done. The values below are re-read from the pool, not assumed.');
+  } catch (err) {
+    console.error(`Could not change the pool: ${err.name} - ${err.message}`);
+    process.exit(1);
+  }
 }
 
 const rpId = mfa.WebAuthnConfiguration?.RelyingPartyId;
@@ -117,6 +179,16 @@ console.log('\n--- what the pool says ---');
 console.log(`MFA requirement:        ${mfa.MfaConfiguration}`);
 console.log(`Authenticator apps:     ${mfa.SoftwareTokenMfaConfiguration?.Enabled ? 'enabled' : 'off'}`);
 console.log(`Email codes:            ${mfa.EmailMfaConfiguration ? 'enabled' : 'off'}`);
+// Cognito only allows the email MFA factor when the pool sends its own mail
+// through SES. A pool on COGNITO_DEFAULT cannot offer email codes at all, so
+// report the sending mode rather than leaving that a mystery.
+let emailSending = 'unknown';
+try {
+  const pool = await client.send(new DescribeUserPoolCommand({ UserPoolId: poolId }));
+  emailSending = pool.UserPool?.EmailConfiguration?.EmailSendingAccount || 'COGNITO_DEFAULT';
+} catch { /* non-fatal: this line is informational */ }
+
+console.log(`Email sending:          ${emailSending}${emailSending === 'COGNITO_DEFAULT' ? ' (email codes not possible)' : ''}`);
 console.log(`Passkey relying party:  ${rpId || 'NOT SET'}`);
 console.log(`Passkey verification:   ${mfa.WebAuthnConfiguration?.UserVerification || 'n/a'}`);
 if (clientId) {

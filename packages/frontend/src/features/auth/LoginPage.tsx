@@ -249,7 +249,7 @@ export default function LoginPage() {
         navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('Verification failed', { description: mapCognitoError(error) });
+      notify.error('Verification failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -261,7 +261,7 @@ export default function LoginPage() {
     try {
       await selectMfaMethod(method);
     } catch (error) {
-      notify.error('Could not start verification', { description: mapCognitoError(error) });
+      notify.error('Could not start verification', { description: mapCognitoError(error, 'mfaChallenge') });
     } finally {
       setIsLoading(false);
     }
@@ -278,7 +278,7 @@ export default function LoginPage() {
         navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('Verification failed', { description: mapCognitoError(error) });
+      notify.error('Verification failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -296,7 +296,7 @@ export default function LoginPage() {
         navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('MFA setup failed', { description: mapCognitoError(error) });
+      notify.error('MFA setup failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -374,7 +374,7 @@ export default function LoginPage() {
       setResetCode('');
       setResetNewPassword('');
     } catch (error) {
-      notify.error('Reset failed', { description: mapCognitoError(error) });
+      notify.error('Reset failed', { description: mapCognitoError(error, 'passwordReset') });
       // Clear the code boxes only when the code itself was rejected; keep
       // them filled for password-policy failures and other errors.
       const name = error instanceof Error ? error.name : '';
