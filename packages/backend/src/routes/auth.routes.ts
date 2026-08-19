@@ -2,14 +2,22 @@ import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { authLimiter } from '../middleware/rate-limit.js';
+import { authLimiter, mfaLimiter } from '../middleware/rate-limit.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 import {
   getCognitoUserStatus,
   resendCognitoInvite,
   setCognitoUserPassword,
 } from '../services/cognitoUser.service.js';
+import {
+  getMfaEnrollmentStatus,
+  clearMfaStatusCache,
+  allowedSkipsFor,
+  enforcementCutoff,
+} from '../services/mfaEnrollment.service.js';
 import { emailService } from '../services/email.service.js';
 import { renderProviderActionEmail } from '../services/email-templates.js';
+import { prisma } from '../utils/prisma.js';
 import { getRedisConnection } from '../utils/redis.js';
 import { logger } from '../utils/logger.js';
 
@@ -253,3 +261,148 @@ authRoutes.post('/reset-password', async (req: Request, res: Response, _next: Ne
     });
   }
 });
+export const mfaRoutes = Router();
+mfaRoutes.use(mfaLimiter());
+
+/* ------------------------- second-factor enrollment ------------------------ */
+
+/**
+ * A separate router, mounted at /api/v1/auth/mfa, so it does NOT inherit
+ * `authLimiter` (5 requests / 15 min). Status is read on every sign-in and on
+ * every reload of the setup screen; under the login limiter, ordinary use
+ * returns 429 and strands the user on a screen that cannot load. Observed
+ * locally before this split.
+ *
+ * Still under the /auth prefix on purpose: the enrollment gate allowlists it,
+ * so these stay reachable by exactly the users the gate is walling off.
+ *
+ * Enrollment itself is NOT here. It happens in the browser through Amplify
+ * against the user's own session (setUpTOTP, verifyTOTPSetup,
+ * updateMFAPreference, associateWebAuthnCredential). Proxying that through the
+ * backend would mean handling the user's TOTP secret server-side for no gain.
+ */
+
+/**
+ * GET /api/v1/auth/mfa/status
+ *
+ * What the enrollment screen reads to decide whether to show itself, and
+ * whether a "not right now" is still on offer.
+ */
+mfaRoutes.get(
+  '/status',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const account = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { createdAt: true, mfaSkipsUsed: true, mfaEnrolledAt: true },
+      });
+      if (!account) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const status = await getMfaEnrollmentStatus(req.user!.cognitoId, req.user!.email, token);
+      const skipsAllowed = allowedSkipsFor(account.createdAt, enforcementCutoff());
+      const skipsRemaining = Math.max(0, skipsAllowed - account.mfaSkipsUsed);
+
+      res.json({
+        success: true,
+        data: {
+          enrolled: status.enrolled,
+          methods: status.methods,
+          skipsRemaining,
+          // False means the setup screen must not offer a way out.
+          canSkip: !status.enrolled && skipsRemaining > 0,
+          enrolledAt: account.mfaEnrolledAt,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/auth/mfa/skip
+ *
+ * Spends one "not right now". Refuses once they run out, so a client that
+ * ignores `canSkip` still cannot buy itself extra passes.
+ */
+mfaRoutes.post(
+  '/skip',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const account = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { createdAt: true, mfaSkipsUsed: true },
+      });
+      if (!account) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+
+      const skipsAllowed = allowedSkipsFor(account.createdAt, enforcementCutoff());
+      if (account.mfaSkipsUsed >= skipsAllowed) {
+        res.status(403).json({
+          success: false,
+          code: 'MFA_ENROLLMENT_REQUIRED',
+          message: 'Set up a second sign-in step to continue.',
+        });
+        return;
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { mfaSkipsUsed: { increment: 1 } },
+        select: { mfaSkipsUsed: true },
+      });
+
+      res.json({
+        success: true,
+        data: { skipsRemaining: Math.max(0, skipsAllowed - updated.mfaSkipsUsed) },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/auth/mfa/enrolled
+ *
+ * Called by the browser once Amplify reports a factor was registered. It only
+ * drops the cached status and stamps a timestamp for reporting — the claim is
+ * re-verified against Cognito before anything is written, so a client calling
+ * this without actually enrolling gets a 400 and no state change.
+ */
+mfaRoutes.post(
+  '/enrolled',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      clearMfaStatusCache(req.user!.cognitoId);
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const status = await getMfaEnrollmentStatus(req.user!.cognitoId, req.user!.email, token);
+      if (!status.enrolled) {
+        res.status(400).json({
+          success: false,
+          message: 'No second factor is registered on this account yet.',
+        });
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { mfaEnrolledAt: new Date() },
+      });
+
+      res.json({ success: true, data: { methods: status.methods } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

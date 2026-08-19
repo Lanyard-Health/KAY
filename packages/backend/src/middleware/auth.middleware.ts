@@ -6,6 +6,7 @@ import type { UserRole } from '@prisma/client';
 import { RolePermissions } from '@credential-management/shared';
 import { logger } from '../utils/logger.js';
 import { initPracticeScope } from './practiceScope.middleware.js';
+import { mfaEnrollmentBlocked } from './mfaEnrollmentGate.middleware.js';
 
 // Auth bypass controlled by DEV_AUTH_BYPASS env var.
 // Fail-closed: bypass only activates when NODE_ENV is EXPLICITLY 'development'
@@ -48,7 +49,12 @@ function getVerifier() {
   return verifier;
 }
 
-export async function authenticate(
+/**
+ * Establishes req.user. Not exported: everything goes through `authenticate`
+ * below, so the second-factor check cannot be skipped by wiring a route to the
+ * wrong function.
+ */
+async function resolveUser(
   req: Request,
   _res: Response,
   next: NextFunction
@@ -389,6 +395,41 @@ export async function authenticate(
       next(new UnauthorizedError('Invalid token'));
     }
   }
+}
+
+/**
+ * Authenticate, then refuse anyone who still owes us a second sign-in factor.
+ *
+ * The check lives here rather than as an `app.use(...)` because req.user does
+ * not exist until this function has run — an app-level guard sees no user on
+ * any request and silently passes everything. Bolting it to the one function
+ * every protected route already calls means a new route cannot forget it.
+ */
+export async function authenticate(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  // The callback records the outcome instead of doing the work, because
+  // resolveUser does not await what it is handed — an async callback here
+  // returns control to the caller before it has finished, which showed up as
+  // `next` never being called at all.
+  let failure: unknown;
+  let resolved = false;
+  await resolveUser(req, res, (err?: unknown) => {
+    if (err) failure = err;
+    else resolved = true;
+  });
+
+  if (failure) {
+    next(failure as Error);
+    return;
+  }
+  if (!resolved) return;
+
+  // Sends its own 403 when it blocks, so there is nothing left to do here.
+  if (await mfaEnrollmentBlocked(req, res)) return;
+  next();
 }
 
 // Role-based authorization middleware

@@ -29,6 +29,23 @@ function handleSessionExpired(): void {
   }
 }
 
+// Single-flight, same reasoning as the 401 guard above.
+let mfaRedirectHandled = false;
+
+/**
+ * The backend refuses the API to a signed-in user who has no second sign-in
+ * factor and no skips left (mfaEnrollmentGate). Any request can be the one that
+ * hits it, so the redirect lives here rather than in each caller.
+ */
+function handleMfaEnrollmentRequired(): void {
+  if (mfaRedirectHandled) return;
+  mfaRedirectHandled = true;
+
+  if (typeof window !== 'undefined' && window.location.pathname !== '/mfa-setup') {
+    window.location.replace('/mfa-setup');
+  }
+}
+
 class ApiClient {
   private async getAuthToken(): Promise<string | null> {
     // In dev bypass mode, use the dev token
@@ -76,6 +93,12 @@ class ApiClient {
     }
 
     const data = await response.json();
+
+    // Checked before the generic error throw so every caller gets the redirect,
+    // not just the ones that inspect the error body.
+    if (response.status === 403 && data?.code === 'MFA_ENROLLMENT_REQUIRED') {
+      handleMfaEnrollmentRequired();
+    }
 
     if (!response.ok) {
       const error = new Error(data.error?.message || 'Request failed') as Error & {

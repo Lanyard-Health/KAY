@@ -70,6 +70,8 @@ const TasksPage = lazy(() => import('./features/tasks/TasksPage'));
 // Design prototypes — mock only, not wired to auth (see file header comments)
 const VerifyEmailPrototype = lazy(() => import('./features/prototypes/VerifyEmailPrototype'));
 const LoginPrototype = lazy(() => import('./features/prototypes/LoginPrototype'));
+const MfaEnrollmentPrototype = lazy(() => import('./features/prototypes/MfaEnrollmentPrototype'));
+const MfaEnrollmentPage = lazy(() => import('./features/auth/MfaEnrollmentPage'));
 
 function LoadingFallback() {
   return <RouteProgressBar />;
@@ -248,6 +250,12 @@ export default function App() {
         <Route path="/registration-success" element={<RegistrationSuccess />} />
         <Route path="/prototypes/verify-email" element={<VerifyEmailPrototype />} />
         <Route path="/prototypes/login" element={<LoginPrototype />} />
+        <Route path="/prototypes/mfa-setup" element={<MfaEnrollmentPrototype />} />
+
+        {/* Second-factor setup. Outside the app shell on purpose: a user who
+            lands here has no factor yet, and the backend refuses them the API
+            calls the shell's nav and notifications would make. */}
+        <Route path="/mfa-setup" element={<MfaEnrollmentPage />} />
 
         {/* Portal routes (provider role) */}
         <Route
