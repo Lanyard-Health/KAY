@@ -16,11 +16,98 @@ vi.mock('./enrollment-outcome.service.js', () => ({ recordEnrollmentOutcome: vi.
 vi.mock('./enrollment-alerts.service.js', () => ({ notifyEnrollmentStatusChange: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../agents/webhook-emitter.js', () => ({ emitWebhookEvent: vi.fn().mockResolvedValue(undefined) }));
 
-import { correctEnrollmentStatus } from './enrollment.service.js';
+import { correctEnrollmentStatus, updateEnrollmentStatus } from './enrollment.service.js';
 import { prismaMock } from '../../tests/helpers/mock-prisma.js';
 import { recordEnrollmentOutcome } from './enrollment-outcome.service.js';
 import { notifyEnrollmentStatusChange } from './enrollment-alerts.service.js';
 import { emitWebhookEvent } from '../agents/webhook-emitter.js';
+
+describe('updateEnrollmentStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.enrollment.update.mockResolvedValue({ id: 'enr-1', status: 'approved' } as any);
+    prismaMock.enrollmentWorkflowStep.updateMany.mockResolvedValue({ count: 0 } as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+  });
+
+  function mockExisting(status: string) {
+    prismaMock.enrollment.findUnique.mockResolvedValue({
+      id: 'enr-1',
+      status,
+      providerId: 'prov-1',
+      payerTrackId: null,
+      payer: { id: 'payer-1', name: 'Aetna' },
+    } as any);
+  }
+
+  it('applies a forward transition with a null (system) actor and records the source in the audit', async () => {
+    mockExisting('submitted');
+
+    await updateEnrollmentStatus('enr-1', 'approved', null, { source: 'webhook' });
+
+    expect(prismaMock.enrollment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'enr-1' },
+        data: expect.objectContaining({ status: 'approved', updatedById: null }),
+      })
+    );
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: null,
+          changes: { field: 'status', from: 'submitted', to: 'approved', source: 'webhook' },
+        }),
+      })
+    );
+    expect(vi.mocked(notifyEnrollmentStatusChange)).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: null })
+    );
+    expect(vi.mocked(recordEnrollmentOutcome)).toHaveBeenCalledWith(
+      expect.objectContaining({ enrollmentId: 'enr-1', status: 'approved' })
+    );
+  });
+
+  it("defaults the audit source to 'api'", async () => {
+    mockExisting('submitted');
+
+    await updateEnrollmentStatus('enr-1', 'pending_review', 'user-1');
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          changes: { field: 'status', from: 'submitted', to: 'pending_review', source: 'api' },
+        }),
+      })
+    );
+  });
+
+  it('rejects a backward transition', async () => {
+    mockExisting('approved');
+
+    await expect(updateEnrollmentStatus('enr-1', 'submitted', null, { source: 'webhook' }))
+      .rejects.toThrow(/Cannot transition/);
+    expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects any transition out of a terminal status', async () => {
+    mockExisting('denied');
+
+    await expect(updateEnrollmentStatus('enr-1', 'approved', null, { source: 'webhook' }))
+      .rejects.toThrow(/terminal/);
+    expect(prismaMock.enrollment.update).not.toHaveBeenCalled();
+  });
+
+  it('same-status update is a quiet no-op: no audit row, no outcome record', async () => {
+    mockExisting('approved');
+
+    await updateEnrollmentStatus('enr-1', 'approved', null, { source: 'webhook' });
+
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    expect(vi.mocked(recordEnrollmentOutcome)).not.toHaveBeenCalled();
+    expect(vi.mocked(emitWebhookEvent)).not.toHaveBeenCalled();
+  });
+});
 
 describe('correctEnrollmentStatus', () => {
   beforeEach(() => {
