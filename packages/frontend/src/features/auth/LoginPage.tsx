@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { notify } from '../../utils/notify';
 import { mapCognitoError } from '../../utils/cognito-errors';
 import CodeInput from '../../components/CodeInput';
+import { postLoginRoute } from './postLoginRoute';
 import { lanyardMarkTileUrl } from '../../components/LanyardMark';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import QRCode from 'qrcode';
@@ -151,7 +152,7 @@ export default function LoginPage() {
       const state = useAuthStore.getState();
       if (!state.challengeName && state.isAuthenticated) {
         notify.success('Signed in');
-        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+        navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
       notify.error('Login failed', { description: mapCognitoError(error, 'signIn') });
@@ -165,7 +166,7 @@ export default function LoginPage() {
     try {
       await devLogin();
       notify.success('Dev Admin', { description: 'Logged in with admin privileges' });
-      navigate('/');
+      navigate(await postLoginRoute('admin'));
     } catch (error) {
       notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev admin' });
     } finally {
@@ -178,7 +179,7 @@ export default function LoginPage() {
     try {
       await devProviderLogin();
       notify.success('Dev Provider', { description: 'Logged in with provider privileges' });
-      navigate('/portal');
+      navigate(await postLoginRoute('provider'));
     } catch (error) {
       notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev provider' });
     } finally {
@@ -191,7 +192,7 @@ export default function LoginPage() {
     try {
       await devPracticeAdminLogin();
       notify.success('Dev Practice Admin', { description: 'Logged in with practice admin privileges' });
-      navigate('/');
+      navigate(await postLoginRoute('practice_admin'));
     } catch (error) {
       notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev practice admin' });
     } finally {
@@ -204,7 +205,7 @@ export default function LoginPage() {
     try {
       await devStaffLogin();
       notify.success('Dev Staff', { description: 'Logged in with credentialing staff privileges' });
-      navigate('/');
+      navigate(await postLoginRoute('credentialing_staff'));
     } catch (error) {
       notify.error('Dev login failed', { description: error instanceof Error ? error.message : 'Could not authenticate as dev staff' });
     } finally {
@@ -228,7 +229,7 @@ export default function LoginPage() {
       const state = useAuthStore.getState();
       if (!state.challengeName && state.isAuthenticated) {
         notify.success('Password updated');
-        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+        navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
       notify.error('Password update failed', { description: mapCognitoError(error) });
@@ -245,10 +246,10 @@ export default function LoginPage() {
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
         notify.success('Signed in');
-        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+        navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('Verification failed', { description: mapCognitoError(error) });
+      notify.error('Verification failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -260,7 +261,7 @@ export default function LoginPage() {
     try {
       await selectMfaMethod(method);
     } catch (error) {
-      notify.error('Could not start verification', { description: mapCognitoError(error) });
+      notify.error('Could not start verification', { description: mapCognitoError(error, 'mfaChallenge') });
     } finally {
       setIsLoading(false);
     }
@@ -274,10 +275,10 @@ export default function LoginPage() {
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
         notify.success('Signed in');
-        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+        navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('Verification failed', { description: mapCognitoError(error) });
+      notify.error('Verification failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -292,10 +293,10 @@ export default function LoginPage() {
       const state = useAuthStore.getState();
       if (state.isAuthenticated) {
         notify.success('MFA configured', { description: 'Your authenticator app is now linked' });
-        navigate(state.user?.role === 'provider' ? '/portal' : '/');
+        navigate(await postLoginRoute(state.user?.role));
       }
     } catch (error) {
-      notify.error('MFA setup failed', { description: mapCognitoError(error) });
+      notify.error('MFA setup failed', { description: mapCognitoError(error, 'mfaChallenge') });
       setMfaCode('');
     } finally {
       setIsLoading(false);
@@ -373,7 +374,7 @@ export default function LoginPage() {
       setResetCode('');
       setResetNewPassword('');
     } catch (error) {
-      notify.error('Reset failed', { description: mapCognitoError(error) });
+      notify.error('Reset failed', { description: mapCognitoError(error, 'passwordReset') });
       // Clear the code boxes only when the code itself was rejected; keep
       // them filled for password-policy failures and other errors.
       const name = error instanceof Error ? error.name : '';

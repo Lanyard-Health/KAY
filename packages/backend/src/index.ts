@@ -27,7 +27,7 @@ import { logger } from './utils/logger.js';
 import { sendSlackAlert } from './utils/slack-alert.js';
 
 // Routes
-import { authRoutes } from './routes/auth.routes.js';
+import { authRoutes, mfaRoutes } from './routes/auth.routes.js';
 import { providerRoutes } from './routes/provider.routes.js';
 import { documentRoutes } from './routes/document.routes.js';
 import { credentialRoutes } from './routes/credential.routes.js';
@@ -276,6 +276,9 @@ app.use('/api', (_req, res, next) => {
 });
 
 // API Routes
+// Before authRoutes: both live under /api/v1/auth, and Express matches in
+// mount order. Mounting these second would put them behind authLimiter.
+app.use('/api/v1/auth/mfa', mfaRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/providers', providerRoutes);
 app.use('/api/v1/documents', documentRoutes);

@@ -68,6 +68,17 @@ model User {
   // Which "never logged in" reminder stages were sent, e.g. {"2":"<iso>"}. At-most-once.
   signupRemindersSent Json? @map("signup_reminders_sent")
 
+  // Second-factor enrollment. The pool's MfaConfiguration was moved ON -> OPTIONAL
+  // on 2026-08-12 because requiring it broke self-service password reset, so
+  // Cognito no longer forces anyone to enrol. The app enforces it instead, and
+  // these two columns are the only per-user state that needs.
+  //
+  // mfaSkipsUsed counts "not right now" presses; existing accounts get a few,
+  // brand-new ones get none. Whether a factor actually exists is never read from
+  // here — that is always verified against Cognito (see mfaEnrollment.service).
+  mfaSkipsUsed  Int       @default(0) @map("mfa_skips_used")
+  mfaEnrolledAt DateTime? @map("mfa_enrolled_at")
+
   // Link to provider if role is 'provider'
   providerId String?          @unique @map("provider_id")
   provider   ProviderProfile? @relation(fields: [providerId], references: [id])
