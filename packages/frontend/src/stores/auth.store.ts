@@ -667,9 +667,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  /**
+   * Password reset goes through our API, not Amplify: the production pool
+   * rejects Cognito's own ForgotPassword (email is both the recovery channel
+   * and an MFA factor), so the backend issues its own code and sets the
+   * password with admin credentials once the code is proven.
+   */
   forgotPassword: async (email: string) => {
-    const { resetPassword } = await import('aws-amplify/auth');
-    await resetPassword({ username: email });
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+      throw new Error('Password reset request failed');
+    }
   },
 
   /**
@@ -677,8 +689,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    *
    * Goes through our API rather than Cognito directly: re-sending an invite is
    * an admin-credential operation, and those credentials cannot live in a
-   * browser. This is the one auth action in this store that is not an Amplify
-   * call for that reason.
+   * browser. Password reset (above) works the same way for the same reason.
    *
    * Throws only if the request itself fails. The endpoint deliberately returns
    * success for unknown addresses so it cannot be used to discover accounts.
@@ -695,8 +706,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   confirmForgotPassword: async (email: string, code: string, newPassword: string) => {
-    const { confirmResetPassword } = await import('aws-amplify/auth');
-    await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const error = new Error(body?.error?.message || 'Password reset failed');
+      // The API reuses Cognito's exception names (CodeMismatchException,
+      // ExpiredCodeException, ...) so mapCognitoError and the code-clearing
+      // logic in LoginPage keep working unchanged.
+      if (body?.error?.code) {
+        error.name = body.error.code;
+      }
+      throw error;
+    }
   },
 
   logout: async () => {
