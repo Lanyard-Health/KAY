@@ -8,7 +8,12 @@
  * Cognito gives to several unrelated conditions, so the surrounding flow is
  * what disambiguates it.
  */
-export type CognitoErrorContext = 'signIn' | 'changePassword' | 'passwordReset';
+export type CognitoErrorContext =
+  | 'signIn'
+  | 'changePassword'
+  | 'passwordReset'
+  /** Entering a 6-digit code partway through sign-in. No password field here. */
+  | 'mfaChallenge';
 
 export function mapCognitoError(
   error: unknown,
@@ -35,6 +40,15 @@ export function mapCognitoError(
         }
         if (context === 'signIn') {
           return 'That email or password is incorrect';
+        }
+        // On the code screen there is no password to be wrong about. Cognito
+        // raises this when the half-finished sign-in is no longer valid, which
+        // happens most often after changing a password mid-flow: the new
+        // password invalidates the session the code was meant to complete.
+        // Observed on staging 2026-08-14, where it surfaced as the nonsense
+        // message "Current password is incorrect" under "Verification failed".
+        if (context === 'mfaChallenge') {
+          return 'That sign-in attempt expired before the code was entered. Enter your email and password again to get a fresh code.';
         }
         return 'Current password is incorrect';
       case 'UserNotConfirmedException':

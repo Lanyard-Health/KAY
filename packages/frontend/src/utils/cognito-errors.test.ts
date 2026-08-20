@@ -27,6 +27,15 @@ describe('mapCognitoError — NotAuthorizedException by context', () => {
     expect(mapCognitoError(err, 'signIn')).toBe('That email or password is incorrect');
   });
 
+  it('never mentions a password on the 6-digit code screen', () => {
+    // Reproduced on staging 2026-08-14: changing a password mid sign-in
+    // invalidated the session, and the code screen answered "Current password
+    // is incorrect" on a screen with no password field.
+    const message = mapCognitoError(err, 'mfaChallenge');
+    expect(message).not.toMatch(/password is incorrect/i);
+    expect(message).toMatch(/expired/i);
+  });
+
   it('reads as a wrong current password when changing a password', () => {
     expect(mapCognitoError(err, 'changePassword')).toBe('Current password is incorrect');
   });
