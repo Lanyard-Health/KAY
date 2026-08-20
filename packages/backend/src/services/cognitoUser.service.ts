@@ -282,6 +282,29 @@ export async function setCognitoUserPassword(
 }
 
 /**
+ * Look up a user's Cognito status (CONFIRMED, FORCE_CHANGE_PASSWORD, ...).
+ * Returns null for unknown addresses and on lookup failure — callers on
+ * unauthenticated routes must not let the distinction reach the response
+ * (account-enumeration oracle; see resendCognitoInvite below).
+ */
+export async function getCognitoUserStatus(email: string): Promise<string | null> {
+  if (DEV_BYPASS_ENABLED) return 'CONFIRMED';
+
+  try {
+    const user = await getClient().send(
+      new AdminGetUserCommand({ UserPoolId: getUserPoolId(), Username: email })
+    );
+    return user.UserStatus ?? null;
+  } catch (error) {
+    const name = (error as { name?: string }).name;
+    if (name !== 'UserNotFoundException') {
+      logger.warn(`Cognito user status lookup failed: ${name ?? 'unknown error'}`);
+    }
+    return null;
+  }
+}
+
+/**
  * Re-send the original invitation for an account that never completed setup.
  *
  * A Cognito user sits in `FORCE_CHANGE_PASSWORD` from the moment they are
